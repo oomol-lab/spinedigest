@@ -1,0 +1,64 @@
+{
+  "name": "spinedigest",
+  "version": "0.1.0",
+  "description": "AI-driven EPUB compression CLI built with TypeScript.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.32.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oomol-lab/spinedigest.git"
+  },
+  "bugs": {
+    "url": "https://github.com/oomol-lab/spinedigest/issues"
+  },
+  "homepage": "https://github.com/oomol-lab/spinedigest",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "bin": {
+    "spinedigest": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "dev": "tsx src/cli.ts",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm format:check"
+  },
+  "dependencies": {
+    "commander": "^14.0.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.6.1",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.4.0",
+    "prettier": "^3.6.2",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.1",
+    "vitest": "^4.0.0"
+  }
+}
