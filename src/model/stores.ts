@@ -1,45 +1,44 @@
 import { getNumber, getOptionalString, getString } from "./database.js";
 import type { Database, SqlRow } from "./database.js";
 import type {
-  ChapterRecord,
   ChunkRecord,
   CreateSnakeRecord,
   FragmentGroupRecord,
   KnowledgeEdgeRecord,
+  SerialRecord,
   SentenceId,
   SnakeChunkRecord,
   SnakeEdgeRecord,
   SnakeRecord,
 } from "./types.js";
 
-export class ChapterStore {
+export class SerialStore {
   readonly #database: Database;
 
   public constructor(database: Database) {
     this.#database = database;
   }
 
-  public async save(record: ChapterRecord): Promise<void> {
+  public async save(record: SerialRecord): Promise<void> {
     await this.#database.run(
       `
-        INSERT OR REPLACE INTO chapters (id, title)
-        VALUES (?, ?)
+        INSERT OR REPLACE INTO serials (id)
+        VALUES (?)
       `,
-      [record.id, record.title],
+      [record.id],
     );
   }
 
-  public getById(chapterId: number): ChapterRecord | undefined {
+  public getById(serialId: number): SerialRecord | undefined {
     return this.#database.queryOne(
       `
-        SELECT id, title
-        FROM chapters
+        SELECT id
+        FROM serials
         WHERE id = ?
       `,
-      [chapterId],
+      [serialId],
       (row) => ({
         id: getNumber(row, "id"),
-        title: getString(row, "title"),
       }),
     );
   }
@@ -48,7 +47,7 @@ export class ChapterStore {
     return this.#database.queryAll(
       `
         SELECT id
-        FROM chapters
+        FROM serials
         ORDER BY id
       `,
       undefined,
@@ -71,7 +70,7 @@ export class ChunkStore {
           INSERT OR REPLACE INTO chunks (
             id,
             generation,
-            chapter_id,
+            serial_id,
             fragment_id,
             sentence_index,
             label,
@@ -111,7 +110,7 @@ export class ChunkStore {
           `
             INSERT INTO chunk_sentences (
               chunk_id,
-              chapter_id,
+              serial_id,
               fragment_id,
               sentence_index
             )
@@ -129,7 +128,7 @@ export class ChunkStore {
         SELECT
           id,
           generation,
-          chapter_id,
+          serial_id,
           fragment_id,
           sentence_index,
           label,
@@ -159,7 +158,7 @@ export class ChunkStore {
           SELECT
             id,
             generation,
-            chapter_id,
+            serial_id,
             fragment_id,
             sentence_index,
             label,
@@ -178,7 +177,7 @@ export class ChunkStore {
   }
 
   public listByFragments(
-    chapterId: number,
+    serialId: number,
     fragmentIds: readonly number[],
   ): ChunkRecord[] {
     if (fragmentIds.length === 0) {
@@ -193,7 +192,7 @@ export class ChunkStore {
           SELECT
             id,
             generation,
-            chapter_id,
+            serial_id,
             fragment_id,
             sentence_index,
             label,
@@ -203,10 +202,10 @@ export class ChunkStore {
             tokens,
             weight
           FROM chunks
-          WHERE chapter_id = ? AND fragment_id IN (${placeholders})
+          WHERE serial_id = ? AND fragment_id IN (${placeholders})
           ORDER BY id
         `,
-        [chapterId, ...fragmentIds],
+        [serialId, ...fragmentIds],
         (row) => row,
       )
       .map((row) => this.#mapChunkRow(row));
@@ -215,28 +214,28 @@ export class ChunkStore {
   public listFragmentPairs(): ReadonlyArray<readonly [number, number]> {
     return this.#database.queryAll(
       `
-        SELECT DISTINCT chapter_id, fragment_id
+        SELECT DISTINCT serial_id, fragment_id
         FROM chunks
-        ORDER BY chapter_id, fragment_id
+        ORDER BY serial_id, fragment_id
       `,
       undefined,
       (row) =>
-        [getNumber(row, "chapter_id"), getNumber(row, "fragment_id")] as const,
+        [getNumber(row, "serial_id"), getNumber(row, "fragment_id")] as const,
     );
   }
 
   #getSentenceIds(chunkId: number): SentenceId[] {
     return this.#database.queryAll(
       `
-        SELECT chapter_id, fragment_id, sentence_index
+        SELECT serial_id, fragment_id, sentence_index
         FROM chunk_sentences
         WHERE chunk_id = ?
-        ORDER BY chapter_id, fragment_id, sentence_index
+        ORDER BY serial_id, fragment_id, sentence_index
       `,
       [chunkId],
       (row) =>
         [
-          getNumber(row, "chapter_id"),
+          getNumber(row, "serial_id"),
           getNumber(row, "fragment_id"),
           getNumber(row, "sentence_index"),
         ] as const,
@@ -254,7 +253,7 @@ export class ChunkStore {
       id: chunkId,
       label: getString(row, "label"),
       sentenceId: [
-        getNumber(row, "chapter_id"),
+        getNumber(row, "serial_id"),
         getNumber(row, "fragment_id"),
         getNumber(row, "sentence_index"),
       ] as const,
@@ -332,7 +331,7 @@ export class SnakeStore {
     await this.#database.run(
       `
         INSERT INTO snakes (
-          chapter_id,
+          serial_id,
           group_id,
           local_snake_id,
           size,
@@ -344,7 +343,7 @@ export class SnakeStore {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
-        record.chapterId,
+        record.serialId,
         record.groupId,
         record.localSnakeId,
         record.size,
@@ -363,7 +362,7 @@ export class SnakeStore {
       `
         SELECT
           id,
-          chapter_id,
+          serial_id,
           group_id,
           local_snake_id,
           size,
@@ -376,7 +375,7 @@ export class SnakeStore {
       `,
       [snakeId],
       (row) => ({
-        chapterId: getNumber(row, "chapter_id"),
+        serialId: getNumber(row, "serial_id"),
         firstLabel: getString(row, "first_label"),
         groupId: getNumber(row, "group_id"),
         id: getNumber(row, "id"),
@@ -389,15 +388,15 @@ export class SnakeStore {
     );
   }
 
-  public listIdsByGroup(chapterId: number, groupId: number): number[] {
+  public listIdsByGroup(serialId: number, groupId: number): number[] {
     return this.#database.queryAll(
       `
         SELECT id
         FROM snakes
-        WHERE chapter_id = ? AND group_id = ?
+        WHERE serial_id = ? AND group_id = ?
         ORDER BY id
       `,
-      [chapterId, groupId],
+      [serialId, groupId],
       (row) => getNumber(row, "id"),
     );
   }
@@ -514,10 +513,10 @@ export class FragmentGroupStore {
   public async save(record: FragmentGroupRecord): Promise<void> {
     await this.#database.run(
       `
-        INSERT OR REPLACE INTO fragment_groups (chapter_id, group_id, fragment_id)
+        INSERT OR REPLACE INTO fragment_groups (serial_id, group_id, fragment_id)
         VALUES (?, ?, ?)
       `,
-      [record.chapterId, record.groupId, record.fragmentId],
+      [record.serialId, record.groupId, record.fragmentId],
     );
   }
 
@@ -531,44 +530,44 @@ export class FragmentGroupStore {
     });
   }
 
-  public listByChapter(chapterId: number): FragmentGroupRecord[] {
+  public listBySerial(serialId: number): FragmentGroupRecord[] {
     return this.#database.queryAll(
       `
-        SELECT chapter_id, group_id, fragment_id
+        SELECT serial_id, group_id, fragment_id
         FROM fragment_groups
-        WHERE chapter_id = ?
+        WHERE serial_id = ?
         ORDER BY group_id, fragment_id
       `,
-      [chapterId],
+      [serialId],
       (row) => ({
-        chapterId: getNumber(row, "chapter_id"),
+        serialId: getNumber(row, "serial_id"),
         fragmentId: getNumber(row, "fragment_id"),
         groupId: getNumber(row, "group_id"),
       }),
     );
   }
 
-  public listChapterIds(): number[] {
+  public listSerialIds(): number[] {
     return this.#database.queryAll(
       `
-        SELECT DISTINCT chapter_id
+        SELECT DISTINCT serial_id
         FROM fragment_groups
-        ORDER BY chapter_id
+        ORDER BY serial_id
       `,
       undefined,
-      (row) => getNumber(row, "chapter_id"),
+      (row) => getNumber(row, "serial_id"),
     );
   }
 
-  public listGroupIdsForChapter(chapterId: number): number[] {
+  public listGroupIdsForSerial(serialId: number): number[] {
     return this.#database.queryAll(
       `
         SELECT DISTINCT group_id
         FROM fragment_groups
-        WHERE chapter_id = ?
+        WHERE serial_id = ?
         ORDER BY group_id
       `,
-      [chapterId],
+      [serialId],
       (row) => getNumber(row, "group_id"),
     );
   }

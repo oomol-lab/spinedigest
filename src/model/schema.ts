@@ -1,13 +1,12 @@
 export const SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS chapters (
-    id INTEGER PRIMARY KEY,
-    title TEXT NOT NULL
+  CREATE TABLE IF NOT EXISTS serials (
+    id INTEGER PRIMARY KEY
   );
 
   CREATE TABLE IF NOT EXISTS chunks (
     id INTEGER PRIMARY KEY,
     generation INTEGER NOT NULL,
-    chapter_id INTEGER NOT NULL,
+    serial_id INTEGER NOT NULL,
     fragment_id INTEGER NOT NULL,
     sentence_index INTEGER NOT NULL,
     label TEXT NOT NULL,
@@ -19,15 +18,15 @@ export const SCHEMA_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_chunks_sentence
-  ON chunks(chapter_id, fragment_id, sentence_index);
+  ON chunks(serial_id, fragment_id, sentence_index);
 
   CREATE TABLE IF NOT EXISTS chunk_sentences (
     chunk_id INTEGER NOT NULL,
-    chapter_id INTEGER NOT NULL,
+    serial_id INTEGER NOT NULL,
     fragment_id INTEGER NOT NULL,
     sentence_index INTEGER NOT NULL,
     FOREIGN KEY (chunk_id) REFERENCES chunks(id),
-    PRIMARY KEY (chunk_id, chapter_id, fragment_id, sentence_index)
+    PRIMARY KEY (chunk_id, serial_id, fragment_id, sentence_index)
   );
 
   CREATE TABLE IF NOT EXISTS knowledge_edges (
@@ -42,7 +41,7 @@ export const SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS snakes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    chapter_id INTEGER NOT NULL,
+    serial_id INTEGER NOT NULL,
     group_id INTEGER NOT NULL,
     local_snake_id INTEGER NOT NULL,
     size INTEGER NOT NULL,
@@ -50,7 +49,7 @@ export const SCHEMA_SQL = `
     last_label TEXT NOT NULL,
     tokens INTEGER NOT NULL DEFAULT 0,
     weight REAL NOT NULL DEFAULT 0.0,
-    UNIQUE(chapter_id, group_id, local_snake_id)
+    UNIQUE(serial_id, group_id, local_snake_id)
   );
 
   CREATE TABLE IF NOT EXISTS snake_chunks (
@@ -72,9 +71,9 @@ export const SCHEMA_SQL = `
   );
 
   CREATE TABLE IF NOT EXISTS fragment_groups (
-    chapter_id INTEGER NOT NULL,
+    serial_id INTEGER NOT NULL,
     group_id INTEGER NOT NULL,
     fragment_id INTEGER NOT NULL,
-    PRIMARY KEY (chapter_id, group_id, fragment_id)
+    PRIMARY KEY (serial_id, group_id, fragment_id)
   );
 `;

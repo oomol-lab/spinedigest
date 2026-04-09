@@ -1,5 +1,5 @@
 export type SentenceId = readonly [
-  chapterId: number,
+  serialId: number,
   fragmentId: number,
   sentenceIndex: number,
 ];
@@ -10,15 +10,14 @@ export interface SentenceRecord {
 }
 
 export interface FragmentRecord {
-  readonly chapterId: number;
+  readonly serialId: number;
   readonly fragmentId: number;
   readonly summary: string;
   readonly sentences: readonly SentenceRecord[];
 }
 
-export interface ChapterRecord {
+export interface SerialRecord {
   readonly id: number;
-  readonly title: string;
 }
 
 export interface ChunkRecord {
@@ -43,7 +42,7 @@ export interface KnowledgeEdgeRecord {
 
 export interface SnakeRecord {
   readonly id: number;
-  readonly chapterId: number;
+  readonly serialId: number;
   readonly groupId: number;
   readonly localSnakeId: number;
   readonly size: number;
@@ -54,7 +53,7 @@ export interface SnakeRecord {
 }
 
 export interface CreateSnakeRecord {
-  readonly chapterId: number;
+  readonly serialId: number;
   readonly groupId: number;
   readonly localSnakeId: number;
   readonly size: number;
@@ -77,7 +76,7 @@ export interface SnakeEdgeRecord {
 }
 
 export interface FragmentGroupRecord {
-  readonly chapterId: number;
+  readonly serialId: number;
   readonly groupId: number;
   readonly fragmentId: number;
 }

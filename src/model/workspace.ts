@@ -3,20 +3,20 @@ import { join, resolve } from "path";
 
 import { Database } from "./database.js";
 import { Fragments } from "./fragments.js";
-import type { ChapterFragments } from "./fragments.js";
+import type { SerialFragments } from "./fragments.js";
 import { SCHEMA_SQL } from "./schema.js";
 import {
-  ChapterStore,
   ChunkStore,
   FragmentGroupStore,
   KnowledgeEdgeStore,
+  SerialStore,
   SnakeChunkStore,
   SnakeEdgeStore,
   SnakeStore,
 } from "./stores.js";
 
 export class Workspace {
-  public readonly chapters: ChapterStore;
+  public readonly serials: SerialStore;
   public readonly chunks: ChunkStore;
   public readonly fragmentGroups: FragmentGroupStore;
   public readonly knowledgeEdges: KnowledgeEdgeStore;
@@ -35,7 +35,7 @@ export class Workspace {
   }) {
     this.#database = input.database;
     this.#fragments = input.fragments;
-    this.chapters = new ChapterStore(input.database);
+    this.serials = new SerialStore(input.database);
     this.chunks = new ChunkStore(input.database);
     this.fragmentGroups = new FragmentGroupStore(input.database);
     this.knowledgeEdges = new KnowledgeEdgeStore(input.database);
@@ -60,8 +60,8 @@ export class Workspace {
     });
   }
 
-  public getChapterFragments(chapterId: number): ChapterFragments {
-    return this.#fragments.getChapter(chapterId);
+  public getSerialFragments(serialId: number): SerialFragments {
+    return this.#fragments.getSerial(serialId);
   }
 
   public async flush(): Promise<void> {

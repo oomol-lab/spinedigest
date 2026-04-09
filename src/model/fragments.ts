@@ -3,7 +3,7 @@ import { join, resolve } from "path";
 
 import type { FragmentRecord, SentenceId, SentenceRecord } from "./types.js";
 
-const CHAPTER_DIRECTORY_PREFIX = "chapter-";
+const SERIAL_DIRECTORY_PREFIX = "serial-";
 const FRAGMENT_FILE_PATTERN = /^fragment_(\d+)\.json$/;
 
 interface FragmentFileContent {
@@ -22,13 +22,13 @@ export class Fragments {
     await mkdir(this.path, { recursive: true });
   }
 
-  public getChapter(chapterId: number): ChapterFragments {
-    return new ChapterFragments(this.#workspacePath, chapterId);
+  public getSerial(serialId: number): SerialFragments {
+    return new SerialFragments(this.#workspacePath, serialId);
   }
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
-    const [chapterId, fragmentId, sentenceIndex] = sentenceId;
-    const fragment = await this.getChapter(chapterId).getFragment(fragmentId);
+    const [serialId, fragmentId, sentenceIndex] = sentenceId;
+    const fragment = await this.getSerial(serialId).getFragment(fragmentId);
     const sentence = fragment.sentences[sentenceIndex];
 
     if (sentence === undefined) {
@@ -39,17 +39,17 @@ export class Fragments {
   }
 
   public async getSummary(
-    chapterId: number,
+    serialId: number,
     fragmentId: number,
   ): Promise<string> {
-    return (await this.getChapter(chapterId).getFragment(fragmentId)).summary;
+    return (await this.getSerial(serialId).getFragment(fragmentId)).summary;
   }
 
   public async getTokenCount(
-    chapterId: number,
+    serialId: number,
     fragmentId: number,
   ): Promise<number> {
-    const fragment = await this.getChapter(chapterId).getFragment(fragmentId);
+    const fragment = await this.getSerial(serialId).getFragment(fragmentId);
 
     return fragment.sentences.reduce(
       (total, sentence) => total + sentence.tokenCount,
@@ -62,15 +62,15 @@ export class Fragments {
   }
 }
 
-export class ChapterFragments {
-  readonly #chapterId: number;
+export class SerialFragments {
+  readonly #serialId: number;
   #draftOpen = false;
   #nextFragmentId: number | undefined;
   readonly #workspacePath: string;
 
-  public constructor(workspacePath: string, chapterId: number) {
+  public constructor(workspacePath: string, serialId: number) {
     this.#workspacePath = resolve(workspacePath);
-    this.#chapterId = chapterId;
+    this.#serialId = serialId;
   }
 
   public async createDraft(): Promise<FragmentDraft> {
@@ -82,7 +82,7 @@ export class ChapterFragments {
     this.#draftOpen = true;
 
     return new FragmentDraft({
-      chapterId: this.#chapterId,
+      serialId: this.#serialId,
       discard: () => {
         this.#discardDraft();
       },
@@ -98,7 +98,7 @@ export class ChapterFragments {
     );
 
     return {
-      chapterId: this.#chapterId,
+      serialId: this.#serialId,
       fragmentId,
       summary: fileContent.summary,
       sentences: fileContent.sentences,
@@ -124,15 +124,15 @@ export class ChapterFragments {
     }
   }
 
-  public get chapterId(): number {
-    return this.#chapterId;
+  public get serialId(): number {
+    return this.#serialId;
   }
 
   public get path(): string {
     return join(
       this.#workspacePath,
       "fragments",
-      `${CHAPTER_DIRECTORY_PREFIX}${this.#chapterId}`,
+      `${SERIAL_DIRECTORY_PREFIX}${this.#serialId}`,
     );
   }
 
@@ -164,7 +164,7 @@ export class ChapterFragments {
     this.#nextFragmentId = fragmentId + 1;
 
     return {
-      chapterId: this.#chapterId,
+      serialId: this.#serialId,
       fragmentId,
       summary,
       sentences,
@@ -196,7 +196,7 @@ export class ChapterFragments {
 
 export class FragmentDraft {
   #committed = false;
-  readonly #chapterId: number;
+  readonly #serialId: number;
   readonly #discard: () => void;
   readonly #finalize: (
     fragmentId: number,
@@ -208,7 +208,7 @@ export class FragmentDraft {
   #summary = "";
 
   public constructor(input: {
-    chapterId: number;
+    serialId: number;
     discard: () => void;
     finalize: (
       fragmentId: number,
@@ -217,7 +217,7 @@ export class FragmentDraft {
     ) => Promise<FragmentRecord | undefined>;
     fragmentId: number;
   }) {
-    this.#chapterId = input.chapterId;
+    this.#serialId = input.serialId;
     this.#discard = input.discard;
     this.#finalize = input.finalize;
     this.#fragmentId = input.fragmentId;
@@ -232,7 +232,7 @@ export class FragmentDraft {
       tokenCount,
     });
 
-    return [this.#chapterId, this.#fragmentId, sentenceIndex];
+    return [this.#serialId, this.#fragmentId, sentenceIndex];
   }
 
   public async commit(): Promise<FragmentRecord | undefined> {
