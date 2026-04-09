@@ -8,7 +8,7 @@ export function createCacheKey(input: {
   messages: readonly LLMessage[];
   temperature: number | undefined;
   topP: number | undefined;
-  model: string;
+  modelId: string;
 }): string {
   const cacheData = JSON.stringify(
     {
@@ -16,7 +16,7 @@ export function createCacheKey(input: {
         content: message.content,
         role: message.role,
       })),
-      model: input.model,
+      modelId: input.modelId,
       temperature: input.temperature ?? null,
       topP: input.topP ?? null,
     },
@@ -27,7 +27,10 @@ export function createCacheKey(input: {
   return createHash("sha512").update(cacheData, "utf8").digest("hex");
 }
 
-export function getCacheFilePath(cacheDirPath: string, cacheKey: string): string {
+export function getCacheFilePath(
+  cacheDirPath: string,
+  cacheKey: string,
+): string {
   return join(cacheDirPath, `${cacheKey}.txt`);
 }
 

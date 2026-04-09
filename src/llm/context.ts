@@ -91,7 +91,9 @@ export class LLMContext {
       return;
     }
 
-    console.log(`\n[LLMContext] Failed with ${this.#logFiles.length} log file(s):`);
+    console.log(
+      `\n[LLMContext] Failed with ${this.#logFiles.length} log file(s):`,
+    );
 
     for (const [index, logFile] of this.#logFiles.entries()) {
       console.log(`  ${index + 1}. ${logFile}`);

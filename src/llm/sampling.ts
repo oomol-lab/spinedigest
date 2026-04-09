@@ -1,7 +1,4 @@
-import type {
-  SamplingScopeConfig,
-  TemperatureSetting,
-} from "./types.js";
+import type { SamplingScopeConfig, TemperatureSetting } from "./types.js";
 
 export function resolveSamplingSetting(
   value: TemperatureSetting | undefined,

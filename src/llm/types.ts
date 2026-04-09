@@ -1,9 +1,7 @@
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import type { LanguageModel, ModelMessage } from "ai";
 
-export interface LLMessage {
-  role: ChatCompletionMessageParam["role"];
-  content: string;
-}
+export type LLMessage = ModelMessage;
+export type LLMModel = LanguageModel;
 
 export type TemperatureSetting = number | readonly number[];
 
@@ -24,9 +22,8 @@ export interface LLMRequestOptions {
 }
 
 export interface LLMOptions {
-  apiKey: string;
-  baseURL: string;
-  model: string;
+  model: LLMModel;
+  modelId?: string;
   dataDirPath: string;
   logDirPath?: string;
   cacheDirPath?: string;

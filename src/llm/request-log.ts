@@ -31,8 +31,7 @@ export function createRequestLog(logDirPath?: string): RequestLog {
 
   const now = new Date();
   const timestampKey = formatTimestamp(now);
-  const suffixId =
-    lastTimestamp === timestampKey ? loggerSuffixId + 1 : 1;
+  const suffixId = lastTimestamp === timestampKey ? loggerSuffixId + 1 : 1;
 
   lastTimestamp = timestampKey;
   loggerSuffixId = suffixId;

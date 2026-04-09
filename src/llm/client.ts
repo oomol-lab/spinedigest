@@ -2,13 +2,16 @@ import { existsSync, mkdirSync, statSync } from "node:fs";
 import { basename, relative, resolve, sep } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
-import OpenAI from "openai";
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import {
+  APICallError,
+  generateText,
+  type LanguageModel,
+  type ModelMessage,
+} from "ai";
 import type { Environment } from "nunjucks";
 
 import { createEnv } from "../common/template.js";
-
-import { AsyncSemaphore } from "./async-semaphore.js";
+import { AsyncSemaphore } from "../utils/async-semaphore.js";
 import {
   createCacheKey,
   getCacheFilePath,
@@ -17,12 +20,10 @@ import {
 } from "./cache.js";
 import { LLMContext } from "./context.js";
 import { createRequestLog } from "./request-log.js";
-import {
-  getScopeDefaults,
-  resolveSamplingSetting,
-} from "./sampling.js";
+import { getScopeDefaults, resolveSamplingSetting } from "./sampling.js";
 import type {
   LLMessage,
+  LLMModel,
   LLMOptions,
   LLMRequestOptions,
   PendingCacheEntry,
@@ -34,82 +35,58 @@ const RETRYABLE_STATUS_CODES = new Set([502, 503, 504, 524, 529]);
 
 let contextIdCounter = 0;
 
-export interface OpenAIClientLike {
-  chat: {
-    completions: {
-      create(input: {
-        model: string;
-        messages: ChatCompletionMessageParam[];
-        temperature?: number;
-        top_p?: number;
-      }): Promise<{
-        choices: Array<{
-          message: {
-            content: string | null;
-          };
-        }>;
-      }>;
-    };
-  };
-}
-
 export class LLM {
   readonly #cacheDirPath: string | undefined;
   readonly #dataDirPath: string;
   readonly #logDirPath: string | undefined;
-  readonly #model: string;
+  readonly #model: LLMModel;
+  readonly #modelId: string;
   readonly #requestLimiter: AsyncSemaphore;
   readonly #retryIntervalSeconds: number;
   readonly #retryTimes: number;
   readonly #sampling: SamplingScopeConfig;
   readonly #templateEnvironment: Environment;
   readonly #temperature: TemperatureSetting;
+  readonly #timeoutMs: number;
   readonly #topP: TemperatureSetting;
 
   readonly config: {
-    apiKey: string;
-    baseURL: string;
-    model: string;
+    modelId: string;
     timeout: number;
     temperature: TemperatureSetting;
     topP: TemperatureSetting;
     sampling: SamplingScopeConfig;
   };
 
-  client: OpenAIClientLike;
-
   constructor(options: LLMOptions) {
     const concurrent = options.concurrent ?? 1;
     const timeout = options.timeout ?? 360;
+    const timeoutMs = timeout * 1000;
     const temperature = options.temperature ?? 0.6;
     const topP = options.topP ?? 0.6;
     const sampling = options.sampling ?? {};
+    const modelId = resolveModelId(options.model, options.modelId);
 
     this.config = {
-      apiKey: options.apiKey,
-      baseURL: options.baseURL,
-      model: options.model,
+      modelId,
       sampling,
       temperature,
       timeout,
       topP,
     };
 
-    this.client = new OpenAI({
-      apiKey: options.apiKey,
-      baseURL: options.baseURL,
-      timeout: timeout * 1000,
-    });
     this.#cacheDirPath = ensureDirectoryPath(options.cacheDirPath);
     this.#dataDirPath = resolve(options.dataDirPath);
     this.#logDirPath = ensureDirectoryPath(options.logDirPath);
     this.#model = options.model;
+    this.#modelId = modelId;
     this.#requestLimiter = new AsyncSemaphore(concurrent);
     this.#retryIntervalSeconds = options.retryIntervalSeconds ?? 6;
     this.#retryTimes = options.retryTimes ?? 5;
     this.#sampling = sampling;
     this.#templateEnvironment = createEnv(this.#dataDirPath);
     this.#temperature = temperature;
+    this.#timeoutMs = timeoutMs;
     this.#topP = topP;
   }
 
@@ -207,7 +184,7 @@ export class LLM {
       this.#cacheDirPath !== undefined && useCache
         ? createCacheKey({
             messages: input.messages,
-            model: this.#model,
+            modelId: this.#modelId,
             temperature: resolvedTemperature,
             topP: resolvedTopP,
           })
@@ -233,14 +210,23 @@ export class LLM {
     );
     await requestLog.append(formatRequestMessages(input.messages));
 
-    if (cacheKey !== undefined && this.#cacheDirPath !== undefined && useCache) {
-      const cachedResponse = await readCachedResponse(this.#cacheDirPath, cacheKey);
+    if (
+      cacheKey !== undefined &&
+      this.#cacheDirPath !== undefined &&
+      useCache
+    ) {
+      const cachedResponse = await readCachedResponse(
+        this.#cacheDirPath,
+        cacheKey,
+      );
 
       if (cachedResponse !== undefined) {
         console.log(
           `[Cache Hit] Using cached response (key: ${cacheKey.slice(0, 12)}...)`,
         );
-        await requestLog.append(`[[Response]] (from cache):\n${cachedResponse}\n\n`);
+        await requestLog.append(
+          `[[Response]] (from cache):\n${cachedResponse}\n\n`,
+        );
         return cachedResponse;
       }
     }
@@ -251,26 +237,31 @@ export class LLM {
     for (let attempt = 0; attempt <= this.#retryTimes; attempt += 1) {
       try {
         response = await this.#requestLimiter.use(async () => {
-          const completionInput: Parameters<
-            OpenAIClientLike["chat"]["completions"]["create"]
-          >[0] = {
-            messages: input.messages.map(toChatCompletionMessage),
+          const generationInput: {
+            maxRetries: number;
+            messages: ModelMessage[];
+            model: LanguageModel;
+            temperature?: number;
+            timeout?: number;
+            topP?: number;
+          } = {
+            maxRetries: 0,
+            messages: [...input.messages],
             model: this.#model,
+            timeout: this.#timeoutMs,
           };
 
           if (resolvedTemperature !== undefined) {
-            completionInput.temperature = resolvedTemperature;
+            generationInput.temperature = resolvedTemperature;
           }
 
           if (resolvedTopP !== undefined) {
-            completionInput.top_p = resolvedTopP;
+            generationInput.topP = resolvedTopP;
           }
 
-          const completion = await this.client.chat.completions.create(
-            completionInput,
-          );
+          const result = await generateText(generationInput);
 
-          return completion.choices[0]?.message.content ?? "";
+          return result.text;
         });
 
         await requestLog.append(`[[Response]]:\n${response}\n\n`);
@@ -303,13 +294,20 @@ export class LLM {
       );
     }
 
-    if (cacheKey !== undefined && this.#cacheDirPath !== undefined && useCache) {
+    if (
+      cacheKey !== undefined &&
+      this.#cacheDirPath !== undefined &&
+      useCache
+    ) {
       const entry = {
         path: getCacheFilePath(this.#cacheDirPath, cacheKey),
         response,
       };
 
-      if (input.sessionId !== undefined && input.pendingCacheEntries !== undefined) {
+      if (
+        input.sessionId !== undefined &&
+        input.pendingCacheEntries !== undefined
+      ) {
         input.pendingCacheEntries.set(entry.path, entry);
       } else {
         await writeCachedResponse(entry);
@@ -353,15 +351,6 @@ function ensureDirectoryPath(dirPath?: string): string | undefined {
   }
 
   return resolvedDirPath;
-}
-
-function toChatCompletionMessage(
-  message: LLMessage,
-): ChatCompletionMessageParam {
-  return {
-    content: message.content,
-    role: message.role,
-  } as ChatCompletionMessageParam;
 }
 
 function formatRequestParameters(input: {
@@ -412,11 +401,25 @@ function formatRequestMessages(messages: readonly LLMessage[]): string {
   const body = messages
     .map(
       (message) =>
-        `${capitalize(message.role)}:\n${message.content}`,
+        `${capitalize(message.role)}:\n${formatMessageContent(message.content)}`,
     )
     .join("\n\n");
 
   return `[[Request]]:\n${body}\n\n`;
+}
+
+function formatMessageContent(content: LLMessage["content"]): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  const serializedContent = JSON.stringify(content, null, 2);
+
+  if (typeof serializedContent === "string") {
+    return serializedContent;
+  }
+
+  return "";
 }
 
 function capitalize(value: string): string {
@@ -436,8 +439,15 @@ function formatError(error: unknown): string {
 }
 
 function isRetryableError(error: unknown): boolean {
-  if (hasRetryableStatus(error)) {
-    return RETRYABLE_STATUS_CODES.has(error.status);
+  if (APICallError.isInstance(error)) {
+    if (error.isRetryable) {
+      return true;
+    }
+
+    return (
+      typeof error.statusCode === "number" &&
+      RETRYABLE_STATUS_CODES.has(error.statusCode)
+    );
   }
 
   if (!(error instanceof Error)) {
@@ -451,12 +461,32 @@ function isRetryableError(error: unknown): boolean {
   );
 }
 
-function hasRetryableStatus(error: unknown): error is { status: number } {
-  if (typeof error !== "object" || error === null || !("status" in error)) {
-    return false;
+function resolveModelId(model: LLMModel, explicitModelId?: string): string {
+  if (explicitModelId !== undefined) {
+    return explicitModelId;
   }
 
-  const { status } = error as { status: unknown };
+  if (typeof model === "string") {
+    return model;
+  }
 
-  return typeof status === "number";
+  if (hasModelMetadata(model)) {
+    return model.providerId === undefined
+      ? model.modelId
+      : `${model.providerId}:${model.modelId}`;
+  }
+
+  return "unknown-model";
+}
+
+function hasModelMetadata(
+  model: LLMModel,
+): model is LLMModel & { modelId: string; providerId?: string } {
+  return (
+    typeof model === "object" &&
+    model !== null &&
+    "modelId" in model &&
+    typeof model.modelId === "string" &&
+    (!("providerId" in model) || typeof model.providerId === "string")
+  );
 }

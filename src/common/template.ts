@@ -50,7 +50,10 @@ function normalizeTemplateName(templateName: string): string {
   }
 
   const withoutLeadingSlash = templateName.replace(LEADING_SLASH_PATTERN, "");
-  const withoutExtension = withoutLeadingSlash.replace(JINJA_EXTENSION_PATTERN, "");
+  const withoutExtension = withoutLeadingSlash.replace(
+    JINJA_EXTENSION_PATTERN,
+    "",
+  );
 
   return `${withoutExtension}.jinja`;
 }
@@ -60,7 +63,9 @@ function assertWithinRoot(
   targetPath: string,
   templateName: string,
 ): void {
-  const rootPrefix = rootDirPath.endsWith(sep) ? rootDirPath : `${rootDirPath}${sep}`;
+  const rootPrefix = rootDirPath.endsWith(sep)
+    ? rootDirPath
+    : `${rootDirPath}${sep}`;
 
   if (targetPath === rootDirPath || targetPath.startsWith(rootPrefix)) {
     return;

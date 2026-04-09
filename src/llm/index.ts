@@ -1,4 +1,4 @@
-export { LLM, type OpenAIClientLike } from "./client.js";
+export { LLM } from "./client.js";
 export { LLMContext } from "./context.js";
 export {
   getScopeDefaults,
@@ -7,6 +7,7 @@ export {
 } from "./sampling.js";
 export type {
   LLMessage,
+  LLMModel,
   LLMOptions,
   LLMRequestOptions,
   SamplingProfile,
