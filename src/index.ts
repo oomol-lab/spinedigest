@@ -93,3 +93,4 @@ export {
   type PipeSentence,
   type PipeTextStream,
 } from "./pipe/index.js";
+export { Topology } from "./topology/index.js";
