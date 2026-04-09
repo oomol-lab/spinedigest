@@ -89,6 +89,7 @@ export {
   type SnakeRecord,
 } from "./model/index.js";
 export {
+  assembleChunkBatch,
   ChunkExtractor,
   EvidenceResolver,
   WorkingMemory,

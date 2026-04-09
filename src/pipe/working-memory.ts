@@ -1,61 +1,25 @@
-import type { ChunkBatch, CognitiveChunk } from "./extraction/types.js";
-
-type ChunkIdGenerator = () => Promise<number>;
+import type { CognitiveChunk } from "./extraction/types.js";
 
 export class WorkingMemory {
   readonly #capacity: number;
   readonly #currentFragmentChunks: CognitiveChunk[] = [];
   readonly #extraChunks: CognitiveChunk[] = [];
-  readonly #idGenerator: ChunkIdGenerator;
   #generation = 0;
 
-  public constructor(capacity: number, idGenerator: ChunkIdGenerator) {
+  public constructor(capacity: number) {
     this.#capacity = capacity;
-    this.#idGenerator = idGenerator;
   }
 
   public get capacity(): number {
     return this.#capacity;
   }
 
-  public async addChunksWithLinks(
-    chunkBatch: ChunkBatch,
-  ): Promise<
-    readonly [chunks: CognitiveChunk[], edges: Array<readonly [number, number]>]
-  > {
-    const tempIdRecord = createChunkTempIdRecord(
-      chunkBatch.chunks,
-      chunkBatch.tempIds,
-    );
+  public get generation(): number {
+    return this.#generation;
+  }
 
-    for (const chunk of chunkBatch.chunks) {
-      chunk.id = await this.#idGenerator();
-      chunk.generation = this.#generation;
-    }
-
-    syncChunkTempIdRecord(tempIdRecord, chunkBatch.chunks, chunkBatch.tempIds);
-    this.#currentFragmentChunks.push(...chunkBatch.chunks);
-
-    const edges: Array<readonly [number, number]> = [];
-
-    for (const link of chunkBatch.links) {
-      const fromChunk = this.#resolveChunkReference(link.from, tempIdRecord);
-      const toChunk = this.#resolveChunkReference(link.to, tempIdRecord);
-
-      if (fromChunk === undefined || toChunk === undefined) {
-        continue;
-      }
-
-      const [edgeFromId, edgeToId] =
-        fromChunk.id > toChunk.id
-          ? ([fromChunk.id, toChunk.id] as const)
-          : ([toChunk.id, fromChunk.id] as const);
-
-      this.#attachLink(edgeToId, edgeFromId);
-      edges.push([edgeFromId, edgeToId]);
-    }
-
-    return [chunkBatch.chunks, edges];
+  public addChunks(chunks: readonly CognitiveChunk[]): void {
+    this.#currentFragmentChunks.push(...chunks);
   }
 
   public setExtraChunks(extraChunks: readonly CognitiveChunk[]): void {
@@ -116,57 +80,5 @@ export class WorkingMemory {
   public clear(): void {
     this.#currentFragmentChunks.splice(0, this.#currentFragmentChunks.length);
     this.#extraChunks.splice(0, this.#extraChunks.length);
-  }
-
-  #resolveChunkReference(
-    reference: number | string,
-    tempIdRecord: Readonly<Record<string, CognitiveChunk>>,
-  ): CognitiveChunk | undefined {
-    if (typeof reference === "string") {
-      return tempIdRecord[reference];
-    }
-
-    return this.getChunks().find((chunk) => chunk.id === reference);
-  }
-
-  #attachLink(targetChunkId: number, sourceChunkId: number): void {
-    for (const chunk of this.getChunks()) {
-      if (chunk.id !== targetChunkId) {
-        continue;
-      }
-
-      if (!chunk.links.includes(sourceChunkId)) {
-        chunk.links.push(sourceChunkId);
-      }
-
-      return;
-    }
-  }
-}
-
-function createChunkTempIdRecord(
-  chunks: readonly CognitiveChunk[],
-  tempIds: readonly string[],
-): Record<string, CognitiveChunk> {
-  const record = Object.create(null) as Record<string, CognitiveChunk>;
-
-  syncChunkTempIdRecord(record, chunks, tempIds);
-
-  return record;
-}
-
-function syncChunkTempIdRecord(
-  record: Record<string, CognitiveChunk>,
-  chunks: readonly CognitiveChunk[],
-  tempIds: readonly string[],
-): void {
-  for (const [index, chunk] of chunks.entries()) {
-    const tempId = tempIds[index];
-
-    if (tempId === undefined || tempId === "") {
-      continue;
-    }
-
-    record[tempId] = chunk;
   }
 }

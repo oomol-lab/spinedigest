@@ -1,3 +1,4 @@
+export { assembleChunkBatch } from "./assembly.js";
 export { WorkingMemory } from "./working-memory.js";
 export {
   ChunkExtractor,
