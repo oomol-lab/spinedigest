@@ -4,6 +4,7 @@ import type {
   Workspace,
 } from "../model/index.js";
 import type { PipeChunk, PipeGraphDelta } from "../pipe/index.js";
+import { groupFragments } from "./grouping.js";
 import {
   computeChunkWeights,
   computeKnowledgeEdgeWeights,
@@ -15,10 +16,16 @@ export class Topology {
   readonly #chunksById = createChunkRecord();
   readonly #edgeKeys: string[] = [];
   readonly #edgesByKey = createEdgeRecord();
+  readonly #groupTokensCount: number;
   readonly #serialId: number;
   readonly #workspace: Workspace;
 
-  public constructor(input: { serialId: number; workspace: Workspace }) {
+  public constructor(input: {
+    groupTokensCount: number;
+    serialId: number;
+    workspace: Workspace;
+  }) {
+    this.#groupTokensCount = input.groupTokensCount;
     this.#serialId = input.serialId;
     this.#workspace = input.workspace;
   }
@@ -74,6 +81,22 @@ export class Topology {
         weight: edgeWeights[getKnowledgeEdgeKey(edge.fromId, edge.toId)] ?? 0,
       });
     }
+
+    await this.#workspace.fragmentGroups.saveMany(
+      await groupFragments({
+        chunks: chunks.map((chunk) => ({
+          ...chunk,
+          weight: chunkWeights[String(chunk.id)] ?? 0,
+        })),
+        edges: edges.map((edge) => ({
+          ...edge,
+          weight: edgeWeights[getKnowledgeEdgeKey(edge.fromId, edge.toId)] ?? 0,
+        })),
+        fragments: this.#workspace.getSerialFragments(this.#serialId),
+        groupTokensCount: this.#groupTokensCount,
+        serialId: this.#serialId,
+      }),
+    );
   }
 
   #listChunks(): ChunkRecord[] {
