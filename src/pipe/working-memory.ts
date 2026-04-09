@@ -1,4 +1,4 @@
-import type { ChunkBatch, CognitiveChunk } from "./types.js";
+import type { ChunkBatch, CognitiveChunk } from "./extraction/types.js";
 
 type ChunkIdGenerator = () => Promise<number>;
 
@@ -23,21 +23,24 @@ export class WorkingMemory {
   ): Promise<
     readonly [chunks: CognitiveChunk[], edges: Array<readonly [number, number]>]
   > {
-    const tempIdMap = new Map<string, CognitiveChunk>();
+    const tempIdRecord = createChunkTempIdRecord(
+      chunkBatch.chunks,
+      chunkBatch.tempIds,
+    );
 
-    for (const [index, chunk] of chunkBatch.chunks.entries()) {
+    for (const chunk of chunkBatch.chunks) {
       chunk.id = await this.#idGenerator();
       chunk.generation = this.#generation;
-      tempIdMap.set(chunkBatch.tempIds[index] ?? "", chunk);
     }
 
+    syncChunkTempIdRecord(tempIdRecord, chunkBatch.chunks, chunkBatch.tempIds);
     this.#currentFragmentChunks.push(...chunkBatch.chunks);
 
     const edges: Array<readonly [number, number]> = [];
 
     for (const link of chunkBatch.links) {
-      const fromChunk = this.#resolveChunkReference(link.from, tempIdMap);
-      const toChunk = this.#resolveChunkReference(link.to, tempIdMap);
+      const fromChunk = this.#resolveChunkReference(link.from, tempIdRecord);
+      const toChunk = this.#resolveChunkReference(link.to, tempIdRecord);
 
       if (fromChunk === undefined || toChunk === undefined) {
         continue;
@@ -117,10 +120,10 @@ export class WorkingMemory {
 
   #resolveChunkReference(
     reference: number | string,
-    tempIdMap: ReadonlyMap<string, CognitiveChunk>,
+    tempIdRecord: Readonly<Record<string, CognitiveChunk>>,
   ): CognitiveChunk | undefined {
     if (typeof reference === "string") {
-      return tempIdMap.get(reference);
+      return tempIdRecord[reference];
     }
 
     return this.getChunks().find((chunk) => chunk.id === reference);
@@ -138,5 +141,32 @@ export class WorkingMemory {
 
       return;
     }
+  }
+}
+
+function createChunkTempIdRecord(
+  chunks: readonly CognitiveChunk[],
+  tempIds: readonly string[],
+): Record<string, CognitiveChunk> {
+  const record = Object.create(null) as Record<string, CognitiveChunk>;
+
+  syncChunkTempIdRecord(record, chunks, tempIds);
+
+  return record;
+}
+
+function syncChunkTempIdRecord(
+  record: Record<string, CognitiveChunk>,
+  chunks: readonly CognitiveChunk[],
+  tempIds: readonly string[],
+): void {
+  for (const [index, chunk] of chunks.entries()) {
+    const tempId = tempIds[index];
+
+    if (tempId === undefined || tempId === "") {
+      continue;
+    }
+
+    record[tempId] = chunk;
   }
 }

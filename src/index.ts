@@ -92,6 +92,7 @@ export {
   ChunkExtractor,
   EvidenceResolver,
   WorkingMemory,
+  WaveReflection,
   normalizeText,
   splitTextIntoSentences,
   type ChunkBatch,

@@ -1,10 +1,11 @@
+export { WorkingMemory } from "./working-memory.js";
 export {
   ChunkExtractor,
   EvidenceResolver,
-  WorkingMemory,
   normalizeText,
   splitTextIntoSentences,
 } from "./extraction/index.js";
+export { WaveReflection } from "./wave-reflection.js";
 export type {
   ChunkBatch,
   ChunkExtractionScopes,
