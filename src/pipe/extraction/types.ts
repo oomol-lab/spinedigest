@@ -1,3 +1,4 @@
+import type { Language } from "../../language.js";
 import type { LLM } from "../../llm/index.js";
 import type { SentenceId } from "../../model/index.js";
 
@@ -58,7 +59,7 @@ export interface ChunkTranslationOutput {
 export interface ChunkTranslator {
   translate(
     chunks: readonly ChunkTranslationInput[],
-    userLanguage: string,
+    userLanguage: Language,
   ): Promise<readonly ChunkTranslationOutput[]>;
 }
 
@@ -68,7 +69,7 @@ export interface ChunkExtractorOptions<S extends string> {
   readonly scopes: ChunkExtractionScopes<S>;
   readonly sentenceTextSource: SentenceTextSource;
   readonly translator?: ChunkTranslator;
-  readonly userLanguage?: string;
+  readonly userLanguage?: Language;
 }
 
 export interface ChunkExtractionSentence {

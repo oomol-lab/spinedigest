@@ -8,6 +8,7 @@ import {
   ParsedJsonError,
   requestGuaranteedJson,
 } from "../../guaranteed/index.js";
+import type { Language } from "../../language.js";
 import type { LLMessage, LLM } from "../../llm/index.js";
 import {
   bookCoherenceResponseSchema,
@@ -20,6 +21,7 @@ import {
   type UserFocusedResponseData,
   userFocusedResponseSchema,
 } from "./chunk-batch-parser.js";
+import { needsTranslation } from "./language.js";
 import type {
   ChunkBatch,
   ChunkExtractorOptions,
@@ -73,7 +75,7 @@ export class ChunkExtractor<S extends string> {
   readonly #scopes: ChunkExtractorOptions<S>["scopes"];
   readonly #sentenceTextSource: ChunkExtractorOptions<S>["sentenceTextSource"];
   readonly #translator: ChunkExtractorOptions<S>["translator"];
-  readonly #userLanguage: string | undefined;
+  readonly #userLanguage: Language | undefined;
 
   public constructor(options: ChunkExtractorOptions<S>) {
     this.#extractionGuidance = options.extractionGuidance;
@@ -108,7 +110,7 @@ export class ChunkExtractor<S extends string> {
     });
 
     return {
-      chunkBatch: await this.#translateChunkBatch(
+      chunkBatch: await this.#ensureChunkBatchLanguage(
         result.chunkBatch,
         sentenceContext,
       ),
@@ -147,7 +149,10 @@ export class ChunkExtractor<S extends string> {
       visibleChunkIds: input.visibleChunkIds,
     });
 
-    return await this.#translateChunkBatch(result.chunkBatch, sentenceContext);
+    return await this.#ensureChunkBatchLanguage(
+      result.chunkBatch,
+      sentenceContext,
+    );
   }
 
   async #extractChunks<
@@ -217,7 +222,7 @@ export class ChunkExtractor<S extends string> {
    *
    * 这是一个保底手段。
    */
-  async #translateChunkBatch(
+  async #ensureChunkBatchLanguage(
     chunkBatch: ChunkBatch,
     sentenceContext: SentenceContext,
   ): Promise<ChunkBatch> {
@@ -228,12 +233,22 @@ export class ChunkExtractor<S extends string> {
     ) {
       return chunkBatch;
     }
+    const userLanguage = this.#userLanguage;
     const translationInput: ChunkTranslationInput[] = [];
 
-    for (const chunk of chunkBatch.chunks) {
+    for (const [index, chunk] of chunkBatch.chunks.entries()) {
+      if (
+        !needsTranslation({
+          content: chunk.content,
+          label: chunk.label,
+          targetLanguage: userLanguage,
+        })
+      ) {
+        continue;
+      }
       translationInput.push({
         content: chunk.content,
-        id: chunk.id,
+        id: index,
         label: chunk.label,
         sourceSentences: await this.#getChunkSourceSentences(
           chunk,
@@ -242,23 +257,35 @@ export class ChunkExtractor<S extends string> {
       });
     }
 
-    const translatedChunks = await this.#translator.translate(
-      translationInput,
-      this.#userLanguage,
-    );
+    if (translationInput.length === 0) {
+      return chunkBatch;
+    }
+
+    let translatedChunks: readonly {
+      readonly content: string;
+      readonly id: number;
+      readonly label: string;
+    }[];
+
+    try {
+      translatedChunks = await this.#translator.translate(
+        translationInput,
+        userLanguage,
+      );
+    } catch {
+      return chunkBatch;
+    }
     const translatedById = new Map(
       translatedChunks.map((chunk) => [chunk.id, chunk] as const),
     );
-
     return {
       ...chunkBatch,
-      chunks: chunkBatch.chunks.map((chunk) => {
-        const translated = translatedById.get(chunk.id);
+      chunks: chunkBatch.chunks.map((chunk, index) => {
+        const translated = translatedById.get(index);
 
         if (translated === undefined) {
           return chunk;
         }
-
         return {
           ...chunk,
           content: translated.content,
