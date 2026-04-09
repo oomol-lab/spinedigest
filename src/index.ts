@@ -4,6 +4,11 @@ export function helloWorld(): string {
 
 export { createEnv } from "./common/template.js";
 export {
+  compressText,
+  type EditorOptions,
+  type EditorScopes,
+} from "./editor/index.js";
+export {
   ARABIC,
   DANISH,
   DUTCH,
@@ -82,15 +87,15 @@ export {
   type SnakeRecord,
 } from "./model/index.js";
 export {
-  Pipe,
-  type PipeChunk,
-  type PipeGraphDelta,
-  type PipeGraphEdge,
-  type PipeImportanceAnnotation,
-  type PipeOptions,
-  type PipeSegment,
-  type PipeSegmenter,
-  type PipeSentence,
-  type PipeTextStream,
-} from "./pipe/index.js";
+  Reader,
+  type ReaderChunk,
+  type ReaderGraphDelta,
+  type ReaderGraphEdge,
+  type ReaderImportanceAnnotation,
+  type ReaderOptions,
+  type ReaderSegment,
+  type ReaderSegmenter,
+  type ReaderSentence,
+  type ReaderTextStream,
+} from "./reader/index.js";
 export { Topology } from "./topology/index.js";
