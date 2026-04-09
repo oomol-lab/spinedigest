@@ -18,9 +18,7 @@ export class IntlSegmenterSentenceStreamAdapter implements SentenceStreamAdapter
     granularity: "word",
   });
 
-  public async *pipe(
-    stream: TextStream,
-  ): AsyncIterable<SentenceStreamItem> {
+  public async *pipe(stream: TextStream): AsyncIterable<SentenceStreamItem> {
     let buffer = "";
     let offset = 0;
 
@@ -90,6 +88,13 @@ export class IntlSegmenterSentenceStreamAdapter implements SentenceStreamAdapter
 
     const lastSegment = segments[segments.length - 1];
 
+    if (lastSegment === undefined) {
+      return {
+        remainder: buffer,
+        sentences: [],
+      };
+    }
+
     return {
       remainder: buffer.slice(lastSegment.index),
       sentences: segments
@@ -130,7 +135,6 @@ export class IntlSegmenterSentenceStreamAdapter implements SentenceStreamAdapter
   }
 }
 
-export function createDefaultSentenceStreamAdapter(
-): SentenceStreamAdapter {
+export function createDefaultSentenceStreamAdapter(): SentenceStreamAdapter {
   return new IntlSegmenterSentenceStreamAdapter();
 }
