@@ -3,7 +3,7 @@ import type {
   KnowledgeEdgeRecord,
   Workspace,
 } from "../model/index.js";
-import type { PipeChunk, PipeGraphDelta } from "../pipe/index.js";
+import type { ReaderChunk, ReaderGraphDelta } from "../reader/index.js";
 import { groupFragments } from "./grouping.js";
 import {
   computeChunkWeights,
@@ -30,7 +30,7 @@ export class Topology {
     this.#workspace = input.workspace;
   }
 
-  public accept(delta: PipeGraphDelta): void {
+  public accept(delta: ReaderGraphDelta): void {
     for (const chunk of delta.chunks) {
       this.#saveChunk(chunk);
     }
@@ -113,7 +113,7 @@ export class Topology {
       .filter((edge): edge is KnowledgeEdgeRecord => edge !== undefined);
   }
 
-  #saveChunk(chunk: PipeChunk): void {
+  #saveChunk(chunk: ReaderChunk): void {
     const chunkId = String(chunk.id);
 
     if (this.#chunksById[chunkId] === undefined) {
@@ -137,7 +137,7 @@ export class Topology {
     };
   }
 
-  #saveEdge(edge: PipeGraphDelta["edges"][number]): void {
+  #saveEdge(edge: ReaderGraphDelta["edges"][number]): void {
     const edgeKey = getKnowledgeEdgeKey(edge.fromId, edge.toId);
 
     if (this.#edgesByKey[edgeKey] === undefined) {

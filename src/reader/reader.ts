@@ -6,20 +6,20 @@ import {
 import { segmentTextStream } from "./segment/segment.js";
 import type { ChunkBatchOptions } from "./chunk-batch/types.js";
 import type {
-  PipeChunk,
-  PipeGraphDelta,
-  PipeOptions,
-  PipeSegment,
-  PipeSentence,
-  PipeTextStream,
+  ReaderChunk,
+  ReaderGraphDelta,
+  ReaderOptions,
+  ReaderSegment,
+  ReaderSentence,
+  ReaderTextStream,
 } from "./types.js";
 
-export class Pipe<S extends string> {
+export class Reader<S extends string> {
   readonly #attention: Attention;
   readonly #chunkBatchOptions: ChunkBatchOptions<S>;
-  readonly #segmenter: PipeOptions<S>["segmenter"];
+  readonly #segmenter: ReaderOptions<S>["segmenter"];
 
-  public constructor(options: PipeOptions<S>) {
+  public constructor(options: ReaderOptions<S>) {
     this.#attention = new Attention(options.attention);
     this.#chunkBatchOptions = {
       extractionGuidance: options.extractionGuidance,
@@ -44,7 +44,7 @@ export class Pipe<S extends string> {
     return this.#attention.capacity;
   }
 
-  public segment(stream: PipeTextStream): AsyncIterable<PipeSegment> {
+  public segment(stream: ReaderTextStream): AsyncIterable<ReaderSegment> {
     if (this.#segmenter === undefined) {
       return segmentTextStream(stream);
     }
@@ -55,10 +55,10 @@ export class Pipe<S extends string> {
   }
 
   public async extractUserFocused(input: {
-    readonly sentences: readonly PipeSentence[];
+    readonly sentences: readonly ReaderSentence[];
     readonly text: string;
   }): Promise<{
-    readonly delta: PipeGraphDelta;
+    readonly delta: ReaderGraphDelta;
     readonly fragmentSummary: string;
   }> {
     const context = this.#attention.createChunkBatchContext();
@@ -76,10 +76,10 @@ export class Pipe<S extends string> {
   }
 
   public async extractBookCoherence(input: {
-    readonly sentences: readonly PipeSentence[];
+    readonly sentences: readonly ReaderSentence[];
     readonly text: string;
-    readonly userFocusedChunks: readonly PipeChunk[];
-  }): Promise<PipeGraphDelta> {
+    readonly userFocusedChunks: readonly ReaderChunk[];
+  }): Promise<ReaderGraphDelta> {
     const context = this.#attention.createChunkBatchContext();
     const chunkBatch = await extractBookCoherenceChunkBatch(
       this.#chunkBatchOptions,
@@ -96,7 +96,7 @@ export class Pipe<S extends string> {
   }
 
   public completeFragment(input: {
-    readonly allChunks: readonly PipeChunk[];
+    readonly allChunks: readonly ReaderChunk[];
     readonly getSuccessorChunkIds: (chunkId: number) => readonly number[];
   }): void {
     this.#attention.completeFragment(input);
