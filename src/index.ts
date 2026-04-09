@@ -4,6 +4,11 @@ export function helloWorld(): string {
 
 export { createEnv } from "./common/template.js";
 export {
+  compressText,
+  type CompressTextOptions,
+  type EditorScopes,
+} from "./editor/index.js";
+export {
   ARABIC,
   DANISH,
   DUTCH,
