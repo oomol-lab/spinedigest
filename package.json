@@ -43,8 +43,10 @@
     "verify": "pnpm lint && pnpm typecheck && pnpm format:check"
   },
   "dependencies": {
+    "@types/sql.js": "^1.4.11",
     "ai": "^6.0.154",
-    "nunjucks": "^3.2.4"
+    "nunjucks": "^3.2.4",
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
