@@ -4,6 +4,17 @@ export function helloWorld(): string {
 
 export { createEnv } from "./common/template.js";
 export {
+  GuaranteedEmptyResponseError,
+  GuaranteedParseValidationError,
+  GuaranteedSchemaValidationError,
+  ParsedJsonError,
+  SuspectedModelRefusalError,
+  requestGuaranteedJson,
+  type GuaranteedParser,
+  type GuaranteedRequest,
+  type GuaranteedRequestOptions,
+} from "./guaranteed/index.js";
+export {
   LLM,
   LLMContext,
   getScopeDefaults,
