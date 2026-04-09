@@ -1,0 +1,261 @@
+import type {
+  ChunkRecord,
+  KnowledgeEdgeRecord,
+  SerialFragments,
+} from "../model/index.js";
+
+export interface FragmentInfo {
+  readonly fragmentId: number;
+  readonly tokenCount: number;
+  readonly startIncision: number;
+  readonly endIncision: number;
+}
+
+export async function computeNormalizedFragmentIncisions(input: {
+  chunks: readonly ChunkRecord[];
+  edges: readonly KnowledgeEdgeRecord[];
+  fragments: SerialFragments;
+}): Promise<FragmentInfo[]> {
+  const fragmentTokenCounts = await loadFragmentTokenCounts(input.fragments);
+
+  return normalizeIncisions(
+    computeFragmentIncisions({
+      chunks: input.chunks,
+      edges: input.edges,
+      fragmentTokenCounts,
+    }),
+  );
+}
+
+async function loadFragmentTokenCounts(
+  fragments: SerialFragments,
+): Promise<Readonly<Record<string, number>>> {
+  const tokenCounts = createNumberRecord();
+  const fragmentIds = await fragments.listFragmentIds();
+
+  for (const fragmentId of fragmentIds) {
+    const fragment = await fragments.getFragment(fragmentId);
+
+    tokenCounts[String(fragmentId)] = fragment.sentences.reduce(
+      (total, sentence) => total + sentence.tokenCount,
+      0,
+    );
+  }
+
+  return tokenCounts;
+}
+
+function computeFragmentIncisions(input: {
+  chunks: readonly ChunkRecord[];
+  edges: readonly KnowledgeEdgeRecord[];
+  fragmentTokenCounts: Readonly<Record<string, number>>;
+}): FragmentInfo[] {
+  const chunkIdsByFragmentId = createNumberListRecord();
+  const chunkWeightsById = createNumberRecord();
+  const edgesByChunkId = createKnowledgeEdgeListRecord();
+
+  for (const chunk of input.chunks) {
+    const fragmentKey = String(chunk.sentenceId[1]);
+
+    chunkWeightsById[String(chunk.id)] = chunk.weight;
+    if (chunkIdsByFragmentId[fragmentKey] === undefined) {
+      chunkIdsByFragmentId[fragmentKey] = [];
+    }
+    chunkIdsByFragmentId[fragmentKey]?.push(chunk.id);
+  }
+
+  for (const edge of input.edges) {
+    const fromKey = String(edge.fromId);
+    const toKey = String(edge.toId);
+
+    if (edgesByChunkId[fromKey] === undefined) {
+      edgesByChunkId[fromKey] = [];
+    }
+    if (edgesByChunkId[toKey] === undefined) {
+      edgesByChunkId[toKey] = [];
+    }
+
+    edgesByChunkId[fromKey]?.push(edge);
+    edgesByChunkId[toKey]?.push(edge);
+  }
+
+  const chunksById = createChunkRecord();
+
+  for (const chunk of input.chunks) {
+    chunksById[String(chunk.id)] = chunk;
+  }
+
+  return Object.keys(chunkIdsByFragmentId)
+    .map(Number)
+    .sort(compareNumber)
+    .map((fragmentId) => {
+      const chunkIds = chunkIdsByFragmentId[String(fragmentId)] ?? [];
+      let endIncision = 0;
+      let startIncision = 0;
+
+      for (const chunkId of chunkIds) {
+        const chunkWeight = chunkWeightsById[String(chunkId)] ?? 0;
+        const chunkEdges = edgesByChunkId[String(chunkId)] ?? [];
+        const externalEdges = chunkEdges
+          .map((edge) => ({
+            otherChunkId: edge.fromId === chunkId ? edge.toId : edge.fromId,
+            weight: edge.weight,
+          }))
+          .map((edge) => {
+            const otherChunk = chunksById[String(edge.otherChunkId)];
+
+            if (otherChunk === undefined) {
+              return undefined;
+            }
+
+            return {
+              otherFragmentId: otherChunk.sentenceId[1],
+              weight: edge.weight,
+            };
+          })
+          .filter(
+            (
+              edge,
+            ): edge is {
+              otherFragmentId: number;
+              weight: number;
+            } => edge !== undefined && edge.otherFragmentId !== fragmentId,
+          );
+
+        if (externalEdges.length === 0) {
+          continue;
+        }
+
+        const totalExternalWeight = externalEdges.reduce(
+          (total, edge) => total + edge.weight,
+          0,
+        );
+
+        if (totalExternalWeight === 0) {
+          continue;
+        }
+
+        for (const edge of externalEdges) {
+          const halfWeight = (chunkWeight / totalExternalWeight) * edge.weight;
+
+          if (edge.otherFragmentId < fragmentId) {
+            startIncision += halfWeight;
+            continue;
+          }
+
+          endIncision += halfWeight;
+        }
+      }
+
+      return {
+        endIncision,
+        fragmentId,
+        startIncision,
+        tokenCount: input.fragmentTokenCounts[String(fragmentId)] ?? 0,
+      };
+    });
+}
+
+function normalizeIncisions(
+  fragmentInfos: readonly FragmentInfo[],
+): FragmentInfo[] {
+  const allIncisions = fragmentInfos
+    .flatMap((fragmentInfo) => [
+      fragmentInfo.startIncision,
+      fragmentInfo.endIncision,
+    ])
+    .filter((incision) => incision > 0)
+    .sort(compareNumber);
+
+  if (allIncisions.length === 0) {
+    return [...fragmentInfos];
+  }
+
+  const thresholdIndex = Math.min(
+    Math.floor(allIncisions.length * 0.98),
+    allIncisions.length - 1,
+  );
+  const threshold = allIncisions[thresholdIndex] ?? 0;
+  const normalValues = allIncisions.filter((incision) => incision < threshold);
+
+  if (normalValues.length === 0) {
+    return fragmentInfos.map((fragmentInfo) => ({
+      ...fragmentInfo,
+      endIncision: fragmentInfo.endIncision > 0 ? 10 : 0,
+      startIncision: fragmentInfo.startIncision > 0 ? 10 : 0,
+    }));
+  }
+
+  const minValue = Math.min(...normalValues);
+  const maxValue = Math.max(...normalValues);
+  const minLog = minValue > 0 ? Math.log(minValue) : 0;
+  const maxLog = maxValue > 0 ? Math.log(maxValue) : 0;
+  const logRange = maxLog - minLog === 0 ? 1 : maxLog - minLog;
+
+  return fragmentInfos.map((fragmentInfo) => ({
+    ...fragmentInfo,
+    endIncision: normalizeIncision(fragmentInfo.endIncision, {
+      logRange,
+      minLog,
+      threshold,
+    }),
+    startIncision: normalizeIncision(fragmentInfo.startIncision, {
+      logRange,
+      minLog,
+      threshold,
+    }),
+  }));
+}
+
+function normalizeIncision(
+  incision: number,
+  input: {
+    logRange: number;
+    minLog: number;
+    threshold: number;
+  },
+): number {
+  if (incision === 0) {
+    return 0;
+  }
+
+  if (incision >= input.threshold) {
+    return 10;
+  }
+
+  const incisionLog = incision > 0 ? Math.log(incision) : input.minLog;
+
+  return Math.max(
+    1,
+    Math.min(
+      10,
+      Math.round(1 + ((incisionLog - input.minLog) / input.logRange) * 9),
+    ),
+  );
+}
+
+function compareNumber(left: number, right: number): number {
+  return left - right;
+}
+
+function createChunkRecord(): Record<string, ChunkRecord | undefined> {
+  return Object.create(null) as Record<string, ChunkRecord | undefined>;
+}
+
+function createKnowledgeEdgeListRecord(): Record<
+  string,
+  KnowledgeEdgeRecord[] | undefined
+> {
+  return Object.create(null) as Record<
+    string,
+    KnowledgeEdgeRecord[] | undefined
+  >;
+}
+
+function createNumberListRecord(): Record<string, number[] | undefined> {
+  return Object.create(null) as Record<string, number[] | undefined>;
+}
+
+function createNumberRecord(): Record<string, number> {
+  return Object.create(null) as Record<string, number>;
+}

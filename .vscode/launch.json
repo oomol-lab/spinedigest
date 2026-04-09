@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug CLI: compress",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev", "compress"],
+      "args": [
+        "--input-file",
+        "${input:inputFile}",
+        "--config-file",
+        "${input:configFile}"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "inputFile",
+      "type": "promptString",
+      "description": "Path to the source EPUB file",
+      "default": "./book.epub"
+    },
+    {
+      "id": "configFile",
+      "type": "promptString",
+      "description": "Path to the LLM config JSON file",
+      "default": "./format.json"
+    }
+  ]
+}

@@ -1,0 +1,471 @@
+import { existsSync, mkdirSync, statSync } from "fs";
+import { basename, relative, resolve, sep } from "path";
+import { setTimeout as sleep } from "timers/promises";
+
+import {
+  APICallError,
+  generateText,
+  type LanguageModel,
+  type ModelMessage,
+} from "ai";
+import type { Environment } from "nunjucks";
+
+import { createEnv } from "../common/template.js";
+import { AsyncSemaphore } from "../utils/async-semaphore.js";
+import { createHash } from "../utils/hash.js";
+import { LLMCache } from "./cache.js";
+import { LLMContext, type LLMContextRequestInput } from "./context.js";
+import { createRequestLog } from "./request-log.js";
+import { getScopeDefaults, resolveSamplingSetting } from "./sampling.js";
+import type {
+  LLMessage,
+  LLMModel,
+  LLMOptions,
+  LLMRequestOptions,
+  SamplingScopeConfig,
+  TemperatureSetting,
+} from "./types.js";
+
+const RETRYABLE_STATUS_CODES = new Set([502, 503, 504, 524, 529]);
+
+let contextIdCounter = 0;
+
+type LLMRequestSessionInput<S extends string> = Omit<
+  LLMContextRequestInput<S>,
+  "options"
+> &
+  LLMRequestOptions<S> & {
+    sessionId?: number;
+  };
+
+export class LLM<S extends string> {
+  readonly #cache: LLMCache | undefined;
+  readonly #dataDirPath: string;
+  readonly #logDirPath: string | undefined;
+  readonly #model: LLMModel;
+  readonly #modelId: string;
+  readonly #requestLimiter: AsyncSemaphore;
+  readonly #retryIntervalSeconds: number;
+  readonly #retryTimes: number;
+  readonly #sampling: SamplingScopeConfig<S> | undefined;
+  readonly #templateEnvironment: Environment;
+  readonly #temperature: TemperatureSetting;
+  readonly #timeoutMs: number;
+  readonly #topP: TemperatureSetting;
+
+  public readonly config: Readonly<{
+    modelId: string;
+    sampling?: SamplingScopeConfig<S>;
+    timeout: number;
+    temperature: TemperatureSetting;
+    topP: TemperatureSetting;
+  }>;
+
+  public constructor(options: LLMOptions<S>) {
+    const concurrent = options.concurrent ?? 1;
+    const timeout = options.timeout ?? 360;
+    const timeoutMs = timeout * 1000;
+    const temperature = options.temperature ?? 0.6;
+    const topP = options.topP ?? 0.6;
+    const sampling = options.sampling;
+    const modelId = resolveModelId(options.model, options.modelId);
+
+    this.config = Object.freeze({
+      modelId,
+      temperature,
+      timeout,
+      topP,
+      ...(sampling === undefined ? {} : { sampling }),
+    });
+    this.#cache = createCache(options.cacheDirPath);
+    this.#dataDirPath = resolve(options.dataDirPath);
+    this.#logDirPath = ensureDirectoryPath(options.logDirPath);
+    this.#model = options.model;
+    this.#modelId = modelId;
+    this.#requestLimiter = new AsyncSemaphore(concurrent);
+    this.#retryIntervalSeconds = options.retryIntervalSeconds ?? 6;
+    this.#retryTimes = options.retryTimes ?? 5;
+    this.#sampling = sampling;
+    this.#templateEnvironment = createEnv(this.#dataDirPath);
+    this.#temperature = temperature;
+    this.#timeoutMs = timeoutMs;
+    this.#topP = topP;
+  }
+
+  public context(): LLMContext<S> {
+    contextIdCounter += 1;
+    const sessionId = contextIdCounter;
+
+    return new LLMContext(
+      sessionId,
+      async (input) =>
+        await this.#requestWithSession({
+          ...input.options,
+          messages: input.messages,
+          sessionId,
+          ...(input.logFiles === undefined ? {} : { logFiles: input.logFiles }),
+          ...(input.pendingCacheEntries === undefined
+            ? {}
+            : { pendingCacheEntries: input.pendingCacheEntries }),
+        }),
+      this.#cache,
+    );
+  }
+
+  public async withContext<T>(
+    operation: (context: LLMContext<S>) => Promise<T>,
+  ): Promise<T> {
+    return await this.context().run(operation);
+  }
+
+  public async request(
+    messages: readonly LLMessage[],
+    options: LLMRequestOptions<S> = {},
+  ): Promise<string> {
+    return await this.#requestWithSession({
+      messages,
+      ...options,
+    });
+  }
+
+  public loadSystemPrompt(
+    promptTemplatePath: string,
+    templateContext: Record<string, unknown> = {},
+  ): string {
+    const resolvedPromptPath = resolve(promptTemplatePath);
+    const templateName = this.#resolveTemplateName(resolvedPromptPath);
+
+    return this.#templateEnvironment.render(templateName, templateContext);
+  }
+
+  async #requestWithSession(input: LLMRequestSessionInput<S>): Promise<string> {
+    const defaultSampling = getScopeDefaults(
+      input.scope,
+      this.#sampling,
+      this.#temperature,
+      this.#topP,
+    );
+    const temperature = input.temperature ?? defaultSampling.temperature;
+    const topP = input.topP ?? defaultSampling.topP;
+    const resolvedTemperature = resolveSamplingSetting(
+      temperature,
+      "temperature",
+      input.retryIndex,
+      input.retryMax,
+    );
+    const resolvedTopP = resolveSamplingSetting(
+      topP,
+      "top_p",
+      input.retryIndex,
+      input.retryMax,
+    );
+    const useCache = input.useCache ?? true;
+    const cacheKey =
+      this.#cache !== undefined && useCache
+        ? createHash({
+            messages: input.messages.map((message) => ({
+              content: message.content,
+              role: message.role,
+            })),
+            modelId: this.#modelId,
+            temperature: resolvedTemperature ?? null,
+            topP: resolvedTopP ?? null,
+          })
+        : undefined;
+    const requestLog = createRequestLog(this.#logDirPath);
+
+    if (requestLog.filePath !== undefined && input.logFiles !== undefined) {
+      input.logFiles.push(requestLog.filePath);
+    }
+
+    await requestLog.append(
+      formatRequestParameters({
+        cacheKey,
+        resolvedTemperature,
+        resolvedTopP,
+        retryIndex: input.retryIndex,
+        retryMax: input.retryMax,
+        scope: input.scope,
+        sessionId: input.sessionId,
+        temperature,
+        topP,
+      }),
+    );
+    await requestLog.append(formatRequestMessages(input.messages));
+
+    if (cacheKey !== undefined && this.#cache !== undefined && useCache) {
+      const cachedResponse = await this.#cache.read(cacheKey);
+
+      if (cachedResponse !== undefined) {
+        console.log(
+          `[Cache Hit] Using cached response (key: ${cacheKey.slice(0, 12)}...)`,
+        );
+        await requestLog.append(
+          `[[Response]] (from cache):\n${cachedResponse}\n\n`,
+        );
+        return cachedResponse;
+      }
+    }
+
+    let response = "";
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= this.#retryTimes; attempt += 1) {
+      try {
+        response = await this.#requestLimiter.use(async () => {
+          const generationInput: {
+            maxRetries: number;
+            messages: ModelMessage[];
+            model: LanguageModel;
+            temperature?: number;
+            timeout?: number;
+            topP?: number;
+          } = {
+            maxRetries: 0,
+            messages: [...input.messages],
+            model: this.#model,
+            timeout: this.#timeoutMs,
+          };
+
+          if (resolvedTemperature !== undefined) {
+            generationInput.temperature = resolvedTemperature;
+          }
+
+          if (resolvedTopP !== undefined) {
+            generationInput.topP = resolvedTopP;
+          }
+
+          const result = await generateText(generationInput);
+
+          return result.text;
+        });
+
+        await requestLog.append(`[[Response]]:\n${response}\n\n`);
+        break;
+      } catch (error) {
+        lastError = error;
+
+        if (!isRetryableError(error)) {
+          await requestLog.append(`[[Error]]:\n${formatError(error)}\n\n`);
+          throw error;
+        }
+
+        await requestLog.append(
+          `[[Warning]]:\nRequest failed with connection error, retrying... (${attempt + 1} times)\n\n`,
+        );
+
+        if (attempt < this.#retryTimes && this.#retryIntervalSeconds > 0) {
+          await sleep(this.#retryIntervalSeconds * 1000);
+        }
+      }
+    }
+
+    if (response.length === 0) {
+      await requestLog.append(`[[Error]]:\n${formatError(lastError)}\n\n`);
+
+      throw new Error(
+        lastError === undefined
+          ? `LLM request failed after ${this.#retryTimes + 1} attempts`
+          : `LLM request failed after ${this.#retryTimes + 1} attempts: ${formatError(lastError)}`,
+      );
+    }
+
+    if (cacheKey !== undefined && this.#cache !== undefined && useCache) {
+      const entry = this.#cache.createEntry(cacheKey, response);
+
+      if (
+        input.sessionId !== undefined &&
+        input.pendingCacheEntries !== undefined
+      ) {
+        input.pendingCacheEntries.set(entry.cacheKey, entry);
+      } else {
+        await this.#cache.write(entry);
+      }
+    }
+
+    return response;
+  }
+
+  #resolveTemplateName(promptTemplatePath: string): string {
+    const relativePath = relative(this.#dataDirPath, promptTemplatePath);
+    const rootPrefix = this.#dataDirPath.endsWith(sep)
+      ? this.#dataDirPath
+      : `${this.#dataDirPath}${sep}`;
+
+    if (
+      promptTemplatePath === this.#dataDirPath ||
+      promptTemplatePath.startsWith(rootPrefix)
+    ) {
+      return relativePath.split(sep).join("/");
+    }
+
+    return basename(promptTemplatePath);
+  }
+}
+
+function ensureDirectoryPath(dirPath?: string): string | undefined {
+  if (dirPath === undefined) {
+    return undefined;
+  }
+
+  const resolvedDirPath = resolve(dirPath);
+
+  if (!existsSync(resolvedDirPath)) {
+    mkdirSync(resolvedDirPath, { recursive: true });
+    return resolvedDirPath;
+  }
+
+  if (!statSync(resolvedDirPath).isDirectory()) {
+    return undefined;
+  }
+
+  return resolvedDirPath;
+}
+
+function createCache(cacheDirPath?: string): LLMCache | undefined {
+  const resolvedCacheDirPath = ensureDirectoryPath(cacheDirPath);
+
+  if (resolvedCacheDirPath === undefined) {
+    return undefined;
+  }
+
+  return new LLMCache(resolvedCacheDirPath);
+}
+
+function formatRequestParameters(input: {
+  cacheKey?: string | undefined;
+  resolvedTemperature: number | undefined;
+  resolvedTopP: number | undefined;
+  retryIndex?: number | undefined;
+  retryMax?: number | undefined;
+  scope?: string | undefined;
+  sessionId?: number | undefined;
+  temperature: TemperatureSetting;
+  topP: TemperatureSetting;
+}): string {
+  const lines = [
+    "[[Parameters]]:",
+    `\ttemperature=${String(input.resolvedTemperature)}`,
+    `\ttop_p=${String(input.resolvedTopP)}`,
+  ];
+
+  if (input.scope !== undefined) {
+    lines.push(`\tscope=${input.scope}`);
+  }
+
+  if (Array.isArray(input.temperature)) {
+    lines.push(`\ttemperature_schedule=${JSON.stringify(input.temperature)}`);
+  }
+
+  if (Array.isArray(input.topP)) {
+    lines.push(`\ttop_p_schedule=${JSON.stringify(input.topP)}`);
+  }
+
+  if (input.retryIndex !== undefined && input.retryMax !== undefined) {
+    lines.push(`\tretry_progress=${input.retryIndex}/${input.retryMax}`);
+  }
+
+  if (input.cacheKey !== undefined) {
+    lines.push(`\tcache_key=${input.cacheKey}`);
+  }
+
+  if (input.sessionId !== undefined) {
+    lines.push(`\tsession_id=${input.sessionId}`);
+  }
+
+  return `${lines.join("\n")}\n\n`;
+}
+
+function formatRequestMessages(messages: readonly LLMessage[]): string {
+  const body = messages
+    .map(
+      (message) =>
+        `${capitalize(message.role)}:\n${formatMessageContent(message.content)}`,
+    )
+    .join("\n\n");
+
+  return `[[Request]]:\n${body}\n\n`;
+}
+
+function formatMessageContent(content: LLMessage["content"]): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  const serializedContent = JSON.stringify(content, null, 2);
+
+  if (typeof serializedContent === "string") {
+    return serializedContent;
+  }
+
+  return "";
+}
+
+function capitalize(value: string): string {
+  if (value.length === 0) {
+    return value;
+  }
+
+  return `${value[0]?.toUpperCase() ?? ""}${value.slice(1)}`;
+}
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function isRetryableError(error: unknown): boolean {
+  if (APICallError.isInstance(error)) {
+    if (error.isRetryable) {
+      return true;
+    }
+
+    return (
+      typeof error.statusCode === "number" &&
+      RETRYABLE_STATUS_CODES.has(error.statusCode)
+    );
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const errorMessage = error.message.toLowerCase();
+
+  return ["connection", "timeout", "network", "rate limit"].some((keyword) =>
+    errorMessage.includes(keyword),
+  );
+}
+
+function resolveModelId(model: LLMModel, explicitModelId?: string): string {
+  if (explicitModelId !== undefined) {
+    return explicitModelId;
+  }
+
+  if (typeof model === "string") {
+    return model;
+  }
+
+  if (hasModelMetadata(model)) {
+    return model.providerId === undefined
+      ? model.modelId
+      : `${model.providerId}:${model.modelId}`;
+  }
+
+  return "unknown-model";
+}
+
+function hasModelMetadata(
+  model: LLMModel,
+): model is LLMModel & { modelId: string; providerId?: string } {
+  return (
+    typeof model === "object" &&
+    model !== null &&
+    "modelId" in model &&
+    typeof model.modelId === "string" &&
+    (!("providerId" in model) || typeof model.providerId === "string")
+  );
+}

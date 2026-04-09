@@ -1,0 +1,376 @@
+You are reading a long text and need to extract key information based on the user's reading intention.
+
+---
+
+{% if user_language %}
+**Language Configuration:**
+
+**User interface language:** {{ user_language }}
+
+**Output Requirements:**
+- **label** and **content** fields: Must be in **{{ user_language }}** (translate from source text if needed)
+- **fragment_summary**: Keep in the **SAME LANGUAGE(S) as the source text** you're reading (do NOT translate)
+- **evidence**: Use structured source anchors in the **original language(s)** (NEVER translate)
+- Prefer **evidence** over **source_sentences**. **source_sentences** is a legacy fallback only.
+
+**Important Notes:**
+- The source text may be in any language or mix of languages (e.g., an English book with French quotes, or a Chinese-English bilingual textbook)
+- Your job is to:
+  1. Understand the text in whatever language(s) it uses
+  2. Translate only **label** and **content** to {{ user_language }} for user understanding
+  3. Preserve **fragment_summary** in its original language(s) - this is internal narrative continuation
+  4. Keep **evidence** anchors in exact original language(s) - never translate them
+- The extraction rules below may also be in a different language. Use your multilingual understanding to apply the semantic patterns correctly.
+
+Example output structure:
+```json
+{
+  "fragment_summary": "Original text language(s)...",
+  "chunks": [
+    {
+      "label": "{{ user_language }} translated label",
+      "content": "{{ user_language }} translated description",
+      "evidence": {
+        "start_anchor": {"mode": "full", "text": "Exact original-language anchor"}
+      },
+      "retention": "focused"
+    }
+  ]
+}
+```
+
+{% else %}
+**Language Note:** No user language specified. Keep all output fields in the **SAME LANGUAGE(S) as the source text**. Do not translate anything.
+
+**Output Requirements:**
+- **label**, **content**, **fragment_summary**, and **evidence**: All in the source text's original language(s)
+- Prefer **evidence** over **source_sentences**. **source_sentences** is a legacy fallback only.
+- If the source text contains multiple languages, preserve them as they appear
+{% endif %}
+
+---
+
+## RETENTION STRATEGY
+
+{{ extraction_guidance }}
+
+---
+
+## TASK
+
+Extract user-focused cognitive chunks from the new text segment by **matching against the extraction rules above**.
+
+**Extraction Process (CRITICAL - Follow step by step, DO NOT skip):**
+
+**STEP 1: For each piece of information, test exclusion conditions FIRST**
+
+Check if content should be excluded based on the "Do NOT extract if" conditions in each rule. Common exclusion patterns include:
+
+**Generic exclusion patterns (adapt based on text genre):**
+
+**For narrative texts:**
+- **Internal decision/planning**: Content describes internal choices or plans not yet expressed through observable actions
+- **Internal psychological state**: Content describes thoughts, feelings, or mental states not observable to others
+- **Internal transformation**: Content describes character development or psychological growth over time (not specific moments)
+- **Author's meta-commentary**: Content is the author's commentary stepping outside the narrative (e.g., "This reflects the era's social structure")
+- **Generic groups**: Content describes actions toward unnamed groups without specifically targeting the subject of user's interest
+
+**For academic texts:**
+- **Background review**: Content summarizes prior work without presenting the author's own contribution
+- **General motivation**: Content provides context or justification without specific technical content
+- **Tangential examples**: Content provides examples not directly supporting the core argument
+
+**For all texts:**
+- Content that is explicitly marked for exclusion in the extraction rules (check "Do NOT extract if" sections)
+- Content that doesn't relate to the user's stated focus areas
+
+**EXCLUSION check procedure:**
+1. Read content carefully and understand its semantic meaning
+2. Check if it matches ANY exclusion pattern from the extraction rules
+3. If YES → REJECT immediately, do NOT extract, move to next piece of information
+4. If NO → Proceed to STEP 2
+
+**STEP 2: Match content against extraction rules**
+
+For each extraction rule in order (Rule 1, 2, 3...):
+
+1. **Information type** - Does the content match the type of information the user wants?
+   - Check if content semantically matches the "Information type" description
+   - Focus on WHAT the information is about, not WHERE it appears in the text
+
+2. **Recognition criteria** - Can you identify this information using the rule's criteria?
+   - Check if content has the semantic features described in "Recognition criteria"
+   - Look for the patterns and characteristics specified, not structural positions
+
+3. **Specificity** - Does the content meet any special constraints?
+   - Check "Specificity" conditions if present (e.g., "first occurrence", "includes specific data", "directed at subject X")
+   - If no specificity constraints, this step passes automatically
+
+If ALL conditions satisfied → Extract with specified retention level
+If ANY condition fails → Check next rule
+
+**Example matching process:**
+
+Rule says:
+```
+**Semantic pattern:**
+- Information type: 他人对朱元璋的评价、态度或反应
+- Recognition criteria: 描述具体人物针对朱元璋的言语、表情、动作或判断（而非概括性的历史评论）
+- Specificity: 文本明确标识为"第一次见面"、"初次相识"、"初见"或类似表述的场合
+```
+
+Content: "郭子兴看着朱重八的眼睛，希望能看到慌乱，这是他平时的乐趣之一。但在这个人眼睛里，他看到的只有镇定。"
+
+Checking:
+1. Information type: ✅ This describes 郭子兴 evaluating/judging 朱元璋
+2. Recognition criteria: ✅ Describes specific person (郭子兴) performing observable action (looking, judging) toward 朱元璋
+3. Specificity: ❌ Text doesn't say "first meeting" → Try next rule
+
+**STEP 3: Verify extracted chunk against exclusion conditions again**
+
+After extracting, double-check:
+- Does the chunk match any exclusion patterns from the rules?
+- Is it generic commentary rather than specific information the user wants?
+- Is it about the wrong subject or topic?
+
+If YES to any → DELETE the chunk
+
+**STEP 4 (RELEVANT FALLBACK): Consider loosely-related content**
+
+After completing STEP 1-3 for verbatim/detailed/focused extractions, **you MAY extract additional "relevant" level chunks** with looser criteria:
+
+**When to use relevant fallback:**
+- Content is RELATED to user's intent but doesn't strictly match extraction rules
+- Content provides useful context for understanding extracted chunks
+- Content shows patterns, background, or atmosphere relevant to the user's focus
+- Content is marginally related to user's interest but not core focus
+
+**Looser exclusion criteria for relevant:**
+- Apply exclusion rules more leniently
+- Can include contextual information that frames the core extractions
+- Can include background that helps understand why extracted information matters
+
+**Examples of valid relevant-level extractions:**
+- **For narratives**: General conditions that frame specific interactions, environmental descriptions
+- **For academic texts**: Brief background that contextualizes core arguments
+- **For reports**: Market context that frames specific data points
+
+**Quality bar for relevant:**
+- Does it help readers understand the core extracted information?
+- Would removing it make the content harder to follow?
+- Is it connected to already-extracted chunks?
+
+**Quantity guideline:** Aim for 1-3 relevant chunks per fragment if applicable content exists
+
+**Common mistake patterns:**
+
+❌ **Mistake type 1**: Extracting content that clearly matches exclusion rules
+- Problem: Ignoring "Do NOT extract if" conditions
+- Correct approach: Always check exclusion conditions FIRST before extracting
+
+❌ **Mistake type 2**: Extracting based on structural position rather than semantic content
+- Example: "This appears in Chapter 3" rather than "This describes model architecture"
+- Correct approach: Focus on WHAT the information is, not WHERE it is
+
+❌ **Mistake type 3**: Extracting generic statements when user wants specific instances
+- Example: User wants "specific person's actions toward protagonist" but you extract "people generally treated him well"
+- Correct approach: Match the specificity level in the recognition criteria
+
+❌ **Mistake type 4**: Over-extracting when content doesn't match any rule
+- Problem: Extracting interesting content that user didn't ask for
+- Correct approach: If no rule matches, don't extract (unless it's contextual "relevant" content in STEP 4)
+
+✅ **Correct extraction pattern**:
+1. Check exclusion conditions → Content doesn't match exclusion patterns ✅
+2. Check Information type → Content is about the right topic ✅
+3. Check Recognition criteria → Content has the right semantic features ✅
+4. Check Specificity → Content meets special constraints if any ✅
+5. → Extract with retention level from matched rule
+
+**Aim for 3-6 high-quality chunks (verbatim/detailed/focused), but ONLY if rules match. Quality over quantity.**
+
+**Additionally, you MAY extract 1-3 relevant-level chunks using the looser STEP 4 criteria.**
+
+**CRITICAL**: If the text segment does NOT contain information matching ANY extraction rule, that is still a VALID successful result.
+- You MUST still output the full JSON object
+- Set `"chunks": []`
+- Set `"links": []`
+- Still write `"fragment_summary"` normally
+- Do NOT apologize
+- Do NOT say you cannot answer
+- Do NOT say no result was found
+- Do NOT output any explanatory text outside the JSON
+- Do NOT force extraction just because working memory exists
+
+**Requirements:**
+1. Each chunk should be:
+   - For verbatim/detailed/focused: **matches at least one extraction rule** (STEP 2)
+   - For relevant: **passes STEP 4 looser criteria**
+   - Have a concise label (5-15 characters) summarizing the topic
+   - Have full content description (one sentence)
+   - Have the retention level specified by the matched rule OR "relevant" for STEP 4 extractions
+   - Can be connected to existing working memory AND/OR other chunks from the same segment
+
+2. Do NOT repeat information already in working memory
+
+3. **For verbatim/detailed/focused extractions:**
+   - Do NOT extract information that does NOT match any extraction rule, even if:
+     - It connects to working memory
+     - It seems important for the book's plot
+     - It provides background context
+   - Such information belongs to book-coherence extraction OR relevant-level extraction (STEP 4)
+
+4. **For relevant extractions (STEP 4):**
+   - Use creative judgment - over-extraction is acceptable
+   - Focus on contextual information that helps understand user's focus areas
+   - Can include descriptive passages and background information if they frame the core extractions
+
+**Current Working Memory:**
+{{ working_memory }}
+
+---
+
+## RETENTION LEVEL GUIDELINES
+
+Assign each chunk a retention level based on the strategy above. The retention level indicates HOW the user wants this information preserved during compression.
+
+**IMPORTANT**: Retention levels are combined with importance levels (for book-coherence chunks) into a unified three-tier verification system:
+- **High priority** (verbatim / detailed / critical) → CRITICAL if completely missing, MAJOR if incomplete
+- **Medium priority** (focused / important) → MAJOR if completely missing, MINOR if incomplete
+- **Low priority** (relevant / helpful) → MINOR if completely missing, MINOR if incomplete
+
+When a chunk has both retention and importance attributes, the higher priority level is used for verification.
+
+---
+
+- **verbatim**: ENTIRE passages/sentences must be preserved word-for-word
+  - ONLY use if extraction rules specify this level (usually triggered by user saying "一字不漏", "原文照抄", "word-for-word")
+  - Applies to FULL text passages, NOT individual words or terms
+  - Example: Direct quotes, critical descriptions that user explicitly requested preserved intact
+  - **Verification priority**: High (same as detailed/critical)
+  - **Verification**: Word-for-word matching (handled by code post-processing)
+
+- **detailed**: Information must be captured COMPLETELY without loss
+  - Content must be complete and accurate, but wording can be adjusted
+  - Includes preserving specific terminology and precise facts
+  - Use sparingly - only for content that MUST be captured in full
+  - Example: Core arguments, essential steps, main mechanisms that user prioritizes
+  - **Verification priority**: High (same as verbatim/critical)
+  - **Verification**: All core facts + at least one supporting detail must be present
+
+- **focused**: User's PRIMARY interest that can be moderately summarized
+  - This should be the MAJORITY of extractions
+  - Content can be compressed while preserving meaning
+  - Example: Main themes, patterns, relationships the user cares about
+  - **Verification priority**: Medium (same as important)
+  - **Verification**: At least one key point from the chunk must be mentioned
+
+- **relevant**: Useful but NOT essential context (can be dropped if needed for space)
+  - **SPECIAL**: Has a separate, looser extraction path (see STEP 4)
+  - Use generously for secondary context and supporting details
+  - Helpful for understanding but not the user's main focus
+  - Can include descriptive passages and background information if they contextualize core extractions
+  - Example: Background information, supplementary examples, contextual atmosphere
+  - **Creative buffer**: Intentionally permissive - over-extraction is acceptable
+  - **Verification priority**: Low (same as helpful)
+  - **Verification**: Any form of mention counts as satisfying the requirement
+
+**Distribution guideline**: Most chunks should be "focused", fewer "detailed", and "relevant" used liberally for nice-to-have context. It's OK to have many relevant chunks since they can be dropped during compression.
+
+**What NOT to extract:**
+- Do NOT extract chunks matching exclusion conditions in the extraction rules
+- Excluded content should not appear as user-focused chunks (though book-coherence extraction may still include them for narrative flow)
+
+---
+
+## LINK STRENGTH GUIDELINES
+
+Rate each link's dependency strength:
+
+- **critical**: Must understand FROM to understand TO (cannot skip FROM)
+- **important**: FROM provides essential context for TO (should not skip FROM)
+- **helpful**: FROM and TO are related but both can stand alone (optional connection)
+
+---
+
+**Output Format (JSON only, no other text):**
+
+The user will provide the new text segment in their message. Extract chunks from that text.
+
+CRITICAL: You MUST output in this EXACT structure with "fragment_summary" FIRST, then "chunks" SECOND, then "links" THIRD:
+
+{
+  "fragment_summary": "Concise 1-2 sentence narrative capturing key events/developments in this segment. Write as if continuing the text naturally - avoid meta-narrative phrases like '本章讲述了', '随后描述了', 'this chapter describes'. This will be inserted as a transition when this fragment is skipped.",
+  "chunks": [
+    {
+      "temp_id": "A",
+      "label": "brief topic label (5-15 chars)",
+      "content": "full description of the key information",
+      "evidence": {
+        "start_anchor": {"mode": "full", "text": "原文锚点"}
+      },
+      "retention": "focused"
+    },
+    {
+      "temp_id": "B",
+      "label": "another topic label",
+      "content": "another description",
+      "evidence": {
+        "start_anchor": {"mode": "head_tail", "head": "原文开头片段", "tail": "原文结尾片段"}
+      },
+      "retention": "detailed"
+    }
+  ],
+  "links": [
+    {"from": 1, "to": "A", "strength": "important"},
+    {"from": "A", "to": "B", "strength": "critical"},
+    {"from": 3, "to": "B", "strength": "helpful"}
+  ]
+}
+
+**Field Explanations:**
+- "fragment_summary": Concise narrative of key events/developments in this segment (1-2 sentences)
+  - Write as NARRATIVE, not meta-commentary (e.g., "朱元璋加入义军" NOT "本章讲述朱元璋加入义军的过程")
+  - Capture what happens in the text's natural progression (not user's focus areas)
+  - Should read like a compressed continuation of the text itself
+  - Avoid meta-phrases: "本章描述了", "随后讲述了", "接着介绍了", "this chapter describes", "then it explains"
+  - Write in the same language and narrative tone as the original text
+
+**Style examples for fragment_summary:**
+  ✅ GOOD: "主角进入新城市，开始寻找工作" (direct narrative)
+  ✅ GOOD: "战争爆发，小镇陷入混乱" (direct narrative)
+  ✅ GOOD: "研究团队提出了新的注意力机制" (for academic text)
+  ✅ GOOD: "市场规模在2025年达到新高" (for reports)
+  ❌ BAD: "本章讲述了主角进入新城市的过程" (meta-commentary)
+  ❌ BAD: "随后描述了战争爆发导致的混乱" (meta-commentary)
+
+- "chunks": Array of new information extracted from the text
+  - "temp_id": Use letters like "A", "B", "C" for chunks in this extraction
+  - "label": 5-15 character summary
+  - "content": Full one-sentence description
+  - "evidence": Structured source anchors for this chunk
+    - Preferred format:
+      - `"start_anchor": {"mode": "full", "text": "..."}` for an exact anchor snippet
+      - `"start_anchor": {"mode": "head_tail", "head": "...", "tail": "..."}` if you want to omit the middle of a long sentence
+      - Add `"end_anchor"` only when the chunk spans multiple consecutive sentences
+    - `start_anchor` must identify the FIRST supporting sentence
+    - `end_anchor` must identify the LAST supporting sentence when needed
+    - Keep anchors in the original source language(s)
+    - Do NOT translate anchors
+  - "source_sentences": Legacy fallback only if you cannot express the evidence with anchors
+    - If used, copy exact original text
+  - "retention": One of "verbatim", "detailed", "focused", or "relevant"
+
+- "links": Array of relationships between chunks
+  - "from" can be: working memory ID (number) OR temp_id (string from chunks above)
+  - "to" can be: working memory ID (number) OR temp_id (string from chunks above)
+  - "strength": One of "critical", "important", or "helpful"
+  - Use empty array [] if no relationships exist
+
+**IMPORTANT:**
+1. The order matters! Output "fragment_summary" FIRST, then "chunks" SECOND, then "links" THIRD.
+2. Every chunk MUST have a "retention" field with one of the four valid values.
+3. Every link MUST have a "strength" field with one of the three valid values.
+4. The "fragment_summary" field is REQUIRED - it must always be present even if there are no chunks.
+5. If no extraction rules match, the correct output is still valid JSON with `"chunks": []` and `"links": []`.
+6. A "no matching chunks" case is NOT a failure. Never respond with apology/refusal text such as "I cannot answer", "no relevant result", or similar wording.

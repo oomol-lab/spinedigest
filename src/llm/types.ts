@@ -1,0 +1,39 @@
+import type { LanguageModel, ModelMessage } from "ai";
+
+export type LLMessage = ModelMessage;
+export type LLMModel = LanguageModel;
+
+export type TemperatureSetting = number | readonly number[];
+
+export interface SamplingProfile {
+  readonly temperature?: TemperatureSetting;
+  readonly topP?: TemperatureSetting;
+}
+
+export type SamplingScopeConfig<S extends string> = {
+  readonly [scope in S]: SamplingProfile;
+};
+
+export interface LLMRequestOptions<S extends string> {
+  readonly temperature?: TemperatureSetting;
+  readonly topP?: TemperatureSetting;
+  readonly scope?: S;
+  readonly useCache?: boolean;
+  readonly retryIndex?: number;
+  readonly retryMax?: number;
+}
+
+export interface LLMOptions<S extends string> {
+  readonly model: LLMModel;
+  readonly modelId?: string;
+  readonly dataDirPath: string;
+  readonly logDirPath?: string;
+  readonly cacheDirPath?: string;
+  readonly concurrent?: number;
+  readonly timeout?: number;
+  readonly temperature?: TemperatureSetting;
+  readonly topP?: TemperatureSetting;
+  readonly sampling?: SamplingScopeConfig<S>;
+  readonly retryTimes?: number;
+  readonly retryIntervalSeconds?: number;
+}
