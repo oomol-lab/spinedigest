@@ -18,10 +18,5 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": [
-    "src/**/*.ts",
-    "test/**/*.ts",
-    "vitest.config.ts",
-    "eslint.config.mjs"
-  ]
+  "include": ["src/**/*.ts", "eslint.config.mjs"]
 }

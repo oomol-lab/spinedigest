@@ -1,5 +1,19 @@
+export function helloWorld(): string {
+  return "hello world";
+}
+
+export { createEnv } from "./common/template.js";
 export {
-  type CompressCommandOptions,
-  runCompressCommand,
-} from './commands/compress.js';
-export { type LlmConfig, llmConfigSchema } from './config/llm-config.js';
+  LLM,
+  LLMContext,
+  getScopeDefaults,
+  resolveSamplingSetting,
+  resolveTemperatureSetting,
+  type LLMessage,
+  type LLMOptions,
+  type LLMRequestOptions,
+  type OpenAIClientLike,
+  type SamplingProfile,
+  type SamplingScopeConfig,
+  type TemperatureSetting,
+} from "./llm/index.js";
