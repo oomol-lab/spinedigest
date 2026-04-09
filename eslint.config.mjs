@@ -1,4 +1,4 @@
-import { fileURLToPath } from "node:url";
+import { fileURLToPath } from "url";
 
 import eslint from "@eslint/js";
 import globals from "globals";
@@ -66,6 +66,12 @@ export default tseslint.config(
           varsIgnorePattern: "^_",
         },
       ],
+      "@typescript-eslint/explicit-member-accessibility": [
+        "error",
+        {
+          accessibility: "explicit",
+        },
+      ],
       "@typescript-eslint/parameter-properties": [
         "error",
         {
@@ -74,6 +80,33 @@ export default tseslint.config(
       ],
       "no-restricted-syntax": [
         "error",
+        {
+          selector: "ImportDeclaration[source.value=/^node:/]",
+          message: 'Do not use the "node:" protocol in imports.',
+        },
+        {
+          selector: "ExportAllDeclaration[source.value=/^node:/]",
+          message: 'Do not use the "node:" protocol in exports.',
+        },
+        {
+          selector: "ExportNamedDeclaration[source.value=/^node:/]",
+          message: 'Do not use the "node:" protocol in exports.',
+        },
+        {
+          selector:
+            "ImportDeclaration[source.value=/^(\\.\\.?\\/)(?!.*\\.js$).+/]",
+          message: 'Relative imports must include the ".js" extension.',
+        },
+        {
+          selector:
+            "ExportAllDeclaration[source.value=/^(\\.\\.?\\/)(?!.*\\.js$).+/]",
+          message: 'Relative exports must include the ".js" extension.',
+        },
+        {
+          selector:
+            "ExportNamedDeclaration[source.value=/^(\\.\\.?\\/)(?!.*\\.js$).+/]",
+          message: 'Relative exports must include the ".js" extension.',
+        },
         {
           selector: "PropertyDefinition[accessibility='private']",
           message: "Use #private fields instead of the private keyword.",

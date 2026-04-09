@@ -37,7 +37,7 @@ export interface LLMOptions {
 }
 
 export interface PendingCacheEntry {
-  path: string;
+  cacheKey: string;
   response: string;
 }
 

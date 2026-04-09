@@ -1,5 +1,5 @@
-import { appendFile } from "node:fs/promises";
-import { join } from "node:path";
+import { appendFile } from "fs/promises";
+import { join } from "path";
 
 let lastTimestamp: string | undefined;
 let loggerSuffixId = 1;
@@ -7,15 +7,15 @@ let loggerSuffixId = 1;
 export class RequestLog {
   readonly #filePath: string | undefined;
 
-  constructor(filePath?: string) {
+  public constructor(filePath?: string) {
     this.#filePath = filePath;
   }
 
-  get filePath(): string | undefined {
+  public get filePath(): string | undefined {
     return this.#filePath;
   }
 
-  async append(content: string): Promise<void> {
+  public async append(content: string): Promise<void> {
     if (this.#filePath === undefined) {
       return;
     }

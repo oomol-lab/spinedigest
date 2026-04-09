@@ -1,5 +1,5 @@
-import { readFileSync, statSync } from "node:fs";
-import { resolve, sep } from "node:path";
+import { readFileSync, statSync } from "fs";
+import { resolve, sep } from "path";
 
 import { Environment, Loader, type LoaderSource } from "nunjucks";
 
@@ -21,12 +21,12 @@ export function createEnv(dirPath: string): Environment {
 class DSTemplateLoader extends Loader {
   readonly #dirPath: string;
 
-  constructor(dirPath: string) {
+  public constructor(dirPath: string) {
     super();
     this.#dirPath = dirPath;
   }
 
-  getSource(templateName: string): LoaderSourceWithUpdateCheck {
+  public getSource(templateName: string): LoaderSourceWithUpdateCheck {
     const normalizedTemplateName = normalizeTemplateName(templateName);
     const targetPath = resolve(this.#dirPath, normalizedTemplateName);
 

@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, statSync } from "node:fs";
-import { basename, relative, resolve, sep } from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
+import { existsSync, mkdirSync, statSync } from "fs";
+import { basename, relative, resolve, sep } from "path";
+import { setTimeout as sleep } from "timers/promises";
 
 import {
   APICallError,
@@ -12,12 +12,8 @@ import type { Environment } from "nunjucks";
 
 import { createEnv } from "../common/template.js";
 import { AsyncSemaphore } from "../utils/async-semaphore.js";
-import {
-  createCacheKey,
-  getCacheFilePath,
-  readCachedResponse,
-  writeCachedResponse,
-} from "./cache.js";
+import { createHash } from "../utils/hash.js";
+import { LLMCache } from "./cache.js";
 import { LLMContext } from "./context.js";
 import { createRequestLog } from "./request-log.js";
 import { getScopeDefaults, resolveSamplingSetting } from "./sampling.js";
@@ -36,7 +32,7 @@ const RETRYABLE_STATUS_CODES = new Set([502, 503, 504, 524, 529]);
 let contextIdCounter = 0;
 
 export class LLM {
-  readonly #cacheDirPath: string | undefined;
+  readonly #cache: LLMCache | undefined;
   readonly #dataDirPath: string;
   readonly #logDirPath: string | undefined;
   readonly #model: LLMModel;
@@ -50,7 +46,7 @@ export class LLM {
   readonly #timeoutMs: number;
   readonly #topP: TemperatureSetting;
 
-  readonly config: {
+  public readonly config: {
     modelId: string;
     timeout: number;
     temperature: TemperatureSetting;
@@ -58,7 +54,7 @@ export class LLM {
     sampling: SamplingScopeConfig;
   };
 
-  constructor(options: LLMOptions) {
+  public constructor(options: LLMOptions) {
     const concurrent = options.concurrent ?? 1;
     const timeout = options.timeout ?? 360;
     const timeoutMs = timeout * 1000;
@@ -75,7 +71,7 @@ export class LLM {
       topP,
     };
 
-    this.#cacheDirPath = ensureDirectoryPath(options.cacheDirPath);
+    this.#cache = createCache(options.cacheDirPath);
     this.#dataDirPath = resolve(options.dataDirPath);
     this.#logDirPath = ensureDirectoryPath(options.logDirPath);
     this.#model = options.model;
@@ -90,7 +86,7 @@ export class LLM {
     this.#topP = topP;
   }
 
-  context(): LLMContext {
+  public context(): LLMContext {
     contextIdCounter += 1;
     const sessionId = contextIdCounter;
 
@@ -104,16 +100,17 @@ export class LLM {
           sessionId,
           ...requestOptions,
         }),
+      this.#cache,
     );
   }
 
-  async withContext<T>(
+  public async withContext<T>(
     operation: (context: LLMContext) => Promise<T>,
   ): Promise<T> {
     return await this.context().run(operation);
   }
 
-  async request(
+  public async request(
     systemPrompt: string,
     userMessage: string,
     options: LLMRequestOptions = {},
@@ -127,7 +124,7 @@ export class LLM {
     );
   }
 
-  async requestWithHistory(
+  public async requestWithHistory(
     messages: readonly LLMessage[],
     options: LLMRequestOptions = {},
   ): Promise<string> {
@@ -137,7 +134,7 @@ export class LLM {
     });
   }
 
-  loadSystemPrompt(
+  public loadSystemPrompt(
     promptTemplatePath: string,
     templateContext: Record<string, unknown> = {},
   ): string {
@@ -181,12 +178,15 @@ export class LLM {
     );
     const useCache = input.useCache ?? true;
     const cacheKey =
-      this.#cacheDirPath !== undefined && useCache
-        ? createCacheKey({
-            messages: input.messages,
+      this.#cache !== undefined && useCache
+        ? createHash({
+            messages: input.messages.map((message) => ({
+              content: message.content,
+              role: message.role,
+            })),
             modelId: this.#modelId,
-            temperature: resolvedTemperature,
-            topP: resolvedTopP,
+            temperature: resolvedTemperature ?? null,
+            topP: resolvedTopP ?? null,
           })
         : undefined;
     const requestLog = createRequestLog(this.#logDirPath);
@@ -210,15 +210,8 @@ export class LLM {
     );
     await requestLog.append(formatRequestMessages(input.messages));
 
-    if (
-      cacheKey !== undefined &&
-      this.#cacheDirPath !== undefined &&
-      useCache
-    ) {
-      const cachedResponse = await readCachedResponse(
-        this.#cacheDirPath,
-        cacheKey,
-      );
+    if (cacheKey !== undefined && this.#cache !== undefined && useCache) {
+      const cachedResponse = await this.#cache.read(cacheKey);
 
       if (cachedResponse !== undefined) {
         console.log(
@@ -294,23 +287,16 @@ export class LLM {
       );
     }
 
-    if (
-      cacheKey !== undefined &&
-      this.#cacheDirPath !== undefined &&
-      useCache
-    ) {
-      const entry = {
-        path: getCacheFilePath(this.#cacheDirPath, cacheKey),
-        response,
-      };
+    if (cacheKey !== undefined && this.#cache !== undefined && useCache) {
+      const entry = this.#cache.createEntry(cacheKey, response);
 
       if (
         input.sessionId !== undefined &&
         input.pendingCacheEntries !== undefined
       ) {
-        input.pendingCacheEntries.set(entry.path, entry);
+        input.pendingCacheEntries.set(entry.cacheKey, entry);
       } else {
-        await writeCachedResponse(entry);
+        await this.#cache.write(entry);
       }
     }
 
@@ -351,6 +337,16 @@ function ensureDirectoryPath(dirPath?: string): string | undefined {
   }
 
   return resolvedDirPath;
+}
+
+function createCache(cacheDirPath?: string): LLMCache | undefined {
+  const resolvedCacheDirPath = ensureDirectoryPath(cacheDirPath);
+
+  if (resolvedCacheDirPath === undefined) {
+    return undefined;
+  }
+
+  return new LLMCache(resolvedCacheDirPath);
 }
 
 function formatRequestParameters(input: {

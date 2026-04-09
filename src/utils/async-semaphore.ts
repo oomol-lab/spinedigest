@@ -3,7 +3,7 @@ export class AsyncSemaphore {
   readonly #concurrency: number;
   readonly #pendingResolvers: Array<() => void> = [];
 
-  constructor(concurrency: number) {
+  public constructor(concurrency: number) {
     if (!Number.isInteger(concurrency) || concurrency < 1) {
       throw new RangeError("concurrency must be a positive integer");
     }
@@ -11,7 +11,7 @@ export class AsyncSemaphore {
     this.#concurrency = concurrency;
   }
 
-  async use<T>(operation: () => Promise<T>): Promise<T> {
+  public async use<T>(operation: () => Promise<T>): Promise<T> {
     await this.#acquire();
 
     try {

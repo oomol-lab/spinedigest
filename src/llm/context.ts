@@ -1,4 +1,4 @@
-import { writeCachedResponse } from "./cache.js";
+import type { LLMCache } from "./cache.js";
 import type {
   LLMessage,
   LLMContextRequest,
@@ -7,18 +7,24 @@ import type {
 } from "./types.js";
 
 export class LLMContext {
+  readonly #cache: LLMCache | undefined;
   readonly #pendingCacheEntries = new Map<string, PendingCacheEntry>();
   readonly #requestFn: LLMContextRequest;
   readonly #logFiles: string[] = [];
   #finalized = false;
-  readonly sessionId: number;
+  public readonly sessionId: number;
 
-  constructor(sessionId: number, requestFn: LLMContextRequest) {
+  public constructor(
+    sessionId: number,
+    requestFn: LLMContextRequest,
+    cache?: LLMCache,
+  ) {
     this.sessionId = sessionId;
+    this.#cache = cache;
     this.#requestFn = requestFn;
   }
 
-  async request(
+  public async request(
     systemPrompt: string,
     userMessage: string,
     options: LLMRequestOptions = {},
@@ -32,7 +38,7 @@ export class LLMContext {
     );
   }
 
-  async requestWithHistory(
+  public async requestWithHistory(
     messages: readonly LLMessage[],
     options: LLMRequestOptions = {},
   ): Promise<string> {
@@ -46,20 +52,22 @@ export class LLMContext {
     );
   }
 
-  async commit(): Promise<void> {
+  public async commit(): Promise<void> {
     if (this.#finalized) {
       return;
     }
 
     for (const entry of this.#pendingCacheEntries.values()) {
-      await writeCachedResponse(entry);
+      if (this.#cache !== undefined) {
+        await this.#cache.write(entry);
+      }
     }
 
     this.#pendingCacheEntries.clear();
     this.#finalized = true;
   }
 
-  rollback(): Promise<void> {
+  public rollback(): Promise<void> {
     if (!this.#finalized) {
       this.#pendingCacheEntries.clear();
       this.#finalized = true;
@@ -68,7 +76,9 @@ export class LLMContext {
     return Promise.resolve();
   }
 
-  async run<T>(operation: (context: LLMContext) => Promise<T>): Promise<T> {
+  public async run<T>(
+    operation: (context: LLMContext) => Promise<T>,
+  ): Promise<T> {
     try {
       const result = await operation(this);
       await this.commit();
