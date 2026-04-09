@@ -7,7 +7,6 @@ export {
 } from "./extraction/index.js";
 export type {
   ChunkBatch,
-  ChunkExtractionPromptPaths,
   ChunkExtractionScopes,
   ChunkExtractionSentence,
   ChunkExtractorOptions,

@@ -1,0 +1,224 @@
+You are reading a long text and need to extract essential connective tissue for maintaining the book's narrative coherence.
+
+---
+
+{% if user_language %}
+**Language Configuration:**
+
+**User interface language:** {{ user_language }}
+
+**Output Requirements:**
+- **label** and **content** fields: Must be in **{{ user_language }}** (translate from source text if needed)
+- **evidence**: Use structured source anchors in the **original language(s)** (NEVER translate)
+- Prefer **evidence** over **source_sentences**. **source_sentences** is a legacy fallback only.
+
+**Important Notes:**
+- The source text may be in any language or mix of languages
+- Your job is to:
+  1. Understand the text in whatever language(s) it uses
+  2. Translate only **label** and **content** to {{ user_language }} for user understanding
+  3. Keep **evidence** anchors in exact original language(s) - never translate them
+
+Example output structure:
+```json
+{
+  "importance_annotations": [
+    {"chunk_id": 19, "importance": "critical"}
+  ],
+  "chunks": [
+    {
+      "temp_id": "D",
+      "label": "{{ user_language }} translated label",
+      "content": "{{ user_language }} translated description",
+      "evidence": {
+        "start_anchor": {"mode": "full", "text": "Exact original-language anchor"}
+      },
+      "importance": "critical"
+    }
+  ]
+}
+```
+
+{% else %}
+**Language Note:** No user language specified. Keep all output fields in the **SAME LANGUAGE(S) as the source text**. Do not translate anything.
+
+**Output Requirements:**
+- **label**, **content**, and **evidence**: All in the source text's original language(s)
+- Prefer **evidence** over **source_sentences**. **source_sentences** is a legacy fallback only.
+- If the source text contains multiple languages, preserve them as they appear
+{% endif %}
+
+---
+
+## CONTEXT
+
+These user-focused chunks were already extracted from this text segment:
+
+{% if user_focused_chunks %}
+{% for chunk in user_focused_chunks %}
+{{ chunk.id }}. [{{ chunk.label }}] {{ chunk.content }}
+{% endfor %}
+{% else %}
+(No user-focused chunks were extracted from this segment)
+{% endif %}
+
+**Current Working Memory:**
+{{ working_memory }}
+
+---
+
+## TASK
+
+Your task has two parts:
+
+1. **Extract new book-coherence chunks** that are ESSENTIAL for understanding the book's logic but were NOT captured in the user-focused chunks above.
+
+2. **Annotate existing user-focused chunks with importance** if they are also critical for book coherence. Do NOT create duplicate chunks - instead, add their IDs to `importance_annotations`.
+
+**Be conservative**: Extract 1-3 new chunks ONLY if they meet the strict criteria below. Many segments need NO new book-coherence chunks at all - if the user-focused chunks already cover the essential connective tissue, output empty arrays. Don't extract just for the sake of extracting.
+
+---
+
+## EXTRACTION CRITERIA
+
+### What to extract (book-coherence chunks):
+
+Extract information essential for understanding the book's logic and narrative flow, REGARDLESS of the reader's personal interests. This includes:
+
+- **First introductions** of key concepts, characters, or settings that will be referenced later
+- **Causal relationships** that drive the plot or argument forward
+- **Context and background** that makes later content comprehensible
+- **Turning points or transitions** in the narrative structure
+- **Definitions, rules, or constraints** established by the author that affect subsequent content
+
+### What to avoid:
+
+- Information **already captured** in the user-focused chunks above (use `importance_annotations` instead)
+- Details that **won't affect comprehension** of later content
+- Generic filler, repetition, or tangential information
+- Content that's interesting but not structurally necessary
+
+### When to use importance_annotations:
+
+If a user-focused chunk represents a **major turning point, causal link, or structural necessity** for the book's narrative flow, add it to `importance_annotations` with an appropriate importance level. This allows the same information point to have both user retention level AND book importance level.
+
+### Link criteria:
+
+Connect book-coherence chunks when there are clear **logical dependencies**, **cause-and-effect relationships**, or **narrative continuity** between them.
+
+Also link to user-focused chunks if they provide essential context for each other (e.g., book-coherence chunk explains WHY something in user-focused chunk happened).
+
+---
+
+## IMPORTANCE LEVEL GUIDELINES
+
+Rate each book-coherence chunk (being extracted means it's already important, so use only 3 levels):
+
+- **critical**: Essential setup, major turning points, or causal links that cannot be skipped
+  - Use sparingly - only for structural necessities
+- **important**: Key context, definitions, or transitions that significantly aid understanding
+  - This should be the majority of book-coherence chunks
+- **helpful**: Supplementary background or minor connective tissue
+  - Use for nice-to-have context
+
+**Remember**: Book-coherence extraction should be conservative. If in doubt whether something is necessary for coherence, it probably isn't.
+
+---
+
+## LINK STRENGTH GUIDELINES
+
+Rate each link's dependency strength:
+
+- **critical**: Must understand FROM to understand TO (cannot skip FROM)
+- **important**: FROM provides essential context for TO (should not skip FROM)
+- **helpful**: FROM and TO are related but both can stand alone (optional connection)
+
+---
+
+**Output Format (JSON only, no other text):**
+
+The user will provide the same text segment in their message. Extract ONLY book-coherence chunks that supplement the user-focused extraction.
+
+CRITICAL: You MUST output in this EXACT structure with "importance_annotations" FIRST, "chunks" SECOND, then "links" THIRD:
+
+{
+  "importance_annotations": [
+    {"chunk_id": 19, "importance": "critical"},
+    {"chunk_id": 23, "importance": "important"}
+  ],
+  "chunks": [
+    {
+      "temp_id": "D",
+      "label": "brief topic label (5-15 chars)",
+      "content": "full description of the connective information",
+      "evidence": {
+        "start_anchor": {"mode": "full", "text": "original anchor"}
+      },
+      "importance": "critical"
+    }
+  ],
+  "links": [
+    {"from": "D", "to": 1, "strength": "important"},
+    {"from": 5, "to": "D", "strength": "helpful"}
+  ]
+}
+
+**If no book-coherence work is needed, output:**
+{
+  "importance_annotations": [],
+  "chunks": [],
+  "links": []
+}
+
+This is a VALID successful result.
+- Do NOT apologize
+- Do NOT say you cannot answer
+- Do NOT say no result was found
+- Do NOT output explanatory text outside the JSON
+- When nothing new is needed for coherence, return the empty JSON object above directly
+
+**Field Explanations:**
+- "importance_annotations": Array of importance labels for EXISTING user-focused chunks (0-5 annotations)
+  - Use this when a user-focused chunk is ALSO important for book coherence
+  - "chunk_id": The numeric ID of the user-focused chunk (from the list above)
+  - "importance": One of "critical", "important", or "helpful"
+  - This avoids duplicate extraction - the same information point gets both retention and importance labels
+  - **Process this FIRST**: Identify which user-focused chunks are also book-critical, then extract only what's missing
+
+- "chunks": Array of NEW book-coherence chunks (0-3 chunks, only if essential and NOT already in user-focused)
+  - "temp_id": Use letters continuing from user-focused chunks (if user had A,B,C then start with D,E,F)
+  - "type": MUST be "book_coherence"
+  - "label": 5-15 character summary
+  - "content": Full one-sentence description
+  - "evidence": Structured source anchors for this chunk
+    - Preferred format:
+      - `"start_anchor": {"mode": "full", "text": "..."}` for an exact anchor snippet
+      - `"start_anchor": {"mode": "head_tail", "head": "...", "tail": "..."}` if you want to omit the middle of a long sentence
+      - Add `"end_anchor"` only when the chunk spans multiple consecutive sentences
+    - `start_anchor` must identify the FIRST supporting sentence
+    - `end_anchor` must identify the LAST supporting sentence when needed
+    - Keep anchors in the original source language(s)
+    - Do NOT translate anchors
+  - "source_sentences": Legacy fallback only if you cannot express the evidence with anchors
+    - If used, copy exact original text
+  - "importance": One of "critical", "important", or "helpful"
+  - **Process this SECOND**: After annotating existing chunks, extract only missing book-critical information
+
+- "links": Array of relationships between chunks
+  - "from" can be: working memory ID (number) OR temp_id (string from user-focused OR book-coherence chunks)
+  - "to" can be: working memory ID (number) OR temp_id (string from user-focused OR book-coherence chunks)
+  - "strength": One of "critical", "important", or "helpful"
+  - Can link book-coherence chunks to user-focused chunks (e.g., "D" to 1)
+  - Use empty array [] if no relationships exist
+
+**IMPORTANT:**
+1. The order matters! Output "importance_annotations" FIRST, "chunks" SECOND, then "links" THIRD.
+2. Think in this order: First identify which user-focused chunks are book-critical, then extract only missing information, finally link them.
+3. Every chunk MUST have a "type" field set to "book_coherence".
+4. Every chunk MUST have an "importance" field with one of the three valid values.
+5. Every importance_annotation MUST reference a valid user-focused chunk_id from the list above.
+6. Every link MUST have a "strength" field with one of the three valid values.
+7. Be conservative - only extract/annotate what's truly necessary for coherence.
+8. Do NOT create new chunks for information already in user-focused chunks - use importance_annotations instead.
+9. If no new annotations/chunks/links are needed, the correct output is still valid JSON with empty arrays.
+10. A "nothing to add" case is NOT a failure. Never respond with apology/refusal text such as "I cannot answer", "no relevant result", or similar wording.

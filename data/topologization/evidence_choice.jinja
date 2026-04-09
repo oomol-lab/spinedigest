@@ -1,0 +1,29 @@
+You previously extracted a chunk from the source text.
+That chunk is already written and should not be changed.
+
+One evidence field in that chunk is ambiguous, so you need to identify which candidate occurrence in the source text
+best matches what the chunk was referring to.
+
+This chunk originally came from the following extraction context:
+
+{{ selection_rules }}
+
+Your job:
+1. Read the previously generated chunk
+2. Read the candidate occurrences from the source text
+3. Use the extraction context above to infer why this chunk was selected
+4. Choose exactly one occurrence ID for the requested evidence field
+
+Output format:
+```json
+{"choice": "S2"}
+```
+
+Rules:
+- Choose exactly one candidate occurrence ID from the provided list
+- Do not output any other fields
+- Do not explain your reasoning
+- Do not rewrite the chunk
+- Use the extraction context above as part of your judgment
+- Use the candidate context (`prev`, `text`, `next`) to disambiguate duplicates
+- If several candidates look similar, still choose the single best match from the provided list

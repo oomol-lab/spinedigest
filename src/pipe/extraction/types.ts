@@ -33,12 +33,6 @@ export interface ChunkBatch {
   readonly importanceAnnotations?: readonly ChunkImportanceAnnotation[];
 }
 
-export interface ChunkExtractionPromptPaths {
-  readonly bookCoherence: string;
-  readonly evidenceChoice: string;
-  readonly userFocused: string;
-}
-
 export interface ChunkExtractionScopes<S extends string> {
   readonly choice: S;
   readonly extraction: S;
@@ -71,7 +65,6 @@ export interface ChunkTranslator {
 export interface ChunkExtractorOptions<S extends string> {
   readonly extractionGuidance: string;
   readonly llm: LLM<S>;
-  readonly prompts: ChunkExtractionPromptPaths;
   readonly scopes: ChunkExtractionScopes<S>;
   readonly sentenceTextSource: SentenceTextSource;
   readonly translator?: ChunkTranslator;

@@ -66,7 +66,6 @@ export {
   normalizeText,
   splitTextIntoSentences,
   type ChunkBatch,
-  type ChunkExtractionPromptPaths,
   type ChunkExtractionScopes,
   type ChunkExtractionSentence,
   type ChunkExtractorOptions,

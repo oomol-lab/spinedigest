@@ -4,7 +4,6 @@ export { splitTextIntoSentences, normalizeText } from "./text.js";
 export { WorkingMemory } from "./working-memory.js";
 export type {
   ChunkBatch,
-  ChunkExtractionPromptPaths,
   ChunkExtractionScopes,
   ChunkExtractionSentence,
   ChunkExtractorOptions,

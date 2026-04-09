@@ -1,3 +1,6 @@
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
+
 import { z } from "zod";
 
 import {
@@ -158,11 +161,32 @@ type GuaranteedChoiceRequest = (
 
 type ExtractionStage = "user_focused" | "book_coherence";
 
+const MODULE_DIR_PATH = dirname(fileURLToPath(import.meta.url));
+const DATA_DIR_PATH = resolve(
+  MODULE_DIR_PATH,
+  "..",
+  "..",
+  "..",
+  "data",
+  "topologization",
+);
+const USER_FOCUSED_PROMPT_PATH = resolve(
+  DATA_DIR_PATH,
+  "user_focused_extraction.jinja",
+);
+const BOOK_COHERENCE_PROMPT_PATH = resolve(
+  DATA_DIR_PATH,
+  "book_coherence_extraction.jinja",
+);
+const EVIDENCE_CHOICE_PROMPT_PATH = resolve(
+  DATA_DIR_PATH,
+  "evidence_choice.jinja",
+);
+
 export class ChunkExtractor<S extends string> {
   readonly #evidenceResolver = new EvidenceResolver();
   readonly #extractionGuidance: string;
   readonly #llm: LLM<S>;
-  readonly #prompts: ChunkExtractorOptions<S>["prompts"];
   readonly #scopes: ChunkExtractorOptions<S>["scopes"];
   readonly #sentenceTextSource: ChunkExtractorOptions<S>["sentenceTextSource"];
   readonly #translator: ChunkExtractorOptions<S>["translator"];
@@ -171,7 +195,6 @@ export class ChunkExtractor<S extends string> {
   public constructor(options: ChunkExtractorOptions<S>) {
     this.#extractionGuidance = options.extractionGuidance;
     this.#llm = options.llm;
-    this.#prompts = options.prompts;
     this.#scopes = options.scopes;
     this.#sentenceTextSource = options.sentenceTextSource;
     this.#translator = options.translator;
@@ -183,7 +206,7 @@ export class ChunkExtractor<S extends string> {
   ): Promise<ExtractUserFocusedResult> {
     const sentenceContext = createSentenceContext(input.sentences);
     const messages = this.#buildMessages({
-      promptTemplatePath: this.#prompts.userFocused,
+      promptTemplatePath: USER_FOCUSED_PROMPT_PATH,
       templateContext: {
         extraction_guidance: this.#extractionGuidance,
         user_language: this.#userLanguage,
@@ -252,7 +275,7 @@ export class ChunkExtractor<S extends string> {
   ): Promise<ChunkBatch> {
     const sentenceContext = createSentenceContext(input.sentences);
     const messages = this.#buildMessages({
-      promptTemplatePath: this.#prompts.bookCoherence,
+      promptTemplatePath: BOOK_COHERENCE_PROMPT_PATH,
       templateContext: {
         user_focused_chunks: input.userFocusedChunks.map((chunk) => ({
           content: chunk.content,
@@ -620,7 +643,7 @@ export class ChunkExtractor<S extends string> {
     ]
   > {
     const messages = this.#buildMessages({
-      promptTemplatePath: this.#prompts.evidenceChoice,
+      promptTemplatePath: EVIDENCE_CHOICE_PROMPT_PATH,
       templateContext: {
         selection_rules: this.#getChoiceSelectionRules(input.metadataField),
         user_language: this.#userLanguage,
