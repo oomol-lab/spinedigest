@@ -1,4 +1,4 @@
-import type { CognitiveChunk } from "./extraction/types.js";
+import type { CognitiveChunk } from "../chunk-batch/types.js";
 
 export class WorkingMemory {
   readonly #capacity: number;

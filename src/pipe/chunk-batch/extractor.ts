@@ -17,7 +17,7 @@ import {
   type ExtractChunksResult,
   type UserFocusedResponseData,
   userFocusedResponseSchema,
-} from "./chunk-batch-parser.js";
+} from "./parser.js";
 import { needsTranslation } from "./language.js";
 import type {
   ChunkBatch,

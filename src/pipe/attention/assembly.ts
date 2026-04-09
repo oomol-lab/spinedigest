@@ -1,8 +1,19 @@
-import type { ChunkBatch, CognitiveChunk } from "./extraction/types.js";
+import type {
+  ChunkBatch,
+  ChunkImportanceAnnotation,
+  CognitiveChunk,
+} from "../chunk-batch/types.js";
 
-export interface ChunkBatchAssemblyResult {
+export interface ChunkGraphEdge {
+  readonly fromId: number;
+  readonly strength?: string;
+  readonly toId: number;
+}
+
+export interface ChunkGraphDelta {
   readonly chunks: CognitiveChunk[];
-  readonly edges: readonly (readonly [number, number])[];
+  readonly edges: readonly ChunkGraphEdge[];
+  readonly importanceAnnotations?: readonly ChunkImportanceAnnotation[];
 }
 
 export async function assembleChunkBatch(input: {
@@ -10,7 +21,7 @@ export async function assembleChunkBatch(input: {
   generation: number;
   idGenerator: () => Promise<number>;
   visibleChunks: readonly CognitiveChunk[];
-}): Promise<ChunkBatchAssemblyResult> {
+}): Promise<ChunkGraphDelta> {
   const tempIdRecord: Record<string, CognitiveChunk> = Object.create(
     null,
   ) as Record<string, CognitiveChunk>;
@@ -29,7 +40,7 @@ export async function assembleChunkBatch(input: {
   }
 
   const visibleChunks = [...input.visibleChunks, ...input.chunkBatch.chunks];
-  const edges: Array<readonly [number, number]> = [];
+  const edges: ChunkGraphEdge[] = [];
 
   for (const link of input.chunkBatch.links) {
     const fromChunk = resolveChunkReference(
@@ -49,12 +60,29 @@ export async function assembleChunkBatch(input: {
         : ([toChunk.id, fromChunk.id] as const);
 
     attachLink(visibleChunks, edgeToId, edgeFromId);
-    edges.push([edgeFromId, edgeToId]);
+    if (link.strength === undefined) {
+      edges.push({
+        fromId: edgeFromId,
+        toId: edgeToId,
+      });
+      continue;
+    }
+
+    edges.push({
+      fromId: edgeFromId,
+      strength: link.strength,
+      toId: edgeToId,
+    });
   }
 
   return {
     chunks: input.chunkBatch.chunks,
     edges,
+    ...(input.chunkBatch.importanceAnnotations === undefined
+      ? {}
+      : {
+          importanceAnnotations: input.chunkBatch.importanceAnnotations,
+        }),
   };
 }
 

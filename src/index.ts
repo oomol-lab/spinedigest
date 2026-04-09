@@ -58,13 +58,6 @@ export {
   type TemperatureSetting,
 } from "./llm/index.js";
 export {
-  createDefaultSentenceStreamAdapter,
-  IntlSegmenterSentenceStreamAdapter,
-  type SentenceStreamAdapter,
-  type SentenceStreamItem,
-  type TextStream,
-} from "./segment/index.js";
-export {
   ChunkStore,
   FragmentDraft,
   FragmentGroupStore,
@@ -91,12 +84,16 @@ export {
 export {
   assembleChunkBatch,
   ChunkExtractor,
+  createDefaultSentenceStreamAdapter,
   EvidenceResolver,
+  IntlSegmenterSentenceStreamAdapter,
   WorkingMemory,
   WaveReflection,
   normalizeText,
   splitTextIntoSentences,
   type ChunkBatch,
+  type ChunkGraphDelta,
+  type ChunkGraphEdge,
   type ChunkExtractionScopes,
   type ChunkExtractionSentence,
   type ChunkExtractorOptions,
@@ -112,5 +109,8 @@ export {
   type ExtractUserFocusedInput,
   type ExtractUserFocusedResult,
   type RankedSentenceCandidate,
+  type SentenceStreamAdapter,
+  type SentenceStreamItem,
   type SentenceTextSource,
+  type TextStream,
 } from "./pipe/index.js";

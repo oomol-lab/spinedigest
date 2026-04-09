@@ -1,12 +1,18 @@
-export { assembleChunkBatch } from "./assembly.js";
-export { WorkingMemory } from "./working-memory.js";
+export {
+  assembleChunkBatch,
+  WorkingMemory,
+  WaveReflection,
+} from "./attention/index.js";
 export {
   ChunkExtractor,
   EvidenceResolver,
   normalizeText,
   splitTextIntoSentences,
-} from "./extraction/index.js";
-export { WaveReflection } from "./wave-reflection.js";
+} from "./chunk-batch/index.js";
+export {
+  createDefaultSentenceStreamAdapter,
+  IntlSegmenterSentenceStreamAdapter,
+} from "./segment/index.js";
 export type {
   ChunkBatch,
   ChunkExtractionScopes,
@@ -25,4 +31,10 @@ export type {
   ExtractUserFocusedResult,
   RankedSentenceCandidate,
   SentenceTextSource,
-} from "./extraction/index.js";
+} from "./chunk-batch/index.js";
+export type { ChunkGraphDelta, ChunkGraphEdge } from "./attention/index.js";
+export type {
+  SentenceStreamAdapter,
+  SentenceStreamItem,
+  TextStream,
+} from "./segment/index.js";
