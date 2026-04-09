@@ -5,7 +5,7 @@ export function helloWorld(): string {
 export { createEnv } from "./common/template.js";
 export {
   compressText,
-  type CompressTextOptions,
+  type EditorOptions,
   type EditorScopes,
 } from "./editor/index.js";
 export {
