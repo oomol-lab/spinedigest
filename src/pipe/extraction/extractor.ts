@@ -13,20 +13,18 @@ import type { LLMessage, LLM } from "../../llm/index.js";
 import {
   bookCoherenceResponseSchema,
   ChunkBatchParser,
-  createSentenceContext,
-  getSentenceKey,
   type BookCoherenceResponseData,
   type ExtractChunksResult,
-  type SentenceContext,
   type UserFocusedResponseData,
   userFocusedResponseSchema,
 } from "./chunk-batch-parser.js";
 import { needsTranslation } from "./language.js";
 import type {
   ChunkBatch,
+  ChunkExtractionSentence,
   ChunkExtractorOptions,
   ChunkTranslationInput,
-  CognitiveChunk,
+  ChunkTranslationOutput,
   ExtractBookCoherenceInput,
   ExtractUserFocusedInput,
   ExtractUserFocusedResult,
@@ -41,9 +39,16 @@ interface ExtractChunksInput<
   readonly messages: readonly LLMessage[];
   readonly metadataField: "retention" | "importance";
   readonly schema: ZodType<TData>;
-  readonly sentenceContext: SentenceContext;
-  readonly validImportanceChunkIds?: ReadonlySet<number>;
+  readonly sentences: readonly ChunkExtractionSentence[];
+  readonly validImportanceChunkIds?: readonly number[];
   readonly visibleChunkIds: readonly number[];
+}
+
+interface ExtractChunksOutput<
+  TData extends UserFocusedResponseData | BookCoherenceResponseData,
+> {
+  readonly parser: ChunkBatchParser<TData>;
+  readonly result: ExtractChunksResult;
 }
 
 const MODULE_DIR_PATH = dirname(fileURLToPath(import.meta.url));
@@ -88,46 +93,42 @@ export class ChunkExtractor<S extends string> {
   public async extractUserFocused(
     input: ExtractUserFocusedInput,
   ): Promise<ExtractUserFocusedResult> {
-    const sentenceContext = createSentenceContext(input.sentences);
     const messages = this.#buildMessages({
-      text: input.text,
       promptTemplatePath: USER_FOCUSED_PROMPT_PATH,
       templateContext: {
         extraction_guidance: this.#extractionGuidance,
         user_language: this.#userLanguage,
         working_memory: input.workingMemoryPrompt,
       },
+      text: input.text,
     });
-
-    const result = await this.#extractChunks({
-      messages,
-      metadataField: "retention",
-      schema: userFocusedResponseSchema,
-      sentenceContext,
-      visibleChunkIds: input.visibleChunkIds,
+    const extraction = await this.#extractChunks({
       emptyChunkBatch: {
         chunks: [],
         links: [],
         orderCorrect: true,
         tempIds: [],
       },
+      messages,
+      metadataField: "retention",
+      schema: userFocusedResponseSchema,
+      sentences: input.sentences,
+      visibleChunkIds: input.visibleChunkIds,
     });
 
     return {
       chunkBatch: await this.#ensureChunkBatchLanguage(
-        result.chunkBatch,
-        sentenceContext,
+        extraction.result.chunkBatch,
+        extraction.parser,
       ),
-      fragmentSummary: result.fragmentSummary ?? "",
+      fragmentSummary: extraction.result.fragmentSummary ?? "",
     };
   }
 
   public async extractBookCoherence(
     input: ExtractBookCoherenceInput,
   ): Promise<ChunkBatch> {
-    const sentenceContext = createSentenceContext(input.sentences);
     const messages = this.#buildMessages({
-      text: input.text,
       promptTemplatePath: BOOK_COHERENCE_PROMPT_PATH,
       templateContext: {
         user_focused_chunks: input.userFocusedChunks.map((chunk) => ({
@@ -138,30 +139,27 @@ export class ChunkExtractor<S extends string> {
         user_language: this.#userLanguage,
         working_memory: input.workingMemoryPrompt,
       },
+      text: input.text,
     });
-    const validImportanceChunkIds = new Set(
-      input.userFocusedChunks.map((chunk) => chunk.id),
-    );
-
-    const result = await this.#extractChunks({
-      messages,
-      metadataField: "importance",
-      schema: bookCoherenceResponseSchema,
-      sentenceContext,
-      validImportanceChunkIds,
-      visibleChunkIds: input.visibleChunkIds,
+    const extraction = await this.#extractChunks({
       emptyChunkBatch: {
         chunks: [],
+        importanceAnnotations: [],
         links: [],
         orderCorrect: true,
         tempIds: [],
-        importanceAnnotations: [],
       },
+      messages,
+      metadataField: "importance",
+      schema: bookCoherenceResponseSchema,
+      sentences: input.sentences,
+      validImportanceChunkIds: input.userFocusedChunks.map((chunk) => chunk.id),
+      visibleChunkIds: input.visibleChunkIds,
     });
 
     return await this.#ensureChunkBatchLanguage(
-      result.chunkBatch,
-      sentenceContext,
+      extraction.result.chunkBatch,
+      extraction.parser,
     );
   }
 
@@ -187,52 +185,64 @@ export class ChunkExtractor<S extends string> {
 
   async #extractChunks<
     TData extends UserFocusedResponseData | BookCoherenceResponseData,
-  >(input: ExtractChunksInput<TData>): Promise<ExtractChunksResult> {
+  >(input: ExtractChunksInput<TData>): Promise<ExtractChunksOutput<TData>> {
     return await this.#llm.withContext(
-      async (context): Promise<ExtractChunksResult> => {
+      async (context): Promise<ExtractChunksOutput<TData>> => {
+        const parser = new ChunkBatchParser<TData>({
+          metadataField: input.metadataField,
+          sentenceTextSource: this.#sentenceTextSource,
+          sentences: input.sentences,
+          visibleChunkIds: input.visibleChunkIds,
+          choiceSystemPrompt: this.#llm.loadSystemPrompt(
+            EVIDENCE_CHOICE_PROMPT_PATH,
+            {
+              extraction_guidance: this.#extractionGuidance,
+              metadata_field: input.metadataField,
+              user_language: this.#userLanguage,
+            },
+          ),
+          requestChoice: async (messages, index, maxRetries) =>
+            await context.request(messages, {
+              retryIndex: index,
+              retryMax: maxRetries,
+              scope: this.#scopes.choice,
+              useCache: false,
+            }),
+          ...(input.validImportanceChunkIds === undefined
+            ? {}
+            : {
+                validImportanceChunkIds: input.validImportanceChunkIds,
+              }),
+        });
+
         try {
-          return await requestGuaranteedJson({
-            maxRetries: MAX_CHUNK_REGENERATIONS,
+          const result = await requestGuaranteedJson({
             messages: input.messages,
+            schema: input.schema,
+            maxRetries: MAX_CHUNK_REGENERATIONS,
             parse: async (data, index, maxRetries) =>
-              await new ChunkBatchParser({
-                choiceSystemPrompt: this.#llm.loadSystemPrompt(
-                  EVIDENCE_CHOICE_PROMPT_PATH,
-                  {
-                    extraction_guidance: this.#extractionGuidance,
-                    metadata_field: input.metadataField,
-                    user_language: this.#userLanguage,
-                  },
-                ),
+              await parser.parse(data, {
                 isLastGenerationAttempt: index >= maxRetries,
-                metadataField: input.metadataField,
-                requestChoice: async (choiceMessages, choiceIndex, choiceMax) =>
-                  await context.request(choiceMessages, {
-                    retryIndex: choiceIndex,
-                    retryMax: choiceMax,
-                    scope: this.#scopes.choice,
-                    useCache: false,
-                  }),
-                sentenceContext: input.sentenceContext,
-                visibleChunkIds: input.visibleChunkIds,
-                ...(input.validImportanceChunkIds === undefined
-                  ? {}
-                  : {
-                      validImportanceChunkIds: input.validImportanceChunkIds,
-                    }),
-              }).parse(data),
+              }),
             request: async (messages, index, maxRetries) =>
               await context.request(messages, {
                 retryIndex: index,
                 retryMax: maxRetries,
                 scope: this.#scopes.extraction,
               }),
-            schema: input.schema,
           });
+
+          return {
+            parser,
+            result,
+          };
         } catch (error) {
           if (isParsedJsonValidationFailure(error)) {
             return {
-              chunkBatch: input.emptyChunkBatch,
+              parser,
+              result: {
+                chunkBatch: input.emptyChunkBatch,
+              },
             };
           }
           throw error;
@@ -253,7 +263,9 @@ export class ChunkExtractor<S extends string> {
    */
   async #ensureChunkBatchLanguage(
     chunkBatch: ChunkBatch,
-    sentenceContext: SentenceContext,
+    parser: ChunkBatchParser<
+      UserFocusedResponseData | BookCoherenceResponseData
+    >,
   ): Promise<ChunkBatch> {
     if (
       this.#translator === undefined ||
@@ -262,7 +274,7 @@ export class ChunkExtractor<S extends string> {
     ) {
       return chunkBatch;
     }
-    const userLanguage = this.#userLanguage;
+
     const translationInput: ChunkTranslationInput[] = [];
 
     for (const [index, chunk] of chunkBatch.chunks.entries()) {
@@ -270,19 +282,17 @@ export class ChunkExtractor<S extends string> {
         !needsTranslation({
           content: chunk.content,
           label: chunk.label,
-          targetLanguage: userLanguage,
+          targetLanguage: this.#userLanguage,
         })
       ) {
         continue;
       }
+
       translationInput.push({
         content: chunk.content,
         id: index,
         label: chunk.label,
-        sourceSentences: await this.#getChunkSourceSentences(
-          chunk,
-          sentenceContext,
-        ),
+        sourceSentences: await parser.getChunkSourceSentences(chunk),
       });
     }
 
@@ -290,31 +300,28 @@ export class ChunkExtractor<S extends string> {
       return chunkBatch;
     }
 
-    let translatedChunks: readonly {
-      readonly content: string;
-      readonly id: number;
-      readonly label: string;
-    }[];
+    let translatedChunks: readonly ChunkTranslationOutput[];
 
     try {
       translatedChunks = await this.#translator.translate(
         translationInput,
-        userLanguage,
+        this.#userLanguage,
       );
     } catch {
       return chunkBatch;
     }
-    const translatedById = new Map(
-      translatedChunks.map((chunk) => [chunk.id, chunk] as const),
-    );
+
+    const translatedById = createTranslatedChunkRecord(translatedChunks);
+
     return {
       ...chunkBatch,
       chunks: chunkBatch.chunks.map((chunk, index) => {
-        const translated = translatedById.get(index);
+        const translated = translatedById[String(index)];
 
         if (translated === undefined) {
           return chunk;
         }
+
         return {
           ...chunk,
           content: translated.content,
@@ -323,27 +330,6 @@ export class ChunkExtractor<S extends string> {
       }),
     };
   }
-
-  async #getChunkSourceSentences(
-    chunk: CognitiveChunk,
-    sentenceContext: SentenceContext,
-  ): Promise<string[]> {
-    const sourceSentences: string[] = [];
-
-    for (const sentenceId of chunk.sentenceIds) {
-      const sentenceKey = getSentenceKey(sentenceId);
-      const sentenceText = sentenceContext.textByKey.get(sentenceKey);
-
-      if (sentenceText !== undefined) {
-        sourceSentences.push(sentenceText);
-        continue;
-      }
-      sourceSentences.push(
-        await this.#sentenceTextSource.getSentence(sentenceId),
-      );
-    }
-    return sourceSentences;
-  }
 }
 
 function isParsedJsonValidationFailure(error: unknown): boolean {
@@ -351,4 +337,16 @@ function isParsedJsonValidationFailure(error: unknown): boolean {
     error instanceof GuaranteedParseValidationError &&
     error.cause instanceof ParsedJsonError
   );
+}
+
+function createTranslatedChunkRecord(
+  translatedChunks: readonly ChunkTranslationOutput[],
+): Readonly<Record<string, ChunkTranslationOutput>> {
+  const record = Object.create(null) as Record<string, ChunkTranslationOutput>;
+
+  for (const chunk of translatedChunks) {
+    record[String(chunk.id)] = chunk;
+  }
+
+  return record;
 }
