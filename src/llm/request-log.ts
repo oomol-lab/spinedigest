@@ -19,7 +19,6 @@ export class RequestLog {
     if (this.#filePath === undefined) {
       return;
     }
-
     await appendFile(this.#filePath, content, "utf8");
   }
 }

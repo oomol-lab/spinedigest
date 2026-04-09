@@ -1,7 +1,10 @@
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 
-import type { PendingCacheEntry } from "./types.js";
+export interface PendingCacheEntry {
+  cacheKey: string;
+  response: string;
+}
 
 export class LLMCache {
   readonly #cacheDirPath: string;

@@ -6,44 +6,34 @@ export type LLMModel = LanguageModel;
 export type TemperatureSetting = number | readonly number[];
 
 export interface SamplingProfile {
-  temperature?: TemperatureSetting;
-  topP?: TemperatureSetting;
+  readonly temperature?: TemperatureSetting;
+  readonly topP?: TemperatureSetting;
 }
 
-export type SamplingScopeConfig = Record<string, SamplingProfile>;
+export type SamplingScopeConfig<S extends string> = {
+  readonly [scope in S]: SamplingProfile;
+};
 
-export interface LLMRequestOptions {
-  temperature?: TemperatureSetting;
-  topP?: TemperatureSetting;
-  scope?: string;
-  useCache?: boolean;
-  retryIndex?: number;
-  retryMax?: number;
+export interface LLMRequestOptions<S extends string> {
+  readonly temperature?: TemperatureSetting;
+  readonly topP?: TemperatureSetting;
+  readonly scope?: S;
+  readonly useCache?: boolean;
+  readonly retryIndex?: number;
+  readonly retryMax?: number;
 }
 
-export interface LLMOptions {
-  model: LLMModel;
-  modelId?: string;
-  dataDirPath: string;
-  logDirPath?: string;
-  cacheDirPath?: string;
-  concurrent?: number;
-  timeout?: number;
-  temperature?: TemperatureSetting;
-  topP?: TemperatureSetting;
-  sampling?: SamplingScopeConfig;
-  retryTimes?: number;
-  retryIntervalSeconds?: number;
+export interface LLMOptions<S extends string> {
+  readonly model: LLMModel;
+  readonly modelId?: string;
+  readonly dataDirPath: string;
+  readonly logDirPath?: string;
+  readonly cacheDirPath?: string;
+  readonly concurrent?: number;
+  readonly timeout?: number;
+  readonly temperature?: TemperatureSetting;
+  readonly topP?: TemperatureSetting;
+  readonly sampling?: SamplingScopeConfig<S>;
+  readonly retryTimes?: number;
+  readonly retryIntervalSeconds?: number;
 }
-
-export interface PendingCacheEntry {
-  cacheKey: string;
-  response: string;
-}
-
-export type LLMContextRequest = (
-  messages: readonly LLMessage[],
-  options: LLMRequestOptions,
-  pendingCacheEntries?: Map<string, PendingCacheEntry>,
-  logFiles?: string[],
-) => Promise<string>;

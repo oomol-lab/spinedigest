@@ -14,7 +14,7 @@ import { createEnv } from "../common/template.js";
 import { AsyncSemaphore } from "../utils/async-semaphore.js";
 import { createHash } from "../utils/hash.js";
 import { LLMCache } from "./cache.js";
-import { LLMContext } from "./context.js";
+import { LLMContext, type LLMContextRequestInput } from "./context.js";
 import { createRequestLog } from "./request-log.js";
 import { getScopeDefaults, resolveSamplingSetting } from "./sampling.js";
 import type {
@@ -22,7 +22,6 @@ import type {
   LLMModel,
   LLMOptions,
   LLMRequestOptions,
-  PendingCacheEntry,
   SamplingScopeConfig,
   TemperatureSetting,
 } from "./types.js";
@@ -31,7 +30,15 @@ const RETRYABLE_STATUS_CODES = new Set([502, 503, 504, 524, 529]);
 
 let contextIdCounter = 0;
 
-export class LLM {
+type LLMRequestSessionInput<S extends string> = Omit<
+  LLMContextRequestInput<S>,
+  "options"
+> &
+  LLMRequestOptions<S> & {
+    sessionId?: number;
+  };
+
+export class LLM<S extends string> {
   readonly #cache: LLMCache | undefined;
   readonly #dataDirPath: string;
   readonly #logDirPath: string | undefined;
@@ -40,37 +47,36 @@ export class LLM {
   readonly #requestLimiter: AsyncSemaphore;
   readonly #retryIntervalSeconds: number;
   readonly #retryTimes: number;
-  readonly #sampling: SamplingScopeConfig;
+  readonly #sampling: SamplingScopeConfig<S> | undefined;
   readonly #templateEnvironment: Environment;
   readonly #temperature: TemperatureSetting;
   readonly #timeoutMs: number;
   readonly #topP: TemperatureSetting;
 
-  public readonly config: {
+  public readonly config: Readonly<{
     modelId: string;
+    sampling?: SamplingScopeConfig<S>;
     timeout: number;
     temperature: TemperatureSetting;
     topP: TemperatureSetting;
-    sampling: SamplingScopeConfig;
-  };
+  }>;
 
-  public constructor(options: LLMOptions) {
+  public constructor(options: LLMOptions<S>) {
     const concurrent = options.concurrent ?? 1;
     const timeout = options.timeout ?? 360;
     const timeoutMs = timeout * 1000;
     const temperature = options.temperature ?? 0.6;
     const topP = options.topP ?? 0.6;
-    const sampling = options.sampling ?? {};
+    const sampling = options.sampling;
     const modelId = resolveModelId(options.model, options.modelId);
 
-    this.config = {
+    this.config = Object.freeze({
       modelId,
-      sampling,
       temperature,
       timeout,
       topP,
-    };
-
+      ...(sampling === undefined ? {} : { sampling }),
+    });
     this.#cache = createCache(options.cacheDirPath);
     this.#dataDirPath = resolve(options.dataDirPath);
     this.#logDirPath = ensureDirectoryPath(options.logDirPath);
@@ -86,47 +92,35 @@ export class LLM {
     this.#topP = topP;
   }
 
-  public context(): LLMContext {
+  public context(): LLMContext<S> {
     contextIdCounter += 1;
     const sessionId = contextIdCounter;
 
     return new LLMContext(
       sessionId,
-      async (messages, requestOptions, pendingCacheEntries, logFiles) =>
+      async (input) =>
         await this.#requestWithSession({
-          logFiles,
-          messages,
-          pendingCacheEntries,
+          ...input.options,
+          messages: input.messages,
           sessionId,
-          ...requestOptions,
+          ...(input.logFiles === undefined ? {} : { logFiles: input.logFiles }),
+          ...(input.pendingCacheEntries === undefined
+            ? {}
+            : { pendingCacheEntries: input.pendingCacheEntries }),
         }),
       this.#cache,
     );
   }
 
   public async withContext<T>(
-    operation: (context: LLMContext) => Promise<T>,
+    operation: (context: LLMContext<S>) => Promise<T>,
   ): Promise<T> {
     return await this.context().run(operation);
   }
 
   public async request(
-    systemPrompt: string,
-    userMessage: string,
-    options: LLMRequestOptions = {},
-  ): Promise<string> {
-    return await this.requestWithHistory(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      options,
-    );
-  }
-
-  public async requestWithHistory(
     messages: readonly LLMessage[],
-    options: LLMRequestOptions = {},
+    options: LLMRequestOptions<S> = {},
   ): Promise<string> {
     return await this.#requestWithSession({
       messages,
@@ -144,18 +138,7 @@ export class LLM {
     return this.#templateEnvironment.render(templateName, templateContext);
   }
 
-  async #requestWithSession(input: {
-    messages: readonly LLMessage[];
-    temperature?: TemperatureSetting | undefined;
-    topP?: TemperatureSetting | undefined;
-    scope?: string | undefined;
-    retryIndex?: number | undefined;
-    retryMax?: number | undefined;
-    sessionId?: number | undefined;
-    pendingCacheEntries?: Map<string, PendingCacheEntry> | undefined;
-    logFiles?: string[] | undefined;
-    useCache?: boolean | undefined;
-  }): Promise<string> {
+  async #requestWithSession(input: LLMRequestSessionInput<S>): Promise<string> {
     const defaultSampling = getScopeDefaults(
       input.scope,
       this.#sampling,

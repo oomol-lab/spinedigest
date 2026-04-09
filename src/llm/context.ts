@@ -1,22 +1,28 @@
-import type { LLMCache } from "./cache.js";
-import type {
-  LLMessage,
-  LLMContextRequest,
-  LLMRequestOptions,
-  PendingCacheEntry,
-} from "./types.js";
+import type { LLMCache, PendingCacheEntry } from "./cache.js";
+import type { LLMessage, LLMRequestOptions } from "./types.js";
 
-export class LLMContext {
+export interface LLMContextRequestInput<S extends string> {
+  messages: readonly LLMessage[];
+  options: LLMRequestOptions<S>;
+  pendingCacheEntries?: Map<string, PendingCacheEntry>;
+  logFiles?: string[];
+}
+
+type LLMContextRequest<S extends string> = (
+  input: LLMContextRequestInput<S>,
+) => Promise<string>;
+
+export class LLMContext<S extends string> {
   readonly #cache: LLMCache | undefined;
   readonly #pendingCacheEntries = new Map<string, PendingCacheEntry>();
-  readonly #requestFn: LLMContextRequest;
+  readonly #requestFn: LLMContextRequest<S>;
   readonly #logFiles: string[] = [];
   #finalized = false;
   public readonly sessionId: number;
 
   public constructor(
     sessionId: number,
-    requestFn: LLMContextRequest,
+    requestFn: LLMContextRequest<S>,
     cache?: LLMCache,
   ) {
     this.sessionId = sessionId;
@@ -25,31 +31,17 @@ export class LLMContext {
   }
 
   public async request(
-    systemPrompt: string,
-    userMessage: string,
-    options: LLMRequestOptions = {},
-  ): Promise<string> {
-    return await this.requestWithHistory(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      options,
-    );
-  }
-
-  public async requestWithHistory(
     messages: readonly LLMessage[],
-    options: LLMRequestOptions = {},
+    options: LLMRequestOptions<S> = {},
   ): Promise<string> {
     this.#assertActive();
 
-    return await this.#requestFn(
+    return await this.#requestFn({
+      logFiles: this.#logFiles,
       messages,
       options,
-      this.#pendingCacheEntries,
-      this.#logFiles,
-    );
+      pendingCacheEntries: this.#pendingCacheEntries,
+    });
   }
 
   public async commit(): Promise<void> {
@@ -77,7 +69,7 @@ export class LLMContext {
   }
 
   public async run<T>(
-    operation: (context: LLMContext) => Promise<T>,
+    operation: (context: LLMContext<S>) => Promise<T>,
   ): Promise<T> {
     try {
       const result = await operation(this);

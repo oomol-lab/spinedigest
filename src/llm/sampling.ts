@@ -23,7 +23,6 @@ export function resolveSamplingSetting(
       `${fieldName} must be a number or a 2-item range like [0.6, 0.98]`,
     );
   }
-
   const [start, end] = value;
 
   if (start === undefined || end === undefined) {
@@ -35,7 +34,6 @@ export function resolveSamplingSetting(
   if (retryIndex === undefined || retryMax === undefined || retryMax <= 0) {
     return start;
   }
-
   const boundedRetryIndex = Math.min(Math.max(retryIndex, 0), retryMax);
   const progress = boundedRetryIndex / retryMax;
 
@@ -55,9 +53,9 @@ export function resolveTemperatureSetting(
   );
 }
 
-export function getScopeDefaults(
-  scope: string | undefined,
-  sampling: SamplingScopeConfig,
+export function getScopeDefaults<S extends string>(
+  scope: S | undefined,
+  sampling: SamplingScopeConfig<S> | undefined,
   defaultTemperature: TemperatureSetting,
   defaultTopP: TemperatureSetting,
 ): {
@@ -65,6 +63,13 @@ export function getScopeDefaults(
   topP: TemperatureSetting;
 } {
   if (scope === undefined) {
+    return {
+      temperature: defaultTemperature,
+      topP: defaultTopP,
+    };
+  }
+
+  if (sampling === undefined) {
     return {
       temperature: defaultTemperature,
       topP: defaultTopP,
