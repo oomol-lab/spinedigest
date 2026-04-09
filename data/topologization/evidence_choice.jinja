@@ -6,7 +6,16 @@ best matches what the chunk was referring to.
 
 This chunk originally came from the following extraction context:
 
-{{ selection_rules }}
+{% if metadata_field == "retention" %}
+User-focused extraction rules:
+{{ extraction_guidance }}
+{% else %}
+Book-coherence extraction rules:
+- Extract only information essential for understanding the text's logic and flow.
+- Prefer first introductions, causal links, critical context, turning points, and definitions.
+- Do not duplicate information already covered by user-focused chunks.
+- Use this stage for connective tissue that is structurally necessary for comprehension.
+{% endif %}
 
 Your job:
 1. Read the previously generated chunk

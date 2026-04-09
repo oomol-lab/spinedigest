@@ -25,7 +25,6 @@ import { needsTranslation } from "./language.js";
 import type {
   ChunkBatch,
   ChunkExtractorOptions,
-  ChunkImportanceAnnotation,
   ChunkTranslationInput,
   CognitiveChunk,
   ExtractBookCoherenceInput,
@@ -91,22 +90,27 @@ export class ChunkExtractor<S extends string> {
   ): Promise<ExtractUserFocusedResult> {
     const sentenceContext = createSentenceContext(input.sentences);
     const messages = this.#buildMessages({
+      text: input.text,
       promptTemplatePath: USER_FOCUSED_PROMPT_PATH,
       templateContext: {
         extraction_guidance: this.#extractionGuidance,
         user_language: this.#userLanguage,
         working_memory: input.workingMemoryPrompt,
       },
-      text: input.text,
     });
 
     const result = await this.#extractChunks({
-      emptyChunkBatch: this.#buildEmptyChunkBatch(),
       messages,
       metadataField: "retention",
       schema: userFocusedResponseSchema,
       sentenceContext,
       visibleChunkIds: input.visibleChunkIds,
+      emptyChunkBatch: {
+        chunks: [],
+        links: [],
+        orderCorrect: true,
+        tempIds: [],
+      },
     });
 
     return {
@@ -123,6 +127,7 @@ export class ChunkExtractor<S extends string> {
   ): Promise<ChunkBatch> {
     const sentenceContext = createSentenceContext(input.sentences);
     const messages = this.#buildMessages({
+      text: input.text,
       promptTemplatePath: BOOK_COHERENCE_PROMPT_PATH,
       templateContext: {
         user_focused_chunks: input.userFocusedChunks.map((chunk) => ({
@@ -133,26 +138,51 @@ export class ChunkExtractor<S extends string> {
         user_language: this.#userLanguage,
         working_memory: input.workingMemoryPrompt,
       },
-      text: input.text,
     });
     const validImportanceChunkIds = new Set(
       input.userFocusedChunks.map((chunk) => chunk.id),
     );
 
     const result = await this.#extractChunks({
-      emptyChunkBatch: this.#buildEmptyChunkBatch([]),
       messages,
       metadataField: "importance",
       schema: bookCoherenceResponseSchema,
       sentenceContext,
       validImportanceChunkIds,
       visibleChunkIds: input.visibleChunkIds,
+      emptyChunkBatch: {
+        chunks: [],
+        links: [],
+        orderCorrect: true,
+        tempIds: [],
+        importanceAnnotations: [],
+      },
     });
 
     return await this.#ensureChunkBatchLanguage(
       result.chunkBatch,
       sentenceContext,
     );
+  }
+
+  #buildMessages(input: {
+    promptTemplatePath: string;
+    templateContext: Record<string, unknown>;
+    text: string;
+  }): LLMessage[] {
+    return [
+      {
+        content: this.#llm.loadSystemPrompt(
+          input.promptTemplatePath,
+          input.templateContext,
+        ),
+        role: "system",
+      },
+      {
+        content: input.text,
+        role: "user",
+      },
+    ];
   }
 
   async #extractChunks<
@@ -169,9 +199,8 @@ export class ChunkExtractor<S extends string> {
                 choiceSystemPrompt: this.#llm.loadSystemPrompt(
                   EVIDENCE_CHOICE_PROMPT_PATH,
                   {
-                    selection_rules: this.#getChoiceSelectionRules(
-                      input.metadataField,
-                    ),
+                    extraction_guidance: this.#extractionGuidance,
+                    metadata_field: input.metadataField,
                     user_language: this.#userLanguage,
                   },
                 ),
@@ -309,59 +338,11 @@ export class ChunkExtractor<S extends string> {
         sourceSentences.push(sentenceText);
         continue;
       }
-
       sourceSentences.push(
         await this.#sentenceTextSource.getSentence(sentenceId),
       );
     }
-
     return sourceSentences;
-  }
-
-  #buildMessages(input: {
-    promptTemplatePath: string;
-    templateContext: Record<string, unknown>;
-    text: string;
-  }): LLMessage[] {
-    return [
-      {
-        content: this.#llm.loadSystemPrompt(
-          input.promptTemplatePath,
-          input.templateContext,
-        ),
-        role: "system",
-      },
-      {
-        content: input.text,
-        role: "user",
-      },
-    ];
-  }
-
-  #getChoiceSelectionRules(metadataField: "retention" | "importance"): string {
-    if (metadataField === "retention") {
-      return `User-focused extraction rules:\n${this.#extractionGuidance}`;
-    }
-
-    return [
-      "Book-coherence extraction rules:",
-      "- Extract only information essential for understanding the text's logic and flow.",
-      "- Prefer first introductions, causal links, critical context, turning points, and definitions.",
-      "- Do not duplicate information already covered by user-focused chunks.",
-      "- Use this stage for connective tissue that is structurally necessary for comprehension.",
-    ].join("\n");
-  }
-
-  #buildEmptyChunkBatch(
-    importanceAnnotations?: readonly ChunkImportanceAnnotation[],
-  ): ChunkBatch {
-    return {
-      chunks: [],
-      ...(importanceAnnotations === undefined ? {} : { importanceAnnotations }),
-      links: [],
-      orderCorrect: true,
-      tempIds: [],
-    };
   }
 }
 
