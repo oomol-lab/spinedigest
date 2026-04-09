@@ -1,8 +1,4 @@
-export {
-  assembleChunkBatch,
-  WorkingMemory,
-  WaveReflection,
-} from "./attention/index.js";
+export { Attention } from "./attention/index.js";
 export {
   ChunkExtractor,
   EvidenceResolver,
@@ -32,7 +28,11 @@ export type {
   RankedSentenceCandidate,
   SentenceTextSource,
 } from "./chunk-batch/index.js";
-export type { ChunkGraphDelta, ChunkGraphEdge } from "./attention/index.js";
+export type {
+  ChunkBatchContext,
+  ChunkGraphDelta,
+  ChunkGraphEdge,
+} from "./attention/index.js";
 export type {
   SentenceStreamAdapter,
   SentenceStreamItem,

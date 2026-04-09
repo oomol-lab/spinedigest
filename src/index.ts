@@ -82,16 +82,15 @@ export {
   type SnakeRecord,
 } from "./model/index.js";
 export {
-  assembleChunkBatch,
+  Attention,
   ChunkExtractor,
   createDefaultSentenceStreamAdapter,
   EvidenceResolver,
   IntlSegmenterSentenceStreamAdapter,
-  WorkingMemory,
-  WaveReflection,
   normalizeText,
   splitTextIntoSentences,
   type ChunkBatch,
+  type ChunkBatchContext,
   type ChunkGraphDelta,
   type ChunkGraphEdge,
   type ChunkExtractionScopes,
