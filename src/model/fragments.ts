@@ -11,7 +11,7 @@ interface FragmentFileContent {
   readonly sentences: readonly SentenceRecord[];
 }
 
-export class WorkspaceFragments {
+export class Fragments {
   readonly #workspacePath: string;
 
   public constructor(workspacePath: string) {

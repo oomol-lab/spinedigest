@@ -19,6 +19,7 @@ export {
 } from "./llm/index.js";
 export {
   ChapterFragments,
+  ChapterStore,
   ChunkStore,
   FragmentDraft,
   FragmentGroupStore,
@@ -26,10 +27,8 @@ export {
   SnakeChunkStore,
   SnakeEdgeStore,
   SnakeStore,
-  TopologizationWorkspace,
+  Workspace,
   WorkspaceFragments,
-  WorkspaceSession,
-  ChapterStore,
   type ChapterRecord,
   type ChunkRecord,
   type CreateSnakeRecord,

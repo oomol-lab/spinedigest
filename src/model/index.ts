@@ -2,7 +2,7 @@ export { Database } from "./database.js";
 export {
   ChapterFragments,
   FragmentDraft,
-  WorkspaceFragments,
+  Fragments as WorkspaceFragments,
 } from "./fragments.js";
 export { SCHEMA_SQL } from "./schema.js";
 export {
@@ -27,4 +27,4 @@ export type {
   SnakeEdgeRecord,
   SnakeRecord,
 } from "./types.js";
-export { TopologizationWorkspace, WorkspaceSession } from "./workspace.js";
+export { Workspace } from "./workspace.js";

@@ -2,7 +2,7 @@ import { mkdir } from "fs/promises";
 import { join, resolve } from "path";
 
 import { Database } from "./database.js";
-import { WorkspaceFragments } from "./fragments.js";
+import { Fragments } from "./fragments.js";
 import type { ChapterFragments } from "./fragments.js";
 import { SCHEMA_SQL } from "./schema.js";
 import {
@@ -15,98 +15,53 @@ import {
   SnakeStore,
 } from "./stores.js";
 
-abstract class WorkspaceAccess {
+export class Workspace {
   public readonly chapters: ChapterStore;
   public readonly chunks: ChunkStore;
   public readonly fragmentGroups: FragmentGroupStore;
-  public readonly fragments: WorkspaceFragments;
   public readonly knowledgeEdges: KnowledgeEdgeStore;
   public readonly snakeChunks: SnakeChunkStore;
   public readonly snakeEdges: SnakeEdgeStore;
   public readonly snakes: SnakeStore;
-
-  protected constructor(database: Database, fragments: WorkspaceFragments) {
-    this.chapters = new ChapterStore(database);
-    this.chunks = new ChunkStore(database);
-    this.fragmentGroups = new FragmentGroupStore(database);
-    this.fragments = fragments;
-    this.knowledgeEdges = new KnowledgeEdgeStore(database);
-    this.snakeChunks = new SnakeChunkStore(database);
-    this.snakeEdges = new SnakeEdgeStore(database);
-    this.snakes = new SnakeStore(database);
-  }
-}
-
-export class WorkspaceSession extends WorkspaceAccess {
-  readonly #database: Database;
-  public readonly databasePath: string;
-  public readonly fragmentsPath: string;
   public readonly path: string;
+
+  readonly #database: Database;
+  readonly #fragments: Fragments;
 
   public constructor(input: {
     database: Database;
-    databasePath: string;
-    fragments: WorkspaceFragments;
-    fragmentsPath: string;
+    fragments: Fragments;
     path: string;
   }) {
-    super(input.database, input.fragments);
     this.#database = input.database;
-    this.databasePath = input.databasePath;
-    this.fragmentsPath = input.fragmentsPath;
+    this.#fragments = input.fragments;
+    this.chapters = new ChapterStore(input.database);
+    this.chunks = new ChunkStore(input.database);
+    this.fragmentGroups = new FragmentGroupStore(input.database);
+    this.knowledgeEdges = new KnowledgeEdgeStore(input.database);
+    this.snakeChunks = new SnakeChunkStore(input.database);
+    this.snakeEdges = new SnakeEdgeStore(input.database);
+    this.snakes = new SnakeStore(input.database);
     this.path = input.path;
   }
 
-  public getChapterFragments(chapterId: number): ChapterFragments {
-    return this.fragments.getChapter(chapterId);
-  }
-
-  public async flush(): Promise<void> {
-    await this.#database.flush();
-  }
-}
-
-export class TopologizationWorkspace extends WorkspaceAccess {
-  readonly #database: Database;
-  public readonly databasePath: string;
-  public readonly fragmentsPath: string;
-  public readonly path: string;
-
-  public constructor(input: {
-    database: Database;
-    databasePath: string;
-    fragments: WorkspaceFragments;
-    fragmentsPath: string;
-    path: string;
-  }) {
-    super(input.database, input.fragments);
-    this.#database = input.database;
-    this.databasePath = input.databasePath;
-    this.fragmentsPath = input.fragmentsPath;
-    this.path = input.path;
-  }
-
-  public static async open(
-    workspacePath: string,
-  ): Promise<TopologizationWorkspace> {
+  public static async open(workspacePath: string): Promise<Workspace> {
     const resolvedWorkspacePath = resolve(workspacePath);
     const databasePath = join(resolvedWorkspacePath, "database.db");
-    const fragments = new WorkspaceFragments(resolvedWorkspacePath);
+    const fragments = new Fragments(resolvedWorkspacePath);
 
     await mkdir(resolvedWorkspacePath, { recursive: true });
     await fragments.ensureCreated();
 
-    return new TopologizationWorkspace({
+    return new Workspace({
       database: await Database.open(databasePath, SCHEMA_SQL),
-      databasePath,
       fragments,
-      fragmentsPath: fragments.path,
       path: resolvedWorkspacePath,
     });
   }
 
   public getChapterFragments(chapterId: number): ChapterFragments {
-    return this.fragments.getChapter(chapterId);
+    return this.#fragments.getChapter(chapterId);
   }
 
   public async flush(): Promise<void> {
@@ -116,22 +71,5 @@ export class TopologizationWorkspace extends WorkspaceAccess {
   public async close(): Promise<void> {
     await this.flush();
     this.#database.close();
-  }
-
-  public async transaction<T>(
-    operation: (session: WorkspaceSession) => Promise<T> | T,
-  ): Promise<T> {
-    return await this.#database.transaction(
-      async () =>
-        await operation(
-          new WorkspaceSession({
-            database: this.#database,
-            databasePath: this.databasePath,
-            fragments: this.fragments,
-            fragmentsPath: this.fragmentsPath,
-            path: this.path,
-          }),
-        ),
-    );
   }
 }
