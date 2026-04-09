@@ -7,7 +7,7 @@ import type {
 const SENTENCE_BOUNDARY_PATTERN =
   /(?:[.!?。！？…]+|(?:\r?\n)\s*(?:\r?\n)?|[.!?。！？…]+["'”’」』】）》〉〕〗]*)$/u;
 
-export class IntlSegmenterSentenceStreamAdapter implements SentenceStreamAdapter {
+class IntlSegmenterSentenceStreamAdapter implements SentenceStreamAdapter {
   readonly #graphemeSegmenter = new Intl.Segmenter(undefined, {
     granularity: "grapheme",
   });

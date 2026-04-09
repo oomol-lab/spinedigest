@@ -7,6 +7,10 @@ import {
 } from "../../guaranteed/index.js";
 import type { LLMessage } from "../../llm/index.js";
 import type { SentenceId } from "../../model/index.js";
+import type {
+  EvidenceResolutionFailure,
+  RankedSentenceCandidate,
+} from "./evidence-types.js";
 import { EvidenceResolver } from "./evidence-resolver.js";
 import { normalizeText } from "./text.js";
 import type {
@@ -15,8 +19,6 @@ import type {
   ChunkImportanceAnnotation,
   ChunkLink,
   CognitiveChunk,
-  EvidenceResolutionFailure,
-  RankedSentenceCandidate,
   SentenceTextSource,
 } from "./types.js";
 

@@ -3,7 +3,7 @@ import type {
   EvidenceResolutionFailure,
   EvidenceResolutionResult,
   RankedSentenceCandidate,
-} from "./types.js";
+} from "./evidence-types.js";
 import { normalizeText, splitTextIntoSentences } from "./text.js";
 
 const MIN_AUTO_RESOLVE_GAP = 0.07;

@@ -1,22 +1,20 @@
-export { EvidenceResolver } from "./evidence-resolver.js";
-export { ChunkExtractor } from "./extractor.js";
-export { splitTextIntoSentences, normalizeText } from "./text.js";
+export {
+  extractBookCoherenceChunkBatch,
+  extractUserFocusedChunkBatch,
+} from "./extract.js";
 export type {
   ChunkBatch,
+  ChunkBatchOptions,
   ChunkExtractionScopes,
   ChunkExtractionSentence,
-  ChunkExtractorOptions,
   ChunkImportanceAnnotation,
   ChunkLink,
   ChunkTranslationInput,
   ChunkTranslationOutput,
   ChunkTranslator,
   CognitiveChunk,
-  EvidenceResolutionFailure,
-  EvidenceResolutionResult,
   ExtractBookCoherenceInput,
   ExtractUserFocusedInput,
   ExtractUserFocusedResult,
-  RankedSentenceCandidate,
   SentenceTextSource,
 } from "./types.js";

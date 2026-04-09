@@ -1,8 +1,6 @@
-export {
-  createDefaultSentenceStreamAdapter,
-  IntlSegmenterSentenceStreamAdapter,
-} from "./intl-segmenter.js";
+export { segmentTextStream } from "./segment.js";
 export type {
+  SegmentTextStreamOptions,
   SentenceStreamAdapter,
   SentenceStreamItem,
   TextStream,

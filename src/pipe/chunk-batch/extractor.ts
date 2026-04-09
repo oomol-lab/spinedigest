@@ -21,8 +21,8 @@ import {
 import { needsTranslation } from "./language.js";
 import type {
   ChunkBatch,
+  ChunkBatchOptions,
   ChunkExtractionSentence,
-  ChunkExtractorOptions,
   ChunkTranslationInput,
   ChunkTranslationOutput,
   ExtractBookCoherenceInput,
@@ -76,12 +76,12 @@ const EVIDENCE_CHOICE_PROMPT_PATH = resolve(
 export class ChunkExtractor<S extends string> {
   readonly #extractionGuidance: string;
   readonly #llm: LLM<S>;
-  readonly #scopes: ChunkExtractorOptions<S>["scopes"];
-  readonly #sentenceTextSource: ChunkExtractorOptions<S>["sentenceTextSource"];
-  readonly #translator: ChunkExtractorOptions<S>["translator"];
+  readonly #scopes: ChunkBatchOptions<S>["scopes"];
+  readonly #sentenceTextSource: ChunkBatchOptions<S>["sentenceTextSource"];
+  readonly #translator: ChunkBatchOptions<S>["translator"];
   readonly #userLanguage: Language | undefined;
 
-  public constructor(options: ChunkExtractorOptions<S>) {
+  public constructor(options: ChunkBatchOptions<S>) {
     this.#extractionGuidance = options.extractionGuidance;
     this.#llm = options.llm;
     this.#scopes = options.scopes;

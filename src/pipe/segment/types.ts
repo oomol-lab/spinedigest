@@ -9,3 +9,7 @@ export interface SentenceStreamItem {
 export interface SentenceStreamAdapter {
   pipe(stream: TextStream): AsyncIterable<SentenceStreamItem>;
 }
+
+export interface SegmentTextStreamOptions {
+  readonly adapter?: SentenceStreamAdapter;
+}

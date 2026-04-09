@@ -1,31 +1,23 @@
 export { Attention } from "./attention/index.js";
 export {
-  ChunkExtractor,
-  EvidenceResolver,
-  normalizeText,
-  splitTextIntoSentences,
+  extractBookCoherenceChunkBatch,
+  extractUserFocusedChunkBatch,
 } from "./chunk-batch/index.js";
-export {
-  createDefaultSentenceStreamAdapter,
-  IntlSegmenterSentenceStreamAdapter,
-} from "./segment/index.js";
+export { segmentTextStream } from "./segment/index.js";
 export type {
   ChunkBatch,
+  ChunkBatchOptions,
   ChunkExtractionScopes,
   ChunkExtractionSentence,
-  ChunkExtractorOptions,
   ChunkImportanceAnnotation,
   ChunkLink,
   ChunkTranslationInput,
   ChunkTranslationOutput,
   ChunkTranslator,
   CognitiveChunk,
-  EvidenceResolutionFailure,
-  EvidenceResolutionResult,
   ExtractBookCoherenceInput,
   ExtractUserFocusedInput,
   ExtractUserFocusedResult,
-  RankedSentenceCandidate,
   SentenceTextSource,
 } from "./chunk-batch/index.js";
 export type {
@@ -34,6 +26,7 @@ export type {
   ChunkGraphEdge,
 } from "./attention/index.js";
 export type {
+  SegmentTextStreamOptions,
   SentenceStreamAdapter,
   SentenceStreamItem,
   TextStream,
