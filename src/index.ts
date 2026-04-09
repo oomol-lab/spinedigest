@@ -29,6 +29,13 @@ export {
   type TemperatureSetting,
 } from "./llm/index.js";
 export {
+  createDefaultSentenceStreamAdapter,
+  IntlSegmenterSentenceStreamAdapter,
+  type SentenceStreamAdapter,
+  type SentenceStreamItem,
+  type TextStream,
+} from "./segment/index.js";
+export {
   ChunkStore,
   FragmentDraft,
   FragmentGroupStore,
