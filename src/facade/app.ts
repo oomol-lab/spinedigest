@@ -23,22 +23,21 @@ const DATA_DIR_PATH = resolve(
   "../../data",
 );
 
+export interface SpineDigestLLMOptions {
+  readonly cacheDirPath?: string;
+  readonly concurrent?: number;
+  readonly logDirPath?: string;
+  readonly model: LanguageModel;
+  readonly retryIntervalSeconds?: number;
+  readonly retryTimes?: number;
+  readonly temperature?: number | readonly number[];
+  readonly timeout?: number;
+  readonly topP?: number | readonly number[];
+}
+
 export interface SpineDigestAppOptions {
-  readonly generationLogDirPath?: string;
-  readonly llm: {
-    readonly cacheDirPath?: string;
-    readonly concurrent?: number;
-    readonly logDirPath?: string;
-    readonly model: string;
-    readonly provider: {
-      languageModel(modelId: string): LanguageModel;
-    };
-    readonly retryIntervalSeconds?: number;
-    readonly retryTimes?: number;
-    readonly temperature?: number | readonly number[];
-    readonly timeout?: number;
-    readonly topP?: number | readonly number[];
-  };
+  readonly debugLogDirPath?: string;
+  readonly llm: LanguageModel | SpineDigestLLMOptions;
 }
 
 export type SpineDigestOpenSessionOptions = DigestDocumentSessionOptions;
@@ -59,37 +58,38 @@ export interface SpineDigestTextSessionOptions extends DigestDocumentSessionOpti
 }
 
 export class SpineDigestApp {
-  readonly #generationLogDirPath: string | undefined;
+  readonly #debugLogDirPath: string | undefined;
   readonly #llm: LLM<string>;
 
   public constructor(options: SpineDigestAppOptions) {
-    this.#generationLogDirPath = options.generationLogDirPath;
+    this.#debugLogDirPath = options.debugLogDirPath;
+    const llmOptions = normalizeLLMOptions(options.llm);
+
     this.#llm = new LLM({
       dataDirPath: DATA_DIR_PATH,
-      model: options.llm.provider.languageModel(options.llm.model),
-      modelId: options.llm.model,
-      ...(options.llm.cacheDirPath === undefined
+      model: llmOptions.model,
+      ...(llmOptions.cacheDirPath === undefined
         ? {}
-        : { cacheDirPath: options.llm.cacheDirPath }),
-      ...(options.llm.concurrent === undefined
+        : { cacheDirPath: llmOptions.cacheDirPath }),
+      ...(llmOptions.concurrent === undefined
         ? {}
-        : { concurrent: options.llm.concurrent }),
-      ...(options.llm.logDirPath === undefined
+        : { concurrent: llmOptions.concurrent }),
+      ...(llmOptions.logDirPath === undefined
         ? {}
-        : { logDirPath: options.llm.logDirPath }),
-      ...(options.llm.retryIntervalSeconds === undefined
+        : { logDirPath: llmOptions.logDirPath }),
+      ...(llmOptions.retryIntervalSeconds === undefined
         ? {}
-        : { retryIntervalSeconds: options.llm.retryIntervalSeconds }),
-      ...(options.llm.retryTimes === undefined
+        : { retryIntervalSeconds: llmOptions.retryIntervalSeconds }),
+      ...(llmOptions.retryTimes === undefined
         ? {}
-        : { retryTimes: options.llm.retryTimes }),
-      ...(options.llm.temperature === undefined
+        : { retryTimes: llmOptions.retryTimes }),
+      ...(llmOptions.temperature === undefined
         ? {}
-        : { temperature: options.llm.temperature }),
-      ...(options.llm.timeout === undefined
+        : { temperature: llmOptions.temperature }),
+      ...(llmOptions.timeout === undefined
         ? {}
-        : { timeout: options.llm.timeout }),
-      ...(options.llm.topP === undefined ? {} : { topP: options.llm.topP }),
+        : { timeout: llmOptions.timeout }),
+      ...(llmOptions.topP === undefined ? {} : { topP: llmOptions.topP }),
     });
   }
 
@@ -122,9 +122,9 @@ export class SpineDigestApp {
         extractionPrompt: options.extractionPrompt,
         llm: this.#llm,
         stream: options.stream,
-        ...(this.#generationLogDirPath === undefined
+        ...(this.#debugLogDirPath === undefined
           ? {}
-          : { logDirPath: this.#generationLogDirPath }),
+          : { logDirPath: this.#debugLogDirPath }),
         ...(options.bookLanguage === undefined
           ? {}
           : { bookLanguage: options.bookLanguage }),
@@ -172,9 +172,9 @@ export class SpineDigestApp {
       extractionPrompt: options.extractionPrompt,
       llm: this.#llm,
       path: options.path,
-      ...(this.#generationLogDirPath === undefined
+      ...(this.#debugLogDirPath === undefined
         ? {}
-        : { logDirPath: this.#generationLogDirPath }),
+        : { logDirPath: this.#debugLogDirPath }),
       ...(options.documentDirPath === undefined
         ? {}
         : { documentDirPath: options.documentDirPath }),
@@ -183,4 +183,20 @@ export class SpineDigestApp {
         : { userLanguage: options.userLanguage }),
     };
   }
+}
+
+function normalizeLLMOptions(
+  llm: SpineDigestAppOptions["llm"],
+): SpineDigestLLMOptions {
+  if (isSpineDigestLLMOptions(llm)) {
+    return llm;
+  }
+
+  return { model: llm };
+}
+
+function isSpineDigestLLMOptions(
+  llm: SpineDigestAppOptions["llm"],
+): llm is SpineDigestLLMOptions {
+  return typeof llm === "object" && llm !== null && "model" in llm;
 }

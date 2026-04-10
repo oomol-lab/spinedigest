@@ -43,7 +43,9 @@ export class LLM<S extends string> {
   readonly #dataDirPath: string;
   readonly #logDirPath: string | undefined;
   readonly #model: LLMModel;
+  readonly #modelProvider: string | undefined;
   readonly #modelId: string;
+  readonly #modelIdentity: string;
   readonly #requestLimiter: AsyncSemaphore;
   readonly #retryIntervalSeconds: number;
   readonly #retryTimes: number;
@@ -54,6 +56,7 @@ export class LLM<S extends string> {
   readonly #topP: TemperatureSetting;
 
   public readonly config: Readonly<{
+    provider?: string;
     modelId: string;
     sampling?: SamplingScopeConfig<S>;
     timeout: number;
@@ -68,20 +71,25 @@ export class LLM<S extends string> {
     const temperature = options.temperature ?? 0.6;
     const topP = options.topP ?? 0.6;
     const sampling = options.sampling;
-    const modelId = resolveModelId(options.model, options.modelId);
+    const modelInfo = resolveModelInfo(options.model);
 
     this.config = Object.freeze({
-      modelId,
+      modelId: modelInfo.modelId,
       temperature,
       timeout,
       topP,
+      ...(modelInfo.provider === undefined
+        ? {}
+        : { provider: modelInfo.provider }),
       ...(sampling === undefined ? {} : { sampling }),
     });
     this.#cache = createCache(options.cacheDirPath);
     this.#dataDirPath = resolve(options.dataDirPath);
     this.#logDirPath = ensureDirectoryPath(options.logDirPath);
     this.#model = options.model;
-    this.#modelId = modelId;
+    this.#modelProvider = modelInfo.provider;
+    this.#modelId = modelInfo.modelId;
+    this.#modelIdentity = modelInfo.identity;
     this.#requestLimiter = new AsyncSemaphore(concurrent);
     this.#retryIntervalSeconds = options.retryIntervalSeconds ?? 6;
     this.#retryTimes = options.retryTimes ?? 5;
@@ -168,6 +176,7 @@ export class LLM<S extends string> {
               role: message.role,
             })),
             modelId: this.#modelId,
+            provider: this.#modelProvider ?? null,
             temperature: resolvedTemperature ?? null,
             topP: resolvedTopP ?? null,
           })
@@ -181,6 +190,9 @@ export class LLM<S extends string> {
     await requestLog.append(
       formatRequestParameters({
         cacheKey,
+        modelId: this.#modelId,
+        modelIdentity: this.#modelIdentity,
+        modelProvider: this.#modelProvider,
         resolvedTemperature,
         resolvedTopP,
         retryIndex: input.retryIndex,
@@ -334,6 +346,9 @@ function createCache(cacheDirPath?: string): LLMCache | undefined {
 
 function formatRequestParameters(input: {
   cacheKey?: string | undefined;
+  modelId: string;
+  modelIdentity: string;
+  modelProvider?: string | undefined;
   resolvedTemperature: number | undefined;
   resolvedTopP: number | undefined;
   retryIndex?: number | undefined;
@@ -345,9 +360,16 @@ function formatRequestParameters(input: {
 }): string {
   const lines = [
     "[[Parameters]]:",
+    `\tmodel=${input.modelIdentity}`,
     `\ttemperature=${String(input.resolvedTemperature)}`,
     `\ttop_p=${String(input.resolvedTopP)}`,
   ];
+
+  if (input.modelProvider !== undefined) {
+    lines.push(`\tprovider=${input.modelProvider}`);
+  }
+
+  lines.push(`\tmodel_id=${input.modelId}`);
 
   if (input.scope !== undefined) {
     lines.push(`\tscope=${input.scope}`);
@@ -440,32 +462,43 @@ function isRetryableError(error: unknown): boolean {
   );
 }
 
-function resolveModelId(model: LLMModel, explicitModelId?: string): string {
-  if (explicitModelId !== undefined) {
-    return explicitModelId;
-  }
-
+function resolveModelInfo(model: LLMModel): {
+  readonly identity: string;
+  readonly modelId: string;
+  readonly provider?: string;
+} {
   if (typeof model === "string") {
-    return model;
+    return {
+      identity: model,
+      modelId: model,
+    };
   }
 
   if (hasModelMetadata(model)) {
-    return model.providerId === undefined
-      ? model.modelId
-      : `${model.providerId}:${model.modelId}`;
+    return {
+      identity:
+        model.provider === undefined
+          ? model.modelId
+          : `${model.provider}:${model.modelId}`,
+      modelId: model.modelId,
+      ...(model.provider === undefined ? {} : { provider: model.provider }),
+    };
   }
 
-  return "unknown-model";
+  return {
+    identity: "unknown-model",
+    modelId: "unknown-model",
+  };
 }
 
 function hasModelMetadata(
   model: LLMModel,
-): model is LLMModel & { modelId: string; providerId?: string } {
+): model is LLMModel & { modelId: string; provider?: string } {
   return (
     typeof model === "object" &&
     model !== null &&
     "modelId" in model &&
     typeof model.modelId === "string" &&
-    (!("providerId" in model) || typeof model.providerId === "string")
+    (!("provider" in model) || typeof model.provider === "string")
   );
 }

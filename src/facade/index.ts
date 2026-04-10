@@ -1,6 +1,7 @@
 export {
   SpineDigestApp,
   type SpineDigestAppOptions,
+  type SpineDigestLLMOptions,
   type SpineDigestOpenSessionOptions,
   type SpineDigestSourceSessionOptions,
   type SpineDigestTextSessionOptions,

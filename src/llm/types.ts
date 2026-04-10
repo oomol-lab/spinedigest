@@ -25,7 +25,6 @@ export interface LLMRequestOptions<S extends string> {
 
 export interface LLMOptions<S extends string> {
   readonly model: LLMModel;
-  readonly modelId?: string;
   readonly dataDirPath: string;
   readonly logDirPath?: string;
   readonly cacheDirPath?: string;
