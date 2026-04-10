@@ -26,11 +26,6 @@ export class Reader<S extends string> {
       llm: options.llm,
       scopes: options.scopes,
       sentenceTextSource: options.sentenceTextSource,
-      ...(options.translator === undefined
-        ? {}
-        : {
-            translator: options.translator,
-          }),
       ...(options.userLanguage === undefined
         ? {}
         : {

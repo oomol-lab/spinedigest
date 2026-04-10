@@ -56,19 +56,11 @@ export interface ChunkTranslationOutput {
   readonly label: string;
 }
 
-export interface ChunkTranslator {
-  translate(
-    chunks: readonly ChunkTranslationInput[],
-    userLanguage: Language,
-  ): Promise<readonly ChunkTranslationOutput[]>;
-}
-
 export interface ChunkBatchOptions<S extends string> {
   readonly extractionGuidance: string;
   readonly llm: LLM<S>;
   readonly scopes: ChunkExtractionScopes<S>;
   readonly sentenceTextSource: SentenceTextSource;
-  readonly translator?: ChunkTranslator;
   readonly userLanguage?: Language;
 }
 

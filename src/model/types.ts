@@ -18,6 +18,7 @@ export interface FragmentRecord {
 
 export interface SerialRecord {
   readonly id: number;
+  readonly topologyReady: boolean;
 }
 
 export interface ChunkRecord {

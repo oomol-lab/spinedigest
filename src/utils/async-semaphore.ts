@@ -11,7 +11,7 @@ export class AsyncSemaphore {
     this.#concurrency = concurrency;
   }
 
-  public async use<T>(operation: () => Promise<T>): Promise<T> {
+  public async use<T>(operation: () => Promise<T> | T): Promise<T> {
     await this.#acquire();
 
     try {
