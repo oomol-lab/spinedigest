@@ -102,7 +102,7 @@ export {
   type SnakeChunkRecord,
   type SnakeEdgeRecord,
   type SnakeRecord,
-} from "./model/index.js";
+} from "./document/index.js";
 export {
   Reader,
   type ReaderChunk,

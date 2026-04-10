@@ -4,8 +4,7 @@ import type {
   ChunkImportance,
   ChunkRetention,
   SentenceId,
-} from "../../model/index.js";
-
+} from "../../document/index.js";
 export interface ChunkLink {
   readonly from: number | string;
   readonly strength?: string;

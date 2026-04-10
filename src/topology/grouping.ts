@@ -1,4 +1,4 @@
-import type { FragmentGroupRecord } from "../model/index.js";
+import type { FragmentGroupRecord } from "../document/index.js";
 import { computeNormalizedFragmentIncisions } from "./fragment-incision.js";
 import { createFragmentGroups } from "./resource-segmentation.js";
 

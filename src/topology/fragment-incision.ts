@@ -2,7 +2,7 @@ import type {
   ChunkRecord,
   KnowledgeEdgeRecord,
   ReadonlySerialFragments,
-} from "../model/index.js";
+} from "../document/index.js";
 
 export interface FragmentInfo {
   readonly fragmentId: number;

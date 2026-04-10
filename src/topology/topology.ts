@@ -2,7 +2,7 @@ import type {
   ChunkRecord,
   Document,
   KnowledgeEdgeRecord,
-} from "../model/index.js";
+} from "../document/index.js";
 import type { ReaderChunk, ReaderGraphDelta } from "../reader/index.js";
 import { groupFragments } from "./grouping.js";
 import {

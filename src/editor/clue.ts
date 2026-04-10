@@ -1,4 +1,4 @@
-import type { ChunkRecord, ReadonlyDocument, SnakeRecord } from "../model/index.js";
+import type { ChunkRecord, ReadonlyDocument, SnakeRecord } from "../document/index.js";
 
 interface Clue {
   readonly clueId: number;

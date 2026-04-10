@@ -21,7 +21,7 @@ import type {
   SnakeChunkRecord,
   SnakeEdgeRecord,
   SnakeRecord,
-} from "./model/index.js";
+} from "./document/index.js";
 import { Reader } from "./reader/index.js";
 import type {
   ReaderChunk,

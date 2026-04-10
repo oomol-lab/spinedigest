@@ -1,4 +1,4 @@
-import type { FragmentGroupRecord } from "../model/index.js";
+import type { FragmentGroupRecord } from "../document/index.js";
 import type { FragmentInfo } from "./fragment-incision.js";
 
 interface FragmentResource {

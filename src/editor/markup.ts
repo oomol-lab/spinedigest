@@ -4,8 +4,7 @@ import {
   type ChunkRecord,
   type FragmentRecord,
   type ReadonlySerialFragments,
-} from "../model/index.js";
-
+} from "../document/index.js";
 export async function formatClueAsBook(input: {
   chunks: readonly ChunkRecord[];
   serialFragments: ReadonlySerialFragments;

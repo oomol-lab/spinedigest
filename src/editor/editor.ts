@@ -4,7 +4,7 @@ import type {
   ChunkRecord,
   ReadonlyDocument,
   ReadonlySerialFragments,
-} from "../model/index.js";
+} from "../document/index.js";
 import { extractCluesFromDocument, type Clue } from "./clue.js";
 import { CompressionRequester } from "./compressor.js";
 import {

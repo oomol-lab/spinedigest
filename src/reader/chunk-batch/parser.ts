@@ -12,7 +12,7 @@ import {
   expectChunkImportance,
   expectChunkRetention,
   type SentenceId,
-} from "../../model/index.js";
+} from "../../document/index.js";
 import type {
   EvidenceResolutionFailure,
   RankedSentenceCandidate,
