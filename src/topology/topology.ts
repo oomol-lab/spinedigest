@@ -64,9 +64,7 @@ export class Topology {
       edges,
     });
 
-    await this.#workspace.serials.save({
-      id: this.#serialId,
-    });
+    await this.#workspace.serials.ensure(this.#serialId);
 
     for (const chunk of chunks) {
       await this.#workspace.chunks.save({

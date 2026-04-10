@@ -3,6 +3,13 @@ export const SCHEMA_SQL = `
     id INTEGER PRIMARY KEY
   );
 
+  CREATE TABLE IF NOT EXISTS serial_states (
+    serial_id INTEGER PRIMARY KEY,
+    topology_ready INTEGER NOT NULL DEFAULT 0,
+    summary TEXT,
+    FOREIGN KEY (serial_id) REFERENCES serials(id)
+  );
+
   CREATE TABLE IF NOT EXISTS chunks (
     id INTEGER PRIMARY KEY,
     generation INTEGER NOT NULL,

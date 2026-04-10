@@ -98,4 +98,12 @@ export {
   type ReaderSentence,
   type ReaderTextStream,
 } from "./reader/index.js";
+export {
+  Serial,
+  SerialHub,
+  SerialTopology,
+  type CreateSerialOptions,
+  type SerialHubOptions,
+  type SerialStage,
+} from "./serial-hub.js";
 export { Topology } from "./topology/index.js";

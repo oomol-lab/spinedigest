@@ -5,6 +5,7 @@ import { Database } from "./database.js";
 import { Fragments } from "./fragments.js";
 import type { SerialFragments } from "./fragments.js";
 import { SCHEMA_SQL } from "./schema.js";
+import type { SerialRecord, SentenceId } from "./types.js";
 import {
   ChunkStore,
   FragmentGroupStore,
@@ -62,6 +63,14 @@ export class Workspace {
 
   public getSerialFragments(serialId: number): SerialFragments {
     return this.#fragments.getSerial(serialId);
+  }
+
+  public async createSerial(): Promise<SerialRecord> {
+    return await this.serials.create();
+  }
+
+  public async getSentence(sentenceId: SentenceId): Promise<string> {
+    return await this.#fragments.getSentence(sentenceId);
   }
 
   public async flush(): Promise<void> {

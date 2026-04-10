@@ -19,27 +19,131 @@ export class SerialStore {
     this.#database = database;
   }
 
+  public async create(): Promise<SerialRecord> {
+    await this.#database.transaction(async () => {
+      await this.#database.run(
+        `
+          INSERT INTO serials DEFAULT VALUES
+        `,
+      );
+
+      const serialId = this.#database.getLastInsertRowId();
+
+      await this.#database.run(
+        `
+          INSERT OR REPLACE INTO serial_states (
+            serial_id,
+            topology_ready,
+            summary
+          )
+          VALUES (?, ?, ?)
+        `,
+        [serialId, 0, null],
+      );
+    });
+
+    const serialId = this.#database.getLastInsertRowId();
+    const record = this.getById(serialId);
+
+    if (record === undefined) {
+      throw new Error(`Could not create serial ${serialId}`);
+    }
+
+    return record;
+  }
+
+  public async ensure(serialId: number): Promise<void> {
+    await this.#database.transaction(async () => {
+      await this.#database.run(
+        `
+          INSERT OR IGNORE INTO serials (id)
+          VALUES (?)
+        `,
+        [serialId],
+      );
+      await this.#database.run(
+        `
+          INSERT OR IGNORE INTO serial_states (
+            serial_id,
+            topology_ready,
+            summary
+          )
+          VALUES (?, ?, ?)
+        `,
+        [serialId, 0, null],
+      );
+    });
+  }
+
   public async save(record: SerialRecord): Promise<void> {
+    await this.#database.transaction(async () => {
+      await this.#database.run(
+        `
+          INSERT OR REPLACE INTO serials (id)
+          VALUES (?)
+        `,
+        [record.id],
+      );
+      await this.#database.run(
+        `
+          INSERT OR REPLACE INTO serial_states (
+            serial_id,
+            topology_ready,
+            summary
+          )
+          VALUES (?, ?, ?)
+        `,
+        [record.id, record.topologyReady ? 1 : 0, record.summary ?? null],
+      );
+    });
+  }
+
+  public async setSummary(serialId: number, summary: string): Promise<void> {
+    await this.ensure(serialId);
     await this.#database.run(
       `
-        INSERT OR REPLACE INTO serials (id)
-        VALUES (?)
+        UPDATE serial_states
+        SET summary = ?, topology_ready = 1
+        WHERE serial_id = ?
       `,
-      [record.id],
+      [summary, serialId],
+    );
+  }
+
+  public async setTopologyReady(serialId: number): Promise<void> {
+    await this.ensure(serialId);
+    await this.#database.run(
+      `
+        UPDATE serial_states
+        SET topology_ready = 1
+        WHERE serial_id = ?
+      `,
+      [serialId],
     );
   }
 
   public getById(serialId: number): SerialRecord | undefined {
     return this.#database.queryOne(
       `
-        SELECT id
+        SELECT
+          serials.id AS id,
+          COALESCE(serial_states.topology_ready, 0) AS topology_ready,
+          serial_states.summary AS summary
         FROM serials
-        WHERE id = ?
+        LEFT JOIN serial_states
+          ON serial_states.serial_id = serials.id
+        WHERE serials.id = ?
       `,
       [serialId],
-      (row) => ({
-        id: getNumber(row, "id"),
-      }),
+      (row) => {
+        const summary = getOptionalString(row, "summary");
+
+        return {
+          id: getNumber(row, "id"),
+          topologyReady: getNumber(row, "topology_ready") !== 0,
+          ...(summary === undefined ? {} : { summary }),
+        };
+      },
     );
   }
 
@@ -211,6 +315,49 @@ export class ChunkStore {
       .map((row) => this.#mapChunkRow(row));
   }
 
+  public listBySerial(serialId: number): ChunkRecord[] {
+    return this.#database
+      .queryAll(
+        `
+          SELECT
+            id,
+            generation,
+            serial_id,
+            fragment_id,
+            sentence_index,
+            label,
+            content,
+            retention,
+            importance,
+            tokens,
+            weight
+          FROM chunks
+          WHERE serial_id = ?
+          ORDER BY id
+        `,
+        [serialId],
+        (row) => row,
+      )
+      .map((row) => this.#mapChunkRow(row));
+  }
+
+  public getMaxId(): number {
+    return (
+      this.#database.queryOne(
+        `
+          SELECT MAX(id) AS id
+          FROM chunks
+        `,
+        undefined,
+        (row) => {
+          const value = row.id;
+
+          return typeof value === "number" ? value : 0;
+        },
+      ) ?? 0
+    );
+  }
+
   public listFragmentPairs(): ReadonlyArray<readonly [number, number]> {
     return this.#database.queryAll(
       `
@@ -291,6 +438,27 @@ export class KnowledgeEdgeStore {
         ORDER BY from_id, to_id
       `,
       undefined,
+      (row) => mapKnowledgeEdgeRow(row),
+    );
+  }
+
+  public listBySerial(serialId: number): KnowledgeEdgeRecord[] {
+    return this.#database.queryAll(
+      `
+        SELECT
+          knowledge_edges.from_id AS from_id,
+          knowledge_edges.to_id AS to_id,
+          knowledge_edges.strength AS strength,
+          knowledge_edges.weight AS weight
+        FROM knowledge_edges
+        INNER JOIN chunks AS from_chunks
+          ON from_chunks.id = knowledge_edges.from_id
+        INNER JOIN chunks AS to_chunks
+          ON to_chunks.id = knowledge_edges.to_id
+        WHERE from_chunks.serial_id = ? AND to_chunks.serial_id = ?
+        ORDER BY knowledge_edges.from_id, knowledge_edges.to_id
+      `,
+      [serialId, serialId],
       (row) => mapKnowledgeEdgeRow(row),
     );
   }
@@ -400,6 +568,38 @@ export class SnakeStore {
       (row) => getNumber(row, "id"),
     );
   }
+
+  public listBySerial(serialId: number): SnakeRecord[] {
+    return this.#database.queryAll(
+      `
+        SELECT
+          id,
+          serial_id,
+          group_id,
+          local_snake_id,
+          size,
+          first_label,
+          last_label,
+          tokens,
+          weight
+        FROM snakes
+        WHERE serial_id = ?
+        ORDER BY group_id, id
+      `,
+      [serialId],
+      (row) => ({
+        serialId: getNumber(row, "serial_id"),
+        firstLabel: getString(row, "first_label"),
+        groupId: getNumber(row, "group_id"),
+        id: getNumber(row, "id"),
+        lastLabel: getString(row, "last_label"),
+        localSnakeId: getNumber(row, "local_snake_id"),
+        size: getNumber(row, "size"),
+        tokens: getNumber(row, "tokens"),
+        weight: getNumber(row, "weight"),
+      }),
+    );
+  }
 }
 
 export class SnakeChunkStore {
@@ -429,6 +629,23 @@ export class SnakeChunkStore {
       `,
       [snakeId],
       (row) => getNumber(row, "chunk_id"),
+    );
+  }
+
+  public listBySnake(snakeId: number): SnakeChunkRecord[] {
+    return this.#database.queryAll(
+      `
+        SELECT snake_id, chunk_id, position
+        FROM snake_chunks
+        WHERE snake_id = ?
+        ORDER BY position
+      `,
+      [snakeId],
+      (row) => ({
+        chunkId: getNumber(row, "chunk_id"),
+        position: getNumber(row, "position"),
+        snakeId: getNumber(row, "snake_id"),
+      }),
     );
   }
 }
@@ -474,6 +691,30 @@ export class SnakeEdgeStore {
         ORDER BY from_snake_id, to_snake_id
       `,
       [...snakeIds, ...snakeIds],
+      (row) => ({
+        fromSnakeId: getNumber(row, "from_snake_id"),
+        toSnakeId: getNumber(row, "to_snake_id"),
+        weight: getNumber(row, "weight"),
+      }),
+    );
+  }
+
+  public listBySerial(serialId: number): SnakeEdgeRecord[] {
+    return this.#database.queryAll(
+      `
+        SELECT
+          snake_edges.from_snake_id AS from_snake_id,
+          snake_edges.to_snake_id AS to_snake_id,
+          snake_edges.weight AS weight
+        FROM snake_edges
+        INNER JOIN snakes AS from_snakes
+          ON from_snakes.id = snake_edges.from_snake_id
+        INNER JOIN snakes AS to_snakes
+          ON to_snakes.id = snake_edges.to_snake_id
+        WHERE from_snakes.serial_id = ? AND to_snakes.serial_id = ?
+        ORDER BY snake_edges.from_snake_id, snake_edges.to_snake_id
+      `,
+      [serialId, serialId],
       (row) => ({
         fromSnakeId: getNumber(row, "from_snake_id"),
         toSnakeId: getNumber(row, "to_snake_id"),
