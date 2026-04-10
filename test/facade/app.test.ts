@@ -1,4 +1,6 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { basename, isAbsolute } from "path";
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const appMockState = vi.hoisted(() => ({
   digestCalls: {
@@ -100,7 +102,8 @@ describe("facade/app", () => {
       readonly model: unknown;
     };
 
-    expect(llmOptions.dataDirPath).toContain("/project/data");
+    expect(isAbsolute(llmOptions.dataDirPath)).toBe(true);
+    expect(basename(llmOptions.dataDirPath)).toBe("data");
     expect(llmOptions.model).toBe(fakeModel);
     expect(appMockState.digestCalls.txt).toHaveLength(1);
     const digestCall = appMockState.digestCalls.txt[0] as {
@@ -156,7 +159,8 @@ describe("facade/app", () => {
     };
 
     expect(llmOptions.cacheDirPath).toBe("/tmp/cache");
-    expect(llmOptions.dataDirPath).toContain("/project/data");
+    expect(isAbsolute(llmOptions.dataDirPath)).toBe(true);
+    expect(basename(llmOptions.dataDirPath)).toBe("data");
     expect(llmOptions.model).toBe(fakeModel);
     expect(llmOptions.temperature).toBe(0.3);
     expect(appMockState.digestCalls.text).toHaveLength(1);
