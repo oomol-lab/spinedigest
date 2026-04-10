@@ -6,6 +6,7 @@ export {
   type BookMeta,
   type SourceFormat,
 } from "./meta.js";
+export type { SourceAdapter, SourceDocument } from "./adapter.js";
 export {
   TOC_FILE_VERSION,
   tocFileSchema,
@@ -13,11 +14,4 @@ export {
   type TocFile,
   type TocItem,
 } from "./toc.js";
-export type {
-  ReadSourceOptions,
-  SourceAsset,
-  SourceBook,
-  SourceReader,
-  SourceSection,
-  SourceTextStream,
-} from "./types.js";
+export type { SourceAsset, SourceSection, SourceTextStream } from "./types.js";

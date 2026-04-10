@@ -4,7 +4,7 @@ export const TOC_FILE_VERSION = 1;
 
 export interface TocItem {
   readonly title: string;
-  readonly serialId?: number;
+  readonly serialId?: number | undefined;
   readonly children: readonly TocItem[];
 }
 
