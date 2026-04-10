@@ -81,7 +81,10 @@ export class PlainTextSourceAdapter implements SourceAdapter {
     return this.#format;
   }
 
-  public async open(path: string): Promise<SourceDocument> {
+  public async openSession<T>(
+    path: string,
+    operation: (document: SourceDocument) => Promise<T>,
+  ): Promise<T> {
     const resolvedPath = resolve(path);
     const fileStat = await stat(resolvedPath);
 
@@ -89,7 +92,7 @@ export class PlainTextSourceAdapter implements SourceAdapter {
       throw new Error(`Source file is not a regular file: ${resolvedPath}`);
     }
 
-    return new PlainTextDocument(resolvedPath, this.#format);
+    return await operation(new PlainTextDocument(resolvedPath, this.#format));
   }
 }
 

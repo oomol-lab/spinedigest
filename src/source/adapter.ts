@@ -9,5 +9,8 @@ export interface SourceDocument {
 
 export interface SourceAdapter {
   readonly format: SourceFormat;
-  open(path: string): Promise<SourceDocument>;
+  openSession<T>(
+    path: string,
+    operation: (document: SourceDocument) => Promise<T>,
+  ): Promise<T>;
 }

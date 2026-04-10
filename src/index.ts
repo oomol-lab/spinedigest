@@ -127,6 +127,8 @@ export {
   type SerialHubOptions,
 } from "./serial.js";
 export {
+  EPUB_SOURCE_ADAPTER,
+  EpubSourceAdapter,
   BOOK_META_VERSION,
   MARKDOWN_SOURCE_ADAPTER,
   PlainTextSourceAdapter,

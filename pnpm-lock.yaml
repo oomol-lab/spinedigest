@@ -7,21 +7,33 @@ settings:
 importers:
   .:
     dependencies:
+      "@types/yauzl":
+        specifier: ^2.10.3
+        version: 2.10.3
       ai:
         specifier: ^6.0.154
         version: 6.0.154(zod@4.3.6)
+      htmlparser2:
+        specifier: ^12.0.0
+        version: 12.0.0
       jsonrepair:
         specifier: ^3.13.3
         version: 3.13.3
       nunjucks:
         specifier: ^3.2.4
         version: 3.2.4
+      saxes:
+        specifier: ^6.0.0
+        version: 6.0.0
       sqlite3:
         specifier: ^6.0.1
         version: 6.0.1
       tinyld:
         specifier: ^1.3.4
         version: 1.3.4
+      yauzl:
+        specifier: ^3.3.0
+        version: 3.3.0
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -485,6 +497,12 @@ packages:
         integrity: sha512-pHiGtf83na1nCzliuAdq8GowYiXvH5l931xZ0YEHaLMNFgynpEqx+IPStlu7UaDkehfvl01e4x/9Tpwhy7Ue3w==,
       }
 
+  "@types/yauzl@2.10.3":
+    resolution:
+      {
+        integrity: sha512-oJoftv0LSuaDZE3Le4DbKX+KS9G36NzOeSap90UIK0yMA/NhKJhqlSGtNDORNRaIbQfzjXDrQa0ytJ6mNRGz/Q==,
+      }
+
   "@typescript-eslint/eslint-plugin@8.58.1":
     resolution:
       {
@@ -695,6 +713,12 @@ packages:
       }
     engines: { node: 18 || 20 || >=22 }
 
+  buffer-crc32@0.2.13:
+    resolution:
+      {
+        integrity: sha512-VO9Ht/+p3SN7SKWqcrgEzjGbRSJYTx+Q1pTQC0wrWqHx0vpJraQ6GtHx8tvcg1rlK1byhU5gccxgOgj7B0TDkQ==,
+      }
+
   buffer@5.7.1:
     resolution:
       {
@@ -807,11 +831,46 @@ packages:
       }
     engines: { node: ">=8" }
 
+  dom-serializer@3.0.0:
+    resolution:
+      {
+        integrity: sha512-x+9D6nkC8tdXOQUS32egtZpZFLP90+HBZmWjuT920srbJvD/zPgFB9t4k3pEhlw5BQrXStQtRc1Y1zuriXk+Nw==,
+      }
+    engines: { node: ">=20.19.0" }
+
+  domelementtype@3.0.0:
+    resolution:
+      {
+        integrity: sha512-umCQid3jKbDmVjx8jGaW7uUykm4DEUeyV21hPxNMo2nV955DhUThwqyOIDtreepP31hl84X7G5U9ZfsWvIB3Pg==,
+      }
+    engines: { node: ">=20.19.0" }
+
+  domhandler@6.0.1:
+    resolution:
+      {
+        integrity: sha512-gYzvtM72ZtxQO0T048kd6HWSbbGCNOUwcnfQ01cqIJ4X2IYKFFHZ5mKvrQETcFXxsRObZulDaKmy//R7TPtsBg==,
+      }
+    engines: { node: ">=20.19.0" }
+
+  domutils@4.0.2:
+    resolution:
+      {
+        integrity: sha512-qI4JLRKnSzqFqr7hAlS5xQDusBCjKSEG4t4+7aNrIQMHBcsC2TGEhuyABJdYkgSewL57PNLYEiibY2iPKhKpaA==,
+      }
+    engines: { node: ">=20.19.0" }
+
   end-of-stream@1.4.5:
     resolution:
       {
         integrity: sha512-ooEGc6HP26xXq/N+GCGOT0JKCLDGrq2bQUZrQ7gyrJiZANJ/8YDTxTpQBXGMn+WbIQXNVpyWymm7KYVICQnyOg==,
       }
+
+  entities@8.0.0:
+    resolution:
+      {
+        integrity: sha512-zwfzJecQ/Uej6tusMqwAqU/6KL2XaB2VZ2Jg54Je6ahNBGNH6Ek6g3jjNCF0fG9EWQKGZNddNjU5F1ZQn/sBnA==,
+      }
+    engines: { node: ">=20.19.0" }
 
   env-paths@2.2.1:
     resolution:
@@ -1076,6 +1135,13 @@ packages:
         integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==,
       }
     engines: { node: ">=8" }
+
+  htmlparser2@12.0.0:
+    resolution:
+      {
+        integrity: sha512-Tz7u1i95/g2x2jz81+x0FBVhBhY5aRTvD3tXXdFaljuNdzDLJ8UGNRrTcj2cgQvAg3iW/h77Fz15nLW0L0CrZw==,
+      }
+    engines: { node: ">=20.19.0" }
 
   http-cache-semantics@4.2.0:
     resolution:
@@ -1486,6 +1552,12 @@ packages:
       }
     engines: { node: 18 || 20 || >=22 }
 
+  pend@1.2.0:
+    resolution:
+      {
+        integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==,
+      }
+
   picomatch@4.0.4:
     resolution:
       {
@@ -1583,6 +1655,13 @@ packages:
       {
         integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==,
       }
+
+  saxes@6.0.0:
+    resolution:
+      {
+        integrity: sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA==,
+      }
+    engines: { node: ">=v12.22.7" }
 
   semver@7.7.4:
     resolution:
@@ -1810,6 +1889,12 @@ packages:
         integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==,
       }
 
+  xmlchars@2.2.0:
+    resolution:
+      {
+        integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==,
+      }
+
   yallist@4.0.0:
     resolution:
       {
@@ -1822,6 +1907,13 @@ packages:
         integrity: sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==,
       }
     engines: { node: ">=18" }
+
+  yauzl@3.3.0:
+    resolution:
+      {
+        integrity: sha512-PtGEvEP30p7sbIBJKUBjUnqgTVOyMURc4dLo9iNyAJnNIEz9pm88cCXF21w94Kg3k6RXkeZh5DHOGS0qEONvNQ==,
+      }
+    engines: { node: ">=12" }
 
   yocto-queue@0.1.0:
     resolution:
@@ -2030,6 +2122,10 @@ snapshots:
 
   "@types/nunjucks@3.2.6": {}
 
+  "@types/yauzl@2.10.3":
+    dependencies:
+      "@types/node": 24.12.2
+
   "@typescript-eslint/eslint-plugin@8.58.1(@typescript-eslint/parser@8.58.1(eslint@9.39.4)(typescript@5.9.3))(eslint@9.39.4)(typescript@5.9.3)":
     dependencies:
       "@eslint-community/regexpp": 4.12.2
@@ -2185,6 +2281,8 @@ snapshots:
     dependencies:
       balanced-match: 4.0.4
 
+  buffer-crc32@0.2.13: {}
+
   buffer@5.7.1:
     dependencies:
       base64-js: 1.5.1
@@ -2245,9 +2343,29 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
+  dom-serializer@3.0.0:
+    dependencies:
+      domelementtype: 3.0.0
+      domhandler: 6.0.1
+      entities: 8.0.0
+
+  domelementtype@3.0.0: {}
+
+  domhandler@6.0.1:
+    dependencies:
+      domelementtype: 3.0.0
+
+  domutils@4.0.2:
+    dependencies:
+      dom-serializer: 3.0.0
+      domelementtype: 3.0.0
+      domhandler: 6.0.1
+
   end-of-stream@1.4.5:
     dependencies:
       once: 1.4.0
+
+  entities@8.0.0: {}
 
   env-paths@2.2.1:
     optional: true
@@ -2424,6 +2542,13 @@ snapshots:
     optional: true
 
   has-flag@4.0.0: {}
+
+  htmlparser2@12.0.0:
+    dependencies:
+      domelementtype: 3.0.0
+      domhandler: 6.0.1
+      domutils: 4.0.2
+      entities: 8.0.0
 
   http-cache-semantics@4.2.0:
     optional: true
@@ -2664,6 +2789,8 @@ snapshots:
       lru-cache: 11.3.3
       minipass: 7.1.3
 
+  pend@1.2.0: {}
+
   picomatch@4.0.4: {}
 
   prebuild-install@7.1.3:
@@ -2721,6 +2848,10 @@ snapshots:
 
   safer-buffer@2.1.2:
     optional: true
+
+  saxes@6.0.0:
+    dependencies:
+      xmlchars: 2.2.0
 
   semver@7.7.4: {}
 
@@ -2867,10 +2998,17 @@ snapshots:
 
   wrappy@1.0.2: {}
 
+  xmlchars@2.2.0: {}
+
   yallist@4.0.0:
     optional: true
 
   yallist@5.0.0: {}
+
+  yauzl@3.3.0:
+    dependencies:
+      buffer-crc32: 0.2.13
+      pend: 1.2.0
 
   yocto-queue@0.1.0: {}
 
