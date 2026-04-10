@@ -1,6 +1,6 @@
 import { detect, validateISO2 } from "tinyld";
 
-import { getLanguageDetectionCode, type Language } from "../language.js";
+import { getLanguageDetectionCode, type Language } from "../common/language.js";
 import { ReviewSeverity, type ReviewResult } from "./types.js";
 
 export interface LanguageReview {

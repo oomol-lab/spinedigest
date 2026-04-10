@@ -1,8 +1,8 @@
 import type {
   ChunkRecord,
+  Document,
   KnowledgeEdgeRecord,
-  Workspace,
-} from "../model/index.js";
+} from "../document/index.js";
 import type { ReaderChunk, ReaderGraphDelta } from "../reader/index.js";
 import { groupFragments } from "./grouping.js";
 import {
@@ -14,20 +14,20 @@ import {
 export class Topology {
   readonly #chunkIds: number[] = [];
   readonly #chunksById = createChunkRecord();
+  readonly #document: Document;
   readonly #edgeKeys: string[] = [];
   readonly #edgesByKey = createEdgeRecord();
   readonly #groupTokensCount: number;
   readonly #serialId: number;
-  readonly #workspace: Workspace;
 
   public constructor(
-    workspace: Workspace,
+    document: Document,
     serialId: number,
     groupTokensCount: number,
   ) {
+    this.#document = document;
     this.#groupTokensCount = groupTokensCount;
     this.#serialId = serialId;
-    this.#workspace = workspace;
   }
 
   public accept(delta: ReaderGraphDelta): void {
@@ -64,23 +64,23 @@ export class Topology {
       edges,
     });
 
-    await this.#workspace.serials.ensure(this.#serialId);
+    await this.#document.serials.ensure(this.#serialId);
 
     for (const chunk of chunks) {
-      await this.#workspace.chunks.save({
+      await this.#document.chunks.save({
         ...chunk,
         weight: chunkWeights[String(chunk.id)] ?? 0,
       });
     }
 
     for (const edge of edges) {
-      await this.#workspace.knowledgeEdges.save({
+      await this.#document.knowledgeEdges.save({
         ...edge,
         weight: edgeWeights[getKnowledgeEdgeKey(edge.fromId, edge.toId)] ?? 0,
       });
     }
 
-    await this.#workspace.fragmentGroups.saveMany(
+    await this.#document.fragmentGroups.saveMany(
       await groupFragments({
         chunks: chunks.map((chunk) => ({
           ...chunk,
@@ -90,7 +90,7 @@ export class Topology {
           ...edge,
           weight: edgeWeights[getKnowledgeEdgeKey(edge.fromId, edge.toId)] ?? 0,
         })),
-        fragments: this.#workspace.getSerialFragments(this.#serialId),
+        fragments: this.#document.getSerialFragments(this.#serialId),
         groupTokensCount: this.#groupTokensCount,
         serialId: this.#serialId,
       }),

@@ -1,11 +1,10 @@
-import type { Language } from "../../language.js";
+import type { Language } from "../../common/language.js";
 import type { LLM } from "../../llm/index.js";
 import type {
   ChunkImportance,
   ChunkRetention,
   SentenceId,
-} from "../../model/index.js";
-
+} from "../../document/index.js";
 export interface ChunkLink {
   readonly from: number | string;
   readonly strength?: string;

@@ -1,11 +1,11 @@
-import type { Language } from "../language.js";
+import type { Language } from "../common/language.js";
 import type { LLM } from "../llm/index.js";
 import type {
   ChunkRecord,
-  SerialFragments,
-  Workspace,
-} from "../model/index.js";
-import { extractCluesFromWorkspace, type Clue } from "./clue.js";
+  ReadonlyDocument,
+  ReadonlySerialFragments,
+} from "../document/index.js";
+import { extractCluesFromDocument, type Clue } from "./clue.js";
 import { CompressionRequester } from "./compressor.js";
 import {
   calculateScore,
@@ -31,6 +31,7 @@ export interface EditorScopes<S extends string> {
 
 export interface EditorOptions<S extends string> {
   readonly compressionRatio?: number;
+  readonly document?: ReadonlyDocument;
   readonly groupId: number;
   readonly llm: LLM<S>;
   readonly logDirPath?: string;
@@ -39,7 +40,8 @@ export interface EditorOptions<S extends string> {
   readonly scopes: EditorScopes<S>;
   readonly serialId: number;
   readonly userLanguage?: Language;
-  readonly workspace: Workspace;
+  /** @deprecated Use `document` instead. */
+  readonly workspace?: ReadonlyDocument;
 }
 
 export async function compressText<S extends string>(
@@ -58,24 +60,24 @@ class EditorOperation<S extends string> {
   readonly #compressor: CompressionRequester<S>;
   readonly #reviewer: CompressionReviewer<S>;
   readonly #reviewScope: EditorScopes<S>;
-  readonly #serialFragments: SerialFragments;
+  readonly #serialFragments: ReadonlySerialFragments;
   readonly #serialId: number;
   readonly #userLanguage: Language | undefined;
-  readonly #workspace: Workspace;
+  readonly #document: ReadonlyDocument;
 
   public constructor(options: EditorOptions<S>) {
+    const document = resolveDocument(options);
+
     this.#compressionRatio = options.compressionRatio ?? 0.2;
     this.#groupId = options.groupId;
     this.#llm = options.llm;
     this.#maxClues = options.maxClues ?? 10;
     this.#maxIterations = options.maxIterations ?? 5;
     this.#reviewScope = options.scopes;
-    this.#serialFragments = options.workspace.getSerialFragments(
-      options.serialId,
-    );
+    this.#serialFragments = document.getSerialFragments(options.serialId);
     this.#serialId = options.serialId;
     this.#userLanguage = options.userLanguage;
-    this.#workspace = options.workspace;
+    this.#document = document;
     this.#compressor = new CompressionRequester(
       this.#llm,
       options.scopes.compress,
@@ -109,11 +111,11 @@ class EditorOperation<S extends string> {
       return "";
     }
 
-    const clues = await extractCluesFromWorkspace({
+    const clues = await extractCluesFromDocument({
+      document: this.#document,
       groupId: this.#groupId,
       maxClues: this.#maxClues,
       serialId: this.#serialId,
-      workspace: this.#workspace,
     });
     const originalText = await this.#getFullText(fragmentIds);
 
@@ -232,7 +234,7 @@ class EditorOperation<S extends string> {
   }
 
   async #getGroupFragmentIds(): Promise<number[]> {
-    return (await this.#workspace.fragmentGroups.listBySerial(this.#serialId))
+    return (await this.#document.fragmentGroups.listBySerial(this.#serialId))
       .filter((record) => record.groupId === this.#groupId)
       .map((record) => record.fragmentId)
       .sort(compareNumber);
@@ -260,4 +262,16 @@ function compareNumber(left: number, right: number): number {
 
 function listClueChunks(clues: readonly Clue[]): ChunkRecord[] {
   return clues.flatMap((clue) => clue.chunks);
+}
+
+function resolveDocument<S extends string>(
+  options: EditorOptions<S>,
+): ReadonlyDocument {
+  const document = options.document ?? options.workspace;
+
+  if (document === undefined) {
+    throw new Error("Editor requires a document");
+  }
+
+  return document;
 }

@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 import { requestGuaranteedJson } from "../guaranteed/index.js";
-import type { Language } from "../language.js";
+import type { Language } from "../common/language.js";
 import type { LLMessage, LLM } from "../llm/index.js";
-import type { SerialFragments } from "../model/index.js";
+import type { ReadonlySerialFragments } from "../document/index.js";
 import type { Clue } from "./clue.js";
 import {
   CLUE_REVIEWER_GENERATOR_PROMPT_PATH,
@@ -41,12 +41,12 @@ export class CompressionReviewer<S extends string> {
   readonly #llm: LLM<S>;
   readonly #reviewGuideScope: S;
   readonly #reviewScope: S;
-  readonly #serialFragments: SerialFragments;
+  readonly #serialFragments: ReadonlySerialFragments;
   readonly #userLanguage: Language | undefined;
 
   public constructor(
     llm: LLM<S>,
-    serialFragments: SerialFragments,
+    serialFragments: ReadonlySerialFragments,
     scopes: {
       readonly reviewGuide: S;
       readonly review: S;

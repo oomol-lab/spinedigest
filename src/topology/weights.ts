@@ -3,7 +3,7 @@ import {
   ChunkRetention,
   type ChunkRecord,
   type KnowledgeEdgeRecord,
-} from "../model/index.js";
+} from "../document/index.js";
 
 const MIN_EDGE_WEIGHT = 0.1;
 

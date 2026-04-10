@@ -36,7 +36,7 @@ export {
   getLanguageDetectionCode,
   getLanguageTag,
   type Language,
-} from "./language.js";
+} from "./common/language.js";
 export {
   GuaranteedEmptyResponseError,
   GuaranteedParseValidationError,
@@ -64,34 +64,45 @@ export {
 } from "./llm/index.js";
 export {
   ChunkStore,
+  DirectoryDocument,
   ChunkImportance,
   ChunkRetention,
   expectChunkImportance,
   expectChunkRetention,
   FragmentDraft,
   FragmentGroupStore,
+  Fragments,
   isChunkImportance,
   isChunkRetention,
   KnowledgeEdgeStore,
-  SerialFragments,
   SerialStore,
+  SerialFragments,
   SnakeChunkStore,
   SnakeEdgeStore,
   SnakeStore,
-  Workspace,
-  WorkspaceFragments,
   type ChunkRecord,
+  type Document,
   type CreateSnakeRecord,
   type FragmentGroupRecord,
   type FragmentRecord,
   type KnowledgeEdgeRecord,
+  type ReadonlyChunkStore,
+  type ReadonlyDocument,
+  type ReadonlyFragmentGroupStore,
+  type ReadonlyFragments,
+  type ReadonlyKnowledgeEdgeStore,
+  type ReadonlySerialFragments,
+  type ReadonlySerialStore,
+  type ReadonlySnakeChunkStore,
+  type ReadonlySnakeEdgeStore,
+  type ReadonlySnakeStore,
   type SerialRecord,
   type SentenceId,
   type SentenceRecord,
   type SnakeChunkRecord,
   type SnakeEdgeRecord,
   type SnakeRecord,
-} from "./model/index.js";
+} from "./document/index.js";
 export {
   Reader,
   type ReaderChunk,
@@ -105,11 +116,14 @@ export {
   type ReaderTextStream,
 } from "./reader/index.js";
 export {
+  readSerial,
   Serial,
+  SerialGeneration,
   SerialHub,
-  SerialStage,
   SerialTopology,
   type CreateSerialOptions,
+  type GenerateSerialOptions,
+  type SerialGenerationOptions,
   type SerialHubOptions,
-} from "./serial-hub.js";
+} from "./serial.js";
 export { Topology } from "./topology/index.js";

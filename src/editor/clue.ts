@@ -1,4 +1,8 @@
-import type { ChunkRecord, SnakeRecord, Workspace } from "../model/index.js";
+import type {
+  ChunkRecord,
+  ReadonlyDocument,
+  SnakeRecord,
+} from "../document/index.js";
 
 interface Clue {
   readonly clueId: number;
@@ -9,25 +13,25 @@ interface Clue {
   readonly weight: number;
 }
 
-export async function extractCluesFromWorkspace(input: {
+export async function extractCluesFromDocument(input: {
   groupId: number;
   maxClues: number;
   serialId: number;
-  workspace: Workspace;
+  document: ReadonlyDocument;
 }): Promise<readonly Clue[]> {
-  const snakeIds = await input.workspace.snakes.listIdsByGroup(
+  const snakeIds = await input.document.snakes.listIdsByGroup(
     input.serialId,
     input.groupId,
   );
   const snakes = await Promise.all(
     snakeIds.map(
-      async (snakeId) => await input.workspace.snakes.getById(snakeId),
+      async (snakeId) => await input.document.snakes.getById(snakeId),
     ),
   );
   const clues = await Promise.all(
     snakes
       .filter((snake): snake is SnakeRecord => snake !== undefined)
-      .map(async (snake) => await convertSnakeToClue(snake, input.workspace)),
+      .map(async (snake) => await convertSnakeToClue(snake, input.document)),
   );
 
   if (clues.length <= input.maxClues) {
@@ -145,12 +149,12 @@ function compareNumber(left: number, right: number): number {
 
 async function convertSnakeToClue(
   snake: SnakeRecord,
-  workspace: Workspace,
+  document: ReadonlyDocument,
 ): Promise<Clue> {
-  const chunkIds = await workspace.snakeChunks.listChunkIds(snake.id);
+  const chunkIds = await document.snakeChunks.listChunkIds(snake.id);
   const chunks = (
     await Promise.all(
-      chunkIds.map(async (chunkId) => await workspace.chunks.getById(chunkId)),
+      chunkIds.map(async (chunkId) => await document.chunks.getById(chunkId)),
     )
   ).filter((chunk): chunk is ChunkRecord => chunk !== undefined);
 

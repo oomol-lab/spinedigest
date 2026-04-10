@@ -16,7 +16,55 @@ import {
   type SnakeRecord,
 } from "./types.js";
 
-export class SerialStore {
+export interface ReadonlySerialStore {
+  getById(serialId: number): Promise<SerialRecord | undefined>;
+  listIds(): Promise<number[]>;
+}
+
+export interface ReadonlyChunkStore {
+  getById(chunkId: number): Promise<ChunkRecord | undefined>;
+  listAll(): Promise<ChunkRecord[]>;
+  listByFragments(
+    serialId: number,
+    fragmentIds: readonly number[],
+  ): Promise<ChunkRecord[]>;
+  listBySerial(serialId: number): Promise<ChunkRecord[]>;
+  getMaxId(): Promise<number>;
+  listFragmentPairs(): Promise<ReadonlyArray<readonly [number, number]>>;
+}
+
+export interface ReadonlyKnowledgeEdgeStore {
+  listAll(): Promise<KnowledgeEdgeRecord[]>;
+  listBySerial(serialId: number): Promise<KnowledgeEdgeRecord[]>;
+  listIncoming(chunkId: number): Promise<KnowledgeEdgeRecord[]>;
+  listOutgoing(chunkId: number): Promise<KnowledgeEdgeRecord[]>;
+}
+
+export interface ReadonlySnakeStore {
+  getById(snakeId: number): Promise<SnakeRecord | undefined>;
+  listIdsByGroup(serialId: number, groupId: number): Promise<number[]>;
+  listBySerial(serialId: number): Promise<SnakeRecord[]>;
+}
+
+export interface ReadonlySnakeChunkStore {
+  listChunkIds(snakeId: number): Promise<number[]>;
+  listBySnake(snakeId: number): Promise<SnakeChunkRecord[]>;
+}
+
+export interface ReadonlySnakeEdgeStore {
+  listIncoming(snakeId: number): Promise<SnakeEdgeRecord[]>;
+  listOutgoing(snakeId: number): Promise<SnakeEdgeRecord[]>;
+  listWithin(snakeIds: readonly number[]): Promise<SnakeEdgeRecord[]>;
+  listBySerial(serialId: number): Promise<SnakeEdgeRecord[]>;
+}
+
+export interface ReadonlyFragmentGroupStore {
+  listBySerial(serialId: number): Promise<FragmentGroupRecord[]>;
+  listSerialIds(): Promise<number[]>;
+  listGroupIdsForSerial(serialId: number): Promise<number[]>;
+}
+
+export class SerialStore implements ReadonlySerialStore {
   readonly #database: Database;
 
   public constructor(database: Database) {
@@ -109,7 +157,7 @@ export class SerialStore {
   }
 }
 
-export class ChunkStore {
+export class ChunkStore implements ReadonlyChunkStore {
   readonly #database: Database;
 
   public constructor(database: Database) {
@@ -372,7 +420,7 @@ export class ChunkStore {
   }
 }
 
-export class KnowledgeEdgeStore {
+export class KnowledgeEdgeStore implements ReadonlyKnowledgeEdgeStore {
   readonly #database: Database;
 
   public constructor(database: Database) {
@@ -447,7 +495,7 @@ export class KnowledgeEdgeStore {
   }
 }
 
-export class SnakeStore {
+export class SnakeStore implements ReadonlySnakeStore {
   readonly #database: Database;
 
   public constructor(database: Database) {
@@ -564,7 +612,7 @@ export class SnakeStore {
   }
 }
 
-export class SnakeChunkStore {
+export class SnakeChunkStore implements ReadonlySnakeChunkStore {
   readonly #database: Database;
 
   public constructor(database: Database) {
@@ -612,7 +660,7 @@ export class SnakeChunkStore {
   }
 }
 
-export class SnakeEdgeStore {
+export class SnakeEdgeStore implements ReadonlySnakeEdgeStore {
   readonly #database: Database;
 
   public constructor(database: Database) {
@@ -708,7 +756,7 @@ export class SnakeEdgeStore {
   }
 }
 
-export class FragmentGroupStore {
+export class FragmentGroupStore implements ReadonlyFragmentGroupStore {
   readonly #database: Database;
 
   public constructor(database: Database) {
