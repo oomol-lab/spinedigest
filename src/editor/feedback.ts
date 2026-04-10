@@ -1,10 +1,6 @@
 import type { LLM } from "../llm/index.js";
 import { REVISION_FEEDBACK_PROMPT_PATH } from "./prompt-paths.js";
-import type {
-  CompressionVersion,
-  ReviewIssue,
-  ReviewResult,
-} from "./types.js";
+import type { CompressionVersion, ReviewIssue, ReviewResult } from "./types.js";
 import { ReviewSeverity } from "./types.js";
 
 const REVIEW_SEVERITY_VALUE: Readonly<Record<ReviewSeverity, number>> =
