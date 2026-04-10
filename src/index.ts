@@ -9,8 +9,16 @@ export {
   type EditorScopes,
 } from "./editor/index.js";
 export {
+  SpineDigest,
+  SpineDigestFile,
+  digestEpubSession,
+  digestMarkdownSession,
+  digestTextSession,
+  digestTxtSession,
   importSource,
   importSourceDocument,
+  type DigestSourceSessionOptions,
+  type DigestTextSessionOptions,
   type ImportedSource,
   type ImportSourceOptions,
 } from "./facade/index.js";
