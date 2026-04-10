@@ -37,6 +37,7 @@
     "build": "rimraf dist && tsc -p tsconfig.build.json",
     "coverage:report": "node ./scripts/coverage-report.mjs",
     "dev": "tsx src/cli.ts",
+    "fixtures:generate": "node ./scripts/generate-test-fixtures.mjs",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "lint": "eslint .",
@@ -44,6 +45,7 @@
     "test": "vitest --passWithNoTests",
     "test:run": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test:watch": "vitest --passWithNoTests",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify": "pnpm lint && pnpm typecheck && pnpm format:check"
   },
