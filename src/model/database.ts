@@ -1,28 +1,25 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
-import { dirname, resolve } from "path";
+import { AsyncLocalStorage } from "async_hooks";
+import { resolve } from "path";
 
-import type initSqlJs from "sql.js";
+import type * as Sqlite3Namespace from "sqlite3";
 
-type InitSqlJsStatic = typeof initSqlJs;
-type SqlJsStatic = Awaited<ReturnType<InitSqlJsStatic>>;
-type SqlDatabase = InstanceType<SqlJsStatic["Database"]>;
-type SqlBindParams = NonNullable<Parameters<SqlDatabase["run"]>[1]>;
-type SqlRowValue = number | string | Uint8Array | null;
+type Sqlite3Module = typeof Sqlite3Namespace;
+type SqliteDatabase = Sqlite3Namespace.Database;
+type SqlBindValue = Buffer | Uint8Array | number | string | null;
+type SqlBindParams = readonly SqlBindValue[];
+type SqlRowValue = SqlBindValue;
 
 export type SqlRow = Record<string, SqlRowValue>;
 
-let sqlJsPromise: Promise<SqlJsStatic> | undefined;
-
 export class Database {
-  readonly #database: SqlDatabase;
-  readonly #databasePath: string;
+  readonly #database: SqliteDatabase;
+  readonly #operationScope = new AsyncLocalStorage<boolean>();
   #closed = false;
-  #dirty = false;
+  #operationChain: Promise<void> = Promise.resolve();
   #transactionDepth = 0;
 
-  public constructor(database: SqlDatabase, databasePath: string) {
+  public constructor(database: SqliteDatabase) {
     this.#database = database;
-    this.#databasePath = databasePath;
   }
 
   public static async open(
@@ -30,114 +27,99 @@ export class Database {
     schemaSql: string,
   ): Promise<Database> {
     const resolvedDatabasePath = resolve(databasePath);
-    const SQL = await loadSqlJs();
-    const databaseFile = await readDatabaseFile(resolvedDatabasePath);
-    const database = new SQL.Database(databaseFile);
-    const openedDatabase = new Database(database, resolvedDatabasePath);
+    const database = await openSqliteDatabase(resolvedDatabasePath);
+    const openedDatabase = new Database(database);
 
-    openedDatabase.#database.run(schemaSql);
-    openedDatabase.#dirty = databaseFile === undefined;
+    await openedDatabase.#executeSql(schemaSql);
 
     return openedDatabase;
   }
 
-  public queryAll<T>(
+  public async queryAll<T>(
     sql: string,
     params: SqlBindParams | undefined,
     mapRow: (row: SqlRow) => T,
-  ): T[] {
-    this.#assertOpen();
+  ): Promise<T[]> {
+    return await this.#runSerialized(async () => {
+      this.#assertOpen();
+      const rows = await this.#queryAllRows(sql, params);
 
-    const statement = this.#database.prepare(sql, params);
-
-    try {
-      const rows: T[] = [];
-
-      while (statement.step()) {
-        rows.push(mapRow(statement.getAsObject() as SqlRow));
-      }
-
-      return rows;
-    } finally {
-      statement.free();
-    }
+      return rows.map(mapRow);
+    });
   }
 
-  public queryOne<T>(
+  public async queryOne<T>(
     sql: string,
     params: SqlBindParams | undefined,
     mapRow: (row: SqlRow) => T,
-  ): T | undefined {
-    const rows = this.queryAll(sql, params, mapRow);
+  ): Promise<T | undefined> {
+    return await this.#runSerialized(async () => {
+      this.#assertOpen();
+      const row = await this.#queryOneRow(sql, params);
 
-    return rows[0];
+      return row === undefined ? undefined : mapRow(row);
+    });
   }
 
   public async run(sql: string, params?: SqlBindParams): Promise<void> {
-    this.#assertOpen();
-    this.#database.run(sql, params);
-    this.#dirty = true;
-
-    if (this.#transactionDepth === 0) {
-      await this.flush();
-    }
+    await this.#runSerialized(async () => {
+      this.#assertOpen();
+      await this.#runStatement(sql, params);
+    });
   }
 
   public async transaction<T>(operation: () => Promise<T> | T): Promise<T> {
-    this.#assertOpen();
-    const isRootTransaction = this.#transactionDepth === 0;
-
-    if (isRootTransaction) {
-      this.#database.run("BEGIN");
-    }
-
-    this.#transactionDepth += 1;
-
-    try {
-      const result = await operation();
-
-      this.#transactionDepth -= 1;
+    return await this.#runSerialized(async () => {
+      this.#assertOpen();
+      const isRootTransaction = this.#transactionDepth === 0;
 
       if (isRootTransaction) {
-        this.#database.run("COMMIT");
-        await this.flush();
+        await this.#executeSql("BEGIN");
       }
 
-      return result;
-    } catch (error) {
-      this.#transactionDepth -= 1;
+      this.#transactionDepth += 1;
 
-      if (isRootTransaction) {
-        this.#database.run("ROLLBACK");
+      try {
+        const result = await operation();
+
+        this.#transactionDepth -= 1;
+
+        if (isRootTransaction) {
+          await this.#executeSql("COMMIT");
+        }
+
+        return result;
+      } catch (error) {
+        this.#transactionDepth -= 1;
+
+        if (isRootTransaction) {
+          await this.#executeSql("ROLLBACK");
+        }
+
+        throw error;
       }
-
-      throw error;
-    }
+    });
   }
 
   public async flush(): Promise<void> {
-    this.#assertOpen();
-
-    if (!this.#dirty) {
-      return;
-    }
-
-    await mkdir(dirname(this.#databasePath), { recursive: true });
-    await writeFile(this.#databasePath, Buffer.from(this.#database.export()));
-    this.#dirty = false;
+    await this.#runSerialized(() => {
+      this.#assertOpen();
+    });
   }
 
-  public close(): void {
-    if (this.#closed) {
-      return;
-    }
+  public async close(): Promise<void> {
+    await this.#runSerialized(async () => {
+      if (this.#closed) {
+        return;
+      }
 
-    this.#database.close();
-    this.#closed = true;
+      await this.#closeDatabase();
+      this.#closed = true;
+    });
   }
 
-  public getLastInsertRowId(): number {
-    const row = this.queryOne(
+  public async getLastInsertRowId(): Promise<number> {
+    const row = await this.queryOne(
       "SELECT last_insert_rowid() AS row_id",
       undefined,
       (value) => getNumber(value, "row_id"),
@@ -154,6 +136,105 @@ export class Database {
     if (this.#closed) {
       throw new Error("Database is already closed");
     }
+  }
+
+  async #runSerialized<T>(operation: () => Promise<T> | T): Promise<T> {
+    if (this.#operationScope.getStore() === true) {
+      return await operation();
+    }
+
+    const queuedOperation = this.#operationChain.then(() =>
+      this.#operationScope.run(true, operation),
+    );
+
+    this.#operationChain = queuedOperation.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    return await queuedOperation;
+  }
+
+  async #closeDatabase(): Promise<void> {
+    await new Promise<void>((resolveClose, rejectClose) => {
+      this.#database.close((error) => {
+        if (error !== null) {
+          rejectClose(error);
+          return;
+        }
+
+        resolveClose();
+      });
+    });
+  }
+
+  async #executeSql(sql: string): Promise<void> {
+    await new Promise<void>((resolveExec, rejectExec) => {
+      this.#database.exec(sql, (error) => {
+        if (error !== null) {
+          rejectExec(error);
+          return;
+        }
+
+        resolveExec();
+      });
+    });
+  }
+
+  async #queryAllRows(
+    sql: string,
+    params: SqlBindParams | undefined,
+  ): Promise<SqlRow[]> {
+    return await new Promise<SqlRow[]>((resolveAll, rejectAll) => {
+      this.#database.all<SqlRow>(
+        sql,
+        normalizeSqlBindParams(params),
+        (error, rows) => {
+          if (error !== null) {
+            rejectAll(error);
+            return;
+          }
+
+          resolveAll(rows);
+        },
+      );
+    });
+  }
+
+  async #queryOneRow(
+    sql: string,
+    params: SqlBindParams | undefined,
+  ): Promise<SqlRow | undefined> {
+    return await new Promise<SqlRow | undefined>((resolveGet, rejectGet) => {
+      this.#database.get<SqlRow>(
+        sql,
+        normalizeSqlBindParams(params),
+        (error, row) => {
+          if (error !== null) {
+            rejectGet(error);
+            return;
+          }
+
+          resolveGet(row);
+        },
+      );
+    });
+  }
+
+  async #runStatement(
+    sql: string,
+    params: SqlBindParams | undefined,
+  ): Promise<void> {
+    await new Promise<void>((resolveRun, rejectRun) => {
+      this.#database.run(sql, normalizeSqlBindParams(params), (error) => {
+        if (error !== null) {
+          rejectRun(error);
+          return;
+        }
+
+        resolveRun();
+      });
+    });
   }
 }
 
@@ -194,50 +275,50 @@ export function getOptionalString(
   return value;
 }
 
-async function loadSqlJs(): Promise<SqlJsStatic> {
-  if (sqlJsPromise !== undefined) {
-    return await sqlJsPromise;
-  }
+async function openSqliteDatabase(
+  databasePath: string,
+): Promise<SqliteDatabase> {
+  const sqlite3 = await loadSqlite3();
 
-  sqlJsPromise = import("sql.js").then(async (module) => {
-    const initSqlJs = resolveInitSqlJs(module as unknown);
-    return await initSqlJs();
+  return await new Promise<SqliteDatabase>((resolveOpen, rejectOpen) => {
+    const database = new sqlite3.Database(databasePath, (error) => {
+      if (error !== null) {
+        rejectOpen(error);
+        return;
+      }
+
+      resolveOpen(database);
+    });
   });
-
-  return await sqlJsPromise;
 }
 
-function resolveInitSqlJs(module: unknown): InitSqlJsStatic {
-  if (typeof module === "function") {
-    return module as InitSqlJsStatic;
-  }
+async function loadSqlite3(): Promise<Sqlite3Module> {
+  const module = await import("sqlite3");
 
+  return resolveSqlite3Module(module as unknown);
+}
+
+function resolveSqlite3Module(module: unknown): Sqlite3Module {
   if (
     typeof module === "object" &&
     module !== null &&
     "default" in module &&
-    typeof module.default === "function"
+    typeof module.default === "object" &&
+    module.default !== null &&
+    "Database" in module.default
   ) {
-    return module.default as InitSqlJsStatic;
+    return module.default as Sqlite3Module;
   }
 
-  throw new TypeError("Could not load sql.js");
-}
-
-async function readDatabaseFile(
-  databasePath: string,
-): Promise<Uint8Array | undefined> {
-  try {
-    return await readFile(databasePath);
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return undefined;
-    }
-
-    throw error;
+  if (typeof module === "object" && module !== null && "Database" in module) {
+    return module as Sqlite3Module;
   }
+
+  throw new TypeError("Could not load sqlite3");
 }
 
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error;
+function normalizeSqlBindParams(
+  params: SqlBindParams | undefined,
+): SqlBindParams {
+  return params ?? [];
 }

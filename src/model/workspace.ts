@@ -96,7 +96,7 @@ export class Workspace {
 
   public async close(): Promise<void> {
     await this.flush();
-    this.#database.close();
+    await this.#database.close();
   }
 
   #getSummariesPath(): string {

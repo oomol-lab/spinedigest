@@ -91,7 +91,6 @@ export class SerialHub {
   ): Promise<Serial> {
     const serialId = await this.#createSerialId();
     const serial = new Serial({
-      hasTopology: () => this.#getRecord(serialId).topologyReady,
       getTopology: () => this.#getTopology(serialId),
       ensureSummary: async () =>
         await this.#buildSummary(serialId, options.userLanguage),
@@ -111,9 +110,9 @@ export class SerialHub {
   }
 
   async #allocateChunkId(): Promise<number> {
-    return await this.#idSemaphore.use(() => {
+    return await this.#idSemaphore.use(async () => {
       if (this.#nextChunkId === undefined) {
-        this.#nextChunkId = this.#chunks.getMaxId() + 1;
+        this.#nextChunkId = (await this.#chunks.getMaxId()) + 1;
       }
       const chunkId = this.#nextChunkId;
       this.#nextChunkId += 1;
@@ -125,7 +124,7 @@ export class SerialHub {
     serialId: number,
     userLanguage: Language | undefined,
   ): Promise<string> {
-    const record = this.#getRecord(serialId);
+    const record = await this.#getRecord(serialId);
     if (!record.topologyReady) {
       throw new Error(`Serial ${serialId} is not ready for summary`);
     }
@@ -134,7 +133,7 @@ export class SerialHub {
     if (existingSummary !== undefined) {
       return existingSummary;
     }
-    const groupIds = this.#fragmentGroups.listGroupIdsForSerial(serialId);
+    const groupIds = await this.#fragmentGroups.listGroupIdsForSerial(serialId);
     const summaryParts: string[] = [];
 
     for (const groupId of groupIds) {
@@ -248,8 +247,8 @@ export class SerialHub {
     );
   }
 
-  #getRecord(serialId: number): SerialRecord {
-    const record = this.#serials.getById(serialId);
+  async #getRecord(serialId: number): Promise<SerialRecord> {
+    const record = await this.#serials.getById(serialId);
     if (record === undefined) {
       throw new Error(`Serial ${serialId} does not exist`);
     }
@@ -298,18 +297,15 @@ export class SerialHub {
 
 export class Serial {
   readonly #ensureSummaryOperation: () => Promise<string>;
-  readonly #hasTopology: () => boolean;
   readonly #getTopology: () => SerialTopology;
 
   #summary: Promise<string> | string | undefined;
 
   public constructor(input: {
     ensureSummary: () => Promise<string>;
-    hasTopology: () => boolean;
     getTopology: () => SerialTopology;
   }) {
     this.#ensureSummaryOperation = input.ensureSummary;
-    this.#hasTopology = input.hasTopology;
     this.#getTopology = input.getTopology;
   }
 
@@ -317,10 +313,7 @@ export class Serial {
     if (typeof this.#summary === "string") {
       return "summary";
     }
-    if (this.#hasTopology()) {
-      return "topology";
-    }
-    throw new Error("Serial topology is not ready");
+    return "topology";
   }
 
   public async ensureSummary(): Promise<Serial> {
@@ -388,32 +381,34 @@ export class SerialTopology {
     this.#snakes = workspace.snakes;
   }
 
-  public listChunks(): readonly ChunkRecord[] {
-    return this.#chunks.listBySerial(this.#serialId);
+  public async listChunks(): Promise<readonly ChunkRecord[]> {
+    return await this.#chunks.listBySerial(this.#serialId);
   }
 
-  public listEdges(): readonly KnowledgeEdgeRecord[] {
-    return this.#knowledgeEdges.listBySerial(this.#serialId);
+  public async listEdges(): Promise<readonly KnowledgeEdgeRecord[]> {
+    return await this.#knowledgeEdges.listBySerial(this.#serialId);
   }
 
-  public listGroups(): readonly FragmentGroupRecord[] {
-    return this.#fragmentGroups.listBySerial(this.#serialId);
+  public async listGroups(): Promise<readonly FragmentGroupRecord[]> {
+    return await this.#fragmentGroups.listBySerial(this.#serialId);
   }
 
-  public listSnakeChunks(snakeId: number): readonly SnakeChunkRecord[] {
-    const snake = this.#snakes.getById(snakeId);
+  public async listSnakeChunks(
+    snakeId: number,
+  ): Promise<readonly SnakeChunkRecord[]> {
+    const snake = await this.#snakes.getById(snakeId);
     if (snake === undefined || snake.serialId !== this.#serialId) {
       throw new Error(`Snake ${snakeId} does not belong to this serial`);
     }
-    return this.#snakeChunks.listBySnake(snakeId);
+    return await this.#snakeChunks.listBySnake(snakeId);
   }
 
-  public listSnakeEdges(): readonly SnakeEdgeRecord[] {
-    return this.#snakeEdges.listBySerial(this.#serialId);
+  public async listSnakeEdges(): Promise<readonly SnakeEdgeRecord[]> {
+    return await this.#snakeEdges.listBySerial(this.#serialId);
   }
 
-  public listSnakes(): readonly SnakeRecord[] {
-    return this.#snakes.listBySerial(this.#serialId);
+  public async listSnakes(): Promise<readonly SnakeRecord[]> {
+    return await this.#snakes.listBySerial(this.#serialId);
   }
 }
 

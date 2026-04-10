@@ -27,7 +27,7 @@ export class SerialStore {
         `,
       );
 
-      const serialId = this.#database.getLastInsertRowId();
+      const serialId = await this.#database.getLastInsertRowId();
 
       await this.#database.run(
         `
@@ -61,8 +61,8 @@ export class SerialStore {
     });
   }
 
-  public getById(serialId: number): SerialRecord | undefined {
-    return this.#database.queryOne(
+  public async getById(serialId: number): Promise<SerialRecord | undefined> {
+    return await this.#database.queryOne(
       `
         SELECT
           serials.id AS id,
@@ -92,8 +92,8 @@ export class SerialStore {
     );
   }
 
-  public listIds(): number[] {
-    return this.#database.queryAll(
+  public async listIds(): Promise<number[]> {
+    return await this.#database.queryAll(
       `
         SELECT id
         FROM serials
@@ -171,8 +171,8 @@ export class ChunkStore {
     });
   }
 
-  public getById(chunkId: number): ChunkRecord | undefined {
-    const row = this.#database.queryOne(
+  public async getById(chunkId: number): Promise<ChunkRecord | undefined> {
+    const row = await this.#database.queryOne(
       `
         SELECT
           id,
@@ -197,13 +197,12 @@ export class ChunkStore {
       return undefined;
     }
 
-    return this.#mapChunkRow(row);
+    return await this.#mapChunkRow(row);
   }
 
-  public listAll(): ChunkRecord[] {
-    return this.#database
-      .queryAll(
-        `
+  public async listAll(): Promise<ChunkRecord[]> {
+    const rows = await this.#database.queryAll(
+      `
           SELECT
             id,
             generation,
@@ -219,25 +218,27 @@ export class ChunkStore {
           FROM chunks
           ORDER BY id
         `,
-        undefined,
-        (row) => row,
-      )
-      .map((row) => this.#mapChunkRow(row));
+      undefined,
+      (row) => row,
+    );
+
+    return await Promise.all(
+      rows.map(async (row) => await this.#mapChunkRow(row)),
+    );
   }
 
-  public listByFragments(
+  public async listByFragments(
     serialId: number,
     fragmentIds: readonly number[],
-  ): ChunkRecord[] {
+  ): Promise<ChunkRecord[]> {
     if (fragmentIds.length === 0) {
       return [];
     }
 
     const placeholders = fragmentIds.map(() => "?").join(", ");
 
-    return this.#database
-      .queryAll(
-        `
+    const rows = await this.#database.queryAll(
+      `
           SELECT
             id,
             generation,
@@ -254,16 +255,18 @@ export class ChunkStore {
           WHERE serial_id = ? AND fragment_id IN (${placeholders})
           ORDER BY id
         `,
-        [serialId, ...fragmentIds],
-        (row) => row,
-      )
-      .map((row) => this.#mapChunkRow(row));
+      [serialId, ...fragmentIds],
+      (row) => row,
+    );
+
+    return await Promise.all(
+      rows.map(async (row) => await this.#mapChunkRow(row)),
+    );
   }
 
-  public listBySerial(serialId: number): ChunkRecord[] {
-    return this.#database
-      .queryAll(
-        `
+  public async listBySerial(serialId: number): Promise<ChunkRecord[]> {
+    const rows = await this.#database.queryAll(
+      `
           SELECT
             id,
             generation,
@@ -280,15 +283,18 @@ export class ChunkStore {
           WHERE serial_id = ?
           ORDER BY id
         `,
-        [serialId],
-        (row) => row,
-      )
-      .map((row) => this.#mapChunkRow(row));
+      [serialId],
+      (row) => row,
+    );
+
+    return await Promise.all(
+      rows.map(async (row) => await this.#mapChunkRow(row)),
+    );
   }
 
-  public getMaxId(): number {
+  public async getMaxId(): Promise<number> {
     return (
-      this.#database.queryOne(
+      (await this.#database.queryOne(
         `
           SELECT MAX(id) AS id
           FROM chunks
@@ -299,12 +305,14 @@ export class ChunkStore {
 
           return typeof value === "number" ? value : 0;
         },
-      ) ?? 0
+      )) ?? 0
     );
   }
 
-  public listFragmentPairs(): ReadonlyArray<readonly [number, number]> {
-    return this.#database.queryAll(
+  public async listFragmentPairs(): Promise<
+    ReadonlyArray<readonly [number, number]>
+  > {
+    return await this.#database.queryAll(
       `
         SELECT DISTINCT serial_id, fragment_id
         FROM chunks
@@ -316,8 +324,8 @@ export class ChunkStore {
     );
   }
 
-  #getSentenceIds(chunkId: number): SentenceId[] {
-    return this.#database.queryAll(
+  async #getSentenceIds(chunkId: number): Promise<SentenceId[]> {
+    return await this.#database.queryAll(
       `
         SELECT serial_id, fragment_id, sentence_index
         FROM chunk_sentences
@@ -334,7 +342,7 @@ export class ChunkStore {
     );
   }
 
-  #mapChunkRow(row: SqlRow): ChunkRecord {
+  async #mapChunkRow(row: SqlRow): Promise<ChunkRecord> {
     const chunkId = getNumber(row, "id");
     const importance = getOptionalString(row, "importance");
     const retention = getOptionalString(row, "retention");
@@ -349,7 +357,7 @@ export class ChunkStore {
         getNumber(row, "fragment_id"),
         getNumber(row, "sentence_index"),
       ] as const,
-      sentenceIds: this.#getSentenceIds(chunkId),
+      sentenceIds: await this.#getSentenceIds(chunkId),
       tokens: getNumber(row, "tokens"),
       weight: getNumber(row, "weight"),
       ...(importance === undefined ? {} : { importance }),
@@ -375,8 +383,8 @@ export class KnowledgeEdgeStore {
     );
   }
 
-  public listAll(): KnowledgeEdgeRecord[] {
-    return this.#database.queryAll(
+  public async listAll(): Promise<KnowledgeEdgeRecord[]> {
+    return await this.#database.queryAll(
       `
         SELECT from_id, to_id, strength, weight
         FROM knowledge_edges
@@ -387,8 +395,8 @@ export class KnowledgeEdgeStore {
     );
   }
 
-  public listBySerial(serialId: number): KnowledgeEdgeRecord[] {
-    return this.#database.queryAll(
+  public async listBySerial(serialId: number): Promise<KnowledgeEdgeRecord[]> {
+    return await this.#database.queryAll(
       `
         SELECT
           knowledge_edges.from_id AS from_id,
@@ -408,19 +416,19 @@ export class KnowledgeEdgeStore {
     );
   }
 
-  public listIncoming(chunkId: number): KnowledgeEdgeRecord[] {
-    return this.#listByDirection("to_id", chunkId);
+  public async listIncoming(chunkId: number): Promise<KnowledgeEdgeRecord[]> {
+    return await this.#listByDirection("to_id", chunkId);
   }
 
-  public listOutgoing(chunkId: number): KnowledgeEdgeRecord[] {
-    return this.#listByDirection("from_id", chunkId);
+  public async listOutgoing(chunkId: number): Promise<KnowledgeEdgeRecord[]> {
+    return await this.#listByDirection("from_id", chunkId);
   }
 
-  #listByDirection(
+  async #listByDirection(
     column: "from_id" | "to_id",
     chunkId: number,
-  ): KnowledgeEdgeRecord[] {
-    return this.#database.queryAll(
+  ): Promise<KnowledgeEdgeRecord[]> {
+    return await this.#database.queryAll(
       `
         SELECT from_id, to_id, strength, weight
         FROM knowledge_edges
@@ -467,11 +475,11 @@ export class SnakeStore {
       ],
     );
 
-    return this.#database.getLastInsertRowId();
+    return await this.#database.getLastInsertRowId();
   }
 
-  public getById(snakeId: number): SnakeRecord | undefined {
-    return this.#database.queryOne(
+  public async getById(snakeId: number): Promise<SnakeRecord | undefined> {
+    return await this.#database.queryOne(
       `
         SELECT
           id,
@@ -501,8 +509,11 @@ export class SnakeStore {
     );
   }
 
-  public listIdsByGroup(serialId: number, groupId: number): number[] {
-    return this.#database.queryAll(
+  public async listIdsByGroup(
+    serialId: number,
+    groupId: number,
+  ): Promise<number[]> {
+    return await this.#database.queryAll(
       `
         SELECT id
         FROM snakes
@@ -514,8 +525,8 @@ export class SnakeStore {
     );
   }
 
-  public listBySerial(serialId: number): SnakeRecord[] {
-    return this.#database.queryAll(
+  public async listBySerial(serialId: number): Promise<SnakeRecord[]> {
+    return await this.#database.queryAll(
       `
         SELECT
           id,
@@ -564,8 +575,8 @@ export class SnakeChunkStore {
     );
   }
 
-  public listChunkIds(snakeId: number): number[] {
-    return this.#database.queryAll(
+  public async listChunkIds(snakeId: number): Promise<number[]> {
+    return await this.#database.queryAll(
       `
         SELECT chunk_id
         FROM snake_chunks
@@ -577,8 +588,8 @@ export class SnakeChunkStore {
     );
   }
 
-  public listBySnake(snakeId: number): SnakeChunkRecord[] {
-    return this.#database.queryAll(
+  public async listBySnake(snakeId: number): Promise<SnakeChunkRecord[]> {
+    return await this.#database.queryAll(
       `
         SELECT snake_id, chunk_id, position
         FROM snake_chunks
@@ -612,22 +623,24 @@ export class SnakeEdgeStore {
     );
   }
 
-  public listIncoming(snakeId: number): SnakeEdgeRecord[] {
-    return this.#listByDirection("to_snake_id", snakeId);
+  public async listIncoming(snakeId: number): Promise<SnakeEdgeRecord[]> {
+    return await this.#listByDirection("to_snake_id", snakeId);
   }
 
-  public listOutgoing(snakeId: number): SnakeEdgeRecord[] {
-    return this.#listByDirection("from_snake_id", snakeId);
+  public async listOutgoing(snakeId: number): Promise<SnakeEdgeRecord[]> {
+    return await this.#listByDirection("from_snake_id", snakeId);
   }
 
-  public listWithin(snakeIds: readonly number[]): SnakeEdgeRecord[] {
+  public async listWithin(
+    snakeIds: readonly number[],
+  ): Promise<SnakeEdgeRecord[]> {
     if (snakeIds.length === 0) {
       return [];
     }
 
     const placeholders = snakeIds.map(() => "?").join(", ");
 
-    return this.#database.queryAll(
+    return await this.#database.queryAll(
       `
         SELECT from_snake_id, to_snake_id, weight
         FROM snake_edges
@@ -644,8 +657,8 @@ export class SnakeEdgeStore {
     );
   }
 
-  public listBySerial(serialId: number): SnakeEdgeRecord[] {
-    return this.#database.queryAll(
+  public async listBySerial(serialId: number): Promise<SnakeEdgeRecord[]> {
+    return await this.#database.queryAll(
       `
         SELECT
           snake_edges.from_snake_id AS from_snake_id,
@@ -668,11 +681,11 @@ export class SnakeEdgeStore {
     );
   }
 
-  #listByDirection(
+  async #listByDirection(
     column: "from_snake_id" | "to_snake_id",
     snakeId: number,
-  ): SnakeEdgeRecord[] {
-    return this.#database.queryAll(
+  ): Promise<SnakeEdgeRecord[]> {
+    return await this.#database.queryAll(
       `
         SELECT from_snake_id, to_snake_id, weight
         FROM snake_edges
@@ -716,8 +729,8 @@ export class FragmentGroupStore {
     });
   }
 
-  public listBySerial(serialId: number): FragmentGroupRecord[] {
-    return this.#database.queryAll(
+  public async listBySerial(serialId: number): Promise<FragmentGroupRecord[]> {
+    return await this.#database.queryAll(
       `
         SELECT serial_id, group_id, fragment_id
         FROM fragment_groups
@@ -733,8 +746,8 @@ export class FragmentGroupStore {
     );
   }
 
-  public listSerialIds(): number[] {
-    return this.#database.queryAll(
+  public async listSerialIds(): Promise<number[]> {
+    return await this.#database.queryAll(
       `
         SELECT DISTINCT serial_id
         FROM fragment_groups
@@ -745,8 +758,8 @@ export class FragmentGroupStore {
     );
   }
 
-  public listGroupIdsForSerial(serialId: number): number[] {
-    return this.#database.queryAll(
+  public async listGroupIdsForSerial(serialId: number): Promise<number[]> {
+    return await this.#database.queryAll(
       `
         SELECT DISTINCT group_id
         FROM fragment_groups

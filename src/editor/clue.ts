@@ -9,20 +9,26 @@ interface Clue {
   readonly weight: number;
 }
 
-export function extractCluesFromWorkspace(input: {
+export async function extractCluesFromWorkspace(input: {
   groupId: number;
   maxClues: number;
   serialId: number;
   workspace: Workspace;
-}): readonly Clue[] {
-  const snakeIds = input.workspace.snakes.listIdsByGroup(
+}): Promise<readonly Clue[]> {
+  const snakeIds = await input.workspace.snakes.listIdsByGroup(
     input.serialId,
     input.groupId,
   );
-  const clues = snakeIds
-    .map((snakeId) => input.workspace.snakes.getById(snakeId))
-    .filter((snake): snake is SnakeRecord => snake !== undefined)
-    .map((snake) => convertSnakeToClue(snake, input.workspace));
+  const snakes = await Promise.all(
+    snakeIds.map(
+      async (snakeId) => await input.workspace.snakes.getById(snakeId),
+    ),
+  );
+  const clues = await Promise.all(
+    snakes
+      .filter((snake): snake is SnakeRecord => snake !== undefined)
+      .map(async (snake) => await convertSnakeToClue(snake, input.workspace)),
+  );
 
   if (clues.length <= input.maxClues) {
     return normalizeClueWeights(clues);
@@ -137,11 +143,16 @@ function compareNumber(left: number, right: number): number {
   return left - right;
 }
 
-function convertSnakeToClue(snake: SnakeRecord, workspace: Workspace): Clue {
-  const chunks = workspace.snakeChunks
-    .listChunkIds(snake.id)
-    .map((chunkId) => workspace.chunks.getById(chunkId))
-    .filter((chunk): chunk is ChunkRecord => chunk !== undefined);
+async function convertSnakeToClue(
+  snake: SnakeRecord,
+  workspace: Workspace,
+): Promise<Clue> {
+  const chunkIds = await workspace.snakeChunks.listChunkIds(snake.id);
+  const chunks = (
+    await Promise.all(
+      chunkIds.map(async (chunkId) => await workspace.chunks.getById(chunkId)),
+    )
+  ).filter((chunk): chunk is ChunkRecord => chunk !== undefined);
 
   return {
     clueId: snake.id,
