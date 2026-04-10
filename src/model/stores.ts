@@ -5,6 +5,7 @@ import type {
   CreateSnakeRecord,
   FragmentGroupRecord,
   KnowledgeEdgeRecord,
+  SerialRecord,
   SentenceId,
   SnakeChunkRecord,
   SnakeEdgeRecord,
@@ -19,20 +20,73 @@ export class SerialStore {
   }
 
   public async create(): Promise<number> {
-    await this.#database.run(
-      `
-        INSERT INTO serials DEFAULT VALUES
-      `,
-    );
+    return await this.#database.transaction(async () => {
+      await this.#database.run(
+        `
+          INSERT INTO serials DEFAULT VALUES
+        `,
+      );
 
-    return this.#database.getLastInsertRowId();
+      const serialId = this.#database.getLastInsertRowId();
+
+      await this.#database.run(
+        `
+          INSERT INTO serial_states (serial_id, topology_ready)
+          VALUES (?, ?)
+        `,
+        [serialId, 0],
+      );
+
+      return serialId;
+    });
   }
 
   public async ensure(serialId: number): Promise<void> {
+    await this.#database.transaction(async () => {
+      await this.#database.run(
+        `
+          INSERT OR IGNORE INTO serials (id)
+          VALUES (?)
+        `,
+        [serialId],
+      );
+
+      await this.#database.run(
+        `
+          INSERT OR IGNORE INTO serial_states (serial_id, topology_ready)
+          VALUES (?, ?)
+        `,
+        [serialId, 0],
+      );
+    });
+  }
+
+  public getById(serialId: number): SerialRecord | undefined {
+    return this.#database.queryOne(
+      `
+        SELECT
+          serials.id AS id,
+          COALESCE(serial_states.topology_ready, 0) AS topology_ready
+        FROM serials
+        LEFT JOIN serial_states
+          ON serial_states.serial_id = serials.id
+        WHERE serials.id = ?
+      `,
+      [serialId],
+      (row) => ({
+        id: getNumber(row, "id"),
+        topologyReady: getNumber(row, "topology_ready") !== 0,
+      }),
+    );
+  }
+
+  public async setTopologyReady(serialId: number): Promise<void> {
+    await this.ensure(serialId);
     await this.#database.run(
       `
-        INSERT OR IGNORE INTO serials (id)
-        VALUES (?)
+        UPDATE serial_states
+        SET topology_ready = 1
+        WHERE serial_id = ?
       `,
       [serialId],
     );

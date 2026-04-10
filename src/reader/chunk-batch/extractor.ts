@@ -1,7 +1,7 @@
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 
 import {
   GuaranteedParseValidationError,
@@ -72,13 +72,23 @@ const EVIDENCE_CHOICE_PROMPT_PATH = resolve(
   DATA_DIR_PATH,
   "evidence_choice.jinja",
 );
+const TRANSLATE_CHUNKS_PROMPT_PATH = resolve(
+  DATA_DIR_PATH,
+  "translate_chunks.jinja",
+);
+const TRANSLATED_CHUNK_SCHEMA = z.object({
+  content: z.string(),
+  id: z.number(),
+  label: z.string(),
+});
+const TRANSLATED_CHUNKS_SCHEMA = z.array(TRANSLATED_CHUNK_SCHEMA);
+const MAX_TRANSLATION_RETRIES = 3;
 
 export class ChunkExtractor<S extends string> {
   readonly #extractionGuidance: string;
   readonly #llm: LLM<S>;
   readonly #scopes: ChunkBatchOptions<S>["scopes"];
   readonly #sentenceTextSource: ChunkBatchOptions<S>["sentenceTextSource"];
-  readonly #translator: ChunkBatchOptions<S>["translator"];
   readonly #userLanguage: Language | undefined;
 
   public constructor(options: ChunkBatchOptions<S>) {
@@ -86,7 +96,6 @@ export class ChunkExtractor<S extends string> {
     this.#llm = options.llm;
     this.#scopes = options.scopes;
     this.#sentenceTextSource = options.sentenceTextSource;
-    this.#translator = options.translator;
     this.#userLanguage = options.userLanguage;
   }
 
@@ -267,11 +276,7 @@ export class ChunkExtractor<S extends string> {
       UserFocusedResponseData | BookCoherenceResponseData
     >,
   ): Promise<ChunkBatch> {
-    if (
-      this.#translator === undefined ||
-      this.#userLanguage === undefined ||
-      chunkBatch.chunks.length === 0
-    ) {
+    if (this.#userLanguage === undefined || chunkBatch.chunks.length === 0) {
       return chunkBatch;
     }
 
@@ -300,35 +305,64 @@ export class ChunkExtractor<S extends string> {
       return chunkBatch;
     }
 
-    let translatedChunks: readonly ChunkTranslationOutput[];
-
     try {
-      translatedChunks = await this.#translator.translate(
+      const translatedChunks = await this.#translateChunks(
         translationInput,
         this.#userLanguage,
       );
+      const translatedById = createTranslatedChunkRecord(translatedChunks);
+
+      return {
+        ...chunkBatch,
+        chunks: chunkBatch.chunks.map((chunk, index) => {
+          const translated = translatedById[String(index)];
+
+          if (translated === undefined) {
+            return chunk;
+          }
+
+          return {
+            ...chunk,
+            content: translated.content,
+            label: translated.label,
+          };
+        }),
+      };
     } catch {
       return chunkBatch;
     }
+  }
 
-    const translatedById = createTranslatedChunkRecord(translatedChunks);
-
-    return {
-      ...chunkBatch,
-      chunks: chunkBatch.chunks.map((chunk, index) => {
-        const translated = translatedById[String(index)];
-
-        if (translated === undefined) {
-          return chunk;
-        }
-
-        return {
-          ...chunk,
-          content: translated.content,
-          label: translated.label,
-        };
-      }),
-    };
+  async #translateChunks(
+    chunks: readonly ChunkTranslationInput[],
+    userLanguage: Language,
+  ): Promise<readonly ChunkTranslationOutput[]> {
+    return await requestGuaranteedJson({
+      messages: [
+        {
+          content: this.#llm.loadSystemPrompt(TRANSLATE_CHUNKS_PROMPT_PATH, {
+            user_language: userLanguage,
+          }),
+          role: "system",
+        },
+        {
+          content: JSON.stringify(chunks, undefined, 2),
+          role: "user",
+        },
+      ],
+      schema: TRANSLATED_CHUNKS_SCHEMA,
+      maxRetries: MAX_TRANSLATION_RETRIES,
+      parse: (data) => {
+        validateTranslatedChunks(chunks, data);
+        return data;
+      },
+      request: async (messages, index, maxRetries) =>
+        await this.#llm.request(messages, {
+          retryIndex: index,
+          retryMax: maxRetries,
+          scope: this.#scopes.extraction,
+        }),
+    });
   }
 }
 
@@ -349,4 +383,36 @@ function createTranslatedChunkRecord(
   }
 
   return record;
+}
+
+function validateTranslatedChunks(
+  chunks: readonly ChunkTranslationInput[],
+  translatedChunks: readonly ChunkTranslationOutput[],
+): void {
+  const issues: string[] = [];
+
+  if (translatedChunks.length !== chunks.length) {
+    issues.push(
+      `Expected ${chunks.length} translated chunk(s), got ${translatedChunks.length}`,
+    );
+  }
+
+  for (const [index, chunk] of chunks.entries()) {
+    const translatedChunk = translatedChunks[index];
+
+    if (translatedChunk === undefined) {
+      issues.push(`Missing translated chunk at position ${index}`);
+      continue;
+    }
+
+    if (translatedChunk.id !== chunk.id) {
+      issues.push(
+        `Translated chunk at position ${index} must keep id ${chunk.id}, got ${translatedChunk.id}`,
+      );
+    }
+  }
+
+  if (issues.length > 0) {
+    throw new ParsedJsonError(issues);
+  }
 }

@@ -5,81 +5,95 @@ import type {
   ChunkRecord,
   FragmentGroupRecord,
   KnowledgeEdgeRecord,
+  SerialRecord,
   SnakeChunkRecord,
   SnakeEdgeRecord,
   SnakeRecord,
-  Workspace,
-} from "./model/index.js";
+} from "./model/types.js";
+import type { SerialFragments } from "./model/fragments.js";
+import type {
+  ChunkStore,
+  FragmentGroupStore,
+  KnowledgeEdgeStore,
+  SerialStore,
+  SnakeChunkStore,
+  SnakeEdgeStore,
+  SnakeStore,
+} from "./model/stores.js";
+import type { Workspace } from "./model/workspace.js";
 import { Reader } from "./reader/index.js";
 import type {
   ReaderChunk,
   ReaderGraphDelta,
-  ReaderOptions,
+  ReaderSegmenter,
   ReaderTextStream,
 } from "./reader/index.js";
 import { compressText, type EditorOptions } from "./editor/index.js";
 import { Topology } from "./topology/index.js";
 
+const DEFAULT_COMPRESSION_RATIO = 0.2;
 const DEFAULT_FRAGMENT_WORDS_COUNT = 800;
+const DEFAULT_GENERATION_DECAY_FACTOR = 0.5;
+const DEFAULT_GROUP_TOKENS_COUNT = 9600;
+const DEFAULT_MAX_CLUES = 10;
+const DEFAULT_MAX_ITERATIONS = 5;
+const DEFAULT_WORKING_MEMORY_CAPACITY = 7;
+const SERIAL_HUB_SCOPES = {
+  editorCompress: "serial-hub/editor-compress",
+  editorReview: "serial-hub/editor-review",
+  editorReviewGuide: "serial-hub/editor-review-guide",
+  readerChoice: "serial-hub/reader-choice",
+  readerExtraction: "serial-hub/reader-extraction",
+} as const;
 
 export type SerialStage = "topology" | "summary";
 
 export interface CreateSerialOptions {
+  readonly extractionPrompt: string;
   readonly targetStage?: SerialStage;
   readonly userLanguage?: Language;
 }
 
-export interface SerialHubOptions<S extends string> {
-  readonly editor: Omit<
-    EditorOptions<S>,
-    "groupId" | "llm" | "serialId" | "userLanguage" | "workspace"
-  >;
-  readonly fragmentWordsCount?: number;
-  readonly llm: LLM<S>;
-  readonly reader: Omit<
-    ReaderOptions<S>,
-    "attention" | "llm" | "sentenceTextSource" | "userLanguage"
-  > & {
-    readonly attention: Omit<ReaderOptions<S>["attention"], "idGenerator">;
-  };
-  readonly topology: {
-    readonly groupTokensCount: number;
-  };
+export interface SerialHubOptions {
+  readonly llm: LLM<string>;
+  readonly logDirPath?: string;
+  readonly segmenter?: ReaderSegmenter;
   readonly workspace: Workspace;
 }
 
 interface SerialState {
-  readonly stage: SerialStage;
   readonly summary?: string;
   readonly summaryJob?: Promise<void>;
 }
 
-export class SerialHub<S extends string> {
-  readonly #editorOptions: SerialHubOptions<S>["editor"];
-  readonly #fragmentWordsCount: number;
+export class SerialHub {
+  readonly #chunks: ChunkStore;
+  readonly #fragmentWordsCount = DEFAULT_FRAGMENT_WORDS_COUNT;
+  readonly #fragmentGroups: FragmentGroupStore;
   readonly #idSemaphore = new AsyncSemaphore(1);
-  readonly #llm: LLM<S>;
+  readonly #llm: LLM<string>;
+  readonly #logDirPath: string | undefined;
   #nextChunkId: number | undefined;
-  readonly #readerOptions: SerialHubOptions<S>["reader"];
+  readonly #serials: SerialStore;
+  readonly #segmenter: ReaderSegmenter | undefined;
   readonly #serialStates = createSerialStateRecord();
-  readonly #topologyOptions: SerialHubOptions<S>["topology"];
   readonly #workspace: Workspace;
   readonly #writeSemaphore = new AsyncSemaphore(1);
 
-  public constructor(options: SerialHubOptions<S>) {
-    this.#editorOptions = options.editor;
-    this.#fragmentWordsCount =
-      options.fragmentWordsCount ?? DEFAULT_FRAGMENT_WORDS_COUNT;
+  public constructor(options: SerialHubOptions) {
+    this.#chunks = options.workspace.chunks;
+    this.#fragmentGroups = options.workspace.fragmentGroups;
     this.#llm = options.llm;
-    this.#readerOptions = options.reader;
-    this.#topologyOptions = options.topology;
+    this.#logDirPath = options.logDirPath;
+    this.#serials = options.workspace.serials;
+    this.#segmenter = options.segmenter;
     this.#workspace = options.workspace;
   }
 
   public async create(
     stream: ReaderTextStream,
-    options: CreateSerialOptions = {},
-  ): Promise<Serial<S>> {
+    options: CreateSerialOptions,
+  ): Promise<Serial> {
     const serialId = await this.#createSerialId();
     const serial = new Serial({
       ensureSummary: async () =>
@@ -90,8 +104,12 @@ export class SerialHub<S extends string> {
     });
     const targetStage = options.targetStage ?? "summary";
 
-    await this.#buildTopology(serialId, stream, options.userLanguage);
-    this.#setTopologyReady(serialId);
+    await this.#buildTopology(
+      serialId,
+      stream,
+      options.extractionPrompt,
+      options.userLanguage,
+    );
 
     if (targetStage === "summary") {
       await this.#buildSummary(serialId, options.userLanguage);
@@ -103,13 +121,10 @@ export class SerialHub<S extends string> {
   async #allocateChunkId(): Promise<number> {
     return await this.#idSemaphore.use(() => {
       if (this.#nextChunkId === undefined) {
-        this.#nextChunkId = this.#workspace.chunks.getMaxId() + 1;
+        this.#nextChunkId = this.#chunks.getMaxId() + 1;
       }
-
       const chunkId = this.#nextChunkId;
-
       this.#nextChunkId += 1;
-
       return chunkId;
     });
   }
@@ -120,7 +135,7 @@ export class SerialHub<S extends string> {
   ): Promise<void> {
     const state = this.#getState(serialId);
 
-    if (state.stage === "summary") {
+    if (state.summary !== undefined) {
       return;
     }
 
@@ -144,7 +159,6 @@ export class SerialHub<S extends string> {
 
       if (nextState.summaryJob === summaryJob) {
         this.#setState(serialId, {
-          stage: nextState.stage,
           ...(nextState.summary === undefined
             ? {}
             : {
@@ -159,6 +173,12 @@ export class SerialHub<S extends string> {
     serialId: number,
     userLanguage: Language | undefined,
   ): Promise<void> {
+    const record = this.#getRecord(serialId);
+
+    if (!record.topologyReady) {
+      throw new Error(`Serial ${serialId} is not ready for summary`);
+    }
+
     const existingSummary = await this.#workspace.readSummary(serialId);
 
     if (existingSummary !== undefined) {
@@ -167,22 +187,16 @@ export class SerialHub<S extends string> {
       return;
     }
 
-    const groupIds =
-      this.#workspace.fragmentGroups.listGroupIdsForSerial(serialId);
+    const groupIds = this.#fragmentGroups.listGroupIdsForSerial(serialId);
     const summaryParts: string[] = [];
 
     for (const groupId of groupIds) {
       const groupSummary = await compressText({
-        ...this.#editorOptions,
-        groupId,
-        llm: this.#llm,
-        serialId,
-        workspace: this.#workspace,
-        ...(userLanguage === undefined
-          ? {}
-          : {
-              userLanguage,
-            }),
+        ...this.#createEditorOptions({
+          groupId,
+          serialId,
+          userLanguage,
+        }),
       });
 
       if (groupSummary.trim() === "") {
@@ -203,16 +217,27 @@ export class SerialHub<S extends string> {
   async #buildTopology(
     serialId: number,
     stream: ReaderTextStream,
+    extractionPrompt: string,
     userLanguage: Language | undefined,
   ): Promise<void> {
     const reader = new Reader({
-      ...this.#readerOptions,
       attention: {
-        ...this.#readerOptions.attention,
+        capacity: DEFAULT_WORKING_MEMORY_CAPACITY,
+        generationDecayFactor: DEFAULT_GENERATION_DECAY_FACTOR,
         idGenerator: async () => await this.#allocateChunkId(),
       },
+      extractionGuidance: extractionPrompt,
       llm: this.#llm,
+      scopes: {
+        choice: SERIAL_HUB_SCOPES.readerChoice,
+        extraction: SERIAL_HUB_SCOPES.readerExtraction,
+      },
       sentenceTextSource: this.#workspace,
+      ...(this.#segmenter === undefined
+        ? {}
+        : {
+            segmenter: this.#segmenter,
+          }),
       ...(userLanguage === undefined
         ? {}
         : {
@@ -220,7 +245,7 @@ export class SerialHub<S extends string> {
           }),
     });
     const topology = new Topology({
-      groupTokensCount: this.#topologyOptions.groupTokensCount,
+      groupTokensCount: DEFAULT_GROUP_TOKENS_COUNT,
       serialId,
       workspace: this.#workspace,
     });
@@ -231,7 +256,7 @@ export class SerialHub<S extends string> {
       maxWordsCount: this.#fragmentWordsCount,
       stream: reader.segment(stream),
     })) {
-      const serialFragments = this.#workspace.getSerialFragments(serialId);
+      const serialFragments = this.#getSerialFragments(serialId);
       const fragmentDraft = await serialFragments.createDraft();
       const sentences = fragment.sentences.map((sentence) => ({
         sentenceId: fragmentDraft.addSentence(
@@ -269,11 +294,14 @@ export class SerialHub<S extends string> {
 
     await this.#writeSemaphore.use(async () => {
       await topology.finalize();
+      await this.#serials.setTopologyReady(serialId);
     });
   }
 
   async #createSerialId(): Promise<number> {
-    return await this.#idSemaphore.use(() => this.#workspace.createSerial());
+    return await this.#idSemaphore.use(
+      async () => await this.#serials.create(),
+    );
   }
 
   async #ensureSummary(
@@ -284,7 +312,17 @@ export class SerialHub<S extends string> {
   }
 
   #getStage(serialId: number): SerialStage {
-    return this.#getState(serialId).stage;
+    const state = this.#getState(serialId);
+
+    if (state.summary !== undefined) {
+      return "summary";
+    }
+
+    if (this.#getRecord(serialId).topologyReady) {
+      return "topology";
+    }
+
+    throw new Error(`Serial ${serialId} topology is not ready`);
   }
 
   #getState(serialId: number): SerialState {
@@ -297,6 +335,16 @@ export class SerialHub<S extends string> {
     return state;
   }
 
+  #getRecord(serialId: number): SerialRecord {
+    const record = this.#serials.getById(serialId);
+
+    if (record === undefined) {
+      throw new Error(`Serial ${serialId} does not exist`);
+    }
+
+    return record;
+  }
+
   #getTopology(serialId: number): SerialTopology {
     return new SerialTopology(this.#workspace, serialId);
   }
@@ -305,25 +353,53 @@ export class SerialHub<S extends string> {
     return this.#getState(serialId).summary;
   }
 
+  #getSerialFragments(serialId: number): SerialFragments {
+    return this.#workspace.getSerialFragments(serialId);
+  }
+
   #setState(serialId: number, state: SerialState): void {
     this.#serialStates[String(serialId)] = state;
   }
 
   #setSummary(serialId: number, summary: string): void {
     this.#setState(serialId, {
-      stage: "summary",
       summary,
     });
   }
 
-  #setTopologyReady(serialId: number): void {
-    this.#setState(serialId, {
-      stage: "topology",
-    });
+  #createEditorOptions(input: {
+    groupId: number;
+    serialId: number;
+    userLanguage: Language | undefined;
+  }): EditorOptions<string> {
+    return {
+      compressionRatio: DEFAULT_COMPRESSION_RATIO,
+      groupId: input.groupId,
+      llm: this.#llm,
+      maxClues: DEFAULT_MAX_CLUES,
+      maxIterations: DEFAULT_MAX_ITERATIONS,
+      scopes: {
+        compress: SERIAL_HUB_SCOPES.editorCompress,
+        review: SERIAL_HUB_SCOPES.editorReview,
+        reviewGuide: SERIAL_HUB_SCOPES.editorReviewGuide,
+      },
+      serialId: input.serialId,
+      workspace: this.#workspace,
+      ...(this.#logDirPath === undefined
+        ? {}
+        : {
+            logDirPath: this.#logDirPath,
+          }),
+      ...(input.userLanguage === undefined
+        ? {}
+        : {
+            userLanguage: input.userLanguage,
+          }),
+    };
   }
 }
 
-export class Serial<S extends string> {
+export class Serial {
   readonly #ensureSummary: () => Promise<void>;
   readonly #getStage: () => SerialStage;
   readonly #getSummary: () => string | undefined;
@@ -345,13 +421,13 @@ export class Serial<S extends string> {
     return this.#getStage();
   }
 
-  public async ensureSummary(): Promise<Serial<S>> {
+  public async ensureSummary(): Promise<Serial> {
     await this.#ensureSummary();
 
     return this;
   }
 
-  public async ensureTopology(): Promise<Serial<S>> {
+  public async ensureTopology(): Promise<Serial> {
     return await Promise.resolve(this);
   }
 
@@ -371,42 +447,52 @@ export class Serial<S extends string> {
 }
 
 export class SerialTopology {
+  readonly #chunks: ChunkStore;
+  readonly #fragmentGroups: FragmentGroupStore;
+  readonly #knowledgeEdges: KnowledgeEdgeStore;
   readonly #serialId: number;
-  readonly #workspace: Workspace;
+  readonly #snakeChunks: SnakeChunkStore;
+  readonly #snakeEdges: SnakeEdgeStore;
+  readonly #snakes: SnakeStore;
 
   public constructor(workspace: Workspace, serialId: number) {
-    this.#workspace = workspace;
+    this.#chunks = workspace.chunks;
+    this.#fragmentGroups = workspace.fragmentGroups;
+    this.#knowledgeEdges = workspace.knowledgeEdges;
     this.#serialId = serialId;
+    this.#snakeChunks = workspace.snakeChunks;
+    this.#snakeEdges = workspace.snakeEdges;
+    this.#snakes = workspace.snakes;
   }
 
   public listChunks(): readonly ChunkRecord[] {
-    return this.#workspace.chunks.listBySerial(this.#serialId);
+    return this.#chunks.listBySerial(this.#serialId);
   }
 
   public listEdges(): readonly KnowledgeEdgeRecord[] {
-    return this.#workspace.knowledgeEdges.listBySerial(this.#serialId);
+    return this.#knowledgeEdges.listBySerial(this.#serialId);
   }
 
   public listGroups(): readonly FragmentGroupRecord[] {
-    return this.#workspace.fragmentGroups.listBySerial(this.#serialId);
+    return this.#fragmentGroups.listBySerial(this.#serialId);
   }
 
   public listSnakeChunks(snakeId: number): readonly SnakeChunkRecord[] {
-    const snake = this.#workspace.snakes.getById(snakeId);
+    const snake = this.#snakes.getById(snakeId);
 
     if (snake === undefined || snake.serialId !== this.#serialId) {
       throw new Error(`Snake ${snakeId} does not belong to this serial`);
     }
 
-    return this.#workspace.snakeChunks.listBySnake(snakeId);
+    return this.#snakeChunks.listBySnake(snakeId);
   }
 
   public listSnakeEdges(): readonly SnakeEdgeRecord[] {
-    return this.#workspace.snakeEdges.listBySerial(this.#serialId);
+    return this.#snakeEdges.listBySerial(this.#serialId);
   }
 
   public listSnakes(): readonly SnakeRecord[] {
-    return this.#workspace.snakes.listBySerial(this.#serialId);
+    return this.#snakes.listBySerial(this.#serialId);
   }
 }
 

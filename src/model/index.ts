@@ -20,6 +20,7 @@ export type {
   FragmentGroupRecord,
   FragmentRecord,
   KnowledgeEdgeRecord,
+  SerialRecord,
   SentenceId,
   SentenceRecord,
   SnakeChunkRecord,

@@ -11,7 +11,6 @@ export type {
   ChunkLink,
   ChunkTranslationInput,
   ChunkTranslationOutput,
-  ChunkTranslator,
   CognitiveChunk,
   ExtractBookCoherenceInput,
   ExtractUserFocusedInput,
