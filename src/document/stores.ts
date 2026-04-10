@@ -18,6 +18,7 @@ import {
 
 export interface ReadonlySerialStore {
   getById(serialId: number): Promise<SerialRecord | undefined>;
+  getMaxId(): Promise<number>;
   listIds(): Promise<number[]>;
 }
 
@@ -93,6 +94,34 @@ export class SerialStore implements ReadonlySerialStore {
     });
   }
 
+  public async createWithId(serialId: number): Promise<void> {
+    try {
+      await this.#database.transaction(async () => {
+        await this.#database.run(
+          `
+            INSERT INTO serials (id)
+            VALUES (?)
+          `,
+          [serialId],
+        );
+
+        await this.#database.run(
+          `
+            INSERT INTO serial_states (serial_id, topology_ready)
+            VALUES (?, ?)
+          `,
+          [serialId, 0],
+        );
+      });
+    } catch (error) {
+      if (isSqliteConstraintError(error)) {
+        throw new Error(`Serial ${serialId} already exists`);
+      }
+
+      throw error;
+    }
+  }
+
   public async ensure(serialId: number): Promise<void> {
     await this.#database.transaction(async () => {
       await this.#database.run(
@@ -132,6 +161,20 @@ export class SerialStore implements ReadonlySerialStore {
     );
   }
 
+  public async getMaxId(): Promise<number> {
+    const maxId =
+      await this.#database.queryOne(
+        `
+          SELECT COALESCE(MAX(id), 0) AS max_id
+          FROM serials
+        `,
+        undefined,
+        (row) => getNumber(row, "max_id"),
+      );
+
+    return maxId ?? 0;
+  }
+
   public async setTopologyReady(serialId: number): Promise<void> {
     await this.ensure(serialId);
     await this.#database.run(
@@ -155,6 +198,18 @@ export class SerialStore implements ReadonlySerialStore {
       (row) => getNumber(row, "id"),
     );
   }
+}
+
+function isSqliteConstraintError(
+  error: unknown,
+): error is { readonly code: string } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    error.code.startsWith("SQLITE_CONSTRAINT")
+  );
 }
 
 export class ChunkStore implements ReadonlyChunkStore {

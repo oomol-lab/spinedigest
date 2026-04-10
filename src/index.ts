@@ -9,6 +9,12 @@ export {
   type EditorScopes,
 } from "./editor/index.js";
 export {
+  importSource,
+  importSourceDocument,
+  type ImportedSource,
+  type ImportSourceOptions,
+} from "./facade/index.js";
+export {
   ARABIC,
   DANISH,
   DUTCH,

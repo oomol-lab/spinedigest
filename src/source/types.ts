@@ -7,6 +7,7 @@ export interface SourceAsset {
 }
 
 export interface SourceSection {
+  readonly hasContent: boolean;
   readonly id: string;
   readonly title?: string | undefined;
   readonly children: readonly SourceSection[];

@@ -30,6 +30,10 @@ class EpubSourceSection implements SourceSection {
     return this.#definition.id;
   }
 
+  public get hasContent(): boolean {
+    return this.#definition.path !== undefined;
+  }
+
   public get title(): string | undefined {
     return this.#definition.title;
   }

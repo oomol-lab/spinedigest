@@ -23,6 +23,10 @@ class PlainTextSection implements SourceSection {
     return this.#id;
   }
 
+  public get hasContent(): boolean {
+    return true;
+  }
+
   public get title(): string | undefined {
     return undefined;
   }
