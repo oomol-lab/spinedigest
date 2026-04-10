@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "async_hooks";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname, resolve } from "path";
 
@@ -16,8 +17,10 @@ let sqlJsPromise: Promise<SqlJsStatic> | undefined;
 export class Database {
   readonly #database: SqlDatabase;
   readonly #databasePath: string;
+  readonly #operationScope = new AsyncLocalStorage<boolean>();
   #closed = false;
   #dirty = false;
+  #operationChain: Promise<void> = Promise.resolve();
   #transactionDepth = 0;
 
   public constructor(database: SqlDatabase, databasePath: string) {
@@ -41,103 +44,117 @@ export class Database {
     return openedDatabase;
   }
 
-  public queryAll<T>(
+  public async queryAll<T>(
     sql: string,
     params: SqlBindParams | undefined,
     mapRow: (row: SqlRow) => T,
-  ): T[] {
-    this.#assertOpen();
+  ): Promise<T[]> {
+    return await this.#runSerialized(() => {
+      this.#assertOpen();
 
-    const statement = this.#database.prepare(sql, params);
+      const statement = this.#database.prepare(sql, params);
 
-    try {
-      const rows: T[] = [];
+      try {
+        const rows: T[] = [];
 
-      while (statement.step()) {
-        rows.push(mapRow(statement.getAsObject() as SqlRow));
+        while (statement.step()) {
+          rows.push(mapRow(statement.getAsObject() as SqlRow));
+        }
+
+        return rows;
+      } finally {
+        statement.free();
       }
-
-      return rows;
-    } finally {
-      statement.free();
-    }
+    });
   }
 
-  public queryOne<T>(
+  public async queryOne<T>(
     sql: string,
     params: SqlBindParams | undefined,
     mapRow: (row: SqlRow) => T,
-  ): T | undefined {
-    const rows = this.queryAll(sql, params, mapRow);
+  ): Promise<T | undefined> {
+    const rows = await this.queryAll(sql, params, mapRow);
 
     return rows[0];
   }
 
   public async run(sql: string, params?: SqlBindParams): Promise<void> {
-    this.#assertOpen();
-    this.#database.run(sql, params);
-    this.#dirty = true;
+    await this.#runSerialized(async () => {
+      this.#assertOpen();
+      this.#database.run(sql, params);
+      this.#dirty = true;
 
-    if (this.#transactionDepth === 0) {
-      await this.flush();
-    }
+      if (this.#transactionDepth === 0) {
+        await this.flush();
+      }
+    });
   }
 
   public async transaction<T>(operation: () => Promise<T> | T): Promise<T> {
-    this.#assertOpen();
-    const isRootTransaction = this.#transactionDepth === 0;
-
-    if (isRootTransaction) {
-      this.#database.run("BEGIN");
-    }
-
-    this.#transactionDepth += 1;
-
-    try {
-      const result = await operation();
-
-      this.#transactionDepth -= 1;
+    return await this.#runSerialized(async () => {
+      this.#assertOpen();
+      const isRootTransaction = this.#transactionDepth === 0;
 
       if (isRootTransaction) {
-        this.#database.run("COMMIT");
-        await this.flush();
+        this.#database.run("BEGIN");
       }
 
-      return result;
-    } catch (error) {
-      this.#transactionDepth -= 1;
+      this.#transactionDepth += 1;
 
-      if (isRootTransaction) {
-        this.#database.run("ROLLBACK");
+      try {
+        const result = await operation();
+
+        this.#transactionDepth -= 1;
+
+        if (isRootTransaction) {
+          this.#database.run("COMMIT");
+          await this.flush();
+        }
+
+        return result;
+      } catch (error) {
+        this.#transactionDepth -= 1;
+
+        if (isRootTransaction) {
+          this.#database.run("ROLLBACK");
+        }
+
+        throw error;
       }
-
-      throw error;
-    }
+    });
   }
 
   public async flush(): Promise<void> {
-    this.#assertOpen();
+    await this.#runSerialized(async () => {
+      this.#assertOpen();
 
-    if (!this.#dirty) {
-      return;
-    }
+      if (!this.#dirty) {
+        return;
+      }
 
-    await mkdir(dirname(this.#databasePath), { recursive: true });
-    await writeFile(this.#databasePath, Buffer.from(this.#database.export()));
-    this.#dirty = false;
+      await mkdir(dirname(this.#databasePath), { recursive: true });
+      await writeFile(this.#databasePath, Buffer.from(this.#database.export()));
+      this.#dirty = false;
+    });
   }
 
-  public close(): void {
-    if (this.#closed) {
-      return;
-    }
+  public async close(): Promise<void> {
+    await this.#runSerialized(async () => {
+      if (this.#closed) {
+        return;
+      }
 
-    this.#database.close();
-    this.#closed = true;
+      if (this.#dirty) {
+        await this.flush();
+      }
+
+      this.#database.close();
+      this.#closed = true;
+    });
   }
 
-  public getLastInsertRowId(): number {
-    const row = this.queryOne(
+  public async getLastInsertRowId(): Promise<number> {
+    const row = await this.queryOne(
       "SELECT last_insert_rowid() AS row_id",
       undefined,
       (value) => getNumber(value, "row_id"),
@@ -154,6 +171,23 @@ export class Database {
     if (this.#closed) {
       throw new Error("Database is already closed");
     }
+  }
+
+  async #runSerialized<T>(operation: () => Promise<T> | T): Promise<T> {
+    if (this.#operationScope.getStore() === true) {
+      return await operation();
+    }
+
+    const queuedOperation = this.#operationChain.then(
+      () => this.#operationScope.run(true, operation),
+    );
+
+    this.#operationChain = queuedOperation.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    return await queuedOperation;
   }
 }
 

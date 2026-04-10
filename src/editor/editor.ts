@@ -111,13 +111,13 @@ class EditorOperation<S extends string> {
   }
 
   public async run(): Promise<string> {
-    const fragmentIds = this.#getGroupFragmentIds();
+    const fragmentIds = await this.#getGroupFragmentIds();
 
     if (fragmentIds.length === 0) {
       return "";
     }
 
-    const clues = extractCluesFromWorkspace({
+    const clues = await extractCluesFromWorkspace({
       groupId: this.#groupId,
       maxClues: this.#maxClues,
       serialId: this.#serialId,
@@ -239,9 +239,8 @@ class EditorOperation<S extends string> {
     return bestVersion.text;
   }
 
-  #getGroupFragmentIds(): number[] {
-    return this.#workspace.fragmentGroups
-      .listBySerial(this.#serialId)
+  async #getGroupFragmentIds(): Promise<number[]> {
+    return (await this.#workspace.fragmentGroups.listBySerial(this.#serialId))
       .filter((record) => record.groupId === this.#groupId)
       .map((record) => record.fragmentId)
       .sort(compareNumber);
