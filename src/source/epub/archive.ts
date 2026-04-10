@@ -54,24 +54,12 @@ export class EpubArchive {
 
   public async readText(path: string): Promise<string> {
     const stream = await this.openReadStream(path);
-    const chunks: Buffer[] = [];
-
-    for await (const chunk of stream as AsyncIterable<unknown>) {
-      chunks.push(toBuffer(chunk));
-    }
-
-    return Buffer.concat(chunks).toString("utf8");
+    return (await readStreamToBuffer(stream)).toString("utf8");
   }
 
   public async readBuffer(path: string): Promise<Buffer> {
     const stream = await this.openReadStream(path);
-    const chunks: Buffer[] = [];
-
-    for await (const chunk of stream as AsyncIterable<unknown>) {
-      chunks.push(toBuffer(chunk));
-    }
-
-    return Buffer.concat(chunks);
+    return await readStreamToBuffer(stream);
   }
 
   public resolveRelativePath(basePath: string, href: string): string {
@@ -212,6 +200,23 @@ function toBuffer(chunk: unknown): Buffer {
   }
 
   throw new Error("Unexpected ZIP stream chunk type");
+}
+
+async function readStreamToBuffer(stream: Readable): Promise<Buffer> {
+  return await new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+
+    stream.on("data", (chunk: unknown) => {
+      chunks.push(toBuffer(chunk));
+    });
+    stream.once("end", () => {
+      resolve(Buffer.concat(chunks));
+    });
+    stream.once("error", (error: Error) => {
+      reject(error);
+    });
+    stream.resume();
+  });
 }
 
 async function openEntryStream(

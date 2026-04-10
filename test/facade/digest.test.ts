@@ -1,0 +1,283 @@
+import { access, readFile } from "fs/promises";
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { DirectoryDocument } from "../../src/document/index.js";
+
+const digestMockState = vi.hoisted(() => ({
+  generateCalls: [] as Array<{
+    readonly options: unknown;
+    readonly streamText: string;
+  }>,
+  importCalls: [] as Array<{
+    readonly adapterFormat: string;
+    readonly documentPath: string;
+    readonly extractionPrompt: string;
+    readonly path: string;
+    readonly userLanguage: string | undefined;
+  }>,
+  tempDocumentPaths: [] as string[],
+}));
+
+vi.mock("../../src/serial.js", () => ({
+  SerialGeneration: class {
+    readonly #document: DirectoryDocument;
+
+    public constructor(options: { readonly document: DirectoryDocument }) {
+      this.#document = options.document;
+      digestMockState.tempDocumentPaths.push(options.document.path);
+    }
+
+    public async generate(
+      stream: AsyncIterable<string> | Iterable<string>,
+      options: unknown,
+    ): Promise<{ readonly id: number }> {
+      let streamText = "";
+
+      for await (const chunk of stream) {
+        streamText += chunk;
+      }
+
+      digestMockState.generateCalls.push({
+        options,
+        streamText,
+      });
+
+      const serialId = await this.#document.createSerial();
+      await this.#document.serials.setTopologyReady(serialId);
+      await this.#document.writeSummary(serialId, streamText.trim());
+
+      return { id: serialId };
+    }
+  },
+}));
+
+vi.mock("../../src/facade/import.js", () => ({
+  importSource: vi.fn(
+    async (options: {
+      readonly adapter: { readonly format: string };
+      readonly document: DirectoryDocument;
+      readonly extractionPrompt: string;
+      readonly path: string;
+      readonly userLanguage?: string;
+    }) => {
+      digestMockState.importCalls.push({
+        adapterFormat: options.adapter.format,
+        documentPath: options.document.path,
+        extractionPrompt: options.extractionPrompt,
+        path: options.path,
+        userLanguage: options.userLanguage,
+      });
+
+      await options.document.openSession(async (document) => {
+        await document.createSerial();
+        await document.serials.setTopologyReady(1);
+        await document.writeSummary(1, `${options.adapter.format} summary`);
+        await document.writeBookMeta({
+          authors: [],
+          description: null,
+          identifier: null,
+          language: null,
+          publishedAt: null,
+          publisher: null,
+          sourceFormat: options.adapter.format as "epub" | "txt" | "markdown",
+          title: `${options.adapter.format} fixture`,
+          version: 1,
+        });
+        await document.writeToc({
+          items: [
+            {
+              children: [],
+              serialId: 1,
+              title: `${options.adapter.format} chapter`,
+            },
+          ],
+          version: 1,
+        });
+      });
+    },
+  ),
+}));
+
+import {
+  digestEpubSession,
+  digestMarkdownSession,
+  digestTextSession,
+  digestTxtSession,
+} from "../../src/facade/digest.js";
+import { withTempDir } from "../helpers/temp.js";
+
+describe("facade/digest", () => {
+  beforeEach(() => {
+    digestMockState.generateCalls.length = 0;
+    digestMockState.importCalls.length = 0;
+    digestMockState.tempDocumentPaths.length = 0;
+  });
+
+  it("creates text-session documents and removes temporary directories by default", async () => {
+    const title = await digestTextSession(
+      {
+        bookLanguage: "fr",
+        extractionPrompt: "Keep beats",
+        llm: {} as never,
+        stream: ["alpha ", "beta"],
+        title: "  Digest Title  ",
+        userLanguage: "Simplified Chinese",
+      },
+      async (digest) => {
+        expect(await digest.readMeta()).toMatchObject({
+          language: "fr",
+          sourceFormat: "txt",
+          title: "Digest Title",
+        });
+        expect(await digest.readToc()).toStrictEqual({
+          items: [
+            {
+              children: [],
+              serialId: 1,
+              title: "Digest Title",
+            },
+          ],
+          version: 1,
+        });
+
+        return (await digest.readMeta())?.title;
+      },
+    );
+
+    expect(title).toBe("Digest Title");
+    expect(digestMockState.generateCalls).toStrictEqual([
+      {
+        options: {
+          extractionPrompt: "Keep beats",
+          userLanguage: "Simplified Chinese",
+        },
+        streamText: "alpha beta",
+      },
+    ]);
+    expect(digestMockState.tempDocumentPaths).toHaveLength(1);
+    await expect(
+      access(digestMockState.tempDocumentPaths[0]!),
+    ).rejects.toThrow();
+  });
+
+  it("keeps custom text-session directories and uses a fallback toc title", async () => {
+    await withTempDir("spinedigest-digest-", async (path) => {
+      const documentDirPath = `${path}/custom-document`;
+
+      await digestTextSession(
+        {
+          bookLanguage: null,
+          documentDirPath,
+          extractionPrompt: "Keep beats",
+          llm: {} as never,
+          sourceFormat: "markdown",
+          stream: ["single summary"],
+          title: "   ",
+        },
+        async (digest) => {
+          expect(await digest.readMeta()).toMatchObject({
+            language: null,
+            sourceFormat: "markdown",
+            title: null,
+          });
+          expect(await digest.readToc()).toStrictEqual({
+            items: [
+              {
+                children: [],
+                serialId: 1,
+                title: "Section 1",
+              },
+            ],
+            version: 1,
+          });
+        },
+      );
+
+      await expect(access(`${documentDirPath}/book-meta.json`)).resolves.toBe(
+        undefined,
+      );
+      expect(
+        await readFile(`${documentDirPath}/book-meta.json`, "utf8"),
+      ).toContain('"sourceFormat": "markdown"');
+    });
+  });
+
+  it("routes source digest sessions through importSource with matching adapters", async () => {
+    await withTempDir("spinedigest-digest-", async (path) => {
+      const epubTitle = await digestEpubSession(
+        {
+          documentDirPath: `${path}/epub`,
+          extractionPrompt: "Prompt",
+          llm: {} as never,
+          path: "/tmp/book.epub",
+          userLanguage: "Japanese",
+        },
+        async (digest) => {
+          return (await digest.readMeta())?.title;
+        },
+      );
+      const markdownTitle = await digestMarkdownSession(
+        {
+          documentDirPath: `${path}/markdown`,
+          extractionPrompt: "Prompt",
+          llm: {} as never,
+          path: "/tmp/book.md",
+        },
+        async (digest) => {
+          return (await digest.readMeta())?.title;
+        },
+      );
+      const txtTitle = await digestTxtSession(
+        {
+          documentDirPath: `${path}/txt`,
+          extractionPrompt: "Prompt",
+          llm: {} as never,
+          path: "/tmp/book.txt",
+        },
+        async (digest) => {
+          return (await digest.readMeta())?.title;
+        },
+      );
+
+      expect([epubTitle, markdownTitle, txtTitle]).toStrictEqual([
+        "epub fixture",
+        "markdown fixture",
+        "txt fixture",
+      ]);
+      expect(digestMockState.importCalls).toHaveLength(3);
+      expect(digestMockState.importCalls[0]).toMatchObject({
+        adapterFormat: "epub",
+        extractionPrompt: "Prompt",
+        path: "/tmp/book.epub",
+        userLanguage: "Japanese",
+      });
+      expect(digestMockState.importCalls[0]?.documentPath).toContain("/epub");
+      expect(digestMockState.importCalls[1]).toMatchObject({
+        adapterFormat: "markdown",
+        extractionPrompt: "Prompt",
+        path: "/tmp/book.md",
+        userLanguage: undefined,
+      });
+      expect(digestMockState.importCalls[1]?.documentPath).toContain(
+        "/markdown",
+      );
+      expect(digestMockState.importCalls[2]).toMatchObject({
+        adapterFormat: "txt",
+        extractionPrompt: "Prompt",
+        path: "/tmp/book.txt",
+        userLanguage: undefined,
+      });
+      expect(digestMockState.importCalls[2]?.documentPath).toContain("/txt");
+      await expect(access(`${path}/epub/book-meta.json`)).resolves.toBe(
+        undefined,
+      );
+      await expect(access(`${path}/markdown/book-meta.json`)).resolves.toBe(
+        undefined,
+      );
+      await expect(access(`${path}/txt/book-meta.json`)).resolves.toBe(
+        undefined,
+      );
+    });
+  });
+});

@@ -35,11 +35,17 @@
   },
   "scripts": {
     "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "coverage:report": "node ./scripts/coverage-report.mjs",
     "dev": "tsx src/cli.ts",
+    "fixtures:generate": "node ./scripts/generate-test-fixtures.mjs",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix && prettier . --write",
+    "test": "vitest --passWithNoTests",
+    "test:run": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test:watch": "vitest --passWithNoTests",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify": "pnpm lint && pnpm typecheck && pnpm format:check"
   },
@@ -65,6 +71,7 @@
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.6.1",
     "@types/nunjucks": "^3.2.6",
+    "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.4.0",
@@ -72,6 +79,7 @@
     "rimraf": "^6.0.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.1"
+    "typescript-eslint": "^8.46.1",
+    "vitest": "^4.1.4"
   }
 }
