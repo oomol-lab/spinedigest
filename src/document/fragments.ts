@@ -16,6 +16,12 @@ interface FragmentWriter {
   write(path: string, content: string): Promise<void>;
 }
 
+const DEFAULT_FRAGMENT_WRITER: FragmentWriter = {
+  write: async (path, content) => {
+    await writeFile(path, content, "utf8");
+  },
+};
+
 export interface ReadonlyFragments {
   getSerial(serialId: number): ReadonlySerialFragments;
   getSentence(sentenceId: SentenceId): Promise<string>;
@@ -26,7 +32,7 @@ export interface ReadonlyFragments {
 
 export interface ReadonlySerialFragments {
   getFragment(fragmentId: number): Promise<FragmentRecord>;
-  listFragmentIds(): Promise<number[]>;
+  listFragmentIds(): Promise<readonly number[]>;
   readonly serialId: number;
   readonly path: string;
 }
@@ -37,11 +43,7 @@ export class Fragments implements ReadonlyFragments {
 
   public constructor(documentPath: string, writer?: FragmentWriter) {
     this.#documentPath = resolve(documentPath);
-    this.#writer = writer ?? {
-      write: async (path, content) => {
-        await writeFile(path, content, "utf8");
-      },
-    };
+    this.#writer = writer ?? DEFAULT_FRAGMENT_WRITER;
   }
 
   public async ensureCreated(): Promise<void> {
@@ -102,11 +104,7 @@ export class SerialFragments implements ReadonlySerialFragments {
   ) {
     this.#documentPath = resolve(documentPath);
     this.#serialId = serialId;
-    this.#writer = writer ?? {
-      write: async (path, content) => {
-        await writeFile(path, content, "utf8");
-      },
-    };
+    this.#writer = writer ?? DEFAULT_FRAGMENT_WRITER;
   }
 
   public async createDraft(): Promise<FragmentDraft> {
@@ -139,7 +137,7 @@ export class SerialFragments implements ReadonlySerialFragments {
     };
   }
 
-  public async listFragmentIds(): Promise<number[]> {
+  public async listFragmentIds(): Promise<readonly number[]> {
     try {
       const entries = await readdir(this.path, { withFileTypes: true });
 

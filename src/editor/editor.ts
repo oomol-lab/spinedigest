@@ -40,6 +40,7 @@ export interface EditorOptions<S extends string> {
   readonly scopes: EditorScopes<S>;
   readonly serialId: number;
   readonly userLanguage?: Language;
+  /** @deprecated Use `document` instead. */
   readonly workspace?: ReadonlyDocument;
 }
 

@@ -59,6 +59,7 @@ export interface SerialGenerationOptions {
   readonly llm: LLM<string>;
   readonly logDirPath?: string;
   readonly segmenter?: ReaderSegmenter;
+  /** @deprecated Use `document` instead. */
   readonly workspace?: Document;
 }
 
