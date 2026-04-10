@@ -12,6 +12,10 @@ interface FragmentFileContent {
   readonly sentences: readonly SentenceRecord[];
 }
 
+interface FragmentWriter {
+  write(path: string, content: string): Promise<void>;
+}
+
 export interface ReadonlyFragments {
   getSerial(serialId: number): ReadonlySerialFragments;
   getSentence(sentenceId: SentenceId): Promise<string>;
@@ -29,9 +33,18 @@ export interface ReadonlySerialFragments {
 
 export class Fragments implements ReadonlyFragments {
   readonly #documentPath: string;
+  readonly #writer: FragmentWriter;
 
-  public constructor(documentPath: string) {
+  public constructor(
+    documentPath: string,
+    writer?: FragmentWriter,
+  ) {
     this.#documentPath = resolve(documentPath);
+    this.#writer = writer ?? {
+      write: async (path, content) => {
+        await writeFile(path, content, "utf8");
+      },
+    };
   }
 
   public async ensureCreated(): Promise<void> {
@@ -39,7 +52,7 @@ export class Fragments implements ReadonlyFragments {
   }
 
   public getSerial(serialId: number): SerialFragments {
-    return new SerialFragments(this.#documentPath, serialId);
+    return new SerialFragments(this.#documentPath, serialId, this.#writer);
   }
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
@@ -83,10 +96,20 @@ export class SerialFragments implements ReadonlySerialFragments {
   #draftOpen = false;
   readonly #documentPath: string;
   #nextFragmentId: number | undefined;
+  readonly #writer: FragmentWriter;
 
-  public constructor(documentPath: string, serialId: number) {
+  public constructor(
+    documentPath: string,
+    serialId: number,
+    writer?: FragmentWriter,
+  ) {
     this.#documentPath = resolve(documentPath);
     this.#serialId = serialId;
+    this.#writer = writer ?? {
+      write: async (path, content) => {
+        await writeFile(path, content, "utf8");
+      },
+    };
   }
 
   public async createDraft(): Promise<FragmentDraft> {
@@ -162,7 +185,7 @@ export class SerialFragments implements ReadonlySerialFragments {
     }
 
     await mkdir(this.path, { recursive: true });
-    await writeFile(
+    await this.#writer.write(
       this.#getFragmentPath(fragmentId),
       JSON.stringify(
         {
@@ -172,7 +195,6 @@ export class SerialFragments implements ReadonlySerialFragments {
         undefined,
         2,
       ),
-      "utf8",
     );
 
     this.#nextFragmentId = fragmentId + 1;

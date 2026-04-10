@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { AsyncLocalStorage } from "async_hooks";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 
 import { isNodeError } from "../utils/node-error.js";
@@ -38,6 +39,9 @@ export interface ReadonlyDocument {
 
   getSentence(sentenceId: SentenceId): Promise<string>;
   getSerialFragments(serialId: number): ReadonlySerialFragments;
+  openSession<T>(
+    operation: (document: ReadonlyDocument) => Promise<T> | T,
+  ): Promise<T>;
   readSummary(serialId: number): Promise<string | undefined>;
   release(): Promise<void>;
 }
@@ -54,7 +58,12 @@ export interface Document extends ReadonlyDocument {
   getSerialFragments(serialId: number): SerialFragments;
   createSerial(): Promise<number>;
   flush(): Promise<void>;
+  openSession<T>(operation: (document: Document) => Promise<T> | T): Promise<T>;
   writeSummary(serialId: number, summary: string): Promise<void>;
+}
+
+interface DocumentSessionState {
+  readonly createdFilePaths: string[];
 }
 
 export class DirectoryDocument implements Document {
@@ -69,6 +78,7 @@ export class DirectoryDocument implements Document {
 
   readonly #database: Database;
   readonly #fragments: Fragments;
+  readonly #sessionScope = new AsyncLocalStorage<DocumentSessionState>();
 
   public constructor(database: Database, fragments: Fragments, path: string) {
     this.#database = database;
@@ -91,11 +101,32 @@ export class DirectoryDocument implements Document {
     await mkdir(resolvedDocumentPath, { recursive: true });
     await fragments.ensureCreated();
 
-    return new DirectoryDocument(
-      await Database.open(databasePath, SCHEMA_SQL),
-      fragments,
+    const database = await Database.open(databasePath, SCHEMA_SQL);
+    let document: DirectoryDocument;
+
+    document = new DirectoryDocument(
+      database,
+      new Fragments(resolvedDocumentPath, {
+        write: async (path, content) =>
+          await document.#writeNewFile(path, content),
+      }),
       resolvedDocumentPath,
     );
+
+    return document;
+  }
+
+  public static async openSession<T>(
+    documentPath: string,
+    operation: (document: DirectoryDocument) => Promise<T> | T,
+  ): Promise<T> {
+    const document = await DirectoryDocument.open(documentPath);
+
+    try {
+      return await document.openSession(operation);
+    } finally {
+      await document.release();
+    }
   }
 
   public getSerialFragments(serialId: number): SerialFragments {
@@ -108,6 +139,29 @@ export class DirectoryDocument implements Document {
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
     return await this.#fragments.getSentence(sentenceId);
+  }
+
+  public async openSession<T>(
+    operation: (document: Document) => Promise<T> | T,
+  ): Promise<T> {
+    const activeSession = this.#sessionScope.getStore();
+
+    if (activeSession !== undefined) {
+      return await operation(this);
+    }
+
+    const session = {
+      createdFilePaths: [],
+    } satisfies DocumentSessionState;
+
+    try {
+      return await this.#database.transaction(async () =>
+        await this.#sessionScope.run(session, async () => await operation(this)),
+      );
+    } catch (error) {
+      await this.#rollbackCreatedFiles(session);
+      throw error;
+    }
   }
 
   public async readSummary(serialId: number): Promise<string | undefined> {
@@ -124,7 +178,7 @@ export class DirectoryDocument implements Document {
 
   public async writeSummary(serialId: number, summary: string): Promise<void> {
     await mkdir(this.#getSummariesPath(), { recursive: true });
-    await writeFile(this.#getSummaryPath(serialId), summary, "utf8");
+    await this.#writeNewFile(this.#getSummaryPath(serialId), summary);
   }
 
   public async flush(): Promise<void> {
@@ -138,6 +192,37 @@ export class DirectoryDocument implements Document {
 
   public async close(): Promise<void> {
     await this.release();
+  }
+
+  async #rollbackCreatedFiles(session: DocumentSessionState): Promise<void> {
+    for (const path of [...session.createdFilePaths].reverse()) {
+      try {
+        await unlink(path);
+      } catch (error) {
+        if (isNodeError(error) && error.code === "ENOENT") {
+          continue;
+        }
+
+        throw error;
+      }
+    }
+  }
+
+  async #writeNewFile(path: string, content: string): Promise<void> {
+    try {
+      await writeFile(path, content, {
+        encoding: "utf8",
+        flag: "wx",
+      });
+    } catch (error) {
+      if (isNodeError(error) && error.code === "EEXIST") {
+        throw new Error(`File already exists: ${path}`);
+      }
+
+      throw error;
+    }
+
+    this.#sessionScope.getStore()?.createdFilePaths.push(path);
   }
 
   #getSummariesPath(): string {
