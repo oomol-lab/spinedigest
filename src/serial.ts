@@ -39,26 +39,22 @@ const DEFAULT_GROUP_TOKENS_COUNT = 9600;
 const DEFAULT_MAX_CLUES = 10;
 const DEFAULT_MAX_ITERATIONS = 5;
 const DEFAULT_WORKING_MEMORY_CAPACITY = 7;
-const SERIAL_HUB_SCOPES = {
-  editorCompress: "serial-hub/editor-compress",
-  editorReview: "serial-hub/editor-review",
-  editorReviewGuide: "serial-hub/editor-review-guide",
-  readerChoice: "serial-hub/reader-choice",
-  readerExtraction: "serial-hub/reader-extraction",
+const SERIAL_GENERATION_SCOPES = {
+  editorCompress: "serial-generation/editor-compress",
+  editorReview: "serial-generation/editor-review",
+  editorReviewGuide: "serial-generation/editor-review-guide",
+  readerChoice: "serial-generation/reader-choice",
+  readerExtraction: "serial-generation/reader-extraction",
 } as const;
 
-export enum SerialStage {
-  Topology = "topology",
-  Summary = "summary",
-}
-
-export interface CreateSerialOptions {
+export interface GenerateSerialOptions {
   readonly extractionPrompt: string;
-  readonly targetStage?: SerialStage;
   readonly userLanguage?: Language;
 }
 
-export interface SerialHubOptions {
+export type CreateSerialOptions = GenerateSerialOptions;
+
+export interface SerialGenerationOptions {
   readonly document?: Document;
   readonly llm: LLM<string>;
   readonly logDirPath?: string;
@@ -66,7 +62,9 @@ export interface SerialHubOptions {
   readonly workspace?: Document;
 }
 
-export class SerialHub {
+export type SerialHubOptions = SerialGenerationOptions;
+
+export class SerialGeneration {
   readonly #chunks: ChunkStore;
   readonly #fragmentWordsCount = DEFAULT_FRAGMENT_WORDS_COUNT;
   readonly #fragmentGroups: FragmentGroupStore;
@@ -80,7 +78,7 @@ export class SerialHub {
 
   #nextChunkId: number | undefined;
 
-  public constructor(options: SerialHubOptions) {
+  public constructor(options: SerialGenerationOptions) {
     const document = resolveDocument(options);
 
     this.#chunks = document.chunks;
@@ -92,16 +90,11 @@ export class SerialHub {
     this.#document = document;
   }
 
-  public async create(
+  public async generate(
     stream: ReaderTextStream,
-    options: CreateSerialOptions,
+    options: GenerateSerialOptions,
   ): Promise<Serial> {
     const serialId = await this.#createSerialId();
-    const serial = new Serial(
-      () => this.#getTopology(serialId),
-      async () => await this.#buildSummary(serialId, options.userLanguage),
-    );
-    const targetStage = options.targetStage ?? SerialStage.Summary;
 
     await this.#buildTopology(
       serialId,
@@ -109,10 +102,17 @@ export class SerialHub {
       options.extractionPrompt,
       options.userLanguage,
     );
-    if (targetStage === SerialStage.Summary) {
-      await serial.ensureSummary();
-    }
-    return serial;
+
+    const summary = await this.#buildSummary(serialId, options.userLanguage);
+
+    return new Serial(this.#document, serialId, summary);
+  }
+
+  public async create(
+    stream: ReaderTextStream,
+    options: GenerateSerialOptions,
+  ): Promise<Serial> {
+    return await this.generate(stream, options);
   }
 
   async #allocateChunkId(): Promise<number> {
@@ -130,7 +130,7 @@ export class SerialHub {
     serialId: number,
     userLanguage: Language | undefined,
   ): Promise<string> {
-    const record = await this.#getRecord(serialId);
+    const record = await getSerialRecord(this.#document, serialId);
     if (!record.topologyReady) {
       throw new Error(`Serial ${serialId} is not ready for summary`);
     }
@@ -178,8 +178,8 @@ export class SerialHub {
       extractionGuidance: extractionPrompt,
       llm: this.#llm,
       scopes: {
-        choice: SERIAL_HUB_SCOPES.readerChoice,
-        extraction: SERIAL_HUB_SCOPES.readerExtraction,
+        choice: SERIAL_GENERATION_SCOPES.readerChoice,
+        extraction: SERIAL_GENERATION_SCOPES.readerExtraction,
       },
       sentenceTextSource: this.#document,
       ...(this.#segmenter === undefined
@@ -253,18 +253,6 @@ export class SerialHub {
     );
   }
 
-  async #getRecord(serialId: number): Promise<SerialRecord> {
-    const record = await this.#serials.getById(serialId);
-    if (record === undefined) {
-      throw new Error(`Serial ${serialId} does not exist`);
-    }
-    return record;
-  }
-
-  #getTopology(serialId: number): SerialTopology {
-    return new SerialTopology(this.#document, serialId);
-  }
-
   #getSerialFragments(serialId: number): SerialFragments {
     return this.#document.getSerialFragments(serialId);
   }
@@ -281,9 +269,9 @@ export class SerialHub {
       maxClues: DEFAULT_MAX_CLUES,
       maxIterations: DEFAULT_MAX_ITERATIONS,
       scopes: {
-        compress: SERIAL_HUB_SCOPES.editorCompress,
-        review: SERIAL_HUB_SCOPES.editorReview,
-        reviewGuide: SERIAL_HUB_SCOPES.editorReviewGuide,
+        compress: SERIAL_GENERATION_SCOPES.editorCompress,
+        review: SERIAL_GENERATION_SCOPES.editorReview,
+        reviewGuide: SERIAL_GENERATION_SCOPES.editorReviewGuide,
       },
       serialId: input.serialId,
       document: this.#document,
@@ -301,70 +289,29 @@ export class SerialHub {
   }
 }
 
+export { SerialGeneration as SerialHub };
+
 export class Serial {
-  readonly #ensureSummaryOperation: () => Promise<string>;
-  readonly #getTopology: () => SerialTopology;
+  readonly #id: number;
+  readonly #summary: string;
+  readonly #topology: SerialTopology;
 
-  #summary: Promise<string> | string | undefined;
-
-  public constructor(
-    getTopology: () => SerialTopology,
-    ensureSummary: () => Promise<string>,
-  ) {
-    this.#ensureSummaryOperation = ensureSummary;
-    this.#getTopology = getTopology;
-  }
-
-  public get stage(): SerialStage {
-    if (typeof this.#summary === "string") {
-      return SerialStage.Summary;
-    }
-    return SerialStage.Topology;
-  }
-
-  public async ensureSummary(): Promise<Serial> {
-    if (typeof this.#summary === "string") {
-      return this;
-    }
-
-    if (this.#summary instanceof Promise) {
-      await this.#summary;
-      return this;
-    }
-
-    const summary = this.#loadSummary();
-
+  public constructor(document: ReadonlyDocument, serialId: number, summary: string) {
+    this.#id = serialId;
     this.#summary = summary;
-
-    try {
-      await summary;
-    } finally {
-      if (this.#summary === summary) {
-        this.#summary = undefined;
-      }
-    }
-    return this;
+    this.#topology = new SerialTopology(document, serialId);
   }
 
-  public async ensureTopology(): Promise<Serial> {
-    return await Promise.resolve(this);
+  public get id(): number {
+    return this.#id;
   }
 
   public getSummary(): string {
-    if (typeof this.#summary !== "string") {
-      throw new Error("Serial summary is not ready");
-    }
     return this.#summary;
   }
 
   public getTopology(): SerialTopology {
-    return this.#getTopology();
-  }
-
-  async #loadSummary(): Promise<string> {
-    const summary = await this.#ensureSummaryOperation();
-    this.#summary = summary;
-    return summary;
+    return this.#topology;
   }
 }
 
@@ -442,14 +389,46 @@ function createNumberListRecord(): Record<string, number[] | undefined> {
   return Object.create(null) as Record<string, number[] | undefined>;
 }
 
-function resolveDocument(options: SerialHubOptions): Document {
+export async function readSerial(
+  document: ReadonlyDocument,
+  serialId: number,
+): Promise<Serial> {
+  const record = await getSerialRecord(document, serialId);
+
+  if (!record.topologyReady) {
+    throw new Error(`Serial ${serialId} is not ready`);
+  }
+
+  const summary = await document.readSummary(serialId);
+
+  if (summary === undefined) {
+    throw new Error(`Serial ${serialId} summary is missing`);
+  }
+
+  return new Serial(document, serialId, summary);
+}
+
+function resolveDocument(options: SerialGenerationOptions): Document {
   const document = options.document ?? options.workspace;
 
   if (document === undefined) {
-    throw new Error("SerialHub requires a document");
+    throw new Error("SerialGeneration requires a document");
   }
 
   return document;
+}
+
+async function getSerialRecord(
+  document: Pick<ReadonlyDocument, "serials">,
+  serialId: number,
+): Promise<SerialRecord> {
+  const record = await document.serials.getById(serialId);
+
+  if (record === undefined) {
+    throw new Error(`Serial ${serialId} does not exist`);
+  }
+
+  return record;
 }
 
 function saveDelta(
