@@ -15,6 +15,13 @@ export {
   type ImportSourceOptions,
 } from "./facade/index.js";
 export {
+  EPUB_OUTPUT_VERSION,
+  writeEpub,
+  writePlainText,
+  type WriteEpubOptions,
+  type WritePlainTextOptions,
+} from "./output/index.js";
+export {
   ARABIC,
   DANISH,
   DUTCH,
