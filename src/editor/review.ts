@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { requestGuaranteedJson } from "../guaranteed/index.js";
-import type { Language } from "../language.js";
+import type { Language } from "../common/language.js";
 import type { LLMessage, LLM } from "../llm/index.js";
 import type { ReadonlySerialFragments } from "../document/index.js";
 import type { Clue } from "./clue.js";

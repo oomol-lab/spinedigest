@@ -36,7 +36,7 @@ export {
   getLanguageDetectionCode,
   getLanguageTag,
   type Language,
-} from "./language.js";
+} from "./common/language.js";
 export {
   GuaranteedEmptyResponseError,
   GuaranteedParseValidationError,

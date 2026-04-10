@@ -8,7 +8,7 @@ import {
   ParsedJsonError,
   requestGuaranteedJson,
 } from "../../guaranteed/index.js";
-import type { Language } from "../../language.js";
+import type { Language } from "../../common/language.js";
 import type { LLMessage, LLM } from "../../llm/index.js";
 import {
   bookCoherenceResponseSchema,

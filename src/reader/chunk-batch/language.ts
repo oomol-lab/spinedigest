@@ -1,6 +1,9 @@
 import { detect, validateISO2 } from "tinyld";
 
-import { getLanguageDetectionCode, type Language } from "../../language.js";
+import {
+  getLanguageDetectionCode,
+  type Language,
+} from "../../common/language.js";
 
 export function needsTranslation(input: {
   content: string;

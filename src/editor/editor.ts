@@ -1,4 +1,4 @@
-import type { Language } from "../language.js";
+import type { Language } from "../common/language.js";
 import type { LLM } from "../llm/index.js";
 import type {
   ChunkRecord,

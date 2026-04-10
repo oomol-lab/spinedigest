@@ -1,7 +1,7 @@
 import { appendFile, mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 
-import type { Language } from "../language.js";
+import type { Language } from "../common/language.js";
 import type { Clue } from "./clue.js";
 import { formatIssuesForLog } from "./feedback.js";
 import type { CompressionVersion, ReviewResult } from "./types.js";
