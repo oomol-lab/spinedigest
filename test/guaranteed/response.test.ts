@@ -22,6 +22,12 @@ describe("guaranteed/response", () => {
     expect(extractJsonText(response)).toBe('{"value": 1}');
   });
 
+  it("extracts top-level JSON arrays without collapsing to inner objects", () => {
+    const response = 'Result: [{"value": 1}]';
+
+    expect(extractJsonText(response)).toBe('[{"value": 1}]');
+  });
+
   it("repairs simple malformed JSON when possible", () => {
     expect(repairJsonText('{"value": 1,}')).toBe('{"value": 1}');
   });

@@ -6,7 +6,16 @@ export function extractJsonText(response: string): string {
     /```(?:json)?\s*\n(.*?)\n```/gs,
     "$1",
   );
+  const matchedArray = withoutCodeFence.match(/\[[\s\S]*\]/);
   const matchedObject = withoutCodeFence.match(/\{[\s\S]*\}/);
+
+  if (
+    matchedArray?.index !== undefined &&
+    matchedArray[0] !== undefined &&
+    (matchedObject?.index === undefined || matchedArray.index < matchedObject.index)
+  ) {
+    return matchedArray[0];
+  }
 
   if (matchedObject?.[0] !== undefined) {
     return matchedObject[0];
