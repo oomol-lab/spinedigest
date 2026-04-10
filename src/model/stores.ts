@@ -5,7 +5,6 @@ import type {
   CreateSnakeRecord,
   FragmentGroupRecord,
   KnowledgeEdgeRecord,
-  SerialRecord,
   SentenceId,
   SnakeChunkRecord,
   SnakeEdgeRecord,
@@ -19,131 +18,23 @@ export class SerialStore {
     this.#database = database;
   }
 
-  public async create(): Promise<SerialRecord> {
-    await this.#database.transaction(async () => {
-      await this.#database.run(
-        `
-          INSERT INTO serials DEFAULT VALUES
-        `,
-      );
+  public async create(): Promise<number> {
+    await this.#database.run(
+      `
+        INSERT INTO serials DEFAULT VALUES
+      `,
+    );
 
-      const serialId = this.#database.getLastInsertRowId();
-
-      await this.#database.run(
-        `
-          INSERT OR REPLACE INTO serial_states (
-            serial_id,
-            topology_ready,
-            summary
-          )
-          VALUES (?, ?, ?)
-        `,
-        [serialId, 0, null],
-      );
-    });
-
-    const serialId = this.#database.getLastInsertRowId();
-    const record = this.getById(serialId);
-
-    if (record === undefined) {
-      throw new Error(`Could not create serial ${serialId}`);
-    }
-
-    return record;
+    return this.#database.getLastInsertRowId();
   }
 
   public async ensure(serialId: number): Promise<void> {
-    await this.#database.transaction(async () => {
-      await this.#database.run(
-        `
-          INSERT OR IGNORE INTO serials (id)
-          VALUES (?)
-        `,
-        [serialId],
-      );
-      await this.#database.run(
-        `
-          INSERT OR IGNORE INTO serial_states (
-            serial_id,
-            topology_ready,
-            summary
-          )
-          VALUES (?, ?, ?)
-        `,
-        [serialId, 0, null],
-      );
-    });
-  }
-
-  public async save(record: SerialRecord): Promise<void> {
-    await this.#database.transaction(async () => {
-      await this.#database.run(
-        `
-          INSERT OR REPLACE INTO serials (id)
-          VALUES (?)
-        `,
-        [record.id],
-      );
-      await this.#database.run(
-        `
-          INSERT OR REPLACE INTO serial_states (
-            serial_id,
-            topology_ready,
-            summary
-          )
-          VALUES (?, ?, ?)
-        `,
-        [record.id, record.topologyReady ? 1 : 0, record.summary ?? null],
-      );
-    });
-  }
-
-  public async setSummary(serialId: number, summary: string): Promise<void> {
-    await this.ensure(serialId);
     await this.#database.run(
       `
-        UPDATE serial_states
-        SET summary = ?, topology_ready = 1
-        WHERE serial_id = ?
-      `,
-      [summary, serialId],
-    );
-  }
-
-  public async setTopologyReady(serialId: number): Promise<void> {
-    await this.ensure(serialId);
-    await this.#database.run(
-      `
-        UPDATE serial_states
-        SET topology_ready = 1
-        WHERE serial_id = ?
+        INSERT OR IGNORE INTO serials (id)
+        VALUES (?)
       `,
       [serialId],
-    );
-  }
-
-  public getById(serialId: number): SerialRecord | undefined {
-    return this.#database.queryOne(
-      `
-        SELECT
-          serials.id AS id,
-          COALESCE(serial_states.topology_ready, 0) AS topology_ready,
-          serial_states.summary AS summary
-        FROM serials
-        LEFT JOIN serial_states
-          ON serial_states.serial_id = serials.id
-        WHERE serials.id = ?
-      `,
-      [serialId],
-      (row) => {
-        const summary = getOptionalString(row, "summary");
-
-        return {
-          id: getNumber(row, "id"),
-          topologyReady: getNumber(row, "topology_ready") !== 0,
-          ...(summary === undefined ? {} : { summary }),
-        };
-      },
     );
   }
 

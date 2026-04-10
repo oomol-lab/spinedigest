@@ -5,7 +5,6 @@ import type {
   ChunkRecord,
   FragmentGroupRecord,
   KnowledgeEdgeRecord,
-  SerialRecord,
   SnakeChunkRecord,
   SnakeEdgeRecord,
   SnakeRecord,
@@ -49,6 +48,12 @@ export interface SerialHubOptions<S extends string> {
   readonly workspace: Workspace;
 }
 
+interface SerialState {
+  readonly stage: SerialStage;
+  readonly summary?: string;
+  readonly summaryJob?: Promise<void>;
+}
+
 export class SerialHub<S extends string> {
   readonly #editorOptions: SerialHubOptions<S>["editor"];
   readonly #fragmentWordsCount: number;
@@ -56,6 +61,7 @@ export class SerialHub<S extends string> {
   readonly #llm: LLM<S>;
   #nextChunkId: number | undefined;
   readonly #readerOptions: SerialHubOptions<S>["reader"];
+  readonly #serialStates = createSerialStateRecord();
   readonly #topologyOptions: SerialHubOptions<S>["topology"];
   readonly #workspace: Workspace;
   readonly #writeSemaphore = new AsyncSemaphore(1);
@@ -74,20 +80,21 @@ export class SerialHub<S extends string> {
     stream: ReaderTextStream,
     options: CreateSerialOptions = {},
   ): Promise<Serial<S>> {
-    const serialRecord = await this.#createSerialRecord();
+    const serialId = await this.#createSerialId();
     const serial = new Serial({
       ensureSummary: async () =>
-        await this.#ensureSummary(serialRecord.id, options.userLanguage),
-      getRecord: () => this.#getRecord(serialRecord.id),
-      getTopology: () => this.#getTopology(serialRecord.id),
-      serialId: serialRecord.id,
+        await this.#ensureSummary(serialId, options.userLanguage),
+      getStage: () => this.#getStage(serialId),
+      getSummary: () => this.#getSummary(serialId),
+      getTopology: () => this.#getTopology(serialId),
     });
     const targetStage = options.targetStage ?? "summary";
 
-    await this.#buildTopology(serialRecord.id, stream, options.userLanguage);
+    await this.#buildTopology(serialId, stream, options.userLanguage);
+    this.#setTopologyReady(serialId);
 
     if (targetStage === "summary") {
-      await this.#buildSummary(serialRecord.id, options.userLanguage);
+      await this.#buildSummary(serialId, options.userLanguage);
     }
 
     return serial;
@@ -111,14 +118,53 @@ export class SerialHub<S extends string> {
     serialId: number,
     userLanguage: Language | undefined,
   ): Promise<void> {
-    const record = this.#workspace.serials.getById(serialId);
+    const state = this.#getState(serialId);
 
-    if (record?.summary !== undefined) {
+    if (state.stage === "summary") {
       return;
     }
 
-    if (record?.topologyReady !== true) {
-      throw new Error(`Serial ${serialId} is not ready for summary`);
+    if (state.summaryJob !== undefined) {
+      await state.summaryJob;
+
+      return;
+    }
+
+    const summaryJob = this.#buildSummaryOnce(serialId, userLanguage);
+
+    this.#setState(serialId, {
+      ...state,
+      summaryJob,
+    });
+
+    try {
+      await summaryJob;
+    } finally {
+      const nextState = this.#getState(serialId);
+
+      if (nextState.summaryJob === summaryJob) {
+        this.#setState(serialId, {
+          stage: nextState.stage,
+          ...(nextState.summary === undefined
+            ? {}
+            : {
+                summary: nextState.summary,
+              }),
+        });
+      }
+    }
+  }
+
+  async #buildSummaryOnce(
+    serialId: number,
+    userLanguage: Language | undefined,
+  ): Promise<void> {
+    const existingSummary = await this.#workspace.readSummary(serialId);
+
+    if (existingSummary !== undefined) {
+      this.#setSummary(serialId, existingSummary);
+
+      return;
     }
 
     const groupIds =
@@ -146,13 +192,12 @@ export class SerialHub<S extends string> {
       summaryParts.push(groupSummary);
     }
 
+    const summary = summaryParts.join("\n\n");
+
     await this.#writeSemaphore.use(
-      async () =>
-        await this.#workspace.serials.setSummary(
-          serialId,
-          summaryParts.join("\n\n"),
-        ),
+      async () => await this.#workspace.writeSummary(serialId, summary),
     );
+    this.#setSummary(serialId, summary);
   }
 
   async #buildTopology(
@@ -160,12 +205,6 @@ export class SerialHub<S extends string> {
     stream: ReaderTextStream,
     userLanguage: Language | undefined,
   ): Promise<void> {
-    const record = this.#workspace.serials.getById(serialId);
-
-    if (record?.topologyReady === true) {
-      return;
-    }
-
     const reader = new Reader({
       ...this.#readerOptions,
       attention: {
@@ -230,11 +269,10 @@ export class SerialHub<S extends string> {
 
     await this.#writeSemaphore.use(async () => {
       await topology.finalize();
-      await this.#workspace.serials.setTopologyReady(serialId);
     });
   }
 
-  async #createSerialRecord(): Promise<SerialRecord> {
+  async #createSerialId(): Promise<number> {
     return await this.#idSemaphore.use(() => this.#workspace.createSerial());
   }
 
@@ -245,47 +283,66 @@ export class SerialHub<S extends string> {
     await this.#buildSummary(serialId, userLanguage);
   }
 
-  #getRecord(serialId: number): SerialRecord {
-    const record = this.#workspace.serials.getById(serialId);
+  #getStage(serialId: number): SerialStage {
+    return this.#getState(serialId).stage;
+  }
 
-    if (record === undefined) {
-      throw new Error(`Serial ${serialId} does not exist`);
+  #getState(serialId: number): SerialState {
+    const state = this.#serialStates[String(serialId)];
+
+    if (state === undefined) {
+      throw new Error(`Serial ${serialId} is not managed by this hub`);
     }
 
-    return record;
+    return state;
   }
 
   #getTopology(serialId: number): SerialTopology {
     return new SerialTopology(this.#workspace, serialId);
   }
+
+  #getSummary(serialId: number): string | undefined {
+    return this.#getState(serialId).summary;
+  }
+
+  #setState(serialId: number, state: SerialState): void {
+    this.#serialStates[String(serialId)] = state;
+  }
+
+  #setSummary(serialId: number, summary: string): void {
+    this.#setState(serialId, {
+      stage: "summary",
+      summary,
+    });
+  }
+
+  #setTopologyReady(serialId: number): void {
+    this.#setState(serialId, {
+      stage: "topology",
+    });
+  }
 }
 
 export class Serial<S extends string> {
   readonly #ensureSummary: () => Promise<void>;
-  readonly #getRecord: () => SerialRecord;
+  readonly #getStage: () => SerialStage;
+  readonly #getSummary: () => string | undefined;
   readonly #getTopology: () => SerialTopology;
-  readonly #serialId: number;
 
   public constructor(input: {
     ensureSummary: () => Promise<void>;
-    getRecord: () => SerialRecord;
+    getStage: () => SerialStage;
+    getSummary: () => string | undefined;
     getTopology: () => SerialTopology;
-    serialId: number;
   }) {
     this.#ensureSummary = input.ensureSummary;
-    this.#getRecord = input.getRecord;
+    this.#getStage = input.getStage;
+    this.#getSummary = input.getSummary;
     this.#getTopology = input.getTopology;
-    this.#serialId = input.serialId;
   }
 
   public get stage(): SerialStage {
-    const record = this.#getRecord();
-
-    if (!record.topologyReady) {
-      throw new Error(`Serial ${this.#serialId} topology is not ready`);
-    }
-
-    return record.summary === undefined ? "topology" : "summary";
+    return this.#getStage();
   }
 
   public async ensureSummary(): Promise<Serial<S>> {
@@ -299,22 +356,16 @@ export class Serial<S extends string> {
   }
 
   public getSummary(): string {
-    const record = this.#getRecord();
+    const summary = this.#getSummary();
 
-    if (record.summary === undefined) {
+    if (summary === undefined) {
       throw new Error("Serial summary is not ready");
     }
 
-    return record.summary;
+    return summary;
   }
 
   public getTopology(): SerialTopology {
-    const record = this.#getRecord();
-
-    if (!record.topologyReady) {
-      throw new Error("Serial topology is not ready");
-    }
-
     return this.#getTopology();
   }
 }
@@ -381,6 +432,10 @@ function compareNumber(left: number, right: number): number {
 
 function createNumberListRecord(): Record<string, number[] | undefined> {
   return Object.create(null) as Record<string, number[] | undefined>;
+}
+
+function createSerialStateRecord(): Record<string, SerialState | undefined> {
+  return Object.create(null) as Record<string, SerialState | undefined>;
 }
 
 function saveDelta(

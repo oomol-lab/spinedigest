@@ -16,12 +16,6 @@ export interface FragmentRecord {
   readonly sentences: readonly SentenceRecord[];
 }
 
-export interface SerialRecord {
-  readonly id: number;
-  readonly topologyReady: boolean;
-  readonly summary?: string;
-}
-
 export interface ChunkRecord {
   readonly id: number;
   readonly generation: number;

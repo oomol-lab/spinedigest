@@ -1,11 +1,11 @@
-import { mkdir } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 
 import { Database } from "./database.js";
 import { Fragments } from "./fragments.js";
 import type { SerialFragments } from "./fragments.js";
 import { SCHEMA_SQL } from "./schema.js";
-import type { SerialRecord, SentenceId } from "./types.js";
+import type { SentenceId } from "./types.js";
 import {
   ChunkStore,
   FragmentGroupStore,
@@ -65,12 +65,29 @@ export class Workspace {
     return this.#fragments.getSerial(serialId);
   }
 
-  public async createSerial(): Promise<SerialRecord> {
+  public async createSerial(): Promise<number> {
     return await this.serials.create();
   }
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
     return await this.#fragments.getSentence(sentenceId);
+  }
+
+  public async readSummary(serialId: number): Promise<string | undefined> {
+    try {
+      return await readFile(this.#getSummaryPath(serialId), "utf8");
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
+  }
+
+  public async writeSummary(serialId: number, summary: string): Promise<void> {
+    await mkdir(this.#getSummariesPath(), { recursive: true });
+    await writeFile(this.#getSummaryPath(serialId), summary, "utf8");
   }
 
   public async flush(): Promise<void> {
@@ -81,4 +98,18 @@ export class Workspace {
     await this.flush();
     this.#database.close();
   }
+
+  #getSummariesPath(): string {
+    return join(this.path, "summaries");
+  }
+
+  #getSummaryPath(serialId: number): string {
+    return join(this.#getSummariesPath(), `serial-${serialId}.txt`);
+  }
+}
+
+function isNodeError(
+  error: unknown,
+): error is NodeJS.ErrnoException & { readonly code: string } {
+  return error instanceof Error && "code" in error;
 }

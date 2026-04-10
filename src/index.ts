@@ -79,7 +79,6 @@ export {
   type FragmentGroupRecord,
   type FragmentRecord,
   type KnowledgeEdgeRecord,
-  type SerialRecord,
   type SentenceId,
   type SentenceRecord,
   type SnakeChunkRecord,
