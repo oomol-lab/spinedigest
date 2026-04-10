@@ -10,10 +10,7 @@ import { computeNormalizedFragmentIncisions } from "../../src/topology/fragment-
 describe("topology/fragment-incision", () => {
   it("returns zero incisions when fragments have no external edges", async () => {
     const result = await computeNormalizedFragmentIncisions({
-      chunks: [
-        createChunk(1, 1, 2),
-        createChunk(2, 2, 3),
-      ],
+      chunks: [createChunk(1, 1, 2), createChunk(2, 2, 3)],
       edges: [],
       fragments: createSerialFragments({
         1: 10,
@@ -39,10 +36,7 @@ describe("topology/fragment-incision", () => {
 
   it("caps uniformly strong cross-fragment incisions to the maximum score", async () => {
     const result = await computeNormalizedFragmentIncisions({
-      chunks: [
-        createChunk(1, 1, 5),
-        createChunk(2, 2, 5),
-      ],
+      chunks: [createChunk(1, 1, 5), createChunk(2, 2, 5)],
       edges: [
         {
           fromId: 1,

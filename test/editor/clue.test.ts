@@ -69,9 +69,7 @@ describe("editor/clue", () => {
       label: "Merged minor clues (2)",
       sourceSnakeIds: [2, 3],
     });
-    expect(
-      clues.reduce((sum, clue) => sum + clue.weight, 0),
-    ).toBeCloseTo(1, 6);
+    expect(clues.reduce((sum, clue) => sum + clue.weight, 0)).toBeCloseTo(1, 6);
   });
 });
 
@@ -86,9 +84,8 @@ function createClueDocument(input: {
       getById: (chunkId: number) => Promise.resolve(input.chunksById[chunkId]),
     },
     snakeChunks: {
-      listChunkIds: (snakeId: number) => Promise.resolve([
-        ...(input.chunkIdsBySnakeId[snakeId] ?? []),
-      ]),
+      listChunkIds: (snakeId: number) =>
+        Promise.resolve([...(input.chunkIdsBySnakeId[snakeId] ?? [])]),
     },
     snakes: {
       getById: (snakeId: number) => Promise.resolve(input.snakesById[snakeId]),

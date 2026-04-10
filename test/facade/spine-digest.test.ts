@@ -2,7 +2,10 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { DirectoryDocument, type ReadonlyDocument } from "../../src/document/index.js";
+import {
+  DirectoryDocument,
+  type ReadonlyDocument,
+} from "../../src/document/index.js";
 import { extractSdpubArchive } from "../../src/facade/archive.js";
 import { SpineDigest } from "../../src/facade/spine-digest.js";
 import { EPUB_SOURCE_ADAPTER } from "../../src/source/index.js";
@@ -45,29 +48,32 @@ describe("facade/spine-digest", () => {
         );
 
         await digest.exportEpub(epubPath);
-        await EPUB_SOURCE_ADAPTER.openSession(epubPath, async (sourceDocument) => {
-          const sections = await sourceDocument.readSections();
-          const cover = await sourceDocument.readCover();
+        await EPUB_SOURCE_ADAPTER.openSession(
+          epubPath,
+          async (sourceDocument) => {
+            const sections = await sourceDocument.readSections();
+            const cover = await sourceDocument.readCover();
 
-          expect(await sourceDocument.readMeta()).toMatchObject({
-            identifier: "urn:test:facade",
-            title: "Facade Fixture",
-          });
-          expect(collectSectionTitles(sections)).toStrictEqual([
-            "Chapter 1",
-            "Appendix",
-          ]);
-          expect(await readStreamText(await sections[0]!.open())).toContain(
-            "Summary one",
-          );
-          expect(await readStreamText(await sections[0]!.children[0]!.open())).toContain(
-            "Summary two",
-          );
-          expect(cover).toMatchObject({
-            mediaType: "image/png",
-          });
-          expect(cover?.data.byteLength).toBeGreaterThan(0);
-        });
+            expect(await sourceDocument.readMeta()).toMatchObject({
+              identifier: "urn:test:facade",
+              title: "Facade Fixture",
+            });
+            expect(collectSectionTitles(sections)).toStrictEqual([
+              "Chapter 1",
+              "Appendix",
+            ]);
+            expect(await readStreamText(await sections[0]!.open())).toContain(
+              "Summary one",
+            );
+            expect(
+              await readStreamText(await sections[0]!.children[0]!.open()),
+            ).toContain("Summary two");
+            expect(cover).toMatchObject({
+              mediaType: "image/png",
+            });
+            expect(cover?.data.byteLength).toBeGreaterThan(0);
+          },
+        );
       } finally {
         await document.release();
       }

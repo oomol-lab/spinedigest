@@ -6,9 +6,7 @@ import {
   formatIssuesForLog,
   pickBestVersion,
 } from "../../src/editor/feedback.js";
-import {
-  REVISION_FEEDBACK_PROMPT_TEMPLATE,
-} from "../../src/editor/prompt-templates.js";
+import { REVISION_FEEDBACK_PROMPT_TEMPLATE } from "../../src/editor/prompt-templates.js";
 import {
   ReviewSeverity,
   type CompressionVersion,

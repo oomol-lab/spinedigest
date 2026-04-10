@@ -12,7 +12,8 @@ export function extractJsonText(response: string): string {
   if (
     matchedArray?.index !== undefined &&
     matchedArray[0] !== undefined &&
-    (matchedObject?.index === undefined || matchedArray.index < matchedObject.index)
+    (matchedObject?.index === undefined ||
+      matchedArray.index < matchedObject.index)
   ) {
     return matchedArray[0];
   }

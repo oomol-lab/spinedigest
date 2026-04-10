@@ -14,9 +14,7 @@ export interface ScriptedPromptCall {
 export type ScriptedLLMStep<S extends string> =
   | string
   | Error
-  | ((
-      call: ScriptedLLMCall<S>,
-    ) => string | Promise<string>);
+  | ((call: ScriptedLLMCall<S>) => string | Promise<string>);
 
 export class ScriptedLLM<S extends string> {
   public readonly calls: ScriptedLLMCall<S>[] = [];

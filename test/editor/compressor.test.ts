@@ -45,7 +45,9 @@ describe("editor/compressor", () => {
     expect(originalTextMessage?.role).toBe("user");
     expect(typeof originalTextMessage?.content).toBe("string");
     if (typeof originalTextMessage?.content !== "string") {
-      throw new TypeError("Expected original text message content to be a string");
+      throw new TypeError(
+        "Expected original text message content to be a string",
+      );
     }
     expect(originalTextMessage.content).toContain("Original marked text");
   });

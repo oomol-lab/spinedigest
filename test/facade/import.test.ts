@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DirectoryDocument } from "../../src/document/index.js";
 import type { SourceDocument } from "../../src/source/adapter.js";
-import type { BookMeta, SourceAsset, SourceSection } from "../../src/source/index.js";
+import type {
+  BookMeta,
+  SourceAsset,
+  SourceSection,
+} from "../../src/source/index.js";
 import { importSource, importSourceDocument } from "../../src/facade/import.js";
 import { withTempDir } from "../helpers/temp.js";
 
@@ -284,9 +288,7 @@ describe("facade/import", () => {
   });
 });
 
-function createBookMeta(
-  overrides: Partial<BookMeta> = {},
-): BookMeta {
+function createBookMeta(overrides: Partial<BookMeta> = {}): BookMeta {
   return {
     authors: ["Ari Lantern"],
     description: "Import fixture",
@@ -332,9 +334,7 @@ function createSourceSection(input: {
     hasContent: input.hasContent,
     id: crypto.randomUUID(),
     open: () =>
-      Promise.resolve(
-        input.streamText === undefined ? [] : [input.streamText],
-      ),
+      Promise.resolve(input.streamText === undefined ? [] : [input.streamText]),
     title: input.title,
   };
 }

@@ -114,7 +114,9 @@ describe("editor/log", () => {
 
       expect(logText).toContain("CHUNK HIERARCHY - Serial 1, Group 2");
       expect(logText).toContain("Lead -> Payoff");
-      expect(logText).toContain("Content: A fairly long chunk content that should be truncated after");
+      expect(logText).toContain(
+        "Content: A fairly long chunk content that should be truncated after",
+      );
       expect(logText).toContain("ITERATION 2/3");
       expect(logText).toContain("Revision Feedback:");
       expect(logText).toContain("Thinking:");

@@ -19,24 +19,30 @@ vi.mock("../../src/llm/index.js", () => ({
 }));
 
 vi.mock("../../src/facade/digest.js", () => ({
-  digestEpubSession: vi.fn(async (options: unknown, operation: () => unknown) => {
-    appMockState.digestCalls.epub.push(options);
-    return await operation();
-  }),
+  digestEpubSession: vi.fn(
+    async (options: unknown, operation: () => unknown) => {
+      appMockState.digestCalls.epub.push(options);
+      return await operation();
+    },
+  ),
   digestMarkdownSession: vi.fn(
     async (options: unknown, operation: () => unknown) => {
       appMockState.digestCalls.markdown.push(options);
       return await operation();
     },
   ),
-  digestTextSession: vi.fn(async (options: unknown, operation: () => unknown) => {
-    appMockState.digestCalls.text.push(options);
-    return await operation();
-  }),
-  digestTxtSession: vi.fn(async (options: unknown, operation: () => unknown) => {
-    appMockState.digestCalls.txt.push(options);
-    return await operation();
-  }),
+  digestTextSession: vi.fn(
+    async (options: unknown, operation: () => unknown) => {
+      appMockState.digestCalls.text.push(options);
+      return await operation();
+    },
+  ),
+  digestTxtSession: vi.fn(
+    async (options: unknown, operation: () => unknown) => {
+      appMockState.digestCalls.txt.push(options);
+      return await operation();
+    },
+  ),
 }));
 
 import { DirectoryDocument } from "../../src/document/index.js";
@@ -111,9 +117,9 @@ describe("facade/app", () => {
     expect(digestCall.path).toBe("/tmp/source.txt");
     expect(digestCall.userLanguage).toBe("Simplified Chinese");
     expect(digestCall.llm).toBeTruthy();
-    expect(
-      digestCall.extractionPrompt,
-    ).toContain("main storyline and key character developments");
+    expect(digestCall.extractionPrompt).toContain(
+      "main storyline and key character developments",
+    );
   });
 
   it("forwards text session options and preserves explicit extraction prompts", async () => {

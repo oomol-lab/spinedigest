@@ -72,9 +72,9 @@ describe("facade/spine-digest-file", () => {
         await expect(
           access(`${sessionDir}/book-meta.json`),
         ).resolves.toBeUndefined();
-        expect(await readFile(`${sessionDir}/book-meta.json`, "utf8")).toContain(
-          "Session Fixture",
-        );
+        expect(
+          await readFile(`${sessionDir}/book-meta.json`, "utf8"),
+        ).toContain("Session Fixture");
       } finally {
         await document.release();
       }

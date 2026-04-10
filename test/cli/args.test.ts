@@ -47,7 +47,9 @@ describe("cli/args", () => {
   });
 
   it("documents the supported command-line contract", () => {
-    expect(CLI_HELP_TEXT).toContain("stdin/stdout only support txt or markdown");
+    expect(CLI_HELP_TEXT).toContain(
+      "stdin/stdout only support txt or markdown",
+    );
     expect(CLI_HELP_TEXT).toContain("SPINEDIGEST_LLM_MODEL");
   });
 });

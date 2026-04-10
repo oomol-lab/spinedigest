@@ -10,7 +10,10 @@ vi.mock("tinyld", () => ({
   validateISO2: validateISO2Mock,
 }));
 
-import type { ReadonlyDocument, ReadonlySerialFragments } from "../../src/document/index.js";
+import type {
+  ReadonlyDocument,
+  ReadonlySerialFragments,
+} from "../../src/document/index.js";
 import type {
   ChunkRecord,
   FragmentGroupRecord,
@@ -89,12 +92,9 @@ describe("editor/editor", () => {
         "<chunk>Bad Japanese summary</chunk>",
       ].join("\n"),
       '{"issues":[]}',
-      [
-        "## Compressed Text",
-        "```text",
-        "Improved English summary",
-        "```",
-      ].join("\n"),
+      ["## Compressed Text", "```text", "Improved English summary", "```"].join(
+        "\n",
+      ),
       '{"issues":[]}',
     ]);
     const document = createDocument({
@@ -146,9 +146,7 @@ describe("editor/editor", () => {
     });
 
     expect(result).toBe("Improved English summary");
-    expect(
-      llm.prompts.map((prompt) => prompt.templateName),
-    ).toStrictEqual([
+    expect(llm.prompts.map((prompt) => prompt.templateName)).toStrictEqual([
       CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
       TEXT_COMPRESSOR_PROMPT_TEMPLATE,
       CLUE_REVIEWER_PROMPT_TEMPLATE,
@@ -199,7 +197,9 @@ function createDocument(input: {
         getFragment: (fragmentId: number) =>
           Promise.resolve(fragmentsById[fragmentId] as FragmentRecord),
         listFragmentIds: () =>
-          Promise.resolve(input.fragments.map((fragment) => fragment.fragmentId)),
+          Promise.resolve(
+            input.fragments.map((fragment) => fragment.fragmentId),
+          ),
         path: "/tmp/fragments",
         serialId: 1,
       }) as ReadonlySerialFragments,

@@ -254,7 +254,10 @@ describe("reader/chunk-batch/evidence-resolver", () => {
     });
 
     expect(resolvedFailure).toBeUndefined();
-    expect(resolved?.sentenceIds).toStrictEqual([[1, 0, 0], [1, 0, 1]]);
+    expect(resolved?.sentenceIds).toStrictEqual([
+      [1, 0, 0],
+      [1, 0, 1],
+    ]);
     expect(invalidFailure).toMatchObject({
       code: "invalid_range",
       fieldName: "end_anchor",

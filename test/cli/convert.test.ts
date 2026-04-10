@@ -288,7 +288,9 @@ describe("cli/convert", () => {
         help: false,
         outputFormat: "txt",
       }),
-    ).rejects.toThrow("Cannot infer input format from stdin. Set --input-format.");
+    ).rejects.toThrow(
+      "Cannot infer input format from stdin. Set --input-format.",
+    );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
   });

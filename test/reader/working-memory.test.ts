@@ -15,7 +15,9 @@ describe("reader/working-memory", () => {
     ]);
 
     expect(memory.capacity).toBe(3);
-    expect(memory.getChunks().map((chunk) => chunk.id)).toStrictEqual([7, 3, 5]);
+    expect(memory.getChunks().map((chunk) => chunk.id)).toStrictEqual([
+      7, 3, 5,
+    ]);
     expect(memory.formatForPrompt()).toBe(
       [
         "5. [Extra] - Extra content",
@@ -29,9 +31,7 @@ describe("reader/working-memory", () => {
   it("finalizes fragments, increments generation, and clears all state", () => {
     const memory = new WorkingMemory(2);
 
-    memory.addChunks([
-      createChunk(1, 0, [1, 0, 0], "Alpha", "Alpha content"),
-    ]);
+    memory.addChunks([createChunk(1, 0, [1, 0, 0], "Alpha", "Alpha content")]);
     memory.setExtraChunks([
       createChunk(2, 1, [1, 1, 0], "Beta", "Beta content"),
     ]);

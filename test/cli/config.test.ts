@@ -176,7 +176,7 @@ describe("cli/config", () => {
     );
 
     delete process.env.SPINEDIGEST_REQUEST_CONCURRENT;
-    process.env.SPINEDIGEST_REQUEST_TEMPERATURE = "[1,\"bad\"]";
+    process.env.SPINEDIGEST_REQUEST_TEMPERATURE = '[1,"bad"]';
 
     await expect(loadCLIConfig()).rejects.toThrow(
       "SPINEDIGEST_REQUEST_TEMPERATURE must be a number or JSON number array.",

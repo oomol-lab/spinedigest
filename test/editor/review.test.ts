@@ -126,7 +126,10 @@ function createClue(
     chunks,
     clueId,
     isMerged: false,
-    label: chunks[0]?.label === undefined ? "Unknown clue" : `${chunks[0].label} clue`,
+    label:
+      chunks[0]?.label === undefined
+        ? "Unknown clue"
+        : `${chunks[0].label} clue`,
     sourceSnakeIds: [clueId],
     weight,
   };

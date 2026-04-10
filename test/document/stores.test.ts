@@ -56,9 +56,7 @@ describe("document/stores", () => {
         });
         expect(await openedDocument.serials.getById(99)).toBeUndefined();
         expect(await openedDocument.serials.getMaxId()).toBe(5);
-        expect(await openedDocument.serials.listIds()).toStrictEqual([
-          1, 3, 5,
-        ]);
+        expect(await openedDocument.serials.listIds()).toStrictEqual([1, 3, 5]);
       });
     });
   });
@@ -159,9 +157,9 @@ describe("document/stores", () => {
             weight: 0.8,
           },
         ]);
-        expect(await openedDocument.chunks.listByFragments(1, [])).toStrictEqual(
-          [],
-        );
+        expect(
+          await openedDocument.chunks.listByFragments(1, []),
+        ).toStrictEqual([]);
         expect(
           await openedDocument.chunks.listByFragments(1, [20, 10, 99]),
         ).toStrictEqual([
@@ -322,21 +320,21 @@ describe("document/stores", () => {
             weight: 0.4,
           },
         ]);
-        expect(await openedDocument.knowledgeEdges.listBySerial(1)).toStrictEqual(
-          [
-            {
-              fromId: 100,
-              strength: "strong",
-              toId: 101,
-              weight: 0.9,
-            },
-            {
-              fromId: 101,
-              toId: 100,
-              weight: 0.7,
-            },
-          ],
-        );
+        expect(
+          await openedDocument.knowledgeEdges.listBySerial(1),
+        ).toStrictEqual([
+          {
+            fromId: 100,
+            strength: "strong",
+            toId: 101,
+            weight: 0.9,
+          },
+          {
+            fromId: 101,
+            toId: 100,
+            weight: 0.7,
+          },
+        ]);
       });
     });
   });
@@ -412,17 +410,19 @@ describe("document/stores", () => {
         expect(firstSnakeId).toBe(1);
         expect(secondSnakeId).toBe(2);
         expect(thirdSnakeId).toBe(3);
-        expect(await openedDocument.snakes.getById(firstSnakeId)).toStrictEqual({
-          firstLabel: "Chunk A",
-          groupId: 1,
-          id: 1,
-          lastLabel: "Chunk B",
-          localSnakeId: 0,
-          serialId: 1,
-          size: 2,
-          tokens: 0,
-          weight: 0,
-        });
+        expect(await openedDocument.snakes.getById(firstSnakeId)).toStrictEqual(
+          {
+            firstLabel: "Chunk A",
+            groupId: 1,
+            id: 1,
+            lastLabel: "Chunk B",
+            localSnakeId: 0,
+            serialId: 1,
+            size: 2,
+            tokens: 0,
+            weight: 0,
+          },
+        );
         expect(await openedDocument.snakes.listIdsByGroup(1, 1)).toStrictEqual([
           1,
         ]);
@@ -496,30 +496,32 @@ describe("document/stores", () => {
           weight: 0.2,
         });
 
-        expect(await openedDocument.snakeEdges.listIncoming(firstSnakeId)).toStrictEqual(
-          [
-            {
-              fromSnakeId: 2,
-              toSnakeId: 1,
-              weight: 0.8,
-            },
-          ],
+        expect(
+          await openedDocument.snakeEdges.listIncoming(firstSnakeId),
+        ).toStrictEqual([
+          {
+            fromSnakeId: 2,
+            toSnakeId: 1,
+            weight: 0.8,
+          },
+        ]);
+        expect(
+          await openedDocument.snakeEdges.listOutgoing(firstSnakeId),
+        ).toStrictEqual([
+          {
+            fromSnakeId: 1,
+            toSnakeId: 2,
+            weight: 0.6,
+          },
+          {
+            fromSnakeId: 1,
+            toSnakeId: 3,
+            weight: 0.2,
+          },
+        ]);
+        expect(await openedDocument.snakeEdges.listWithin([])).toStrictEqual(
+          [],
         );
-        expect(await openedDocument.snakeEdges.listOutgoing(firstSnakeId)).toStrictEqual(
-          [
-            {
-              fromSnakeId: 1,
-              toSnakeId: 2,
-              weight: 0.6,
-            },
-            {
-              fromSnakeId: 1,
-              toSnakeId: 3,
-              weight: 0.2,
-            },
-          ],
-        );
-        expect(await openedDocument.snakeEdges.listWithin([])).toStrictEqual([]);
         expect(
           await openedDocument.snakeEdges.listWithin([
             firstSnakeId,
@@ -573,28 +575,28 @@ describe("document/stores", () => {
           },
         ]);
 
-        expect(await openedDocument.fragmentGroups.listBySerial(1)).toStrictEqual(
-          [
-            {
-              fragmentId: 10,
-              groupId: 1,
-              serialId: 1,
-            },
-            {
-              fragmentId: 20,
-              groupId: 2,
-              serialId: 1,
-            },
-            {
-              fragmentId: 21,
-              groupId: 2,
-              serialId: 1,
-            },
-          ],
-        );
-        expect(await openedDocument.fragmentGroups.listSerialIds()).toStrictEqual(
-          [1, 2],
-        );
+        expect(
+          await openedDocument.fragmentGroups.listBySerial(1),
+        ).toStrictEqual([
+          {
+            fragmentId: 10,
+            groupId: 1,
+            serialId: 1,
+          },
+          {
+            fragmentId: 20,
+            groupId: 2,
+            serialId: 1,
+          },
+          {
+            fragmentId: 21,
+            groupId: 2,
+            serialId: 1,
+          },
+        ]);
+        expect(
+          await openedDocument.fragmentGroups.listSerialIds(),
+        ).toStrictEqual([1, 2]);
         expect(
           await openedDocument.fragmentGroups.listGroupIdsForSerial(1),
         ).toStrictEqual([1, 2]);

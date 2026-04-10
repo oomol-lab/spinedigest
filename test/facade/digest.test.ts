@@ -197,9 +197,9 @@ describe("facade/digest", () => {
       await expect(access(`${documentDirPath}/book-meta.json`)).resolves.toBe(
         undefined,
       );
-      expect(await readFile(`${documentDirPath}/book-meta.json`, "utf8")).toContain(
-        '"sourceFormat": "markdown"',
-      );
+      expect(
+        await readFile(`${documentDirPath}/book-meta.json`, "utf8"),
+      ).toContain('"sourceFormat": "markdown"');
     });
   });
 

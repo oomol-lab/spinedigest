@@ -53,7 +53,9 @@ describe("reader/reader", () => {
     const customReader = createReader({
       segmenter: adapter,
     });
-    const customSegments = await collectSegments(customReader.segment(["Beta."]));
+    const customSegments = await collectSegments(
+      customReader.segment(["Beta."]),
+    );
 
     expect(customSegments).toStrictEqual(["Beta."]);
     expect(segmentTextStreamMock).toHaveBeenNthCalledWith(2, ["Beta."], {
@@ -125,7 +127,9 @@ describe("reader/reader", () => {
     });
 
     expect(userFocused.fragmentSummary).toBe("Fragment summary");
-    expect(userFocused.delta.chunks.map((chunk) => chunk.id)).toStrictEqual([1]);
+    expect(userFocused.delta.chunks.map((chunk) => chunk.id)).toStrictEqual([
+      1,
+    ]);
     expect(extractUserFocusedChunkBatchMock).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
@@ -226,9 +230,7 @@ describe("reader/reader", () => {
   });
 });
 
-function createReader(input?: {
-  readonly segmenter?: SentenceStreamAdapter;
-}) {
+function createReader(input?: { readonly segmenter?: SentenceStreamAdapter }) {
   let nextId = 1;
 
   return new Reader({
