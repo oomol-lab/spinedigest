@@ -296,7 +296,11 @@ export class Serial {
   readonly #summary: string;
   readonly #topology: SerialTopology;
 
-  public constructor(document: ReadonlyDocument, serialId: number, summary: string) {
+  public constructor(
+    document: ReadonlyDocument,
+    serialId: number,
+    summary: string,
+  ) {
     this.#id = serialId;
     this.#summary = summary;
     this.#topology = new SerialTopology(document, serialId);

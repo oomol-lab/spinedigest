@@ -35,10 +35,7 @@ export class Fragments implements ReadonlyFragments {
   readonly #documentPath: string;
   readonly #writer: FragmentWriter;
 
-  public constructor(
-    documentPath: string,
-    writer?: FragmentWriter,
-  ) {
+  public constructor(documentPath: string, writer?: FragmentWriter) {
     this.#documentPath = resolve(documentPath);
     this.#writer = writer ?? {
       write: async (path, content) => {

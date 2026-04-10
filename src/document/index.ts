@@ -1,9 +1,5 @@
 export { Database } from "./database.js";
-export {
-  FragmentDraft,
-  Fragments,
-  SerialFragments,
-} from "./fragments.js";
+export { FragmentDraft, Fragments, SerialFragments } from "./fragments.js";
 export type {
   ReadonlyFragments,
   ReadonlySerialFragments,

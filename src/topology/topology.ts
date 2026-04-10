@@ -20,7 +20,11 @@ export class Topology {
   readonly #groupTokensCount: number;
   readonly #serialId: number;
 
-  public constructor(document: Document, serialId: number, groupTokensCount: number) {
+  public constructor(
+    document: Document,
+    serialId: number,
+    groupTokensCount: number,
+  ) {
     this.#document = document;
     this.#groupTokensCount = groupTokensCount;
     this.#serialId = serialId;

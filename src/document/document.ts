@@ -159,8 +159,12 @@ export class DirectoryDocument implements Document {
     } satisfies DocumentSessionState;
 
     try {
-      return await this.#database.transaction(async () =>
-        await this.#sessionScope.run(session, async () => await operation(this)),
+      return await this.#database.transaction(
+        async () =>
+          await this.#sessionScope.run(
+            session,
+            async () => await operation(this),
+          ),
       );
     } catch (error) {
       await this.#rollbackCreatedFiles(session);
