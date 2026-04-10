@@ -315,8 +315,6 @@ export class SerialGeneration {
   }
 }
 
-export { SerialGeneration as SerialHub };
-
 export class Serial {
   readonly #id: number;
   readonly #summary: string;

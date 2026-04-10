@@ -37,7 +37,7 @@ export interface SpineDigestLLMOptions {
 
 export interface SpineDigestAppOptions {
   readonly debugLogDirPath?: string;
-  readonly llm: LanguageModel | SpineDigestLLMOptions;
+  readonly llm?: LanguageModel | SpineDigestLLMOptions;
 }
 
 export type SpineDigestOpenSessionOptions = DigestDocumentSessionOptions;
@@ -59,38 +59,17 @@ export interface SpineDigestTextSessionOptions extends DigestDocumentSessionOpti
 
 export class SpineDigestApp {
   readonly #debugLogDirPath: string | undefined;
-  readonly #llm: LLM<string>;
+  readonly #llm: LLM<string> | undefined;
 
   public constructor(options: SpineDigestAppOptions) {
     this.#debugLogDirPath = options.debugLogDirPath;
-    const llmOptions = normalizeLLMOptions(options.llm);
-
-    this.#llm = new LLM({
-      dataDirPath: DATA_DIR_PATH,
-      model: llmOptions.model,
-      ...(llmOptions.cacheDirPath === undefined
-        ? {}
-        : { cacheDirPath: llmOptions.cacheDirPath }),
-      ...(llmOptions.concurrent === undefined
-        ? {}
-        : { concurrent: llmOptions.concurrent }),
-      ...(llmOptions.logDirPath === undefined
-        ? {}
-        : { logDirPath: llmOptions.logDirPath }),
-      ...(llmOptions.retryIntervalSeconds === undefined
-        ? {}
-        : { retryIntervalSeconds: llmOptions.retryIntervalSeconds }),
-      ...(llmOptions.retryTimes === undefined
-        ? {}
-        : { retryTimes: llmOptions.retryTimes }),
-      ...(llmOptions.temperature === undefined
-        ? {}
-        : { temperature: llmOptions.temperature }),
-      ...(llmOptions.timeout === undefined
-        ? {}
-        : { timeout: llmOptions.timeout }),
-      ...(llmOptions.topP === undefined ? {} : { topP: llmOptions.topP }),
-    });
+    this.#llm =
+      options.llm === undefined
+        ? undefined
+        : new LLM({
+            dataDirPath: DATA_DIR_PATH,
+            ...normalizeLLMOptions(options.llm),
+          });
   }
 
   public async digestEpubSession<T>(
@@ -120,7 +99,7 @@ export class SpineDigestApp {
     return await digestTextSession(
       {
         extractionPrompt: options.extractionPrompt,
-        llm: this.#llm,
+        llm: this.#requireLLM(),
         stream: options.stream,
         ...(this.#debugLogDirPath === undefined
           ? {}
@@ -170,7 +149,7 @@ export class SpineDigestApp {
   ): DigestSourceSessionOptions {
     return {
       extractionPrompt: options.extractionPrompt,
-      llm: this.#llm,
+      llm: this.#requireLLM(),
       path: options.path,
       ...(this.#debugLogDirPath === undefined
         ? {}
@@ -183,10 +162,20 @@ export class SpineDigestApp {
         : { userLanguage: options.userLanguage }),
     };
   }
+
+  #requireLLM(): LLM<string> {
+    if (this.#llm === undefined) {
+      throw new Error(
+        "LLM is required for digest operations. Configure `llm` when constructing SpineDigestApp.",
+      );
+    }
+
+    return this.#llm;
+  }
 }
 
 function normalizeLLMOptions(
-  llm: SpineDigestAppOptions["llm"],
+  llm: NonNullable<SpineDigestAppOptions["llm"]>,
 ): SpineDigestLLMOptions {
   if (isSpineDigestLLMOptions(llm)) {
     return llm;
@@ -196,7 +185,7 @@ function normalizeLLMOptions(
 }
 
 function isSpineDigestLLMOptions(
-  llm: SpineDigestAppOptions["llm"],
+  llm: NonNullable<SpineDigestAppOptions["llm"]>,
 ): llm is SpineDigestLLMOptions {
   return typeof llm === "object" && llm !== null && "model" in llm;
 }
