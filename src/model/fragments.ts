@@ -12,11 +12,26 @@ interface FragmentFileContent {
   readonly sentences: readonly SentenceRecord[];
 }
 
-export class Fragments {
-  readonly #workspacePath: string;
+export interface ReadonlyFragments {
+  getSerial(serialId: number): ReadonlySerialFragments;
+  getSentence(sentenceId: SentenceId): Promise<string>;
+  getSummary(serialId: number, fragmentId: number): Promise<string>;
+  getTokenCount(serialId: number, fragmentId: number): Promise<number>;
+  readonly path: string;
+}
 
-  public constructor(workspacePath: string) {
-    this.#workspacePath = resolve(workspacePath);
+export interface ReadonlySerialFragments {
+  getFragment(fragmentId: number): Promise<FragmentRecord>;
+  listFragmentIds(): Promise<number[]>;
+  readonly serialId: number;
+  readonly path: string;
+}
+
+export class Fragments implements ReadonlyFragments {
+  readonly #documentPath: string;
+
+  public constructor(documentPath: string) {
+    this.#documentPath = resolve(documentPath);
   }
 
   public async ensureCreated(): Promise<void> {
@@ -24,7 +39,7 @@ export class Fragments {
   }
 
   public getSerial(serialId: number): SerialFragments {
-    return new SerialFragments(this.#workspacePath, serialId);
+    return new SerialFragments(this.#documentPath, serialId);
   }
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
@@ -59,18 +74,18 @@ export class Fragments {
   }
 
   public get path(): string {
-    return join(this.#workspacePath, "fragments");
+    return join(this.#documentPath, "fragments");
   }
 }
 
-export class SerialFragments {
+export class SerialFragments implements ReadonlySerialFragments {
   readonly #serialId: number;
   #draftOpen = false;
+  readonly #documentPath: string;
   #nextFragmentId: number | undefined;
-  readonly #workspacePath: string;
 
-  public constructor(workspacePath: string, serialId: number) {
-    this.#workspacePath = resolve(workspacePath);
+  public constructor(documentPath: string, serialId: number) {
+    this.#documentPath = resolve(documentPath);
     this.#serialId = serialId;
   }
 
@@ -129,7 +144,7 @@ export class SerialFragments {
 
   public get path(): string {
     return join(
-      this.#workspacePath,
+      this.#documentPath,
       "fragments",
       `${SERIAL_DIRECTORY_PREFIX}${this.#serialId}`,
     );

@@ -1,9 +1,15 @@
 export { Database } from "./database.js";
 export {
-  SerialFragments,
   FragmentDraft,
-  Fragments as WorkspaceFragments,
+  Fragments,
+  SerialFragments,
 } from "./fragments.js";
+export type {
+  ReadonlyFragments,
+  ReadonlySerialFragments,
+} from "./fragments.js";
+export { DirectoryDocument } from "./document.js";
+export type { Document, ReadonlyDocument } from "./document.js";
 export { SCHEMA_SQL } from "./schema.js";
 export {
   ChunkStore,
@@ -13,6 +19,15 @@ export {
   SnakeChunkStore,
   SnakeEdgeStore,
   SnakeStore,
+} from "./stores.js";
+export type {
+  ReadonlyChunkStore,
+  ReadonlyFragmentGroupStore,
+  ReadonlyKnowledgeEdgeStore,
+  ReadonlySerialStore,
+  ReadonlySnakeChunkStore,
+  ReadonlySnakeEdgeStore,
+  ReadonlySnakeStore,
 } from "./stores.js";
 export {
   ChunkImportance,
@@ -35,4 +50,3 @@ export type {
   SnakeEdgeRecord,
   SnakeRecord,
 } from "./types.js";
-export { Workspace } from "./workspace.js";

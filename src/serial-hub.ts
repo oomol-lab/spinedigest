@@ -3,24 +3,25 @@ import type { Language } from "./language.js";
 import type { LLM } from "./llm/index.js";
 import type {
   ChunkRecord,
+  ChunkStore,
+  Document,
   FragmentGroupRecord,
+  FragmentGroupStore,
   KnowledgeEdgeRecord,
+  ReadonlyChunkStore,
+  ReadonlyDocument,
+  ReadonlyFragmentGroupStore,
+  ReadonlyKnowledgeEdgeStore,
+  ReadonlySnakeChunkStore,
+  ReadonlySnakeEdgeStore,
+  ReadonlySnakeStore,
+  SerialFragments,
   SerialRecord,
+  SerialStore,
   SnakeChunkRecord,
   SnakeEdgeRecord,
   SnakeRecord,
-} from "./model/types.js";
-import type { SerialFragments } from "./model/fragments.js";
-import type {
-  ChunkStore,
-  FragmentGroupStore,
-  KnowledgeEdgeStore,
-  SerialStore,
-  SnakeChunkStore,
-  SnakeEdgeStore,
-  SnakeStore,
-} from "./model/stores.js";
-import type { Workspace } from "./model/workspace.js";
+} from "./model/index.js";
 import { Reader } from "./reader/index.js";
 import type {
   ReaderChunk,
@@ -58,10 +59,11 @@ export interface CreateSerialOptions {
 }
 
 export interface SerialHubOptions {
+  readonly document?: Document;
   readonly llm: LLM<string>;
   readonly logDirPath?: string;
   readonly segmenter?: ReaderSegmenter;
-  readonly workspace: Workspace;
+  readonly workspace?: Document;
 }
 
 export class SerialHub {
@@ -73,19 +75,21 @@ export class SerialHub {
   readonly #logDirPath: string | undefined;
   readonly #serials: SerialStore;
   readonly #segmenter: ReaderSegmenter | undefined;
-  readonly #workspace: Workspace;
+  readonly #document: Document;
   readonly #writeSemaphore = new AsyncSemaphore(1);
 
   #nextChunkId: number | undefined;
 
   public constructor(options: SerialHubOptions) {
-    this.#chunks = options.workspace.chunks;
-    this.#fragmentGroups = options.workspace.fragmentGroups;
+    const document = resolveDocument(options);
+
+    this.#chunks = document.chunks;
+    this.#fragmentGroups = document.fragmentGroups;
     this.#llm = options.llm;
     this.#logDirPath = options.logDirPath;
-    this.#serials = options.workspace.serials;
+    this.#serials = document.serials;
     this.#segmenter = options.segmenter;
-    this.#workspace = options.workspace;
+    this.#document = document;
   }
 
   public async create(
@@ -130,7 +134,7 @@ export class SerialHub {
     if (!record.topologyReady) {
       throw new Error(`Serial ${serialId} is not ready for summary`);
     }
-    const existingSummary = await this.#workspace.readSummary(serialId);
+    const existingSummary = await this.#document.readSummary(serialId);
 
     if (existingSummary !== undefined) {
       return existingSummary;
@@ -154,7 +158,7 @@ export class SerialHub {
     const summary = summaryParts.join("\n\n");
 
     await this.#writeSemaphore.use(
-      async () => await this.#workspace.writeSummary(serialId, summary),
+      async () => await this.#document.writeSummary(serialId, summary),
     );
     return summary;
   }
@@ -177,7 +181,7 @@ export class SerialHub {
         choice: SERIAL_HUB_SCOPES.readerChoice,
         extraction: SERIAL_HUB_SCOPES.readerExtraction,
       },
-      sentenceTextSource: this.#workspace,
+      sentenceTextSource: this.#document,
       ...(this.#segmenter === undefined
         ? {}
         : {
@@ -190,7 +194,7 @@ export class SerialHub {
           }),
     });
     const topology = new Topology(
-      this.#workspace,
+      this.#document,
       serialId,
       DEFAULT_GROUP_TOKENS_COUNT,
     );
@@ -258,11 +262,11 @@ export class SerialHub {
   }
 
   #getTopology(serialId: number): SerialTopology {
-    return new SerialTopology(this.#workspace, serialId);
+    return new SerialTopology(this.#document, serialId);
   }
 
   #getSerialFragments(serialId: number): SerialFragments {
-    return this.#workspace.getSerialFragments(serialId);
+    return this.#document.getSerialFragments(serialId);
   }
 
   #createEditorOptions(input: {
@@ -282,7 +286,7 @@ export class SerialHub {
         reviewGuide: SERIAL_HUB_SCOPES.editorReviewGuide,
       },
       serialId: input.serialId,
-      workspace: this.#workspace,
+      document: this.#document,
       ...(this.#logDirPath === undefined
         ? {}
         : {
@@ -365,22 +369,22 @@ export class Serial {
 }
 
 export class SerialTopology {
-  readonly #chunks: ChunkStore;
-  readonly #fragmentGroups: FragmentGroupStore;
-  readonly #knowledgeEdges: KnowledgeEdgeStore;
+  readonly #chunks: ReadonlyChunkStore;
+  readonly #fragmentGroups: ReadonlyFragmentGroupStore;
+  readonly #knowledgeEdges: ReadonlyKnowledgeEdgeStore;
   readonly #serialId: number;
-  readonly #snakeChunks: SnakeChunkStore;
-  readonly #snakeEdges: SnakeEdgeStore;
-  readonly #snakes: SnakeStore;
+  readonly #snakeChunks: ReadonlySnakeChunkStore;
+  readonly #snakeEdges: ReadonlySnakeEdgeStore;
+  readonly #snakes: ReadonlySnakeStore;
 
-  public constructor(workspace: Workspace, serialId: number) {
-    this.#chunks = workspace.chunks;
-    this.#fragmentGroups = workspace.fragmentGroups;
-    this.#knowledgeEdges = workspace.knowledgeEdges;
+  public constructor(document: ReadonlyDocument, serialId: number) {
+    this.#chunks = document.chunks;
+    this.#fragmentGroups = document.fragmentGroups;
+    this.#knowledgeEdges = document.knowledgeEdges;
     this.#serialId = serialId;
-    this.#snakeChunks = workspace.snakeChunks;
-    this.#snakeEdges = workspace.snakeEdges;
-    this.#snakes = workspace.snakes;
+    this.#snakeChunks = document.snakeChunks;
+    this.#snakeEdges = document.snakeEdges;
+    this.#snakes = document.snakes;
   }
 
   public async listChunks(): Promise<readonly ChunkRecord[]> {
@@ -436,6 +440,16 @@ function compareNumber(left: number, right: number): number {
 
 function createNumberListRecord(): Record<string, number[] | undefined> {
   return Object.create(null) as Record<string, number[] | undefined>;
+}
+
+function resolveDocument(options: SerialHubOptions): Document {
+  const document = options.document ?? options.workspace;
+
+  if (document === undefined) {
+    throw new Error("SerialHub requires a document");
+  }
+
+  return document;
 }
 
 function saveDelta(

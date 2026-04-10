@@ -3,29 +3,69 @@ import { join, resolve } from "path";
 
 import { isNodeError } from "../utils/node-error.js";
 import { Database } from "./database.js";
-import { Fragments } from "./fragments.js";
-import type { SerialFragments } from "./fragments.js";
+import {
+  Fragments,
+  type ReadonlySerialFragments,
+  type SerialFragments,
+} from "./fragments.js";
 import { SCHEMA_SQL } from "./schema.js";
-import type { SentenceId } from "./types.js";
 import {
   ChunkStore,
   FragmentGroupStore,
   KnowledgeEdgeStore,
+  type ReadonlyChunkStore,
+  type ReadonlyFragmentGroupStore,
+  type ReadonlyKnowledgeEdgeStore,
+  type ReadonlySerialStore,
+  type ReadonlySnakeChunkStore,
+  type ReadonlySnakeEdgeStore,
+  type ReadonlySnakeStore,
   SerialStore,
   SnakeChunkStore,
   SnakeEdgeStore,
   SnakeStore,
 } from "./stores.js";
+import type { SentenceId } from "./types.js";
 
-export class Workspace {
-  public readonly serials: SerialStore;
+export interface ReadonlyDocument {
+  readonly chunks: ReadonlyChunkStore;
+  readonly fragmentGroups: ReadonlyFragmentGroupStore;
+  readonly knowledgeEdges: ReadonlyKnowledgeEdgeStore;
+  readonly serials: ReadonlySerialStore;
+  readonly snakeChunks: ReadonlySnakeChunkStore;
+  readonly snakeEdges: ReadonlySnakeEdgeStore;
+  readonly snakes: ReadonlySnakeStore;
+
+  getSentence(sentenceId: SentenceId): Promise<string>;
+  getSerialFragments(serialId: number): ReadonlySerialFragments;
+  readSummary(serialId: number): Promise<string | undefined>;
+  release(): Promise<void>;
+}
+
+export interface Document extends ReadonlyDocument {
+  readonly chunks: ChunkStore;
+  readonly fragmentGroups: FragmentGroupStore;
+  readonly knowledgeEdges: KnowledgeEdgeStore;
+  readonly serials: SerialStore;
+  readonly snakeChunks: SnakeChunkStore;
+  readonly snakeEdges: SnakeEdgeStore;
+  readonly snakes: SnakeStore;
+
+  getSerialFragments(serialId: number): SerialFragments;
+  createSerial(): Promise<number>;
+  flush(): Promise<void>;
+  writeSummary(serialId: number, summary: string): Promise<void>;
+}
+
+export class DirectoryDocument implements Document {
   public readonly chunks: ChunkStore;
   public readonly fragmentGroups: FragmentGroupStore;
   public readonly knowledgeEdges: KnowledgeEdgeStore;
+  public readonly path: string;
+  public readonly serials: SerialStore;
   public readonly snakeChunks: SnakeChunkStore;
   public readonly snakeEdges: SnakeEdgeStore;
   public readonly snakes: SnakeStore;
-  public readonly path: string;
 
   readonly #database: Database;
   readonly #fragments: Fragments;
@@ -33,28 +73,28 @@ export class Workspace {
   public constructor(database: Database, fragments: Fragments, path: string) {
     this.#database = database;
     this.#fragments = fragments;
-    this.serials = new SerialStore(database);
     this.chunks = new ChunkStore(database);
     this.fragmentGroups = new FragmentGroupStore(database);
     this.knowledgeEdges = new KnowledgeEdgeStore(database);
+    this.path = path;
+    this.serials = new SerialStore(database);
     this.snakeChunks = new SnakeChunkStore(database);
     this.snakeEdges = new SnakeEdgeStore(database);
     this.snakes = new SnakeStore(database);
-    this.path = path;
   }
 
-  public static async open(workspacePath: string): Promise<Workspace> {
-    const resolvedWorkspacePath = resolve(workspacePath);
-    const databasePath = join(resolvedWorkspacePath, "database.db");
-    const fragments = new Fragments(resolvedWorkspacePath);
+  public static async open(documentPath: string): Promise<DirectoryDocument> {
+    const resolvedDocumentPath = resolve(documentPath);
+    const databasePath = join(resolvedDocumentPath, "database.db");
+    const fragments = new Fragments(resolvedDocumentPath);
 
-    await mkdir(resolvedWorkspacePath, { recursive: true });
+    await mkdir(resolvedDocumentPath, { recursive: true });
     await fragments.ensureCreated();
 
-    return new Workspace(
+    return new DirectoryDocument(
       await Database.open(databasePath, SCHEMA_SQL),
       fragments,
-      resolvedWorkspacePath,
+      resolvedDocumentPath,
     );
   }
 
@@ -91,9 +131,13 @@ export class Workspace {
     await this.#database.flush();
   }
 
-  public async close(): Promise<void> {
+  public async release(): Promise<void> {
     await this.flush();
     await this.#database.close();
+  }
+
+  public async close(): Promise<void> {
+    await this.release();
   }
 
   #getSummariesPath(): string {

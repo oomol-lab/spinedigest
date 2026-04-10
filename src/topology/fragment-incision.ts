@@ -1,7 +1,7 @@
 import type {
   ChunkRecord,
   KnowledgeEdgeRecord,
-  SerialFragments,
+  ReadonlySerialFragments,
 } from "../model/index.js";
 
 export interface FragmentInfo {
@@ -14,7 +14,7 @@ export interface FragmentInfo {
 export async function computeNormalizedFragmentIncisions(input: {
   chunks: readonly ChunkRecord[];
   edges: readonly KnowledgeEdgeRecord[];
-  fragments: SerialFragments;
+  fragments: ReadonlySerialFragments;
 }): Promise<FragmentInfo[]> {
   const fragmentTokenCounts = await loadFragmentTokenCounts(input.fragments);
 
@@ -28,7 +28,7 @@ export async function computeNormalizedFragmentIncisions(input: {
 }
 
 async function loadFragmentTokenCounts(
-  fragments: SerialFragments,
+  fragments: ReadonlySerialFragments,
 ): Promise<Readonly<Record<string, number>>> {
   const tokenCounts = createNumberRecord();
   const fragmentIds = await fragments.listFragmentIds();

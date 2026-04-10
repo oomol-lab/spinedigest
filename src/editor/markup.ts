@@ -3,12 +3,12 @@ import {
   type ChunkImportance,
   type ChunkRecord,
   type FragmentRecord,
-  type SerialFragments,
+  type ReadonlySerialFragments,
 } from "../model/index.js";
 
 export async function formatClueAsBook(input: {
   chunks: readonly ChunkRecord[];
-  serialFragments: SerialFragments;
+  serialFragments: ReadonlySerialFragments;
   fullMarkup?: boolean;
   wrapHighRetention?: boolean;
 }): Promise<string> {
@@ -32,7 +32,7 @@ export async function formatClueAsBook(input: {
 export async function formatChunksAsBook(input: {
   chunks: readonly ChunkRecord[];
   fragmentIds: readonly number[];
-  serialFragments: SerialFragments;
+  serialFragments: ReadonlySerialFragments;
   fullMarkup?: boolean;
   wrapHighRetention?: boolean;
 }): Promise<string> {
@@ -250,7 +250,7 @@ function listFragmentIdsFromChunks(chunks: readonly ChunkRecord[]): number[] {
 
 async function loadFragments(
   fragmentIds: readonly number[],
-  serialFragments: SerialFragments,
+  serialFragments: ReadonlySerialFragments,
 ): Promise<Record<string, FragmentRecord | undefined>> {
   const fragments = Object.create(null) as Record<
     string,
