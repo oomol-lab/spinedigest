@@ -1,5 +1,5 @@
 import type { LLMessage, LLM } from "../llm/index.js";
-import { TEXT_COMPRESSOR_PROMPT_PATH } from "./prompt-paths.js";
+import { TEXT_COMPRESSOR_PROMPT_TEMPLATE } from "./prompt-templates.js";
 
 export class CompressionRequester<S extends string> {
   readonly #compressionRatio: number;
@@ -28,7 +28,7 @@ export class CompressionRequester<S extends string> {
     const acceptableMin = Math.floor(input.targetLength * 0.85);
     const acceptableMax = Math.floor(input.targetLength * 1.15);
     const systemPrompt = this.#llm.loadSystemPrompt(
-      TEXT_COMPRESSOR_PROMPT_PATH,
+      TEXT_COMPRESSOR_PROMPT_TEMPLATE,
       {
         acceptable_max: acceptableMax,
         acceptable_min: acceptableMin,

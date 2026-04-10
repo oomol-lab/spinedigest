@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, statSync } from "fs";
-import { basename, relative, resolve, sep } from "path";
+import { resolve } from "path";
 import { setTimeout as sleep } from "timers/promises";
 
 import {
@@ -40,7 +40,6 @@ type LLMRequestSessionInput<S extends string> = Omit<
 
 export class LLM<S extends string> {
   readonly #cache: LLMCache | undefined;
-  readonly #dataDirPath: string;
   readonly #logDirPath: string | undefined;
   readonly #model: LLMModel;
   readonly #modelProvider: string | undefined;
@@ -84,7 +83,6 @@ export class LLM<S extends string> {
       ...(sampling === undefined ? {} : { sampling }),
     });
     this.#cache = createCache(options.cacheDirPath);
-    this.#dataDirPath = resolve(options.dataDirPath);
     this.#logDirPath = ensureDirectoryPath(options.logDirPath);
     this.#model = options.model;
     this.#modelProvider = modelInfo.provider;
@@ -94,7 +92,7 @@ export class LLM<S extends string> {
     this.#retryIntervalSeconds = options.retryIntervalSeconds ?? 6;
     this.#retryTimes = options.retryTimes ?? 5;
     this.#sampling = sampling;
-    this.#templateEnvironment = createEnv(this.#dataDirPath);
+    this.#templateEnvironment = createEnv(options.dataDirPath);
     this.#temperature = temperature;
     this.#timeoutMs = timeoutMs;
     this.#topP = topP;
@@ -137,12 +135,9 @@ export class LLM<S extends string> {
   }
 
   public loadSystemPrompt(
-    promptTemplatePath: string,
+    templateName: string,
     templateContext: Record<string, unknown> = {},
   ): string {
-    const resolvedPromptPath = resolve(promptTemplatePath);
-    const templateName = this.#resolveTemplateName(resolvedPromptPath);
-
     return this.#templateEnvironment.render(templateName, templateContext);
   }
 
@@ -296,22 +291,6 @@ export class LLM<S extends string> {
     }
 
     return response;
-  }
-
-  #resolveTemplateName(promptTemplatePath: string): string {
-    const relativePath = relative(this.#dataDirPath, promptTemplatePath);
-    const rootPrefix = this.#dataDirPath.endsWith(sep)
-      ? this.#dataDirPath
-      : `${this.#dataDirPath}${sep}`;
-
-    if (
-      promptTemplatePath === this.#dataDirPath ||
-      promptTemplatePath.startsWith(rootPrefix)
-    ) {
-      return relativePath.split(sep).join("/");
-    }
-
-    return basename(promptTemplatePath);
   }
 }
 

@@ -1,5 +1,5 @@
 import type { LLM } from "../llm/index.js";
-import { REVISION_FEEDBACK_PROMPT_PATH } from "./prompt-paths.js";
+import { REVISION_FEEDBACK_PROMPT_TEMPLATE } from "./prompt-templates.js";
 import type { CompressionVersion, ReviewIssue, ReviewResult } from "./types.js";
 import { ReviewSeverity } from "./types.js";
 
@@ -56,7 +56,7 @@ export function createRevisionFeedback<S extends string>(input: {
     );
   }
 
-  return input.llm.loadSystemPrompt(REVISION_FEEDBACK_PROMPT_PATH, {
+  return input.llm.loadSystemPrompt(REVISION_FEEDBACK_PROMPT_TEMPLATE, {
     issues_description: issueLines.join("\n"),
   });
 }
