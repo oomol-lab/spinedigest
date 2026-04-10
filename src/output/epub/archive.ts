@@ -8,7 +8,8 @@ import { ZipFile } from "yazl";
 import type { BookMeta, SourceAsset } from "../../source/index.js";
 
 import type { EpubBook } from "./model.js";
-import { escapeXml, normalizeLanguage } from "./shared.js";
+import { normalizeLanguage } from "./shared.js";
+import { renderCoverPage } from "./templates.js";
 
 const EPUB_CONTAINER_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -72,20 +73,11 @@ function createCoverPage(
 ): string {
   const title = meta.title?.trim() || "Untitled";
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="${escapeXml(language)}" lang="${escapeXml(language)}">
-  <head>
-    <title>${escapeXml(title)}</title>
-    <style>
-      body { margin: 0; padding: 0; }
-      img { display: block; height: auto; width: 100%; }
-    </style>
-  </head>
-  <body>
-    <img src="../${escapeXml(coverImageHref)}" alt="${escapeXml(title)}"/>
-  </body>
-</html>
-`;
+  return renderCoverPage({
+    coverImageHref,
+    language,
+    title,
+  });
 }
 
 function normalizeCoverExtension(cover: SourceAsset): string {
