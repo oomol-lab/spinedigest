@@ -1,0 +1,166 @@
+import { describe, expect, it } from "vitest";
+
+import type {
+  ChunkRecord,
+  KnowledgeEdgeRecord,
+  ReadonlySerialFragments,
+} from "../../src/document/index.js";
+import { computeNormalizedFragmentIncisions } from "../../src/topology/fragment-incision.js";
+
+describe("topology/fragment-incision", () => {
+  it("returns zero incisions when fragments have no external edges", async () => {
+    const result = await computeNormalizedFragmentIncisions({
+      chunks: [
+        createChunk(1, 1, 2),
+        createChunk(2, 2, 3),
+      ],
+      edges: [],
+      fragments: createSerialFragments({
+        1: 10,
+        2: 20,
+      }),
+    });
+
+    expect(result).toStrictEqual([
+      {
+        endIncision: 0,
+        fragmentId: 1,
+        startIncision: 0,
+        tokenCount: 10,
+      },
+      {
+        endIncision: 0,
+        fragmentId: 2,
+        startIncision: 0,
+        tokenCount: 20,
+      },
+    ]);
+  });
+
+  it("caps uniformly strong cross-fragment incisions to the maximum score", async () => {
+    const result = await computeNormalizedFragmentIncisions({
+      chunks: [
+        createChunk(1, 1, 5),
+        createChunk(2, 2, 5),
+      ],
+      edges: [
+        {
+          fromId: 1,
+          toId: 2,
+          weight: 2,
+        },
+      ] satisfies KnowledgeEdgeRecord[],
+      fragments: createSerialFragments({
+        1: 10,
+        2: 20,
+      }),
+    });
+
+    expect(result).toStrictEqual([
+      {
+        endIncision: 10,
+        fragmentId: 1,
+        startIncision: 0,
+        tokenCount: 10,
+      },
+      {
+        endIncision: 0,
+        fragmentId: 2,
+        startIncision: 10,
+        tokenCount: 20,
+      },
+    ]);
+  });
+
+  it("normalizes mixed incision strengths across multiple fragments", async () => {
+    const result = await computeNormalizedFragmentIncisions({
+      chunks: [
+        createChunk(1, 1, 4),
+        createChunk(2, 2, 6),
+        createChunk(3, 3, 5),
+      ],
+      edges: [
+        {
+          fromId: 1,
+          toId: 2,
+          weight: 2,
+        },
+        {
+          fromId: 2,
+          toId: 3,
+          weight: 8,
+        },
+      ] satisfies KnowledgeEdgeRecord[],
+      fragments: createSerialFragments({
+        1: 10,
+        2: 20,
+        3: 30,
+      }),
+    });
+
+    expect(result).toStrictEqual([
+      {
+        endIncision: 9,
+        fragmentId: 1,
+        startIncision: 0,
+        tokenCount: 10,
+      },
+      {
+        endIncision: 10,
+        fragmentId: 2,
+        startIncision: 1,
+        tokenCount: 20,
+      },
+      {
+        endIncision: 0,
+        fragmentId: 3,
+        startIncision: 10,
+        tokenCount: 30,
+      },
+    ]);
+  });
+});
+
+function createChunk(
+  id: number,
+  fragmentId: number,
+  weight: number,
+): ChunkRecord {
+  return {
+    content: `Chunk ${id}`,
+    generation: 0,
+    id,
+    label: `Chunk ${id}`,
+    sentenceId: [1, fragmentId, 0],
+    sentenceIds: [[1, fragmentId, 0]],
+    tokens: 5,
+    weight,
+  };
+}
+
+function createSerialFragments(
+  tokenCountsByFragmentId: Record<number, number>,
+): ReadonlySerialFragments {
+  return {
+    getFragment: (fragmentId: number) =>
+      Promise.resolve({
+        fragmentId,
+        sentences: [
+          {
+            text: `Fragment ${fragmentId}`,
+            tokenCount: tokenCountsByFragmentId[fragmentId] ?? 0,
+          },
+        ],
+        serialId: 1,
+        summary: "",
+      }),
+    listFragmentIds: () =>
+      Promise.resolve(
+        Object.keys(tokenCountsByFragmentId).map((fragmentId) =>
+          Number(fragmentId),
+        ),
+      ),
+    path: "/tmp/fragments",
+    serialId: 1,
+  };
+}
