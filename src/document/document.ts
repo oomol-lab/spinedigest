@@ -96,22 +96,26 @@ export class DirectoryDocument implements Document {
   public static async open(documentPath: string): Promise<DirectoryDocument> {
     const resolvedDocumentPath = resolve(documentPath);
     const databasePath = join(resolvedDocumentPath, "database.db");
-    const fragments = new Fragments(resolvedDocumentPath);
+    const writer = {
+      write: async (path: string, content: string): Promise<void> => {
+        await writeFile(path, content, "utf8");
+      },
+    };
+    const fragments = new Fragments(resolvedDocumentPath, writer);
 
     await mkdir(resolvedDocumentPath, { recursive: true });
     await fragments.ensureCreated();
 
     const database = await Database.open(databasePath, SCHEMA_SQL);
-    let document: DirectoryDocument;
-
-    document = new DirectoryDocument(
+    const document = new DirectoryDocument(
       database,
-      new Fragments(resolvedDocumentPath, {
-        write: async (path, content) =>
-          await document.#writeNewFile(path, content),
-      }),
+      fragments,
       resolvedDocumentPath,
     );
+
+    writer.write = async (path: string, content: string): Promise<void> => {
+      await document.#writeNewFile(path, content);
+    };
 
     return document;
   }
@@ -123,7 +127,7 @@ export class DirectoryDocument implements Document {
     const document = await DirectoryDocument.open(documentPath);
 
     try {
-      return await document.openSession(operation);
+      return await document.openSession(async () => await operation(document));
     } finally {
       await document.release();
     }
