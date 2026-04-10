@@ -1,6 +1,3 @@
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
-
 import { z, type ZodType } from "zod";
 
 import {
@@ -20,6 +17,12 @@ import {
   userFocusedResponseSchema,
 } from "./parser.js";
 import { needsTranslation } from "./language.js";
+import {
+  BOOK_COHERENCE_PROMPT_TEMPLATE,
+  EVIDENCE_CHOICE_PROMPT_TEMPLATE,
+  TRANSLATE_CHUNKS_PROMPT_TEMPLATE,
+  USER_FOCUSED_PROMPT_TEMPLATE,
+} from "./prompt-templates.js";
 import type {
   ChunkBatch,
   ChunkBatchOptions,
@@ -51,32 +54,6 @@ interface ExtractChunksOutput<
   readonly parser: ChunkBatchParser<TData>;
   readonly result: ExtractChunksResult;
 }
-
-const MODULE_DIR_PATH = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR_PATH = resolve(
-  MODULE_DIR_PATH,
-  "..",
-  "..",
-  "..",
-  "data",
-  "topologization",
-);
-const USER_FOCUSED_PROMPT_PATH = resolve(
-  DATA_DIR_PATH,
-  "user_focused_extraction.jinja",
-);
-const BOOK_COHERENCE_PROMPT_PATH = resolve(
-  DATA_DIR_PATH,
-  "book_coherence_extraction.jinja",
-);
-const EVIDENCE_CHOICE_PROMPT_PATH = resolve(
-  DATA_DIR_PATH,
-  "evidence_choice.jinja",
-);
-const TRANSLATE_CHUNKS_PROMPT_PATH = resolve(
-  DATA_DIR_PATH,
-  "translate_chunks.jinja",
-);
 const TRANSLATED_CHUNK_SCHEMA = z.object({
   content: z.string(),
   id: z.number(),
@@ -104,7 +81,7 @@ export class ChunkExtractor<S extends string> {
     input: ExtractUserFocusedInput,
   ): Promise<ExtractUserFocusedResult> {
     const messages = this.#buildMessages({
-      promptTemplatePath: USER_FOCUSED_PROMPT_PATH,
+      promptTemplateName: USER_FOCUSED_PROMPT_TEMPLATE,
       templateContext: {
         extraction_guidance: this.#extractionGuidance,
         user_language: this.#userLanguage,
@@ -139,7 +116,7 @@ export class ChunkExtractor<S extends string> {
     input: ExtractBookCoherenceInput,
   ): Promise<ChunkBatch> {
     const messages = this.#buildMessages({
-      promptTemplatePath: BOOK_COHERENCE_PROMPT_PATH,
+      promptTemplateName: BOOK_COHERENCE_PROMPT_TEMPLATE,
       templateContext: {
         user_focused_chunks: input.userFocusedChunks.map((chunk) => ({
           content: chunk.content,
@@ -174,14 +151,14 @@ export class ChunkExtractor<S extends string> {
   }
 
   #buildMessages(input: {
-    promptTemplatePath: string;
+    promptTemplateName: string;
     templateContext: Record<string, unknown>;
     text: string;
   }): LLMessage[] {
     return [
       {
         content: this.#llm.loadSystemPrompt(
-          input.promptTemplatePath,
+          input.promptTemplateName,
           input.templateContext,
         ),
         role: "system",
@@ -204,7 +181,7 @@ export class ChunkExtractor<S extends string> {
           sentences: input.sentences,
           visibleChunkIds: input.visibleChunkIds,
           choiceSystemPrompt: this.#llm.loadSystemPrompt(
-            EVIDENCE_CHOICE_PROMPT_PATH,
+            EVIDENCE_CHOICE_PROMPT_TEMPLATE,
             {
               extraction_guidance: this.#extractionGuidance,
               metadata_field: input.metadataField,
@@ -341,9 +318,12 @@ export class ChunkExtractor<S extends string> {
     return await requestGuaranteedJson({
       messages: [
         {
-          content: this.#llm.loadSystemPrompt(TRANSLATE_CHUNKS_PROMPT_PATH, {
-            user_language: userLanguage,
-          }),
+          content: this.#llm.loadSystemPrompt(
+            TRANSLATE_CHUNKS_PROMPT_TEMPLATE,
+            {
+              user_language: userLanguage,
+            },
+          ),
           role: "system",
         },
         {

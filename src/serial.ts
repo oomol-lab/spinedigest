@@ -95,8 +95,34 @@ export class SerialGeneration {
     stream: ReaderTextStream,
     options: GenerateSerialOptions,
   ): Promise<Serial> {
-    const serialId = await this.#createSerialId();
+    return await this.#generatePrepared(
+      await this.#createSerialId(),
+      stream,
+      options,
+    );
+  }
 
+  public async create(
+    stream: ReaderTextStream,
+    options: GenerateSerialOptions,
+  ): Promise<Serial> {
+    return await this.generate(stream, options);
+  }
+
+  public async generateInto(
+    serialId: number,
+    stream: ReaderTextStream,
+    options: GenerateSerialOptions,
+  ): Promise<Serial> {
+    await this.#createExplicitSerialId(serialId);
+    return await this.#generatePrepared(serialId, stream, options);
+  }
+
+  async #generatePrepared(
+    serialId: number,
+    stream: ReaderTextStream,
+    options: GenerateSerialOptions,
+  ): Promise<Serial> {
     await this.#buildTopology(
       serialId,
       stream,
@@ -107,13 +133,6 @@ export class SerialGeneration {
     const summary = await this.#buildSummary(serialId, options.userLanguage);
 
     return new Serial(this.#document, serialId, summary);
-  }
-
-  public async create(
-    stream: ReaderTextStream,
-    options: GenerateSerialOptions,
-  ): Promise<Serial> {
-    return await this.generate(stream, options);
   }
 
   async #allocateChunkId(): Promise<number> {
@@ -254,6 +273,12 @@ export class SerialGeneration {
     );
   }
 
+  async #createExplicitSerialId(serialId: number): Promise<void> {
+    await this.#idSemaphore.use(
+      async () => await this.#serials.createWithId(serialId),
+    );
+  }
+
   #getSerialFragments(serialId: number): SerialFragments {
     return this.#document.getSerialFragments(serialId);
   }
@@ -289,8 +314,6 @@ export class SerialGeneration {
     };
   }
 }
-
-export { SerialGeneration as SerialHub };
 
 export class Serial {
   readonly #id: number;

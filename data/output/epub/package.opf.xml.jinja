@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package version="{{ version }}" unique-identifier="book-id" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="book-id">{{ identifier }}</dc:identifier>
+    <dc:title>{{ title }}</dc:title>
+    <dc:language>{{ language }}</dc:language>
+{% for author in authors %}
+    <dc:creator>{{ author }}</dc:creator>
+{% endfor %}
+{% if publisher %}
+    <dc:publisher>{{ publisher }}</dc:publisher>
+{% endif %}
+{% if publishedAt %}
+    <dc:date>{{ publishedAt }}</dc:date>
+{% endif %}
+{% if description %}
+    <dc:description>{{ description }}</dc:description>
+{% endif %}
+    <meta property="dcterms:modified">{{ modifiedAt }}</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+{% for section in sections %}
+    <item id="{{ section.id }}" href="{{ section.href }}" media-type="application/xhtml+xml"/>
+{% endfor %}
+{% if coverImageHref %}
+    <item id="cover-image" href="{{ coverImageHref }}" media-type="{{ coverMediaType or "application/octet-stream" }}" properties="cover-image"/>
+    <item id="cover-page" href="{{ coverPageHref or "text/cover.xhtml" }}" media-type="application/xhtml+xml"/>
+{% endif %}
+  </manifest>
+  <spine>
+{% if coverPageHref %}
+    <itemref idref="cover-page"/>
+{% endif %}
+{% for section in sections %}
+    <itemref idref="{{ section.id }}"/>
+{% endfor %}
+  </spine>
+</package>

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
 
-import { helloWorld } from "./index.js";
+import { main } from "./cli/main.js";
 
-process.stdout.write(`${helloWorld()}\n`);
+void main();

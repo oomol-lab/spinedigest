@@ -1,0 +1,287 @@
+import { SpineDigestApp, type SpineDigestAppOptions } from "../index.js";
+import type { SpineDigest } from "../facade/index.js";
+
+import type { CLIArguments } from "./args.js";
+import { loadCLIConfig, type CLIConfig } from "./config.js";
+import {
+  type CLIFormat,
+  inferCLIFormatFromPath,
+  isTextCLIFormat,
+} from "./formats.js";
+import { buildLLMOptions } from "./llm.js";
+import {
+  createTemporaryOutputPath,
+  readTextStreamFromStdin,
+  removeTemporaryDirectory,
+  writeTextFileToStdout,
+} from "./io.js";
+
+type TextCLIFormat = Extract<CLIFormat, "markdown" | "txt">;
+
+type ResolvedInputEndpoint =
+  | {
+      readonly format: Exclude<CLIFormat, "markdown" | "txt"> | TextCLIFormat;
+      readonly path: string;
+      readonly standardStream?: undefined;
+    }
+  | {
+      readonly format: TextCLIFormat;
+      readonly path?: undefined;
+      readonly standardStream: "stdin";
+    };
+
+type ResolvedOutputEndpoint =
+  | {
+      readonly format: CLIFormat;
+      readonly path: string;
+      readonly standardStream?: undefined;
+    }
+  | {
+      readonly format: TextCLIFormat;
+      readonly path?: undefined;
+      readonly standardStream: "stdout";
+    };
+
+export async function runConvertCommand(args: CLIArguments): Promise<void> {
+  const input = resolveInputEndpoint(args);
+  const output = resolveOutputEndpoint(args);
+  const inputFormat = input.format;
+  const requiresDigest = inputFormat !== "sdpub";
+  const config = await loadRequiredConfig(requiresDigest);
+  const app = new SpineDigestApp(createAppOptions(config, requiresDigest));
+
+  if (inputFormat === "sdpub") {
+    if (input.path === undefined) {
+      throw new Error("Internal error: sdpub input requires a file path.");
+    }
+
+    await app.openSession(input.path, async (digest) => {
+      await writeDigestOutput(digest, output);
+    });
+    return;
+  }
+
+  const extractionPrompt = config.prompt;
+
+  if (input.path === undefined) {
+    if (process.stdin.isTTY) {
+      throw new Error(
+        "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.",
+      );
+    }
+
+    await app.digestTextSession(
+      {
+        sourceFormat: input.format,
+        stream: readTextStreamFromStdin(),
+        ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+      },
+      async (digest) => {
+        await writeDigestOutput(digest, output);
+      },
+    );
+    return;
+  }
+
+  switch (inputFormat) {
+    case "epub":
+      await app.digestEpubSession(
+        {
+          path: input.path,
+          ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+        },
+        async (digest) => {
+          await writeDigestOutput(digest, output);
+        },
+      );
+      return;
+    case "markdown":
+      await app.digestMarkdownSession(
+        {
+          path: input.path,
+          ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+        },
+        async (digest) => {
+          await writeDigestOutput(digest, output);
+        },
+      );
+      return;
+    case "txt":
+      await app.digestTxtSession(
+        {
+          path: input.path,
+          ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+        },
+        async (digest) => {
+          await writeDigestOutput(digest, output);
+        },
+      );
+      return;
+  }
+}
+
+async function loadRequiredConfig(requiresDigest: boolean): Promise<CLIConfig> {
+  const config = await loadCLIConfig();
+
+  if (!requiresDigest) {
+    return config;
+  }
+
+  if (config.llm?.provider === undefined || config.llm.model === undefined) {
+    throw new Error(
+      "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.",
+    );
+  }
+
+  return config;
+}
+
+function createAppOptions(
+  config: CLIConfig,
+  requiresDigest: boolean,
+): SpineDigestAppOptions {
+  return {
+    ...(config.paths?.debugLogDir === undefined
+      ? {}
+      : { debugLogDirPath: config.paths.debugLogDir }),
+    ...(requiresDigest
+      ? {
+          llm: buildLLMOptions(config),
+        }
+      : {}),
+  };
+}
+
+async function writeDigestOutput(
+  digest: SpineDigest,
+  output: ResolvedOutputEndpoint,
+): Promise<void> {
+  if (output.path !== undefined) {
+    await writeDigestToFile(digest, output.path, output.format);
+    return;
+  }
+
+  if (output.standardStream !== "stdout") {
+    throw new Error("Internal error: missing output target.");
+  }
+
+  const temporaryOutput = await createTemporaryOutputPath(
+    "spinedigest-cli-output-",
+    extensionForFormat(output.format),
+  );
+
+  try {
+    await writeDigestToFile(digest, temporaryOutput.filePath, output.format);
+    await writeTextFileToStdout(temporaryOutput.filePath);
+  } finally {
+    await removeTemporaryDirectory(temporaryOutput.directoryPath);
+  }
+}
+
+async function writeDigestToFile(
+  digest: SpineDigest,
+  path: string,
+  format: CLIFormat,
+): Promise<void> {
+  switch (format) {
+    case "epub":
+      await digest.exportEpub(path);
+      return;
+    case "markdown":
+    case "txt":
+      await digest.exportText(path);
+      return;
+    case "sdpub":
+      await digest.saveAs(path);
+      return;
+  }
+}
+
+function resolveInputEndpoint(args: CLIArguments): ResolvedInputEndpoint {
+  const normalizedPath = normalizeIOPath(args.inputPath);
+  const inferredFormat =
+    normalizedPath === undefined
+      ? undefined
+      : inferCLIFormatFromPath(normalizedPath);
+  const format = args.inputFormat ?? inferredFormat;
+
+  if (format === undefined) {
+    throw new Error(
+      normalizedPath === undefined
+        ? "Cannot infer input format from stdin. Set --input-format."
+        : `Cannot infer input format from ${normalizedPath}. Set --input-format.`,
+    );
+  }
+  if (normalizedPath === undefined && !isTextCLIFormat(format)) {
+    throw new Error(`stdin only supports txt or markdown, but got ${format}.`);
+  }
+
+  if (normalizedPath === undefined) {
+    const textFormat = format as TextCLIFormat;
+
+    return {
+      format: textFormat,
+      standardStream: "stdin",
+    };
+  }
+
+  return {
+    format,
+    path: normalizedPath,
+  };
+}
+
+function resolveOutputEndpoint(args: CLIArguments): ResolvedOutputEndpoint {
+  const normalizedPath = normalizeIOPath(args.outputPath);
+  const inferredFormat =
+    normalizedPath === undefined
+      ? undefined
+      : inferCLIFormatFromPath(normalizedPath);
+  const format = args.outputFormat ?? inferredFormat;
+
+  if (format === undefined) {
+    throw new Error(
+      normalizedPath === undefined
+        ? "Cannot infer output format for stdout. Set --output-format."
+        : `Cannot infer output format from ${normalizedPath}. Set --output-format.`,
+    );
+  }
+  if (normalizedPath === undefined && !isTextCLIFormat(format)) {
+    throw new Error(`stdout only supports txt or markdown, but got ${format}.`);
+  }
+
+  if (normalizedPath === undefined) {
+    const textFormat = format as TextCLIFormat;
+
+    return {
+      format: textFormat,
+      standardStream: "stdout",
+    };
+  }
+
+  return {
+    format,
+    path: normalizedPath,
+  };
+}
+
+function normalizeIOPath(path: string | undefined): string | undefined {
+  if (path === undefined) {
+    return undefined;
+  }
+
+  return path === "-" ? undefined : path;
+}
+
+function extensionForFormat(format: CLIFormat): string {
+  switch (format) {
+    case "epub":
+      return ".epub";
+    case "markdown":
+      return ".md";
+    case "sdpub":
+      return ".sdpub";
+    case "txt":
+      return ".txt";
+  }
+}

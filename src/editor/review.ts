@@ -6,9 +6,9 @@ import type { LLMessage, LLM } from "../llm/index.js";
 import type { ReadonlySerialFragments } from "../document/index.js";
 import type { Clue } from "./clue.js";
 import {
-  CLUE_REVIEWER_GENERATOR_PROMPT_PATH,
-  CLUE_REVIEWER_PROMPT_PATH,
-} from "./prompt-paths.js";
+  CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
+  CLUE_REVIEWER_PROMPT_TEMPLATE,
+} from "./prompt-templates.js";
 import { formatClueAsBook } from "./markup.js";
 import {
   ReviewSeverity,
@@ -73,7 +73,7 @@ export class CompressionReviewer<S extends string> {
         const messages: LLMessage[] = [
           {
             content: this.#llm.loadSystemPrompt(
-              CLUE_REVIEWER_GENERATOR_PROMPT_PATH,
+              CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
             ),
             role: "system",
           },
@@ -107,7 +107,7 @@ export class CompressionReviewer<S extends string> {
     const results = await Promise.all(
       clueReviewers.map(async (clueReviewer) => {
         const systemPrompt = this.#llm.loadSystemPrompt(
-          CLUE_REVIEWER_PROMPT_PATH,
+          CLUE_REVIEWER_PROMPT_TEMPLATE,
           {
             thread_info: clueReviewer.reviewerInfo,
             user_language: this.#userLanguage,
