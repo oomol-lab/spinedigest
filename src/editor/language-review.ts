@@ -1,7 +1,7 @@
 import { detect, validateISO2 } from "tinyld";
 
 import { getLanguageDetectionCode, type Language } from "../language.js";
-import type { ReviewResult } from "./types.js";
+import { ReviewSeverity, type ReviewResult } from "./types.js";
 
 export interface LanguageReview {
   readonly detectedLanguageCode: string;
@@ -39,7 +39,7 @@ export function checkOutputLanguage(input: {
       issues: [
         {
           problem: `Output language error: detected ${detectedLanguageCode}, but ${targetLanguageCode} (${input.userLanguage}) is required.`,
-          severity: "critical",
+          severity: ReviewSeverity.Critical,
           suggestion: `Please translate the entire compressed text to ${input.userLanguage}. Maintain all information integrity and ensure the translation sounds natural and native, not machine-translated.`,
         },
       ],

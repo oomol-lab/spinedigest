@@ -20,14 +20,14 @@ export class Topology {
   readonly #serialId: number;
   readonly #workspace: Workspace;
 
-  public constructor(input: {
-    groupTokensCount: number;
-    serialId: number;
-    workspace: Workspace;
-  }) {
-    this.#groupTokensCount = input.groupTokensCount;
-    this.#serialId = input.serialId;
-    this.#workspace = input.workspace;
+  public constructor(
+    workspace: Workspace,
+    serialId: number,
+    groupTokensCount: number,
+  ) {
+    this.#groupTokensCount = groupTokensCount;
+    this.#serialId = serialId;
+    this.#workspace = workspace;
   }
 
   public accept(delta: ReaderGraphDelta): void {

@@ -20,7 +20,11 @@ export class Reader<S extends string> {
   readonly #segmenter: ReaderOptions<S>["segmenter"];
 
   public constructor(options: ReaderOptions<S>) {
-    this.#attention = new Attention(options.attention);
+    this.#attention = new Attention(
+      options.attention.capacity,
+      options.attention.generationDecayFactor,
+      options.attention.idGenerator,
+    );
     this.#chunkBatchOptions = {
       extractionGuidance: options.extractionGuidance,
       llm: options.llm,

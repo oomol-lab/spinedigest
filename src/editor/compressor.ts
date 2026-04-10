@@ -7,16 +7,16 @@ export class CompressionRequester<S extends string> {
   readonly #scope: S;
   readonly #userLanguage: string | undefined;
 
-  public constructor(input: {
-    compressionRatio: number;
-    llm: LLM<S>;
-    scope: S;
-    userLanguage?: string;
-  }) {
-    this.#compressionRatio = input.compressionRatio;
-    this.#llm = input.llm;
-    this.#scope = input.scope;
-    this.#userLanguage = input.userLanguage;
+  public constructor(
+    llm: LLM<S>,
+    scope: S,
+    compressionRatio: number,
+    userLanguage?: string,
+  ) {
+    this.#compressionRatio = compressionRatio;
+    this.#llm = llm;
+    this.#scope = scope;
+    this.#userLanguage = userLanguage;
   }
 
   public async request(input: {

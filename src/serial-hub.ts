@@ -46,7 +46,10 @@ const SERIAL_HUB_SCOPES = {
   readerExtraction: "serial-hub/reader-extraction",
 } as const;
 
-export type SerialStage = "topology" | "summary";
+export enum SerialStage {
+  Topology = "topology",
+  Summary = "summary",
+}
 
 export interface CreateSerialOptions {
   readonly extractionPrompt: string;
@@ -90,12 +93,11 @@ export class SerialHub {
     options: CreateSerialOptions,
   ): Promise<Serial> {
     const serialId = await this.#createSerialId();
-    const serial = new Serial({
-      getTopology: () => this.#getTopology(serialId),
-      ensureSummary: async () =>
-        await this.#buildSummary(serialId, options.userLanguage),
-    });
-    const targetStage = options.targetStage ?? "summary";
+    const serial = new Serial(
+      () => this.#getTopology(serialId),
+      async () => await this.#buildSummary(serialId, options.userLanguage),
+    );
+    const targetStage = options.targetStage ?? SerialStage.Summary;
 
     await this.#buildTopology(
       serialId,
@@ -103,7 +105,7 @@ export class SerialHub {
       options.extractionPrompt,
       options.userLanguage,
     );
-    if (targetStage === "summary") {
+    if (targetStage === SerialStage.Summary) {
       await serial.ensureSummary();
     }
     return serial;
@@ -187,11 +189,11 @@ export class SerialHub {
             userLanguage,
           }),
     });
-    const topology = new Topology({
-      groupTokensCount: DEFAULT_GROUP_TOKENS_COUNT,
+    const topology = new Topology(
+      this.#workspace,
       serialId,
-      workspace: this.#workspace,
-    });
+      DEFAULT_GROUP_TOKENS_COUNT,
+    );
     const allChunks: ReaderChunk[] = [];
     const successorIdsByChunkId = createNumberListRecord();
 
@@ -301,19 +303,19 @@ export class Serial {
 
   #summary: Promise<string> | string | undefined;
 
-  public constructor(input: {
-    ensureSummary: () => Promise<string>;
-    getTopology: () => SerialTopology;
-  }) {
-    this.#ensureSummaryOperation = input.ensureSummary;
-    this.#getTopology = input.getTopology;
+  public constructor(
+    getTopology: () => SerialTopology,
+    ensureSummary: () => Promise<string>,
+  ) {
+    this.#ensureSummaryOperation = ensureSummary;
+    this.#getTopology = getTopology;
   }
 
   public get stage(): SerialStage {
     if (typeof this.#summary === "string") {
-      return "summary";
+      return SerialStage.Summary;
     }
-    return "topology";
+    return SerialStage.Topology;
   }
 
   public async ensureSummary(): Promise<Serial> {

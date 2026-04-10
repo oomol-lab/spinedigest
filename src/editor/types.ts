@@ -1,4 +1,8 @@
-export type ReviewSeverity = "critical" | "major" | "minor";
+export enum ReviewSeverity {
+  Critical = "critical",
+  Major = "major",
+  Minor = "minor",
+}
 
 export interface ClueReviewerInfo {
   readonly clueId: number;

@@ -30,10 +30,7 @@ export async function requestGuaranteedJson<TData, TResult>(
     const response = await options.request(currentMessages, index, maxRetries);
     if (response.trim() === "") {
       if (index > maxRetries) {
-        throw new GuaranteedEmptyResponseError({
-          attempts: index + 1,
-          maxRetries,
-        });
+        throw new GuaranteedEmptyResponseError(index + 1, maxRetries);
       }
       continue;
     }
@@ -52,9 +49,7 @@ export async function requestGuaranteedJson<TData, TResult>(
           index >= maxRetries
             ? "last retry still returned non-JSON content"
             : "two consecutive retries returned non-JSON content";
-        throw new SuspectedModelRefusalError({
-          attempts: index + 1,
-          maxRetries,
+        throw new SuspectedModelRefusalError(index + 1, maxRetries, {
           response,
           reason,
         });
@@ -75,10 +70,10 @@ export async function requestGuaranteedJson<TData, TResult>(
 
       if (index >= maxRetries) {
         throw new GuaranteedSchemaValidationError(
+          index + 1,
+          maxRetries,
           {
-            attempts: index + 1,
             issues: listSchemaIssues(validation.error),
-            maxRetries,
             response,
           },
           validation.error,
@@ -98,10 +93,10 @@ export async function requestGuaranteedJson<TData, TResult>(
 
       if (index >= maxRetries) {
         throw new GuaranteedParseValidationError(
+          index + 1,
+          maxRetries,
           {
-            attempts: index + 1,
             issues: error.issues,
-            maxRetries,
             response,
           },
           error,
