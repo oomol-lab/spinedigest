@@ -111,7 +111,7 @@ async function writeEpubFixture(path) {
     {
       mtime: FIXTURE_MTIME,
       mode: 0o644,
-      compress: false,
+      compress: true,
     },
   );
 
