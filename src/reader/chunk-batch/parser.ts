@@ -9,6 +9,8 @@ import type { LLMessage } from "../../llm/index.js";
 import {
   ChunkImportance,
   ChunkRetention,
+  expectChunkImportance,
+  expectChunkRetention,
   type SentenceId,
 } from "../../model/index.js";
 import type {
@@ -278,7 +280,7 @@ export class ChunkBatchParser<
           id: 0,
           label,
           links: [],
-          retention: toChunkRetention(chunkData.retention),
+          retention: expectChunkRetention(chunkData.retention),
           sentenceId: primarySentenceId,
           sentenceIds: [...resolvedSentenceIds],
           tokens: totalTokens,
@@ -290,7 +292,7 @@ export class ChunkBatchParser<
           content,
           generation: 0,
           id: 0,
-          importance: toChunkImportance(chunkData.importance),
+          importance: expectChunkImportance(chunkData.importance),
           label,
           links: [],
           sentenceId: primarySentenceId,
@@ -570,7 +572,7 @@ export class ChunkBatchParser<
     if (this.#validImportanceChunkIds === undefined) {
       return annotations.map((annotation) => ({
         chunkId: annotation.chunk_id,
-        importance: toChunkImportance(annotation.importance),
+        importance: expectChunkImportance(annotation.importance),
       }));
     }
 
@@ -586,7 +588,7 @@ export class ChunkBatchParser<
 
       result.push({
         chunkId: annotation.chunk_id,
-        importance: toChunkImportance(annotation.importance),
+        importance: expectChunkImportance(annotation.importance),
       });
     }
 
@@ -864,34 +866,6 @@ function formatChoiceText(text: string): string {
 
 function toChoiceFieldName(value: string): ChoiceFieldName | undefined {
   return value === "start_anchor" || value === "end_anchor" ? value : undefined;
-}
-
-function toChunkImportance(value: string): ChunkImportance {
-  switch (value) {
-    case ChunkImportance.Critical:
-      return ChunkImportance.Critical;
-    case ChunkImportance.Important:
-      return ChunkImportance.Important;
-    case ChunkImportance.Helpful:
-      return ChunkImportance.Helpful;
-    default:
-      throw new Error(`Unknown chunk importance: ${value}`);
-  }
-}
-
-function toChunkRetention(value: string): ChunkRetention {
-  switch (value) {
-    case ChunkRetention.Verbatim:
-      return ChunkRetention.Verbatim;
-    case ChunkRetention.Detailed:
-      return ChunkRetention.Detailed;
-    case ChunkRetention.Focused:
-      return ChunkRetention.Focused;
-    case ChunkRetention.Relevant:
-      return ChunkRetention.Relevant;
-    default:
-      throw new Error(`Unknown chunk retention: ${value}`);
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

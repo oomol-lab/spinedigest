@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 
+import { isNodeError } from "../utils/node-error.js";
 import type { FragmentRecord, SentenceId, SentenceRecord } from "./types.js";
 
 const SERIAL_DIRECTORY_PREFIX = "serial-";
@@ -326,8 +327,4 @@ function parseSentenceRecord(value: unknown): SentenceRecord {
     text,
     tokenCount: resolvedTokenCount,
   };
-}
-
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error;
 }

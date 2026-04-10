@@ -12,6 +12,7 @@ import {
 import { formatClueAsBook } from "./markup.js";
 import {
   ReviewSeverity,
+  expectReviewSeverity,
   type ClueReviewerInfo,
   type ReviewResult,
 } from "./types.js";
@@ -129,7 +130,7 @@ export class CompressionReviewer<S extends string> {
               clueId: clueReviewer.clueId,
               issues: data.issues.map((issue) => ({
                 ...issue,
-                severity: toReviewSeverity(issue.severity),
+                severity: expectReviewSeverity(issue.severity),
               })),
               weight: clueReviewer.weight,
             },
@@ -158,19 +159,6 @@ export class CompressionReviewer<S extends string> {
       rawResponses,
       reviews: results.map((result) => result.review),
     };
-  }
-}
-
-function toReviewSeverity(value: string): ReviewSeverity {
-  switch (value) {
-    case ReviewSeverity.Critical:
-      return ReviewSeverity.Critical;
-    case ReviewSeverity.Major:
-      return ReviewSeverity.Major;
-    case ReviewSeverity.Minor:
-      return ReviewSeverity.Minor;
-    default:
-      throw new Error(`Unknown review severity: ${value}`);
   }
 }
 

@@ -1,3 +1,8 @@
+import {
+  createEnumValueAsserter,
+  createEnumValueGuard,
+} from "../utils/enum.js";
+
 export enum ChunkRetention {
   Verbatim = "verbatim",
   Detailed = "detailed",
@@ -5,11 +10,11 @@ export enum ChunkRetention {
   Relevant = "relevant",
 }
 
-const CHUNK_RETENTION_SET = new Set<string>(Object.values(ChunkRetention));
-
-export function isChunkRetention(value: string): value is ChunkRetention {
-  return CHUNK_RETENTION_SET.has(value);
-}
+export const isChunkRetention = createEnumValueGuard(ChunkRetention);
+export const expectChunkRetention = createEnumValueAsserter(
+  ChunkRetention,
+  "chunk retention",
+);
 
 export enum ChunkImportance {
   Critical = "critical",
@@ -17,11 +22,11 @@ export enum ChunkImportance {
   Helpful = "helpful",
 }
 
-const CHUNK_IMPORTANCE_SET = new Set<string>(Object.values(ChunkImportance));
-
-export function isChunkImportance(value: string): value is ChunkImportance {
-  return CHUNK_IMPORTANCE_SET.has(value);
-}
+export const isChunkImportance = createEnumValueGuard(ChunkImportance);
+export const expectChunkImportance = createEnumValueAsserter(
+  ChunkImportance,
+  "chunk importance",
+);
 
 export type SentenceId = readonly [
   serialId: number,

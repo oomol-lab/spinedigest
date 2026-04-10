@@ -14,7 +14,14 @@ export {
   SnakeEdgeStore,
   SnakeStore,
 } from "./stores.js";
-export { ChunkImportance, ChunkRetention } from "./types.js";
+export {
+  ChunkImportance,
+  ChunkRetention,
+  expectChunkImportance,
+  expectChunkRetention,
+  isChunkImportance,
+  isChunkRetention,
+} from "./types.js";
 export type {
   ChunkRecord,
   CreateSnakeRecord,

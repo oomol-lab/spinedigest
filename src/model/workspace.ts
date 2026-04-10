@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 
+import { isNodeError } from "../utils/node-error.js";
 import { Database } from "./database.js";
 import { Fragments } from "./fragments.js";
 import type { SerialFragments } from "./fragments.js";
@@ -102,10 +103,4 @@ export class Workspace {
   #getSummaryPath(serialId: number): string {
     return join(this.#getSummariesPath(), `serial-${serialId}.txt`);
   }
-}
-
-function isNodeError(
-  error: unknown,
-): error is NodeJS.ErrnoException & { readonly code: string } {
-  return error instanceof Error && "code" in error;
 }

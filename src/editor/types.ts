@@ -1,8 +1,19 @@
+import {
+  createEnumValueAsserter,
+  createEnumValueGuard,
+} from "../utils/enum.js";
+
 export enum ReviewSeverity {
   Critical = "critical",
   Major = "major",
   Minor = "minor",
 }
+
+export const isReviewSeverity = createEnumValueGuard(ReviewSeverity);
+export const expectReviewSeverity = createEnumValueAsserter(
+  ReviewSeverity,
+  "review severity",
+);
 
 export interface ClueReviewerInfo {
   readonly clueId: number;
