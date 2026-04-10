@@ -63,12 +63,6 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
 
   const extractionPrompt = config.prompt;
 
-  if (extractionPrompt === undefined) {
-    throw new Error(
-      "Missing prompt. Set `prompt` in ~/.spinedigest/config.json or SPINEDIGEST_PROMPT.",
-    );
-  }
-
   if (input.path === undefined) {
     if (process.stdin.isTTY) {
       throw new Error(
@@ -78,9 +72,9 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
 
     await app.digestTextSession(
       {
-        extractionPrompt,
         sourceFormat: input.format,
         stream: readTextStreamFromStdin(),
+        ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
       },
       async (digest) => {
         await writeDigestOutput(digest, output);
@@ -93,8 +87,8 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     case "epub":
       await app.digestEpubSession(
         {
-          extractionPrompt,
           path: input.path,
+          ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
         },
         async (digest) => {
           await writeDigestOutput(digest, output);
@@ -104,8 +98,8 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     case "markdown":
       await app.digestMarkdownSession(
         {
-          extractionPrompt,
           path: input.path,
+          ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
         },
         async (digest) => {
           await writeDigestOutput(digest, output);
@@ -115,8 +109,8 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     case "txt":
       await app.digestTxtSession(
         {
-          extractionPrompt,
           path: input.path,
+          ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
         },
         async (digest) => {
           await writeDigestOutput(digest, output);

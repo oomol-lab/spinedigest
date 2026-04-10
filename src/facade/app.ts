@@ -23,6 +23,9 @@ const DATA_DIR_PATH = resolve(
   "../../data",
 );
 
+const DEFAULT_EXTRACTION_PROMPT =
+  "Focus on the main storyline and key character developments. Preserve important dialogues and critical plot points. Background descriptions and minor details can be compressed significantly.";
+
 export interface SpineDigestLLMOptions {
   readonly cacheDirPath?: string;
   readonly concurrent?: number;
@@ -43,14 +46,14 @@ export interface SpineDigestAppOptions {
 export type SpineDigestOpenSessionOptions = DigestDocumentSessionOptions;
 
 export interface SpineDigestSourceSessionOptions extends DigestDocumentSessionOptions {
-  readonly extractionPrompt: string;
+  readonly extractionPrompt?: string;
   readonly path: string;
   readonly userLanguage?: Language;
 }
 
 export interface SpineDigestTextSessionOptions extends DigestDocumentSessionOptions {
   readonly bookLanguage?: string | null;
-  readonly extractionPrompt: string;
+  readonly extractionPrompt?: string;
   readonly sourceFormat?: "markdown" | "txt";
   readonly stream: AsyncIterable<string> | Iterable<string>;
   readonly title?: string | null;
@@ -98,7 +101,7 @@ export class SpineDigestApp {
   ): Promise<T> {
     return await digestTextSession(
       {
-        extractionPrompt: options.extractionPrompt,
+        extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
         llm: this.#requireLLM(),
         stream: options.stream,
         ...(this.#debugLogDirPath === undefined
@@ -148,7 +151,7 @@ export class SpineDigestApp {
     options: SpineDigestSourceSessionOptions,
   ): DigestSourceSessionOptions {
     return {
-      extractionPrompt: options.extractionPrompt,
+      extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
       llm: this.#requireLLM(),
       path: options.path,
       ...(this.#debugLogDirPath === undefined
@@ -188,4 +191,12 @@ function isSpineDigestLLMOptions(
   llm: NonNullable<SpineDigestAppOptions["llm"]>,
 ): llm is SpineDigestLLMOptions {
   return typeof llm === "object" && llm !== null && "model" in llm;
+}
+
+function resolveExtractionPrompt(prompt: string | undefined): string {
+  const normalizedPrompt = prompt?.trim();
+
+  return normalizedPrompt === undefined || normalizedPrompt === ""
+    ? DEFAULT_EXTRACTION_PROMPT
+    : normalizedPrompt;
 }
