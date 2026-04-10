@@ -128,8 +128,11 @@ export {
 } from "./serial.js";
 export {
   BOOK_META_VERSION,
+  MARKDOWN_SOURCE_ADAPTER,
+  PlainTextSourceAdapter,
   SOURCE_FORMATS,
   TOC_FILE_VERSION,
+  TXT_SOURCE_ADAPTER,
   bookMetaSchema,
   sourceFormatSchema,
   type SourceAdapter,

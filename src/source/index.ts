@@ -8,6 +8,11 @@ export {
 } from "./meta.js";
 export type { SourceAdapter, SourceDocument } from "./adapter.js";
 export {
+  MARKDOWN_SOURCE_ADAPTER,
+  PlainTextSourceAdapter,
+  TXT_SOURCE_ADAPTER,
+} from "./plain-text.js";
+export {
   TOC_FILE_VERSION,
   tocFileSchema,
   tocItemSchema,
