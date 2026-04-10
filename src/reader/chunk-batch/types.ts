@@ -1,6 +1,10 @@
 import type { Language } from "../../language.js";
 import type { LLM } from "../../llm/index.js";
-import type { SentenceId } from "../../model/index.js";
+import type {
+  ChunkImportance,
+  ChunkRetention,
+  SentenceId,
+} from "../../model/index.js";
 
 export interface ChunkLink {
   readonly from: number | string;
@@ -10,7 +14,7 @@ export interface ChunkLink {
 
 export interface ChunkImportanceAnnotation {
   readonly chunkId: number;
-  readonly importance: string;
+  readonly importance: ChunkImportance;
 }
 
 export interface CognitiveChunk {
@@ -21,8 +25,8 @@ export interface CognitiveChunk {
   content: string;
   sentenceIds: SentenceId[];
   links: number[];
-  retention?: string;
-  importance?: string;
+  retention?: ChunkRetention;
+  importance?: ChunkImportance;
   tokens: number;
 }
 

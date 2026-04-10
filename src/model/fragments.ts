@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 
+import { isNodeError } from "../utils/node-error.js";
 import type { FragmentRecord, SentenceId, SentenceRecord } from "./types.js";
 
 const SERIAL_DIRECTORY_PREFIX = "serial-";
@@ -81,14 +82,12 @@ export class SerialFragments {
     await mkdir(this.path, { recursive: true });
     this.#draftOpen = true;
 
-    return new FragmentDraft({
-      serialId: this.#serialId,
+    return new FragmentDraft(this.#serialId, await this.#peekNextFragmentId(), {
       discard: () => {
         this.#discardDraft();
       },
       finalize: async (fragmentId, summary, sentences) =>
         await this.#commitDraft(fragmentId, summary, sentences),
-      fragmentId: await this.#peekNextFragmentId(),
     });
   }
 
@@ -207,20 +206,22 @@ export class FragmentDraft {
   readonly #sentences: SentenceRecord[] = [];
   #summary = "";
 
-  public constructor(input: {
-    serialId: number;
-    discard: () => void;
-    finalize: (
-      fragmentId: number,
-      summary: string,
-      sentences: readonly SentenceRecord[],
-    ) => Promise<FragmentRecord | undefined>;
-    fragmentId: number;
-  }) {
-    this.#serialId = input.serialId;
-    this.#discard = input.discard;
-    this.#finalize = input.finalize;
-    this.#fragmentId = input.fragmentId;
+  public constructor(
+    serialId: number,
+    fragmentId: number,
+    callbacks: {
+      readonly discard: () => void;
+      readonly finalize: (
+        fragmentId: number,
+        summary: string,
+        sentences: readonly SentenceRecord[],
+      ) => Promise<FragmentRecord | undefined>;
+    },
+  ) {
+    this.#serialId = serialId;
+    this.#discard = callbacks.discard;
+    this.#finalize = callbacks.finalize;
+    this.#fragmentId = fragmentId;
   }
 
   public addSentence(text: string, tokenCount: number): SentenceId {
@@ -326,8 +327,4 @@ function parseSentenceRecord(value: unknown): SentenceRecord {
     text,
     tokenCount: resolvedTokenCount,
   };
-}
-
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error;
 }

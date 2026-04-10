@@ -1,6 +1,8 @@
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 
+import { isNodeError } from "../utils/node-error.js";
+
 export interface PendingCacheEntry {
   cacheKey: string;
   response: string;
@@ -39,8 +41,4 @@ export class LLMCache {
   #getFilePath(cacheKey: string): string {
     return join(this.#cacheDirPath, `${cacheKey}.txt`);
   }
-}
-
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error;
 }

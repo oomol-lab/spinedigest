@@ -1,11 +1,16 @@
-import type { ChunkRecord, KnowledgeEdgeRecord } from "../model/index.js";
+import {
+  ChunkImportance,
+  ChunkRetention,
+  type ChunkRecord,
+  type KnowledgeEdgeRecord,
+} from "../model/index.js";
 
 const MIN_EDGE_WEIGHT = 0.1;
 
-const IMPORTANCE_WEIGHTS: Readonly<Record<string, number>> = {
-  critical: 9,
-  helpful: 1,
-  important: 3,
+const IMPORTANCE_WEIGHTS: Readonly<Record<ChunkImportance, number>> = {
+  [ChunkImportance.Critical]: 9,
+  [ChunkImportance.Helpful]: 1,
+  [ChunkImportance.Important]: 3,
 };
 
 const LINK_STRENGTH_WEIGHTS: Readonly<Record<string, number>> = {
@@ -14,11 +19,11 @@ const LINK_STRENGTH_WEIGHTS: Readonly<Record<string, number>> = {
   important: 3,
 };
 
-const RETENTION_WEIGHTS: Readonly<Record<string, number>> = {
-  detailed: 9,
-  focused: 3,
-  relevant: 1,
-  verbatim: 27,
+const RETENTION_WEIGHTS: Readonly<Record<ChunkRetention, number>> = {
+  [ChunkRetention.Detailed]: 9,
+  [ChunkRetention.Focused]: 3,
+  [ChunkRetention.Relevant]: 1,
+  [ChunkRetention.Verbatim]: 27,
 };
 
 export function computeChunkWeights(
@@ -84,7 +89,7 @@ function computeChunkWeight(chunk: ChunkRecord): number {
   );
 }
 
-function getImportanceWeight(importance: string | undefined): number {
+function getImportanceWeight(importance: ChunkImportance | undefined): number {
   if (importance === undefined) {
     return 0;
   }
@@ -100,7 +105,7 @@ function getLinkStrengthWeight(strength: string | undefined): number {
   return LINK_STRENGTH_WEIGHTS[strength] ?? 1;
 }
 
-function getRetentionWeight(retention: string | undefined): number {
+function getRetentionWeight(retention: ChunkRetention | undefined): number {
   if (retention === undefined) {
     return 0;
   }

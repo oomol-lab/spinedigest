@@ -1,7 +1,9 @@
-import type {
-  ChunkRecord,
-  FragmentRecord,
-  SerialFragments,
+import {
+  ChunkRetention,
+  type ChunkImportance,
+  type ChunkRecord,
+  type FragmentRecord,
+  type SerialFragments,
 } from "../model/index.js";
 
 export async function formatClueAsBook(input: {
@@ -270,9 +272,9 @@ function compareNumber(left: number, right: number): number {
 }
 
 interface ChunkAttributes {
-  readonly importance?: string;
+  readonly importance?: ChunkImportance;
   readonly label: string;
-  readonly retention?: string;
+  readonly retention?: ChunkRetention;
 }
 
 function mergeChunkAttributes(
@@ -329,15 +331,15 @@ function mergeChunkAttributes(
   };
 }
 
-function createMetadataOrder(
-  values: Record<string, number>,
-): Readonly<Record<string, number>> {
+function createMetadataOrder<TValue extends string>(
+  values: Record<TValue, number>,
+): Readonly<Record<TValue, number>> {
   return Object.freeze(values);
 }
 
-function getMetadataRank(
-  value: string | undefined,
-  order: Readonly<Record<string, number>>,
+function getMetadataRank<TValue extends string>(
+  value: TValue | undefined,
+  order: Readonly<Record<TValue, number>>,
 ): number {
   if (value === undefined) {
     return 0;
@@ -382,8 +384,8 @@ function renderSentenceRange(input: {
 
   if (
     input.wrapHighRetention &&
-    (chunkAttributes.retention === "verbatim" ||
-      chunkAttributes.retention === "detailed")
+    (chunkAttributes.retention === ChunkRetention.Verbatim ||
+      chunkAttributes.retention === ChunkRetention.Detailed)
   ) {
     return `<chunk retention="${chunkAttributes.retention}">${textSegment}</chunk>`;
   }

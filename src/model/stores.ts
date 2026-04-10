@@ -1,15 +1,19 @@
 import { getNumber, getOptionalString, getString } from "./database.js";
 import type { Database, SqlRow } from "./database.js";
-import type {
-  ChunkRecord,
-  CreateSnakeRecord,
-  FragmentGroupRecord,
-  KnowledgeEdgeRecord,
-  SerialRecord,
-  SentenceId,
-  SnakeChunkRecord,
-  SnakeEdgeRecord,
-  SnakeRecord,
+import {
+  isChunkImportance,
+  isChunkRetention,
+  type ChunkImportance,
+  type ChunkRecord,
+  type ChunkRetention,
+  type CreateSnakeRecord,
+  type FragmentGroupRecord,
+  type KnowledgeEdgeRecord,
+  type SerialRecord,
+  type SentenceId,
+  type SnakeChunkRecord,
+  type SnakeEdgeRecord,
+  type SnakeRecord,
 } from "./types.js";
 
 export class SerialStore {
@@ -344,8 +348,10 @@ export class ChunkStore {
 
   async #mapChunkRow(row: SqlRow): Promise<ChunkRecord> {
     const chunkId = getNumber(row, "id");
-    const importance = getOptionalString(row, "importance");
-    const retention = getOptionalString(row, "retention");
+    const importance = parseChunkImportance(
+      getOptionalString(row, "importance"),
+    );
+    const retention = parseChunkRetention(getOptionalString(row, "retention"));
 
     return {
       content: getString(row, "content"),
@@ -781,4 +787,16 @@ function mapKnowledgeEdgeRow(row: SqlRow): KnowledgeEdgeRecord {
     weight: getNumber(row, "weight"),
     ...(strength === undefined ? {} : { strength }),
   };
+}
+
+function parseChunkImportance(
+  value: string | undefined,
+): ChunkImportance | undefined {
+  return value !== undefined && isChunkImportance(value) ? value : undefined;
+}
+
+function parseChunkRetention(
+  value: string | undefined,
+): ChunkRetention | undefined {
+  return value !== undefined && isChunkRetention(value) ? value : undefined;
 }

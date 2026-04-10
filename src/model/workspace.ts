@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 
+import { isNodeError } from "../utils/node-error.js";
 import { Database } from "./database.js";
 import { Fragments } from "./fragments.js";
 import type { SerialFragments } from "./fragments.js";
@@ -29,21 +30,17 @@ export class Workspace {
   readonly #database: Database;
   readonly #fragments: Fragments;
 
-  public constructor(input: {
-    database: Database;
-    fragments: Fragments;
-    path: string;
-  }) {
-    this.#database = input.database;
-    this.#fragments = input.fragments;
-    this.serials = new SerialStore(input.database);
-    this.chunks = new ChunkStore(input.database);
-    this.fragmentGroups = new FragmentGroupStore(input.database);
-    this.knowledgeEdges = new KnowledgeEdgeStore(input.database);
-    this.snakeChunks = new SnakeChunkStore(input.database);
-    this.snakeEdges = new SnakeEdgeStore(input.database);
-    this.snakes = new SnakeStore(input.database);
-    this.path = input.path;
+  public constructor(database: Database, fragments: Fragments, path: string) {
+    this.#database = database;
+    this.#fragments = fragments;
+    this.serials = new SerialStore(database);
+    this.chunks = new ChunkStore(database);
+    this.fragmentGroups = new FragmentGroupStore(database);
+    this.knowledgeEdges = new KnowledgeEdgeStore(database);
+    this.snakeChunks = new SnakeChunkStore(database);
+    this.snakeEdges = new SnakeEdgeStore(database);
+    this.snakes = new SnakeStore(database);
+    this.path = path;
   }
 
   public static async open(workspacePath: string): Promise<Workspace> {
@@ -54,11 +51,11 @@ export class Workspace {
     await mkdir(resolvedWorkspacePath, { recursive: true });
     await fragments.ensureCreated();
 
-    return new Workspace({
-      database: await Database.open(databasePath, SCHEMA_SQL),
+    return new Workspace(
+      await Database.open(databasePath, SCHEMA_SQL),
       fragments,
-      path: resolvedWorkspacePath,
-    });
+      resolvedWorkspacePath,
+    );
   }
 
   public getSerialFragments(serialId: number): SerialFragments {
@@ -106,10 +103,4 @@ export class Workspace {
   #getSummaryPath(serialId: number): string {
     return join(this.#getSummariesPath(), `serial-${serialId}.txt`);
   }
-}
-
-function isNodeError(
-  error: unknown,
-): error is NodeJS.ErrnoException & { readonly code: string } {
-  return error instanceof Error && "code" in error;
 }

@@ -28,14 +28,14 @@ export class Attention {
   readonly #waveReflection: WaveReflection;
   readonly #workingMemory: WorkingMemory;
 
-  public constructor(input: {
-    capacity: number;
-    generationDecayFactor: number;
-    idGenerator: () => Promise<number>;
-  }) {
-    this.#idGenerator = input.idGenerator;
-    this.#waveReflection = new WaveReflection(input.generationDecayFactor);
-    this.#workingMemory = new WorkingMemory(input.capacity);
+  public constructor(
+    capacity: number,
+    generationDecayFactor: number,
+    idGenerator: () => Promise<number>,
+  ) {
+    this.#idGenerator = idGenerator;
+    this.#waveReflection = new WaveReflection(generationDecayFactor);
+    this.#workingMemory = new WorkingMemory(capacity);
   }
 
   public get capacity(): number {

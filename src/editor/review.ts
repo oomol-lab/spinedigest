@@ -10,11 +10,22 @@ import {
   CLUE_REVIEWER_PROMPT_PATH,
 } from "./prompt-paths.js";
 import { formatClueAsBook } from "./markup.js";
-import type { ClueReviewerInfo, ReviewResult } from "./types.js";
+import {
+  ReviewSeverity,
+  expectReviewSeverity,
+  type ClueReviewerInfo,
+  type ReviewResult,
+} from "./types.js";
+
+const REVIEW_SEVERITY_VALUES = [
+  ReviewSeverity.Critical,
+  ReviewSeverity.Major,
+  ReviewSeverity.Minor,
+] as const;
 
 const reviewIssueSchema = z.object({
   problem: z.string(),
-  severity: z.enum(["critical", "major", "minor"]),
+  severity: z.enum(REVIEW_SEVERITY_VALUES),
   suggestion: z.string().default(""),
 });
 const reviewResponseSchema = z.object({
@@ -33,18 +44,20 @@ export class CompressionReviewer<S extends string> {
   readonly #serialFragments: SerialFragments;
   readonly #userLanguage: Language | undefined;
 
-  public constructor(input: {
-    llm: LLM<S>;
-    reviewGuideScope: S;
-    reviewScope: S;
-    serialFragments: SerialFragments;
-    userLanguage?: Language;
-  }) {
-    this.#llm = input.llm;
-    this.#reviewGuideScope = input.reviewGuideScope;
-    this.#reviewScope = input.reviewScope;
-    this.#serialFragments = input.serialFragments;
-    this.#userLanguage = input.userLanguage;
+  public constructor(
+    llm: LLM<S>,
+    serialFragments: SerialFragments,
+    scopes: {
+      readonly reviewGuide: S;
+      readonly review: S;
+    },
+    userLanguage?: Language,
+  ) {
+    this.#llm = llm;
+    this.#reviewGuideScope = scopes.reviewGuide;
+    this.#reviewScope = scopes.review;
+    this.#serialFragments = serialFragments;
+    this.#userLanguage = userLanguage;
   }
 
   public async generateClueReviewers(
@@ -115,7 +128,10 @@ export class CompressionReviewer<S extends string> {
             rawResponse: JSON.stringify(data),
             review: {
               clueId: clueReviewer.clueId,
-              issues: data.issues,
+              issues: data.issues.map((issue) => ({
+                ...issue,
+                severity: expectReviewSeverity(issue.severity),
+              })),
               weight: clueReviewer.weight,
             },
           }),

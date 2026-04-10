@@ -13,6 +13,7 @@ import type { LLMessage, LLM } from "../../llm/index.js";
 import {
   bookCoherenceResponseSchema,
   ChunkBatchParser,
+  ChunkMetadataField,
   type BookCoherenceResponseData,
   type ExtractChunksResult,
   type UserFocusedResponseData,
@@ -37,7 +38,7 @@ interface ExtractChunksInput<
 > {
   readonly emptyChunkBatch: ChunkBatch;
   readonly messages: readonly LLMessage[];
-  readonly metadataField: "retention" | "importance";
+  readonly metadataField: ChunkMetadataField;
   readonly schema: ZodType<TData>;
   readonly sentences: readonly ChunkExtractionSentence[];
   readonly validImportanceChunkIds?: readonly number[];
@@ -119,7 +120,7 @@ export class ChunkExtractor<S extends string> {
         tempIds: [],
       },
       messages,
-      metadataField: "retention",
+      metadataField: ChunkMetadataField.Retention,
       schema: userFocusedResponseSchema,
       sentences: input.sentences,
       visibleChunkIds: input.visibleChunkIds,
@@ -159,7 +160,7 @@ export class ChunkExtractor<S extends string> {
         tempIds: [],
       },
       messages,
-      metadataField: "importance",
+      metadataField: ChunkMetadataField.Importance,
       schema: bookCoherenceResponseSchema,
       sentences: input.sentences,
       validImportanceChunkIds: input.userFocusedChunks.map((chunk) => chunk.id),

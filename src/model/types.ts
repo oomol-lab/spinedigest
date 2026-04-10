@@ -1,3 +1,33 @@
+import {
+  createEnumValueAsserter,
+  createEnumValueGuard,
+} from "../utils/enum.js";
+
+export enum ChunkRetention {
+  Verbatim = "verbatim",
+  Detailed = "detailed",
+  Focused = "focused",
+  Relevant = "relevant",
+}
+
+export const isChunkRetention = createEnumValueGuard(ChunkRetention);
+export const expectChunkRetention = createEnumValueAsserter(
+  ChunkRetention,
+  "chunk retention",
+);
+
+export enum ChunkImportance {
+  Critical = "critical",
+  Important = "important",
+  Helpful = "helpful",
+}
+
+export const isChunkImportance = createEnumValueGuard(ChunkImportance);
+export const expectChunkImportance = createEnumValueAsserter(
+  ChunkImportance,
+  "chunk importance",
+);
+
 export type SentenceId = readonly [
   serialId: number,
   fragmentId: number,
@@ -28,8 +58,8 @@ export interface ChunkRecord {
   readonly label: string;
   readonly content: string;
   readonly sentenceIds: readonly SentenceId[];
-  readonly retention?: string;
-  readonly importance?: string;
+  readonly retention?: ChunkRetention;
+  readonly importance?: ChunkImportance;
   readonly tokens: number;
   readonly weight: number;
 }

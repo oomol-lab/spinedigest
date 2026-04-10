@@ -1,17 +1,13 @@
 import type { LLM } from "../llm/index.js";
 import { REVISION_FEEDBACK_PROMPT_PATH } from "./prompt-paths.js";
-import type {
-  CompressionVersion,
-  ReviewIssue,
-  ReviewResult,
-  ReviewSeverity,
-} from "./types.js";
+import type { CompressionVersion, ReviewIssue, ReviewResult } from "./types.js";
+import { ReviewSeverity } from "./types.js";
 
 const REVIEW_SEVERITY_VALUE: Readonly<Record<ReviewSeverity, number>> =
   Object.freeze({
-    critical: 9,
-    major: 3,
-    minor: 1,
+    [ReviewSeverity.Critical]: 9,
+    [ReviewSeverity.Major]: 3,
+    [ReviewSeverity.Minor]: 1,
   });
 
 export function calculateScore(reviews: readonly ReviewResult[]): number {

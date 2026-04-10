@@ -64,8 +64,14 @@ export {
 } from "./llm/index.js";
 export {
   ChunkStore,
+  ChunkImportance,
+  ChunkRetention,
+  expectChunkImportance,
+  expectChunkRetention,
   FragmentDraft,
   FragmentGroupStore,
+  isChunkImportance,
+  isChunkRetention,
   KnowledgeEdgeStore,
   SerialFragments,
   SerialStore,
@@ -101,9 +107,9 @@ export {
 export {
   Serial,
   SerialHub,
+  SerialStage,
   SerialTopology,
   type CreateSerialOptions,
   type SerialHubOptions,
-  type SerialStage,
 } from "./serial-hub.js";
 export { Topology } from "./topology/index.js";

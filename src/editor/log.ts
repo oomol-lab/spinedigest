@@ -14,18 +14,20 @@ export class CompressionLog {
   readonly #serialId: number;
   #filePath: string | undefined;
 
-  public constructor(input: {
-    compressionRatio: number;
-    groupId: number;
-    logDirPath?: string;
-    maxIterations: number;
-    serialId: number;
-  }) {
-    this.#compressionRatio = input.compressionRatio;
-    this.#groupId = input.groupId;
-    this.#logDirPath = input.logDirPath;
-    this.#maxIterations = input.maxIterations;
-    this.#serialId = input.serialId;
+  public constructor(
+    serialId: number,
+    groupId: number,
+    options: {
+      readonly compressionRatio: number;
+      readonly logDirPath?: string;
+      readonly maxIterations: number;
+    },
+  ) {
+    this.#compressionRatio = options.compressionRatio;
+    this.#groupId = groupId;
+    this.#logDirPath = options.logDirPath;
+    this.#maxIterations = options.maxIterations;
+    this.#serialId = serialId;
   }
 
   public async appendCompressionResult(input: {

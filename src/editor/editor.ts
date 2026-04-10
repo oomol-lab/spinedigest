@@ -76,38 +76,30 @@ class EditorOperation<S extends string> {
     this.#serialId = options.serialId;
     this.#userLanguage = options.userLanguage;
     this.#workspace = options.workspace;
-    this.#compressor = new CompressionRequester({
+    this.#compressor = new CompressionRequester(
+      this.#llm,
+      options.scopes.compress,
+      this.#compressionRatio,
+      this.#userLanguage,
+    );
+    this.#log = new CompressionLog(this.#serialId, this.#groupId, {
       compressionRatio: this.#compressionRatio,
-      llm: this.#llm,
-      scope: options.scopes.compress,
-      ...(this.#userLanguage === undefined
-        ? {}
-        : {
-            userLanguage: this.#userLanguage,
-          }),
-    });
-    this.#log = new CompressionLog({
-      compressionRatio: this.#compressionRatio,
-      groupId: this.#groupId,
       maxIterations: this.#maxIterations,
-      serialId: this.#serialId,
       ...(options.logDirPath === undefined
         ? {}
         : {
             logDirPath: options.logDirPath,
           }),
     });
-    this.#reviewer = new CompressionReviewer({
-      llm: this.#llm,
-      reviewGuideScope: this.#reviewScope.reviewGuide,
-      reviewScope: this.#reviewScope.review,
-      serialFragments: this.#serialFragments,
-      ...(this.#userLanguage === undefined
-        ? {}
-        : {
-            userLanguage: this.#userLanguage,
-          }),
-    });
+    this.#reviewer = new CompressionReviewer(
+      this.#llm,
+      this.#serialFragments,
+      {
+        review: this.#reviewScope.review,
+        reviewGuide: this.#reviewScope.reviewGuide,
+      },
+      this.#userLanguage,
+    );
   }
 
   public async run(): Promise<string> {

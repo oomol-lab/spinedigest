@@ -6,7 +6,13 @@ import {
   requestGuaranteedJson,
 } from "../../guaranteed/index.js";
 import type { LLMessage } from "../../llm/index.js";
-import type { SentenceId } from "../../model/index.js";
+import {
+  ChunkImportance,
+  ChunkRetention,
+  expectChunkImportance,
+  expectChunkRetention,
+  type SentenceId,
+} from "../../model/index.js";
 import type {
   EvidenceResolutionFailure,
   RankedSentenceCandidate,
@@ -35,7 +41,12 @@ const userFocusedChunkSchema = z
     content: z.string(),
     evidence: z.record(z.string(), z.unknown()).nullish(),
     label: z.string(),
-    retention: z.enum(["verbatim", "detailed", "focused", "relevant"]),
+    retention: z.enum([
+      ChunkRetention.Verbatim,
+      ChunkRetention.Detailed,
+      ChunkRetention.Focused,
+      ChunkRetention.Relevant,
+    ]),
     source_sentences: z.array(z.string()).optional(),
     temp_id: z.string(),
   })
@@ -51,7 +62,11 @@ const bookCoherenceChunkSchema = z
   .object({
     content: z.string(),
     evidence: z.record(z.string(), z.unknown()).nullish(),
-    importance: z.enum(["critical", "important", "helpful"]),
+    importance: z.enum([
+      ChunkImportance.Critical,
+      ChunkImportance.Important,
+      ChunkImportance.Helpful,
+    ]),
     label: z.string(),
     source_sentences: z.array(z.string()).optional(),
     temp_id: z.string(),
@@ -60,7 +75,11 @@ const bookCoherenceChunkSchema = z
 
 const importanceAnnotationSchema = z.object({
   chunk_id: z.number().int(),
-  importance: z.enum(["critical", "important", "helpful"]),
+  importance: z.enum([
+    ChunkImportance.Critical,
+    ChunkImportance.Important,
+    ChunkImportance.Helpful,
+  ]),
 });
 
 export const bookCoherenceResponseSchema = z.object({
@@ -82,6 +101,11 @@ export type BookCoherenceResponseData = z.infer<
 type ExtractedChunkData = UserFocusedChunkData | BookCoherenceChunkData;
 type RawChunkLink = z.infer<typeof chunkLinkSchema>;
 type ChoiceFieldName = "start_anchor" | "end_anchor";
+
+export enum ChunkMetadataField {
+  Retention = "retention",
+  Importance = "importance",
+}
 
 export interface ExtractChunksResult {
   readonly chunkBatch: ChunkBatch;
@@ -122,7 +146,7 @@ export class ChunkBatchParser<
   readonly #choiceSystemPrompt: string;
   readonly #evidenceResolver = new EvidenceResolver();
   readonly #exactTextToIds: Readonly<Record<string, readonly SentenceId[]>>;
-  readonly #metadataField: "retention" | "importance";
+  readonly #metadataField: ChunkMetadataField;
   readonly #normalizedTextToIds: Readonly<
     Record<string, readonly SentenceId[]>
   >;
@@ -136,7 +160,7 @@ export class ChunkBatchParser<
 
   public constructor(input: {
     choiceSystemPrompt: string;
-    metadataField: "retention" | "importance";
+    metadataField: ChunkMetadataField;
     requestChoice: GuaranteedChoiceRequest;
     sentenceTextSource: SentenceTextSource;
     sentences: readonly ChunkExtractionSentence[];
@@ -247,7 +271,7 @@ export class ChunkBatchParser<
         );
       }, 0);
 
-      if (this.#metadataField === "retention") {
+      if (this.#metadataField === ChunkMetadataField.Retention) {
         const chunkData = data as UserFocusedChunkData;
 
         chunks.push({
@@ -256,7 +280,7 @@ export class ChunkBatchParser<
           id: 0,
           label,
           links: [],
-          retention: chunkData.retention,
+          retention: expectChunkRetention(chunkData.retention),
           sentenceId: primarySentenceId,
           sentenceIds: [...resolvedSentenceIds],
           tokens: totalTokens,
@@ -268,7 +292,7 @@ export class ChunkBatchParser<
           content,
           generation: 0,
           id: 0,
-          importance: chunkData.importance,
+          importance: expectChunkImportance(chunkData.importance),
           label,
           links: [],
           sentenceId: primarySentenceId,
@@ -537,7 +561,7 @@ export class ChunkBatchParser<
   #validateImportanceAnnotations(
     annotations: readonly {
       readonly chunk_id: number;
-      readonly importance: "critical" | "important" | "helpful";
+      readonly importance: ChunkImportance;
     }[],
     issues: string[],
   ): ChunkImportanceAnnotation[] | undefined {
@@ -548,7 +572,7 @@ export class ChunkBatchParser<
     if (this.#validImportanceChunkIds === undefined) {
       return annotations.map((annotation) => ({
         chunkId: annotation.chunk_id,
-        importance: annotation.importance,
+        importance: expectChunkImportance(annotation.importance),
       }));
     }
 
@@ -564,7 +588,7 @@ export class ChunkBatchParser<
 
       result.push({
         chunkId: annotation.chunk_id,
-        importance: annotation.importance,
+        importance: expectChunkImportance(annotation.importance),
       });
     }
 
