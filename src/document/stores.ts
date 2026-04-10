@@ -162,15 +162,14 @@ export class SerialStore implements ReadonlySerialStore {
   }
 
   public async getMaxId(): Promise<number> {
-    const maxId =
-      await this.#database.queryOne(
-        `
+    const maxId = await this.#database.queryOne(
+      `
           SELECT COALESCE(MAX(id), 0) AS max_id
           FROM serials
         `,
-        undefined,
-        (row) => getNumber(row, "max_id"),
-      );
+      undefined,
+      (row) => getNumber(row, "max_id"),
+    );
 
     return maxId ?? 0;
   }

@@ -1,5 +1,3 @@
 #!/usr/bin/env node
 
-import { helloWorld } from "./index.js";
-
-process.stdout.write(`${helloWorld()}\n`);
+process.stdout.write("SpineDigest CLI is not implemented yet.\n");

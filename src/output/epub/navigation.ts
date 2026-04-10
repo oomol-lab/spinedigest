@@ -11,7 +11,9 @@ export function buildNavItems(
   return items.map((item) => ({
     children: buildNavItems(item.children, sectionMap),
     href:
-      item.serialId === undefined ? undefined : sectionMap.get(item.serialId)?.href,
+      item.serialId === undefined
+        ? undefined
+        : sectionMap.get(item.serialId)?.href,
     title: item.title,
   }));
 }

@@ -49,9 +49,15 @@ export class SpineDigest {
 }
 
 async function flushDocument(document: ReadonlyDocument): Promise<void> {
-  if (!("flush" in document) || typeof document.flush !== "function") {
+  if (!isFlushableDocument(document)) {
     return;
   }
 
   await document.flush();
+}
+
+function isFlushableDocument(
+  document: ReadonlyDocument,
+): document is ReadonlyDocument & { flush(): Promise<void> } {
+  return "flush" in document && typeof document.flush === "function";
 }

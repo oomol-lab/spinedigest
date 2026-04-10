@@ -193,9 +193,8 @@ export class DirectoryDocument implements Document {
   }
 
   public async readBookMeta(): Promise<BookMeta | undefined> {
-    return await this.#readJsonFile(
-      this.#getBookMetaPath(),
-      (value) => bookMetaSchema.parse(value),
+    return await this.#readJsonFile(this.#getBookMetaPath(), (value) =>
+      bookMetaSchema.parse(value),
     );
   }
 
@@ -235,9 +234,8 @@ export class DirectoryDocument implements Document {
   }
 
   public async readToc(): Promise<TocFile | undefined> {
-    return await this.#readJsonFile(
-      this.#getTocPath(),
-      (value) => tocFileSchema.parse(value),
+    return await this.#readJsonFile(this.#getTocPath(), (value) =>
+      tocFileSchema.parse(value),
     );
   }
 

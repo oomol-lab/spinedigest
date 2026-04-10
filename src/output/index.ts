@@ -1,7 +1,4 @@
-export {
-  writePlainText,
-  type WritePlainTextOptions,
-} from "./plain-text.js";
+export { writePlainText, type WritePlainTextOptions } from "./plain-text.js";
 export {
   EPUB_OUTPUT_VERSION,
   writeEpub,

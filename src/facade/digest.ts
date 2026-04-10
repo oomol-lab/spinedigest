@@ -1,5 +1,5 @@
 import { mkdtemp, rm } from "fs/promises";
-import { join } from "path";
+import { join, resolve } from "path";
 import { tmpdir } from "os";
 
 import { BOOK_META_VERSION, TOC_FILE_VERSION } from "../source/index.js";
@@ -8,6 +8,7 @@ import {
   MARKDOWN_SOURCE_ADAPTER,
   TXT_SOURCE_ADAPTER,
   type SourceFormat,
+  type SourceAdapter,
 } from "../source/index.js";
 import { DirectoryDocument } from "../document/index.js";
 import type { Language } from "../common/language.js";
@@ -19,11 +20,16 @@ import { importSource } from "./import.js";
 import { SpineDigest } from "./spine-digest.js";
 
 interface DigestSessionOptions {
+  readonly documentDirPath?: string;
   readonly extractionPrompt: string;
   readonly llm: LLM<string>;
   readonly logDirPath?: string;
   readonly segmenter?: ReaderSegmenter;
   readonly userLanguage?: Language;
+}
+
+export interface DigestDocumentSessionOptions {
+  readonly documentDirPath?: string;
 }
 
 export interface DigestSourceSessionOptions extends DigestSessionOptions {
@@ -48,11 +54,7 @@ export async function digestMarkdownSession<T>(
   options: DigestSourceSessionOptions,
   operation: (digest: SpineDigest) => Promise<T> | T,
 ): Promise<T> {
-  return await digestSourceSession(
-    MARKDOWN_SOURCE_ADAPTER,
-    options,
-    operation,
-  );
+  return await digestSourceSession(MARKDOWN_SOURCE_ADAPTER, options, operation);
 }
 
 export async function digestTextSession<T>(
@@ -103,7 +105,7 @@ export async function digestTextSession<T>(
     });
 
     return await operation(new SpineDigest(document, directoryPath));
-  });
+  }, options.documentDirPath);
 }
 
 export async function digestTxtSession<T>(
@@ -114,10 +116,7 @@ export async function digestTxtSession<T>(
 }
 
 async function digestSourceSession<T>(
-  adapter:
-    | typeof EPUB_SOURCE_ADAPTER
-    | typeof MARKDOWN_SOURCE_ADAPTER
-    | typeof TXT_SOURCE_ADAPTER,
+  adapter: SourceAdapter,
   options: DigestSourceSessionOptions,
   operation: (digest: SpineDigest) => Promise<T> | T,
 ): Promise<T> {
@@ -140,7 +139,7 @@ async function digestSourceSession<T>(
     });
 
     return await operation(new SpineDigest(document, directoryPath));
-  });
+  }, options.documentDirPath);
 }
 
 async function withTemporaryDocumentSession<T>(
@@ -148,15 +147,21 @@ async function withTemporaryDocumentSession<T>(
     document: DirectoryDocument,
     directoryPath: string,
   ) => Promise<T> | T,
+  documentDirPath?: string,
 ): Promise<T> {
-  const directoryPath = await mkdtemp(join(tmpdir(), "spinedigest-digest-"));
+  const directoryPath =
+    documentDirPath === undefined
+      ? await mkdtemp(join(tmpdir(), "spinedigest-digest-"))
+      : resolve(documentDirPath);
   const document = await DirectoryDocument.open(directoryPath);
 
   try {
     return await operation(document, directoryPath);
   } finally {
     await document.release();
-    await rm(directoryPath, { force: true, recursive: true });
+    if (documentDirPath === undefined) {
+      await rm(directoryPath, { force: true, recursive: true });
+    }
   }
 }
 

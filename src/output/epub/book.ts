@@ -26,7 +26,12 @@ export async function buildEpubBook(
 
   const sectionMap = new Map<number, EpubSection>();
   const language = normalizeLanguage(meta.language);
-  const sections = await collectSections(document, language, toc.items, sectionMap);
+  const sections = await collectSections(
+    document,
+    language,
+    toc.items,
+    sectionMap,
+  );
   const navItems = buildNavItems(toc.items, sectionMap);
 
   if (sections.length === 0) {
@@ -35,8 +40,7 @@ export async function buildEpubBook(
 
   const coverImageHref =
     cover === undefined ? undefined : createCoverImageHref(cover);
-  const coverPageHref =
-    cover === undefined ? undefined : "text/cover.xhtml";
+  const coverPageHref = cover === undefined ? undefined : "text/cover.xhtml";
 
   return {
     cover,
@@ -83,12 +87,7 @@ async function collectSections(
     }
 
     sections.push(
-      ...(await collectSections(
-        document,
-        language,
-        item.children,
-        sectionMap,
-      )),
+      ...(await collectSections(document, language, item.children, sectionMap)),
     );
   }
 

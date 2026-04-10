@@ -3,7 +3,11 @@ import { mkdir, readdir } from "fs/promises";
 import { dirname, join, posix, relative, resolve, sep } from "path";
 import { finished, pipeline } from "stream/promises";
 
-import { open as openZip, type Entry, type ZipFile as YauzlZipFile } from "yauzl";
+import {
+  open as openZip,
+  type Entry,
+  type ZipFile as YauzlZipFile,
+} from "yauzl";
 import { ZipFile as YazlZipFile } from "yazl";
 
 export async function extractSdpubArchive(
@@ -78,7 +82,9 @@ async function listDocumentFiles(
 
     files.push({
       absolutePath,
-      archivePath: relative(rootDirectoryPath, absolutePath).split(sep).join(posix.sep),
+      archivePath: relative(rootDirectoryPath, absolutePath)
+        .split(sep)
+        .join(posix.sep),
     });
   }
 
@@ -170,7 +176,9 @@ async function openArchiveEntryStream(
   return await new Promise((resolve, reject) => {
     zipFile.openReadStream(entry, (error, stream) => {
       if (error !== null || stream === undefined) {
-        reject(error ?? new Error(`Cannot open archive entry: ${entry.fileName}`));
+        reject(
+          error ?? new Error(`Cannot open archive entry: ${entry.fileName}`),
+        );
         return;
       }
 

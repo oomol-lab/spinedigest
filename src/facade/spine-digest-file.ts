@@ -16,25 +16,29 @@ export class SpineDigestFile {
 
   public async openSession<T>(
     operation: (digest: SpineDigest) => Promise<T> | T,
+    options: {
+      readonly documentDirPath?: string;
+    } = {},
   ): Promise<T> {
-    const temporaryDirectoryPath = await mkdtemp(
-      join(tmpdir(), "spinedigest-open-"),
-    );
+    const directoryPath =
+      options.documentDirPath === undefined
+        ? await mkdtemp(join(tmpdir(), "spinedigest-open-"))
+        : resolve(options.documentDirPath);
 
     try {
-      await extractSdpubArchive(this.#path, temporaryDirectoryPath);
+      await extractSdpubArchive(this.#path, directoryPath);
 
-      const document = await DirectoryDocument.open(temporaryDirectoryPath);
+      const document = await DirectoryDocument.open(directoryPath);
 
       try {
-        return await operation(
-          new SpineDigest(document, temporaryDirectoryPath),
-        );
+        return await operation(new SpineDigest(document, directoryPath));
       } finally {
         await document.release();
       }
     } finally {
-      await rm(temporaryDirectoryPath, { force: true, recursive: true });
+      if (options.documentDirPath === undefined) {
+        await rm(directoryPath, { force: true, recursive: true });
+      }
     }
   }
 }
