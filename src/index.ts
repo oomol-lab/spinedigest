@@ -126,4 +126,23 @@ export {
   type SerialGenerationOptions,
   type SerialHubOptions,
 } from "./serial.js";
+export {
+  BOOK_META_VERSION,
+  SOURCE_FORMATS,
+  TOC_FILE_VERSION,
+  bookMetaSchema,
+  sourceFormatSchema,
+  tocFileSchema,
+  tocItemSchema,
+  type BookMeta,
+  type ReadSourceOptions,
+  type SourceAsset,
+  type SourceBook,
+  type SourceFormat,
+  type SourceReader,
+  type SourceSection,
+  type SourceTextStream,
+  type TocFile,
+  type TocItem,
+} from "./source/index.js";
 export { Topology } from "./topology/index.js";
