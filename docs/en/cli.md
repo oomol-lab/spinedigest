@@ -1,0 +1,185 @@
+<p>English | <a href="../zh-CN/cli.md">中文</a></p>
+
+# CLI Reference
+
+SpineDigest is designed to be used from the command line first.
+
+## Command Form
+
+Installed CLI:
+
+```bash
+spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>]
+```
+
+From a source checkout:
+
+```bash
+pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>]
+```
+
+## Flags
+
+- `--input <path>`: input file path
+- `--output <path>`: output file path
+- `--input-format <format>`: input format override
+- `--output-format <format>`: output format override
+- `-h`, `--help`: print help text
+
+Positional arguments are not supported.
+
+## Formats
+
+Supported formats:
+
+- `sdpub`
+- `epub`
+- `txt`
+- `markdown`
+
+If a format flag is omitted, SpineDigest tries to infer the format from the file extension.
+
+Extension mapping:
+
+- `.sdpub` -> `sdpub`
+- `.epub` -> `epub`
+- `.txt` -> `txt`
+- `.md` or `.markdown` -> `markdown`
+
+## Standard Stream Rules
+
+When `--input` is omitted:
+
+- SpineDigest reads from `stdin`
+- only `txt` and `markdown` are allowed
+- interactive `stdin` is rejected
+
+When `--output` is omitted:
+
+- SpineDigest writes to `stdout`
+- only `txt` and `markdown` are allowed
+
+## Common Commands
+
+Digest an EPUB to Markdown:
+
+```bash
+spinedigest --input ./book.epub --output ./digest.md
+```
+
+Digest a text file to EPUB:
+
+```bash
+spinedigest --input ./book.txt --output ./digest.epub
+```
+
+Create an `.sdpub` archive:
+
+```bash
+spinedigest --input ./book.md --output ./book.sdpub
+```
+
+Reuse an existing `.sdpub` archive:
+
+```bash
+spinedigest --input ./book.sdpub --output ./digest.txt
+```
+
+Use pipes:
+
+```bash
+cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
+```
+
+## Configuration
+
+Default config path:
+
+```text
+~/.spinedigest/config.json
+```
+
+Override path:
+
+```text
+SPINEDIGEST_CONFIG
+```
+
+Config fields:
+
+```json
+{
+  "llm": {
+    "provider": "openai",
+    "model": "<your-model>",
+    "apiKey": "<optional>",
+    "baseURL": "<optional>",
+    "name": "<optional>"
+  },
+  "paths": {
+    "cacheDir": "<optional>",
+    "debugLogDir": "<optional>"
+  },
+  "prompt": "<optional>",
+  "request": {
+    "concurrent": 2,
+    "retryIntervalSeconds": 2,
+    "retryTimes": 1,
+    "temperature": 0.7,
+    "timeout": 60000,
+    "topP": 0.9
+  }
+}
+```
+
+## Environment Variables
+
+SpineDigest can override config values with environment variables:
+
+- `SPINEDIGEST_CONFIG`
+- `SPINEDIGEST_PROMPT`
+- `SPINEDIGEST_LLM_PROVIDER`
+- `SPINEDIGEST_LLM_MODEL`
+- `SPINEDIGEST_LLM_BASE_URL`
+- `SPINEDIGEST_LLM_NAME`
+- `SPINEDIGEST_LLM_API_KEY`
+- `SPINEDIGEST_CACHE_DIR`
+- `SPINEDIGEST_DEBUG_LOG_DIR`
+- `SPINEDIGEST_REQUEST_CONCURRENT`
+- `SPINEDIGEST_REQUEST_TIMEOUT`
+- `SPINEDIGEST_REQUEST_RETRY_TIMES`
+- `SPINEDIGEST_REQUEST_RETRY_INTERVAL_SECONDS`
+- `SPINEDIGEST_REQUEST_TEMPERATURE`
+- `SPINEDIGEST_REQUEST_TOP_P`
+
+`openai-compatible` requires a base URL from config or `SPINEDIGEST_LLM_BASE_URL`.
+
+## `.sdpub` Behavior
+
+`.sdpub` is a portable archive of a processed digest document.
+
+When the input is `.sdpub`:
+
+- SpineDigest opens the saved digest state
+- no LLM configuration is required
+- you can export to `.txt`, `.md`, or `.epub`
+
+When the output is `.sdpub`:
+
+- SpineDigest saves the processed digest document for later reuse
+
+## Failure Modes
+
+Expect a plain-text error message on `stderr` and a non-zero exit code when:
+
+- the input format cannot be inferred
+- the output format cannot be inferred
+- `stdin` or `stdout` is used with a non-text format
+- no LLM configuration is available for a digest operation
+- provider-specific configuration is invalid
+
+## Related Docs
+
+- [Quick Start](./quickstart.md)
+- [AI Agent Guide](./ai-agents.md)
+- [Library Usage](./library.md)
