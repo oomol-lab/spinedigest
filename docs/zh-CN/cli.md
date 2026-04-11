@@ -66,8 +66,8 @@ pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--outp
 
 - 默认情况下，CLI 不向终端输出诊断日志。
 - 传入 `--verbose` 后，诊断日志会写到 `stderr`。
-- 如果配置了 `paths.debugLogDir`，每次运行会在该目录下创建 `runs/<runId>/`，其中包含：
-  - `events.jsonl`：结构化事件日志
+- 如果配置了 `paths.debugLogDir`，每次运行会在该目录下创建 `<runId>/`，其中包含：
+  - `events.log`：可直接阅读的事件日志
   - `artifacts/llm/`：LLM 请求日志
   - `artifacts/editor/`：压缩过程日志
 

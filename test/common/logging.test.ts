@@ -3,6 +3,8 @@ import { readFile, writeFile } from "fs/promises";
 import { describe, expect, it } from "vitest";
 
 import {
+  allocateArtifactPath,
+  getLogger,
   resolveArtifactPath,
   withLoggingContext,
 } from "../../src/common/logging.js";
@@ -24,13 +26,14 @@ describe("common/logging", () => {
 
   it("writes contextual artifacts under the run directory", async () => {
     await withTempDir("spinedigest-logging-", async (path) => {
-      const artifactPath = await withLoggingContext(
+      const { artifactPath, runDirPath } = await withLoggingContext(
         {
           logDirPath: path,
           operation: "digest-test",
           verbose: false,
         },
         async () => {
+          getLogger({ component: "test" }).info("hello event log");
           const resolvedPath = resolveArtifactPath({
             category: "llm",
             fileName: "request.log",
@@ -39,15 +42,42 @@ describe("common/logging", () => {
 
           expect(resolvedPath).toBeDefined();
           await writeFile(resolvedPath!, "request log", "utf8");
-          return resolvedPath!;
+          return {
+            artifactPath: resolvedPath!,
+            runDirPath: resolvedPath!.split("/artifacts/")[0]!,
+          };
         },
       );
 
-      expect(artifactPath).toContain("/runs/");
+      expect(artifactPath.startsWith(`${path}/`)).toBe(true);
       expect(artifactPath).toContain("/artifacts/llm/request.log");
+      expect(artifactPath).not.toContain("/runs/");
       const content = await readFile(artifactPath, "utf8");
+      const eventLog = await readFile(`${runDirPath}/events.log`, "utf8");
 
       expect(content).toBe("request log");
+      expect(eventLog).toContain("INFO");
+      expect(eventLog).toContain("hello event log");
+      expect(eventLog).not.toContain('{"level":');
+    });
+  });
+
+  it("allocates stable artifact names with numeric suffixes when needed", async () => {
+    await withTempDir("spinedigest-logging-", (path) => {
+      const firstPath = allocateArtifactPath({
+        category: "llm",
+        logDirPath: path,
+        prefix: "request",
+      });
+      const secondPath = allocateArtifactPath({
+        category: "llm",
+        logDirPath: path,
+        prefix: "request",
+      });
+
+      expect(firstPath).toBe(`${path}/request.log`);
+      expect(secondPath).toBe(`${path}/request-2.log`);
+      return Promise.resolve();
     });
   });
 });

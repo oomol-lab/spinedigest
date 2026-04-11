@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "async_hooks";
 import { randomUUID } from "crypto";
-import { mkdirSync } from "fs";
+import { existsSync, mkdirSync } from "fs";
 import { dirname, join, resolve } from "path";
 
 import pino, {
@@ -11,6 +11,7 @@ import pino, {
 import pretty from "pino-pretty";
 
 interface LoggingContext {
+  readonly artifactCounters: Map<string, number>;
   readonly artifactRootDirPath?: string;
   readonly logger: PinoLogger;
   readonly rootLogDirPath?: string;
@@ -18,6 +19,7 @@ interface LoggingContext {
 }
 
 const loggingContext = new AsyncLocalStorage<LoggingContext>();
+const artifactCounters = new Map<string, number>();
 const silentLogger = pino({ enabled: false });
 
 export async function withLoggingContext<T>(
@@ -32,9 +34,7 @@ export async function withLoggingContext<T>(
     input.logDirPath === undefined ? undefined : resolve(input.logDirPath);
   const runId = createRunId();
   const runDirPath =
-    rootLogDirPath === undefined
-      ? undefined
-      : join(rootLogDirPath, "runs", runId);
+    rootLogDirPath === undefined ? undefined : join(rootLogDirPath, runId);
   const artifactRootDirPath =
     runDirPath === undefined ? undefined : join(runDirPath, "artifacts");
 
@@ -48,11 +48,12 @@ export async function withLoggingContext<T>(
     verbose: input.verbose ?? false,
     ...(runDirPath === undefined
       ? {}
-      : { eventLogPath: join(runDirPath, "events.jsonl") }),
+      : { eventLogPath: join(runDirPath, "events.log") }),
   });
 
   return await loggingContext.run(
     {
+      artifactCounters: new Map(),
       logger,
       runId,
       ...(artifactRootDirPath === undefined ? {} : { artifactRootDirPath }),
@@ -96,6 +97,46 @@ export function resolveArtifactPath(input: {
   return join(rootLogDirPath, input.fileName);
 }
 
+export function allocateArtifactPath(input: {
+  readonly category: string;
+  readonly extension?: string;
+  readonly logDirPath?: string;
+  readonly prefix: string;
+}): string | undefined {
+  if (input.logDirPath === undefined) {
+    return undefined;
+  }
+
+  const rootLogDirPath = resolve(input.logDirPath);
+  const context = loggingContext.getStore();
+  const extension = input.extension ?? ".log";
+  const counterStore = context?.artifactCounters ?? artifactCounters;
+  const counterKey = `${rootLogDirPath}:${input.category}:${input.prefix}:${extension}`;
+  const nextIndex = counterStore.get(counterKey);
+  const startIndex = nextIndex === undefined ? 1 : nextIndex + 1;
+
+  for (let index = startIndex; ; index += 1) {
+    const fileName =
+      index === 1
+        ? `${input.prefix}${extension}`
+        : `${input.prefix}-${index}${extension}`;
+    const resolvedPath = resolveArtifactPath({
+      category: input.category,
+      fileName,
+      logDirPath: input.logDirPath,
+    });
+
+    if (resolvedPath === undefined) {
+      return undefined;
+    }
+
+    if (!existsSync(resolvedPath)) {
+      counterStore.set(counterKey, index);
+      return resolvedPath;
+    }
+  }
+}
+
 function createLogger(input: {
   readonly eventLogPath?: string;
   readonly operation: string;
@@ -108,9 +149,14 @@ function createLogger(input: {
     mkdirSync(dirname(input.eventLogPath), { recursive: true });
     streams.push({
       level: "info",
-      stream: pino.destination({
-        dest: input.eventLogPath,
-        sync: false,
+      stream: pretty({
+        colorize: false,
+        destination: input.eventLogPath,
+        ignore: "pid,hostname",
+        mkdir: true,
+        singleLine: true,
+        sync: true,
+        translateTime: "SYS:yyyy-mm-dd HH:MM:ss",
       }),
     });
   }
@@ -123,6 +169,7 @@ function createLogger(input: {
         destination: process.stderr,
         ignore: "pid,hostname",
         singleLine: true,
+        sync: true,
         translateTime: "SYS:yyyy-mm-dd HH:MM:ss",
       }),
     });

@@ -110,6 +110,7 @@ describe("editor/log", () => {
       const fileNames = await readdir(path);
 
       expect(fileNames).toHaveLength(1);
+      expect(fileNames[0]).toBe("compression-serial-1-group-2.log");
       const logText = await readFile(`${path}/${fileNames[0]}`, "utf8");
 
       expect(logText).toContain("CHUNK HIERARCHY - Serial 1, Group 2");

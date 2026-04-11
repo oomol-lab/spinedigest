@@ -1,5 +1,5 @@
 import { appendFile, writeFile } from "fs/promises";
-import { resolveArtifactPath } from "../common/logging.js";
+import { allocateArtifactPath } from "../common/logging.js";
 
 import type { Language } from "../common/language.js";
 import type { Clue } from "./clue.js";
@@ -167,10 +167,10 @@ export class CompressionLog {
 
     const timestamp = formatTimestamp(new Date());
 
-    this.#filePath = resolveArtifactPath({
+    this.#filePath = allocateArtifactPath({
       category: "editor",
-      fileName: `compression serial-${this.#serialId} group-${this.#groupId} ${timestamp}.log`,
       logDirPath: this.#logDirPath,
+      prefix: `compression-serial-${this.#serialId}-group-${this.#groupId}`,
     });
 
     if (this.#filePath === undefined) {

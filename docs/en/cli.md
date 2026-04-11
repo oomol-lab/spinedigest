@@ -66,8 +66,8 @@ When `--output` is omitted:
 
 - By default, the CLI stays quiet and does not print diagnostic logs to the terminal.
 - With `--verbose`, diagnostic logs are written to `stderr`.
-- When `paths.debugLogDir` is configured, each run creates `runs/<runId>/` under that directory, including:
-  - `events.jsonl`: structured event log
+- When `paths.debugLogDir` is configured, each run creates `<runId>/` under that directory, including:
+  - `events.log`: human-readable event log
   - `artifacts/llm/`: LLM request logs
   - `artifacts/editor/`: compression logs
 
