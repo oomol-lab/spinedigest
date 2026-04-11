@@ -116,7 +116,7 @@ interface SentenceIndex {
   readonly exactTextToIds: Readonly<Record<string, readonly SentenceId[]>>;
   readonly normalizedTextToIds: Readonly<Record<string, readonly SentenceId[]>>;
   readonly sentenceTextByKey: Readonly<Record<string, string>>;
-  readonly tokenCountByKey: Readonly<Record<string, number>>;
+  readonly wordsCountByKey: Readonly<Record<string, number>>;
 }
 
 interface ResolveChunkEvidenceInput {
@@ -154,7 +154,7 @@ export class ChunkBatchParser<
   readonly #sentenceTextByKey: Readonly<Record<string, string>>;
   readonly #sentenceTextSource: SentenceTextSource;
   readonly #sentences: readonly ChunkExtractionSentence[];
-  readonly #tokenCountByKey: Readonly<Record<string, number>>;
+  readonly #wordsCountByKey: Readonly<Record<string, number>>;
   readonly #validImportanceChunkIds: Readonly<Record<string, true>> | undefined;
   readonly #visibleChunkIds: readonly number[];
 
@@ -179,7 +179,7 @@ export class ChunkBatchParser<
     this.#exactTextToIds = sentenceIndex.exactTextToIds;
     this.#normalizedTextToIds = sentenceIndex.normalizedTextToIds;
     this.#sentenceTextByKey = sentenceIndex.sentenceTextByKey;
-    this.#tokenCountByKey = sentenceIndex.tokenCountByKey;
+    this.#wordsCountByKey = sentenceIndex.wordsCountByKey;
     this.#validImportanceChunkIds =
       input.validImportanceChunkIds === undefined
         ? undefined
@@ -265,9 +265,9 @@ export class ChunkBatchParser<
         continue;
       }
 
-      const totalTokens = resolvedSentenceIds.reduce((sum, sentenceId) => {
+      const totalWordsCount = resolvedSentenceIds.reduce((sum, sentenceId) => {
         return (
-          sum + (this.#tokenCountByKey[createSentenceKey(sentenceId)] ?? 0)
+          sum + (this.#wordsCountByKey[createSentenceKey(sentenceId)] ?? 0)
         );
       }, 0);
 
@@ -283,7 +283,7 @@ export class ChunkBatchParser<
           retention: expectChunkRetention(chunkData.retention),
           sentenceId: primarySentenceId,
           sentenceIds: [...resolvedSentenceIds],
-          tokens: totalTokens,
+          wordsCount: totalWordsCount,
         });
       } else {
         const chunkData = data as BookCoherenceChunkData;
@@ -297,7 +297,7 @@ export class ChunkBatchParser<
           links: [],
           sentenceId: primarySentenceId,
           sentenceIds: [...resolvedSentenceIds],
-          tokens: totalTokens,
+          wordsCount: totalWordsCount,
         });
       }
 
@@ -781,7 +781,7 @@ function indexSentences(
   const exactTextToIds = createEmptyRecord<readonly SentenceId[]>();
   const normalizedTextToIds = createEmptyRecord<readonly SentenceId[]>();
   const sentenceTextByKey = createEmptyRecord<string>();
-  const tokenCountByKey = createEmptyRecord<number>();
+  const wordsCountByKey = createEmptyRecord<number>();
 
   for (const sentence of sentences) {
     appendIndexedValue(exactTextToIds, sentence.text, sentence.sentenceId);
@@ -798,14 +798,14 @@ function indexSentences(
 
     const sentenceKey = createSentenceKey(sentence.sentenceId);
     sentenceTextByKey[sentenceKey] = sentence.text;
-    tokenCountByKey[sentenceKey] = sentence.tokenCount;
+    wordsCountByKey[sentenceKey] = sentence.wordsCount;
   }
 
   return {
     exactTextToIds,
     normalizedTextToIds,
     sentenceTextByKey,
-    tokenCountByKey,
+    wordsCountByKey,
   };
 }
 

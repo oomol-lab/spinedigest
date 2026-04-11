@@ -25,12 +25,21 @@ describe("cli/args", () => {
       inputPath: "book.epub",
       outputFormat: "markdown",
       outputPath: "out.txt",
+      verbose: false,
     });
   });
 
   it("omits undefined optional arguments", () => {
     expect(parseCLIArguments([])).toStrictEqual({
       help: false,
+      verbose: false,
+    });
+  });
+
+  it("parses --verbose", () => {
+    expect(parseCLIArguments(["--verbose"])).toStrictEqual({
+      help: false,
+      verbose: true,
     });
   });
 
@@ -56,6 +65,12 @@ describe("cli/args", () => {
     expect(CLI_HELP_TEXT).toContain("--digest-dir keeps the intermediate");
     expect(CLI_HELP_TEXT).toContain(
       "--digest-dir clears the target directory before each run",
+    );
+    expect(CLI_HELP_TEXT).toContain(
+      "--verbose writes diagnostic logs to stderr",
+    );
+    expect(CLI_HELP_TEXT).toContain(
+      "--verbose cannot be used together with stdout output",
     );
     expect(CLI_HELP_TEXT).toContain("SPINEDIGEST_LLM_MODEL");
   });

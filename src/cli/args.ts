@@ -9,19 +9,22 @@ export interface CLIArguments {
   readonly inputFormat?: CLIFormat;
   readonly outputPath?: string;
   readonly outputFormat?: CLIFormat;
+  readonly verbose: boolean;
 }
 
 export const CLI_HELP_TEXT = `
 Usage:
-  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>]
+  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
 
 Behavior:
   - If --input is omitted, stdin is used.
   - If --output is omitted, stdout is used.
   - stdin/stdout only support txt or markdown.
+  - --verbose cannot be used together with stdout output.
   - If a format flag is omitted, the format is inferred from the file extension.
   - --digest-dir keeps the intermediate digest workspace for digest inputs.
   - --digest-dir clears the target directory before each run.
+  - --verbose writes diagnostic logs to stderr.
 
 Formats:
   ${CLI_FORMATS.join(", ")}
@@ -71,6 +74,10 @@ export function parseCLIArguments(argv = process.argv.slice(2)): CLIArguments {
       "output-format": {
         type: "string",
       },
+      verbose: {
+        short: "v",
+        type: "boolean",
+      },
     },
     strict: true,
   });
@@ -101,5 +108,6 @@ export function parseCLIArguments(argv = process.argv.slice(2)): CLIArguments {
             "--output-format",
           ),
         }),
+    verbose: values.verbose ?? false,
   };
 }

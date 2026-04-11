@@ -36,7 +36,7 @@ export type SentenceId = readonly [
 
 export interface SentenceRecord {
   readonly text: string;
-  readonly tokenCount: number;
+  readonly wordsCount: number;
 }
 
 export interface FragmentRecord {
@@ -60,7 +60,7 @@ export interface ChunkRecord {
   readonly sentenceIds: readonly SentenceId[];
   readonly retention?: ChunkRetention;
   readonly importance?: ChunkImportance;
-  readonly tokens: number;
+  readonly wordsCount: number;
   readonly weight: number;
 }
 
@@ -79,7 +79,7 @@ export interface SnakeRecord {
   readonly size: number;
   readonly firstLabel: string;
   readonly lastLabel: string;
-  readonly tokens: number;
+  readonly wordsCount: number;
   readonly weight: number;
 }
 
@@ -90,7 +90,7 @@ export interface CreateSnakeRecord {
   readonly size: number;
   readonly firstLabel: string;
   readonly lastLabel: string;
-  readonly tokens?: number;
+  readonly wordsCount?: number;
   readonly weight?: number;
 }
 

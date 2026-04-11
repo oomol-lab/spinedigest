@@ -232,7 +232,7 @@ export class ChunkStore implements ReadonlyChunkStore {
             content,
             retention,
             importance,
-            tokens,
+            wordsCount,
             weight
           )
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -247,7 +247,7 @@ export class ChunkStore implements ReadonlyChunkStore {
           record.content,
           record.retention ?? null,
           record.importance ?? null,
-          record.tokens,
+          record.wordsCount,
           record.weight,
         ],
       );
@@ -290,7 +290,7 @@ export class ChunkStore implements ReadonlyChunkStore {
           content,
           retention,
           importance,
-          tokens,
+          wordsCount,
           weight
         FROM chunks
         WHERE id = ?
@@ -319,7 +319,7 @@ export class ChunkStore implements ReadonlyChunkStore {
             content,
             retention,
             importance,
-            tokens,
+            wordsCount,
             weight
           FROM chunks
           ORDER BY id
@@ -355,7 +355,7 @@ export class ChunkStore implements ReadonlyChunkStore {
             content,
             retention,
             importance,
-            tokens,
+            wordsCount,
             weight
           FROM chunks
           WHERE serial_id = ? AND fragment_id IN (${placeholders})
@@ -383,7 +383,7 @@ export class ChunkStore implements ReadonlyChunkStore {
             content,
             retention,
             importance,
-            tokens,
+            wordsCount,
             weight
           FROM chunks
           WHERE serial_id = ?
@@ -466,7 +466,7 @@ export class ChunkStore implements ReadonlyChunkStore {
         getNumber(row, "sentence_index"),
       ] as const,
       sentenceIds: await this.#getSentenceIds(chunkId),
-      tokens: getNumber(row, "tokens"),
+      wordsCount: getNumber(row, "wordsCount"),
       weight: getNumber(row, "weight"),
       ...(importance === undefined ? {} : { importance }),
       ...(retention === undefined ? {} : { retention }),
@@ -566,7 +566,7 @@ export class SnakeStore implements ReadonlySnakeStore {
           size,
           first_label,
           last_label,
-          tokens,
+          wordsCount,
           weight
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -578,7 +578,7 @@ export class SnakeStore implements ReadonlySnakeStore {
         record.size,
         record.firstLabel,
         record.lastLabel,
-        record.tokens ?? 0,
+        record.wordsCount ?? 0,
         record.weight ?? 0,
       ],
     );
@@ -597,7 +597,7 @@ export class SnakeStore implements ReadonlySnakeStore {
           size,
           first_label,
           last_label,
-          tokens,
+          wordsCount,
           weight
         FROM snakes
         WHERE id = ?
@@ -611,7 +611,7 @@ export class SnakeStore implements ReadonlySnakeStore {
         lastLabel: getString(row, "last_label"),
         localSnakeId: getNumber(row, "local_snake_id"),
         size: getNumber(row, "size"),
-        tokens: getNumber(row, "tokens"),
+        wordsCount: getNumber(row, "wordsCount"),
         weight: getNumber(row, "weight"),
       }),
     );
@@ -644,7 +644,7 @@ export class SnakeStore implements ReadonlySnakeStore {
           size,
           first_label,
           last_label,
-          tokens,
+          wordsCount,
           weight
         FROM snakes
         WHERE serial_id = ?
@@ -659,7 +659,7 @@ export class SnakeStore implements ReadonlySnakeStore {
         lastLabel: getString(row, "last_label"),
         localSnakeId: getNumber(row, "local_snake_id"),
         size: getNumber(row, "size"),
-        tokens: getNumber(row, "tokens"),
+        wordsCount: getNumber(row, "wordsCount"),
         weight: getNumber(row, "weight"),
       }),
     );

@@ -48,11 +48,20 @@ type ResolvedOutputEndpoint =
 export async function runConvertCommand(args: CLIArguments): Promise<void> {
   const input = resolveInputEndpoint(args);
   const output = resolveOutputEndpoint(args);
+
+  if (args.verbose && output.standardStream === "stdout") {
+    throw new Error(
+      "Cannot use --verbose when writing digest output to stdout. Use --output <path> or disable --verbose.",
+    );
+  }
+
   const inputFormat = input.format;
   const requiresDigest = inputFormat !== "sdpub";
   const digestDirPath = await prepareDigestDirPath(args, requiresDigest);
   const config = await loadRequiredConfig(requiresDigest);
-  const app = new SpineDigestApp(createAppOptions(config, requiresDigest));
+  const app = new SpineDigestApp(
+    createAppOptions(args, config, requiresDigest),
+  );
 
   if (inputFormat === "sdpub") {
     if (input.path === undefined) {
@@ -170,18 +179,18 @@ async function loadRequiredConfig(requiresDigest: boolean): Promise<CLIConfig> {
 }
 
 function createAppOptions(
+  args: CLIArguments,
   config: CLIConfig,
   requiresDigest: boolean,
 ): SpineDigestAppOptions {
+  const llmOptions = !requiresDigest ? undefined : buildLLMOptions(config);
+
   return {
     ...(config.paths?.debugLogDir === undefined
       ? {}
       : { debugLogDirPath: config.paths.debugLogDir }),
-    ...(requiresDigest
-      ? {
-          llm: buildLLMOptions(config),
-        }
-      : {}),
+    ...(args.verbose ? { verbose: true } : {}),
+    ...(llmOptions === undefined ? {} : { llm: llmOptions }),
   };
 }
 

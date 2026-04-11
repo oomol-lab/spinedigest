@@ -2,6 +2,7 @@ import type { LanguageModel } from "ai";
 
 import { resolveDataDirPath } from "../common/data-dir.js";
 import type { Language } from "../common/language.js";
+import { withLoggingContext } from "../common/logging.js";
 import { LLM } from "../llm/index.js";
 
 import {
@@ -36,6 +37,7 @@ export interface SpineDigestLLMOptions {
 export interface SpineDigestAppOptions {
   readonly debugLogDirPath?: string;
   readonly llm?: LanguageModel | SpineDigestLLMOptions;
+  readonly verbose?: boolean;
 }
 
 export type SpineDigestOpenSessionOptions = DigestDocumentSessionOptions;
@@ -58,9 +60,11 @@ export interface SpineDigestTextSessionOptions extends DigestDocumentSessionOpti
 export class SpineDigestApp {
   readonly #debugLogDirPath: string | undefined;
   readonly #llm: LLM<string> | undefined;
+  readonly #verbose: boolean;
 
   public constructor(options: SpineDigestAppOptions) {
     this.#debugLogDirPath = options.debugLogDirPath;
+    this.#verbose = options.verbose ?? false;
     this.#llm =
       options.llm === undefined
         ? undefined
@@ -74,9 +78,10 @@ export class SpineDigestApp {
     options: SpineDigestSourceSessionOptions,
     operation: (digest: SpineDigest) => Promise<T> | T,
   ): Promise<T> {
-    return await digestEpubSession(
-      this.#createSourceOptions(options),
-      operation,
+    return await this.#withLogging(
+      "digest-epub",
+      async () =>
+        await digestEpubSession(this.#createSourceOptions(options), operation),
     );
   }
 
@@ -84,9 +89,13 @@ export class SpineDigestApp {
     options: SpineDigestSourceSessionOptions,
     operation: (digest: SpineDigest) => Promise<T> | T,
   ): Promise<T> {
-    return await digestMarkdownSession(
-      this.#createSourceOptions(options),
-      operation,
+    return await this.#withLogging(
+      "digest-markdown",
+      async () =>
+        await digestMarkdownSession(
+          this.#createSourceOptions(options),
+          operation,
+        ),
     );
   }
 
@@ -94,29 +103,33 @@ export class SpineDigestApp {
     options: SpineDigestTextSessionOptions,
     operation: (digest: SpineDigest) => Promise<T> | T,
   ): Promise<T> {
-    return await digestTextSession(
-      {
-        extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
-        llm: this.#requireLLM(),
-        stream: options.stream,
-        ...(this.#debugLogDirPath === undefined
-          ? {}
-          : { logDirPath: this.#debugLogDirPath }),
-        ...(options.bookLanguage === undefined
-          ? {}
-          : { bookLanguage: options.bookLanguage }),
-        ...(options.documentDirPath === undefined
-          ? {}
-          : { documentDirPath: options.documentDirPath }),
-        ...(options.sourceFormat === undefined
-          ? {}
-          : { sourceFormat: options.sourceFormat }),
-        ...(options.title === undefined ? {} : { title: options.title }),
-        ...(options.userLanguage === undefined
-          ? {}
-          : { userLanguage: options.userLanguage }),
-      } satisfies DigestTextSessionOptions,
-      operation,
+    return await this.#withLogging(
+      "digest-text",
+      async () =>
+        await digestTextSession(
+          {
+            extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
+            llm: this.#requireLLM(),
+            stream: options.stream,
+            ...(this.#debugLogDirPath === undefined
+              ? {}
+              : { logDirPath: this.#debugLogDirPath }),
+            ...(options.bookLanguage === undefined
+              ? {}
+              : { bookLanguage: options.bookLanguage }),
+            ...(options.documentDirPath === undefined
+              ? {}
+              : { documentDirPath: options.documentDirPath }),
+            ...(options.sourceFormat === undefined
+              ? {}
+              : { sourceFormat: options.sourceFormat }),
+            ...(options.title === undefined ? {} : { title: options.title }),
+            ...(options.userLanguage === undefined
+              ? {}
+              : { userLanguage: options.userLanguage }),
+          } satisfies DigestTextSessionOptions,
+          operation,
+        ),
     );
   }
 
@@ -124,9 +137,10 @@ export class SpineDigestApp {
     options: SpineDigestSourceSessionOptions,
     operation: (digest: SpineDigest) => Promise<T> | T,
   ): Promise<T> {
-    return await digestTxtSession(
-      this.#createSourceOptions(options),
-      operation,
+    return await this.#withLogging(
+      "digest-txt",
+      async () =>
+        await digestTxtSession(this.#createSourceOptions(options), operation),
     );
   }
 
@@ -135,11 +149,15 @@ export class SpineDigestApp {
     operation: (digest: SpineDigest) => Promise<T> | T,
     options: SpineDigestOpenSessionOptions = {},
   ): Promise<T> {
-    return await new SpineDigestFile(path).openSession(operation, {
-      ...(options.documentDirPath === undefined
-        ? {}
-        : { documentDirPath: options.documentDirPath }),
-    });
+    return await this.#withLogging(
+      "open-sdpub",
+      async () =>
+        await new SpineDigestFile(path).openSession(operation, {
+          ...(options.documentDirPath === undefined
+            ? {}
+            : { documentDirPath: options.documentDirPath }),
+        }),
+    );
   }
 
   #createSourceOptions(
@@ -169,6 +187,19 @@ export class SpineDigestApp {
     }
 
     return this.#llm;
+  }
+
+  async #withLogging<T>(operation: string, task: () => Promise<T>): Promise<T> {
+    return await withLoggingContext(
+      {
+        operation,
+        ...(this.#debugLogDirPath === undefined
+          ? {}
+          : { logDirPath: this.#debugLogDirPath }),
+        ...(this.#verbose ? { verbose: true } : {}),
+      },
+      task,
+    );
   }
 }
 

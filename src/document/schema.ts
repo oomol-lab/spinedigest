@@ -19,7 +19,7 @@ export const SCHEMA_SQL = `
     content TEXT NOT NULL,
     retention TEXT,
     importance TEXT,
-    tokens INTEGER NOT NULL DEFAULT 0,
+    wordsCount INTEGER NOT NULL DEFAULT 0,
     weight REAL NOT NULL DEFAULT 0.0
   );
 
@@ -53,7 +53,7 @@ export const SCHEMA_SQL = `
     size INTEGER NOT NULL,
     first_label TEXT NOT NULL,
     last_label TEXT NOT NULL,
-    tokens INTEGER NOT NULL DEFAULT 0,
+    wordsCount INTEGER NOT NULL DEFAULT 0,
     weight REAL NOT NULL DEFAULT 0.0,
     UNIQUE(serial_id, group_id, local_snake_id)
   );

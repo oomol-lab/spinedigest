@@ -111,7 +111,7 @@ function createChunk(
     links: [],
     sentenceId: [...sentenceId] as [number, number, number],
     sentenceIds: [[...sentenceId] as [number, number, number]],
-    tokens: 1,
+    wordsCount: 1,
   };
 }
 

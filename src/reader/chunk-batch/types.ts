@@ -26,7 +26,7 @@ export interface CognitiveChunk {
   links: number[];
   retention?: ChunkRetention;
   importance?: ChunkImportance;
-  tokens: number;
+  wordsCount: number;
 }
 
 export interface ChunkBatch {
@@ -70,7 +70,7 @@ export interface ChunkBatchOptions<S extends string> {
 export interface ChunkExtractionSentence {
   readonly sentenceId: SentenceId;
   readonly text: string;
-  readonly tokenCount: number;
+  readonly wordsCount: number;
 }
 
 export interface ExtractUserFocusedInput {

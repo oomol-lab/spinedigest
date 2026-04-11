@@ -115,11 +115,11 @@ describe("editor/editor", () => {
         createFragmentRecord(1, [
           {
             text: "Alpha begins.",
-            tokenCount: 2,
+            wordsCount: 2,
           },
           {
             text: "Beta continues.",
-            tokenCount: 3,
+            wordsCount: 3,
           },
         ]),
       ],
@@ -227,7 +227,7 @@ function createChunkRecord(
     label,
     sentenceId: [1, fragmentId, sentenceIndex],
     sentenceIds: [[1, fragmentId, sentenceIndex]],
-    tokens: 5,
+    wordsCount: 5,
     weight: 1,
   };
 }
@@ -258,7 +258,7 @@ function createSnakeRecord(
     localSnakeId: snakeId,
     serialId: 1,
     size: 1,
-    tokens: 10,
+    wordsCount: 10,
     weight,
   };
 }

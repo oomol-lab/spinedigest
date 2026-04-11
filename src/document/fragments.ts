@@ -26,7 +26,7 @@ export interface ReadonlyFragments {
   getSerial(serialId: number): ReadonlySerialFragments;
   getSentence(sentenceId: SentenceId): Promise<string>;
   getSummary(serialId: number, fragmentId: number): Promise<string>;
-  getTokenCount(serialId: number, fragmentId: number): Promise<number>;
+  getWordsCount(serialId: number, fragmentId: number): Promise<number>;
   readonly path: string;
 }
 
@@ -73,14 +73,14 @@ export class Fragments implements ReadonlyFragments {
     return (await this.getSerial(serialId).getFragment(fragmentId)).summary;
   }
 
-  public async getTokenCount(
+  public async getWordsCount(
     serialId: number,
     fragmentId: number,
   ): Promise<number> {
     const fragment = await this.getSerial(serialId).getFragment(fragmentId);
 
     return fragment.sentences.reduce(
-      (total, sentence) => total + sentence.tokenCount,
+      (total, sentence) => total + sentence.wordsCount,
       0,
     );
   }
@@ -256,13 +256,13 @@ export class FragmentDraft {
     this.#fragmentId = fragmentId;
   }
 
-  public addSentence(text: string, tokenCount: number): SentenceId {
+  public addSentence(text: string, wordsCount: number): SentenceId {
     this.#assertActive();
     const sentenceIndex = this.#sentences.length;
 
     this.#sentences.push({
       text,
-      tokenCount,
+      wordsCount,
     });
 
     return [this.#serialId, this.#fragmentId, sentenceIndex];
@@ -339,24 +339,17 @@ function parseSentenceRecord(value: unknown): SentenceRecord {
     throw new TypeError("Sentence entry must be an object");
   }
 
-  const {
-    text,
-    token_count: tokenCount,
-    tokenCount: camelTokenCount,
-  } = value as {
+  const { text, wordsCount } = value as {
     readonly text?: unknown;
-    readonly token_count?: unknown;
-    readonly tokenCount?: unknown;
+    readonly wordsCount?: unknown;
   };
-  const resolvedTokenCount =
-    typeof camelTokenCount === "number" ? camelTokenCount : tokenCount;
 
-  if (typeof text !== "string" || typeof resolvedTokenCount !== "number") {
+  if (typeof text !== "string" || typeof wordsCount !== "number") {
     throw new TypeError("Sentence entry is invalid");
   }
 
   return {
     text,
-    tokenCount: resolvedTokenCount,
+    wordsCount,
   };
 }

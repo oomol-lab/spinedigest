@@ -154,6 +154,7 @@ describe("cli/convert", () => {
       help: false,
       inputPath: "/tmp/book.sdpub",
       outputPath: "/tmp/output.txt",
+      verbose: false,
     });
 
     expect(cliMockState.appConstructorOptions).toStrictEqual([{}]);
@@ -186,6 +187,7 @@ describe("cli/convert", () => {
       help: false,
       inputFormat: "txt",
       outputFormat: "markdown",
+      verbose: false,
     });
 
     expect(cliMockState.appConstructorOptions).toStrictEqual([
@@ -241,6 +243,7 @@ describe("cli/convert", () => {
         help: false,
         inputFormat: "txt",
         outputPath: "/tmp/output.txt",
+        verbose: false,
       }),
     ).rejects.toThrow(
       "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.",
@@ -266,6 +269,7 @@ describe("cli/convert", () => {
       help: false,
       inputPath: "/tmp/book.epub",
       outputPath: "/tmp/output.sdpub",
+      verbose: false,
     });
 
     expect(cliMockState.digestCalls.epub).toStrictEqual([
@@ -294,6 +298,7 @@ describe("cli/convert", () => {
         help: false,
         inputPath: "/tmp/book.txt",
         outputPath: "/tmp/output.txt",
+        verbose: false,
       }),
     ).rejects.toThrow(
       "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.",
@@ -308,6 +313,7 @@ describe("cli/convert", () => {
       runConvertCommand({
         help: false,
         outputFormat: "txt",
+        verbose: false,
       }),
     ).rejects.toThrow(
       "Cannot infer input format from stdin. Set --input-format.",
@@ -322,11 +328,57 @@ describe("cli/convert", () => {
         help: false,
         inputPath: "/tmp/book.sdpub",
         outputFormat: "sdpub",
+        verbose: false,
       }),
     ).rejects.toThrow("stdout only supports txt or markdown, but got sdpub.");
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
     expect(cliMockState.openCalls).toHaveLength(0);
+  });
+
+  it("rejects --verbose when writing digest output to stdout", async () => {
+    cliMockState.config = {
+      llm: {
+        model: "gpt-test",
+        provider: "openai",
+      },
+    };
+
+    await expect(
+      runConvertCommand({
+        help: false,
+        inputPath: "/tmp/book.txt",
+        outputFormat: "txt",
+        verbose: true,
+      }),
+    ).rejects.toThrow(
+      "Cannot use --verbose when writing digest output to stdout. Use --output <path> or disable --verbose.",
+    );
+
+    expect(cliMockState.appConstructorOptions).toHaveLength(0);
+    expect(cliMockState.digestCalls.txt).toHaveLength(0);
+  });
+
+  it("passes verbose through app options when --verbose is enabled", async () => {
+    cliMockState.config = {
+      llm: {
+        model: "gpt-test",
+        provider: "openai",
+      },
+    };
+
+    await runConvertCommand({
+      help: false,
+      inputPath: "/tmp/book.txt",
+      outputPath: "/tmp/output.txt",
+      verbose: true,
+    });
+
+    expect(cliMockState.appConstructorOptions).toHaveLength(1);
+    expect(cliMockState.appConstructorOptions[0]).toMatchObject({
+      llm: mockLLMOptions,
+      verbose: true,
+    });
   });
 });
 

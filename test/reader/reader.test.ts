@@ -120,7 +120,7 @@ describe("reader/reader", () => {
         {
           sentenceId: [1, 0, 0],
           text: "Alpha sentence.",
-          tokenCount: 2,
+          wordsCount: 2,
         },
       ],
       text: "Alpha sentence.",
@@ -145,7 +145,7 @@ describe("reader/reader", () => {
           {
             sentenceId: [1, 0, 0],
             text: "Alpha sentence.",
-            tokenCount: 2,
+            wordsCount: 2,
           },
         ],
         text: "Alpha sentence.",
@@ -159,7 +159,7 @@ describe("reader/reader", () => {
         {
           sentenceId: [1, 0, 1],
           text: "Beta sentence.",
-          tokenCount: 3,
+          wordsCount: 3,
         },
       ],
       text: "Beta sentence.",
@@ -173,7 +173,7 @@ describe("reader/reader", () => {
           {
             sentenceId: [1, 0, 1],
             text: "Beta sentence.",
-            tokenCount: 3,
+            wordsCount: 3,
           },
         ],
         text: "Beta sentence.",
@@ -204,7 +204,7 @@ describe("reader/reader", () => {
         {
           sentenceId: [1, 1, 0],
           text: "Gamma sentence.",
-          tokenCount: 4,
+          wordsCount: 4,
         },
       ],
       text: "Gamma sentence.",
@@ -218,7 +218,7 @@ describe("reader/reader", () => {
           {
             sentenceId: [1, 1, 0],
             text: "Gamma sentence.",
-            tokenCount: 4,
+            wordsCount: 4,
           },
         ],
         text: "Gamma sentence.",
@@ -276,7 +276,7 @@ function createChunk(
     links: [],
     sentenceId: [...sentenceId] as [number, number, number],
     sentenceIds: [[...sentenceId] as [number, number, number]],
-    tokens: 1,
+    wordsCount: 1,
     ...extra,
   };
 }

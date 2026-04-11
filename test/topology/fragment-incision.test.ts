@@ -23,13 +23,13 @@ describe("topology/fragment-incision", () => {
         endIncision: 0,
         fragmentId: 1,
         startIncision: 0,
-        tokenCount: 10,
+        wordsCount: 10,
       },
       {
         endIncision: 0,
         fragmentId: 2,
         startIncision: 0,
-        tokenCount: 20,
+        wordsCount: 20,
       },
     ]);
   });
@@ -55,13 +55,13 @@ describe("topology/fragment-incision", () => {
         endIncision: 10,
         fragmentId: 1,
         startIncision: 0,
-        tokenCount: 10,
+        wordsCount: 10,
       },
       {
         endIncision: 0,
         fragmentId: 2,
         startIncision: 10,
-        tokenCount: 20,
+        wordsCount: 20,
       },
     ]);
   });
@@ -97,19 +97,19 @@ describe("topology/fragment-incision", () => {
         endIncision: 9,
         fragmentId: 1,
         startIncision: 0,
-        tokenCount: 10,
+        wordsCount: 10,
       },
       {
         endIncision: 10,
         fragmentId: 2,
         startIncision: 1,
-        tokenCount: 20,
+        wordsCount: 20,
       },
       {
         endIncision: 0,
         fragmentId: 3,
         startIncision: 10,
-        tokenCount: 30,
+        wordsCount: 30,
       },
     ]);
   });
@@ -127,13 +127,13 @@ function createChunk(
     label: `Chunk ${id}`,
     sentenceId: [1, fragmentId, 0],
     sentenceIds: [[1, fragmentId, 0]],
-    tokens: 5,
+    wordsCount: 5,
     weight,
   };
 }
 
 function createSerialFragments(
-  tokenCountsByFragmentId: Record<number, number>,
+  wordsCountsByFragmentId: Record<number, number>,
 ): ReadonlySerialFragments {
   return {
     getFragment: (fragmentId: number) =>
@@ -142,7 +142,7 @@ function createSerialFragments(
         sentences: [
           {
             text: `Fragment ${fragmentId}`,
-            tokenCount: tokenCountsByFragmentId[fragmentId] ?? 0,
+            wordsCount: wordsCountsByFragmentId[fragmentId] ?? 0,
           },
         ],
         serialId: 1,
@@ -150,7 +150,7 @@ function createSerialFragments(
       }),
     listFragmentIds: () =>
       Promise.resolve(
-        Object.keys(tokenCountsByFragmentId).map((fragmentId) =>
+        Object.keys(wordsCountsByFragmentId).map((fragmentId) =>
           Number(fragmentId),
         ),
       ),

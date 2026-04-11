@@ -1,3 +1,4 @@
+import { getLogger } from "../common/logging.js";
 import type { LLMCache, PendingCacheEntry } from "./cache.js";
 import type { LLMessage, LLMRequestOptions } from "./types.js";
 
@@ -93,12 +94,17 @@ export class LLMContext<S extends string> {
       return;
     }
 
-    console.log(
+    const logger = getLogger({
+      component: "llm-context",
+      sessionId: this.sessionId,
+    });
+
+    logger.warn(
       `\n[LLMContext] Failed with ${this.#logFiles.length} log file(s):`,
     );
 
     for (const [index, logFile] of this.#logFiles.entries()) {
-      console.log(`  ${index + 1}. ${logFile}`);
+      logger.warn(`  ${index + 1}. ${logFile}`);
     }
   }
 }

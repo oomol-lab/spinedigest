@@ -17,16 +17,16 @@ export class Topology {
   readonly #document: Document;
   readonly #edgeKeys: string[] = [];
   readonly #edgesByKey = createEdgeRecord();
-  readonly #groupTokensCount: number;
+  readonly #groupWordsCount: number;
   readonly #serialId: number;
 
   public constructor(
     document: Document,
     serialId: number,
-    groupTokensCount: number,
+    groupWordsCount: number,
   ) {
     this.#document = document;
-    this.#groupTokensCount = groupTokensCount;
+    this.#groupWordsCount = groupWordsCount;
     this.#serialId = serialId;
   }
 
@@ -91,7 +91,7 @@ export class Topology {
           weight: edgeWeights[getKnowledgeEdgeKey(edge.fromId, edge.toId)] ?? 0,
         })),
         fragments: this.#document.getSerialFragments(this.#serialId),
-        groupTokensCount: this.#groupTokensCount,
+        groupWordsCount: this.#groupWordsCount,
         serialId: this.#serialId,
       }),
     );
@@ -128,7 +128,7 @@ export class Topology {
       label: chunk.label,
       sentenceId: chunk.sentenceId,
       sentenceIds: [...chunk.sentenceIds],
-      tokens: chunk.tokens,
+      wordsCount: chunk.wordsCount,
       weight: 0,
       ...(importance === undefined ? {} : { importance }),
       ...(retention === undefined ? {} : { retention }),

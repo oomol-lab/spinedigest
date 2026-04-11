@@ -26,7 +26,7 @@ describe("document/fragments", () => {
       expect(await fragments.getSerial(3).listFragmentIds()).toStrictEqual([0]);
       expect(await fragments.getSentence([3, 0, 1])).toBe("Beta");
       expect(await fragments.getSummary(3, 0)).toBe("Fragment summary");
-      expect(await fragments.getTokenCount(3, 0)).toBe(7);
+      expect(await fragments.getWordsCount(3, 0)).toBe(7);
     });
   });
 

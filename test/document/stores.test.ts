@@ -76,7 +76,7 @@ describe("document/stores", () => {
           retention: ChunkRetention.Focused,
           sentenceId: [1, 10, 0],
           sentenceIds: [[1, 10, 0]],
-          tokens: 13,
+          wordsCount: 13,
           weight: 1.25,
         });
         await openedDocument.chunks.save({
@@ -89,7 +89,7 @@ describe("document/stores", () => {
             [1, 20, 0],
             [1, 20, 1],
           ],
-          tokens: 7,
+          wordsCount: 7,
           weight: 0.5,
         });
         await openedDocument.chunks.save({
@@ -101,7 +101,7 @@ describe("document/stores", () => {
           retention: ChunkRetention.Relevant,
           sentenceId: [2, 10, 0],
           sentenceIds: [[2, 10, 0]],
-          tokens: 9,
+          wordsCount: 9,
           weight: 0.8,
         });
 
@@ -114,7 +114,7 @@ describe("document/stores", () => {
           retention: ChunkRetention.Focused,
           sentenceId: [1, 10, 0],
           sentenceIds: [[1, 10, 0]],
-          tokens: 13,
+          wordsCount: 13,
           weight: 1.25,
         });
         expect(await openedDocument.chunks.getById(999)).toBeUndefined();
@@ -128,7 +128,7 @@ describe("document/stores", () => {
             retention: ChunkRetention.Focused,
             sentenceId: [1, 10, 0],
             sentenceIds: [[1, 10, 0]],
-            tokens: 13,
+            wordsCount: 13,
             weight: 1.25,
           },
           {
@@ -141,7 +141,7 @@ describe("document/stores", () => {
               [1, 20, 0],
               [1, 20, 1],
             ],
-            tokens: 7,
+            wordsCount: 7,
             weight: 0.5,
           },
           {
@@ -153,7 +153,7 @@ describe("document/stores", () => {
             retention: ChunkRetention.Relevant,
             sentenceId: [2, 10, 0],
             sentenceIds: [[2, 10, 0]],
-            tokens: 9,
+            wordsCount: 9,
             weight: 0.8,
           },
         ]);
@@ -172,7 +172,7 @@ describe("document/stores", () => {
             retention: ChunkRetention.Focused,
             sentenceId: [1, 10, 0],
             sentenceIds: [[1, 10, 0]],
-            tokens: 13,
+            wordsCount: 13,
             weight: 1.25,
           },
           {
@@ -185,7 +185,7 @@ describe("document/stores", () => {
               [1, 20, 0],
               [1, 20, 1],
             ],
-            tokens: 7,
+            wordsCount: 7,
             weight: 0.5,
           },
         ]);
@@ -199,7 +199,7 @@ describe("document/stores", () => {
             retention: ChunkRetention.Focused,
             sentenceId: [1, 10, 0],
             sentenceIds: [[1, 10, 0]],
-            tokens: 13,
+            wordsCount: 13,
             weight: 1.25,
           },
           {
@@ -212,7 +212,7 @@ describe("document/stores", () => {
               [1, 20, 0],
               [1, 20, 1],
             ],
-            tokens: 7,
+            wordsCount: 7,
             weight: 0.5,
           },
         ]);
@@ -240,7 +240,7 @@ describe("document/stores", () => {
             label: "Chunk A",
             sentenceId: [1, 10, 0] as const,
             sentenceIds: [[1, 10, 0]] as const,
-            tokens: 10,
+            wordsCount: 10,
             weight: 1,
           },
           {
@@ -250,7 +250,7 @@ describe("document/stores", () => {
             label: "Chunk B",
             sentenceId: [1, 20, 0] as const,
             sentenceIds: [[1, 20, 0]] as const,
-            tokens: 11,
+            wordsCount: 11,
             weight: 1.1,
           },
           {
@@ -260,7 +260,7 @@ describe("document/stores", () => {
             label: "Chunk C",
             sentenceId: [2, 10, 0] as const,
             sentenceIds: [[2, 10, 0]] as const,
-            tokens: 12,
+            wordsCount: 12,
             weight: 1.2,
           },
         ]) {
@@ -353,7 +353,7 @@ describe("document/stores", () => {
             label: "Chunk A",
             sentenceId: [1, 10, 0] as const,
             sentenceIds: [[1, 10, 0]] as const,
-            tokens: 10,
+            wordsCount: 10,
             weight: 1,
           },
           {
@@ -363,7 +363,7 @@ describe("document/stores", () => {
             label: "Chunk B",
             sentenceId: [1, 20, 0] as const,
             sentenceIds: [[1, 20, 0]] as const,
-            tokens: 11,
+            wordsCount: 11,
             weight: 1.1,
           },
           {
@@ -373,7 +373,7 @@ describe("document/stores", () => {
             label: "Chunk C",
             sentenceId: [2, 10, 0] as const,
             sentenceIds: [[2, 10, 0]] as const,
-            tokens: 12,
+            wordsCount: 12,
             weight: 1.2,
           },
         ]) {
@@ -395,7 +395,7 @@ describe("document/stores", () => {
           localSnakeId: 0,
           serialId: 1,
           size: 1,
-          tokens: 22,
+          wordsCount: 22,
           weight: 2.5,
         });
         const thirdSnakeId = await openedDocument.snakes.create({
@@ -419,7 +419,7 @@ describe("document/stores", () => {
             localSnakeId: 0,
             serialId: 1,
             size: 2,
-            tokens: 0,
+            wordsCount: 0,
             weight: 0,
           },
         );
@@ -435,7 +435,7 @@ describe("document/stores", () => {
             localSnakeId: 0,
             serialId: 1,
             size: 2,
-            tokens: 0,
+            wordsCount: 0,
             weight: 0,
           },
           {
@@ -446,7 +446,7 @@ describe("document/stores", () => {
             localSnakeId: 0,
             serialId: 1,
             size: 1,
-            tokens: 22,
+            wordsCount: 22,
             weight: 2.5,
           },
         ]);

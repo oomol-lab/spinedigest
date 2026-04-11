@@ -63,7 +63,7 @@ describe("reader/chunk-batch/extractor", () => {
         {
           sentenceId: [1, 0, 0],
           text: "Alpha begins.",
-          tokenCount: 2,
+          wordsCount: 2,
         },
       ],
       text: "Alpha begins.",
@@ -83,7 +83,7 @@ describe("reader/chunk-batch/extractor", () => {
             retention: "focused",
             sentenceId: [1, 0, 0],
             sentenceIds: [[1, 0, 0]],
-            tokens: 2,
+            wordsCount: 2,
           },
         ],
         links: [],
@@ -141,7 +141,7 @@ describe("reader/chunk-batch/extractor", () => {
         {
           sentenceId: [1, 0, 0],
           text: "Bridge sentence.",
-          tokenCount: 3,
+          wordsCount: 3,
         },
       ],
       text: "Bridge sentence.",
@@ -154,7 +154,7 @@ describe("reader/chunk-batch/extractor", () => {
           links: [],
           sentenceId: [1, 0, 0],
           sentenceIds: [[1, 0, 0]],
-          tokens: 2,
+          wordsCount: 2,
         },
       ],
       visibleChunkIds: [9],
@@ -172,7 +172,7 @@ describe("reader/chunk-batch/extractor", () => {
           links: [],
           sentenceId: [1, 0, 0],
           sentenceIds: [[1, 0, 0]],
-          tokens: 3,
+          wordsCount: 3,
         },
       ],
       importanceAnnotations: [
@@ -225,7 +225,7 @@ describe("reader/chunk-batch/extractor", () => {
         {
           sentenceId: [1, 0, 0],
           text: "Alpha begins.",
-          tokenCount: 2,
+          wordsCount: 2,
         },
       ],
       text: "Alpha begins.",
@@ -287,7 +287,7 @@ describe("reader/chunk-batch/extractor", () => {
         {
           sentenceId: [1, 0, 0],
           text: "Hello world.",
-          tokenCount: 2,
+          wordsCount: 2,
         },
       ],
       text: "Hello world.",
@@ -342,7 +342,7 @@ describe("reader/chunk-batch/extractor", () => {
         {
           sentenceId: [1, 0, 0],
           text: "Hello world.",
-          tokenCount: 2,
+          wordsCount: 2,
         },
       ],
       text: "Hello world.",
@@ -412,12 +412,12 @@ describe("reader/chunk-batch/extractor", () => {
         {
           sentenceId: [1, 0, 0],
           text: "Hello world.",
-          tokenCount: 2,
+          wordsCount: 2,
         },
         {
           sentenceId: [1, 0, 1],
           text: "Goodbye.",
-          tokenCount: 1,
+          wordsCount: 1,
         },
       ],
       text: "Hello world. Goodbye.",

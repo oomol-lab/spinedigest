@@ -35,7 +35,7 @@ import { Topology } from "./topology/index.js";
 const DEFAULT_COMPRESSION_RATIO = 0.2;
 const DEFAULT_FRAGMENT_WORDS_COUNT = 800;
 const DEFAULT_GENERATION_DECAY_FACTOR = 0.5;
-const DEFAULT_GROUP_TOKENS_COUNT = 9600;
+const DEFAULT_GROUP_WORDS_COUNT = 9600;
 const DEFAULT_MAX_CLUES = 10;
 const DEFAULT_MAX_ITERATIONS = 5;
 const DEFAULT_WORKING_MEMORY_CAPACITY = 7;
@@ -216,7 +216,7 @@ export class SerialGeneration {
     const topology = new Topology(
       this.#document,
       serialId,
-      DEFAULT_GROUP_TOKENS_COUNT,
+      DEFAULT_GROUP_WORDS_COUNT,
     );
     const allChunks: ReaderChunk[] = [];
     const successorIdsByChunkId = createNumberListRecord();
@@ -233,7 +233,7 @@ export class SerialGeneration {
           sentence.wordsCount,
         ),
         text: sentence.text,
-        tokenCount: sentence.wordsCount,
+        wordsCount: sentence.wordsCount,
       }));
       const fragmentText = sentences.map((sentence) => sentence.text).join(" ");
       const userFocused = await reader.extractUserFocused({
