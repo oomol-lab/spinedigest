@@ -36,18 +36,6 @@ If you prefer `pnpm`:
 pnpm add -g spinedigest
 ```
 
-To install the current local checkout globally for pre-release verification:
-
-```bash
-pnpm cli:install-local
-```
-
-This packs the current repository and installs that tarball globally. Remove it with:
-
-```bash
-pnpm cli:uninstall-local
-```
-
 ## 3. Source Checkout For Development
 
 If you are developing against the repository itself, clone it and install dependencies:

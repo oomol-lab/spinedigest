@@ -26,18 +26,6 @@ npm install -g spinedigest
 pnpm add -g spinedigest
 ```
 
-如果你想在发布前把当前本地 checkout 直接装进 Terminal 里验证：
-
-```bash
-pnpm cli:install-local
-```
-
-卸载这份本地全局安装：
-
-```bash
-pnpm cli:uninstall-local
-```
-
 ## 为什么会有人用它
 
 - 把长篇文本压缩成更容易浏览的结果。
