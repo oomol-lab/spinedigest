@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const cliMockState = vi.hoisted(() => ({
   appConstructorOptions: [] as unknown[],
@@ -21,6 +29,7 @@ const cliMockState = vi.hoisted(() => ({
   openCalls: [] as string[],
   resetDigestDirCalls: [] as string[],
   removeTemporaryDirectoryCalls: [] as string[],
+  stderrWrites: [] as string[],
   stdoutWrites: [] as string[],
 }));
 
@@ -56,6 +65,7 @@ vi.mock("../../src/index.js", () => ({
       operation: (digest: MockDigest) => Promise<unknown>,
     ): Promise<unknown> {
       cliMockState.digestCalls.epub.push(options);
+      await emitMockProgress(options);
       return await operation(createMockDigest());
     }
 
@@ -64,6 +74,7 @@ vi.mock("../../src/index.js", () => ({
       operation: (digest: MockDigest) => Promise<unknown>,
     ): Promise<unknown> {
       cliMockState.digestCalls.markdown.push(options);
+      await emitMockProgress(options);
       return await operation(createMockDigest());
     }
 
@@ -72,6 +83,7 @@ vi.mock("../../src/index.js", () => ({
       operation: (digest: MockDigest) => Promise<unknown>,
     ): Promise<unknown> {
       cliMockState.digestCalls.text.push(options);
+      await emitMockProgress(options);
       return await operation(createMockDigest());
     }
 
@@ -80,6 +92,7 @@ vi.mock("../../src/index.js", () => ({
       operation: (digest: MockDigest) => Promise<unknown>,
     ): Promise<unknown> {
       cliMockState.digestCalls.txt.push(options);
+      await emitMockProgress(options);
       return await operation(createMockDigest());
     }
   },
@@ -126,6 +139,13 @@ import { runConvertCommand } from "../../src/cli/convert.js";
 
 describe("cli/convert", () => {
   const originalStdinIsTTY = process.stdin.isTTY;
+  const originalStderrIsTTY = process.stderr.isTTY;
+  const stderrWriteSpy = vi.spyOn(process.stderr, "write").mockImplementation(((
+    chunk: string | Uint8Array,
+  ) => {
+    cliMockState.stderrWrites.push(String(chunk));
+    return true;
+  }) as typeof process.stderr.write);
 
   beforeEach(() => {
     cliMockState.appConstructorOptions.length = 0;
@@ -139,13 +159,20 @@ describe("cli/convert", () => {
     cliMockState.openCalls.length = 0;
     cliMockState.resetDigestDirCalls.length = 0;
     cliMockState.removeTemporaryDirectoryCalls.length = 0;
+    cliMockState.stderrWrites.length = 0;
     cliMockState.stdoutWrites.length = 0;
     cliMockState.config = {};
     setStdinTTY(false);
+    setStderrTTY(false);
   });
 
   afterEach(() => {
     setStdinTTY(originalStdinIsTTY);
+    setStderrTTY(originalStderrIsTTY);
+  });
+
+  afterAll(() => {
+    stderrWriteSpy.mockRestore();
   });
 
   it("opens sdpub input without requiring llm configuration", async () => {
@@ -209,6 +236,8 @@ describe("cli/convert", () => {
       sourceFormat: "txt",
       stream: mockStdinStream,
     });
+    expect(cliMockState.digestCalls.text[0]).not.toHaveProperty("onProgress");
+    expect(cliMockState.stderrWrites).toStrictEqual([]);
     expect(cliMockState.createTemporaryOutputPathCalls).toStrictEqual([
       {
         extension: ".md",
@@ -379,6 +408,32 @@ describe("cli/convert", () => {
       llm: mockLLMOptions,
       verbose: true,
     });
+    expect(cliMockState.digestCalls.txt[0]).not.toHaveProperty("onProgress");
+  });
+
+  it("renders digest progress to stderr for interactive file output", async () => {
+    cliMockState.config = {
+      llm: {
+        model: "gpt-test",
+        provider: "openai",
+      },
+    };
+    setStderrTTY(true);
+
+    await runConvertCommand({
+      help: false,
+      inputPath: "/tmp/book.txt",
+      outputPath: "/tmp/output.txt",
+      verbose: false,
+    });
+
+    expect(cliMockState.digestCalls.txt[0]).toHaveProperty("onProgress");
+    expect(
+      cliMockState.stderrWrites.some((chunk) => chunk.includes("Digest")),
+    ).toBe(true);
+    expect(
+      cliMockState.stderrWrites.some((chunk) => chunk.includes("Serial #1")),
+    ).toBe(true);
   });
 });
 
@@ -414,8 +469,53 @@ function createMockDigest(): MockDigest {
   };
 }
 
+async function emitMockProgress(options: unknown): Promise<void> {
+  const onProgress =
+    typeof (options as { readonly onProgress?: unknown }).onProgress ===
+    "function"
+      ? (
+          options as {
+            readonly onProgress: (event: unknown) => Promise<void> | void;
+          }
+        ).onProgress
+      : undefined;
+
+  if (onProgress === undefined) {
+    return;
+  }
+
+  await onProgress({
+    fragments: 6,
+    id: 1,
+    type: "serial-discovered",
+    words: 4800,
+  });
+  await onProgress({
+    completedWords: 0,
+    totalWords: 4800,
+    type: "digest-progress",
+  });
+  await onProgress({
+    completedWords: 2300,
+    id: 1,
+    type: "serial-progress",
+  });
+  await onProgress({
+    completedWords: 2300,
+    totalWords: 4800,
+    type: "digest-progress",
+  });
+}
+
 function setStdinTTY(value: boolean | undefined): void {
   Object.defineProperty(process.stdin, "isTTY", {
+    configurable: true,
+    value,
+  });
+}
+
+function setStderrTTY(value: boolean | undefined): void {
+  Object.defineProperty(process.stderr, "isTTY", {
     configurable: true,
     value,
   });
