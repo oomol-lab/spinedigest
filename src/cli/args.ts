@@ -3,6 +3,7 @@ import { parseArgs } from "util";
 import { CLI_FORMATS, type CLIFormat, parseCLIFormat } from "./formats.js";
 
 export interface CLIArguments {
+  readonly digestDirPath?: string;
   readonly help: boolean;
   readonly inputPath?: string;
   readonly inputFormat?: CLIFormat;
@@ -12,13 +13,15 @@ export interface CLIArguments {
 
 export const CLI_HELP_TEXT = `
 Usage:
-  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>]
+  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>]
 
 Behavior:
   - If --input is omitted, stdin is used.
   - If --output is omitted, stdout is used.
   - stdin/stdout only support txt or markdown.
   - If a format flag is omitted, the format is inferred from the file extension.
+  - --digest-dir keeps the intermediate digest workspace for digest inputs.
+  - --digest-dir clears the target directory before each run.
 
 Formats:
   ${CLI_FORMATS.join(", ")}
@@ -53,6 +56,9 @@ export function parseCLIArguments(argv = process.argv.slice(2)): CLIArguments {
         short: "h",
         type: "boolean",
       },
+      "digest-dir": {
+        type: "string",
+      },
       input: {
         type: "string",
       },
@@ -76,6 +82,9 @@ export function parseCLIArguments(argv = process.argv.slice(2)): CLIArguments {
   }
 
   return {
+    ...(values["digest-dir"] === undefined
+      ? {}
+      : { digestDirPath: values["digest-dir"] }),
     help: values.help ?? false,
     ...(values.input === undefined ? {} : { inputPath: values.input }),
     ...(values["input-format"] === undefined

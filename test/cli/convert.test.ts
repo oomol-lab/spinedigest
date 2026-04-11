@@ -19,6 +19,7 @@ const cliMockState = vi.hoisted(() => ({
     readonly path: string;
   }>,
   openCalls: [] as string[],
+  resetDigestDirCalls: [] as string[],
   removeTemporaryDirectoryCalls: [] as string[],
   stdoutWrites: [] as string[],
 }));
@@ -114,6 +115,13 @@ vi.mock("../../src/cli/io.js", () => ({
   }),
 }));
 
+vi.mock("fs/promises", async () => ({
+  rm: vi.fn((path: string) => {
+    cliMockState.resetDigestDirCalls.push(path);
+    return Promise.resolve();
+  }),
+}));
+
 import { runConvertCommand } from "../../src/cli/convert.js";
 
 describe("cli/convert", () => {
@@ -129,6 +137,7 @@ describe("cli/convert", () => {
     cliMockState.digestCalls.txt.length = 0;
     cliMockState.exportCalls.length = 0;
     cliMockState.openCalls.length = 0;
+    cliMockState.resetDigestDirCalls.length = 0;
     cliMockState.removeTemporaryDirectoryCalls.length = 0;
     cliMockState.stdoutWrites.length = 0;
     cliMockState.config = {};
@@ -141,6 +150,7 @@ describe("cli/convert", () => {
 
   it("opens sdpub input without requiring llm configuration", async () => {
     await runConvertCommand({
+      digestDirPath: "/tmp/kept-digest",
       help: false,
       inputPath: "/tmp/book.sdpub",
       outputPath: "/tmp/output.txt",
@@ -148,6 +158,7 @@ describe("cli/convert", () => {
 
     expect(cliMockState.appConstructorOptions).toStrictEqual([{}]);
     expect(cliMockState.openCalls).toStrictEqual(["/tmp/book.sdpub"]);
+    expect(cliMockState.resetDigestDirCalls).toStrictEqual([]);
     expect(cliMockState.exportCalls).toStrictEqual([
       {
         method: "exportText",
@@ -171,6 +182,7 @@ describe("cli/convert", () => {
     };
 
     await runConvertCommand({
+      digestDirPath: "/tmp/kept-digest",
       help: false,
       inputFormat: "txt",
       outputFormat: "markdown",
@@ -185,8 +197,12 @@ describe("cli/convert", () => {
     expect(cliMockState.buildLLMOptionsConfig).toStrictEqual([
       cliMockState.config,
     ]);
+    expect(cliMockState.resetDigestDirCalls).toStrictEqual([
+      "/tmp/kept-digest",
+    ]);
     expect(cliMockState.digestCalls.text).toHaveLength(1);
     expect(cliMockState.digestCalls.text[0]).toStrictEqual({
+      documentDirPath: "/tmp/kept-digest",
       extractionPrompt: "Keep the main beats",
       sourceFormat: "txt",
       stream: mockStdinStream,
@@ -246,6 +262,7 @@ describe("cli/convert", () => {
     };
 
     await runConvertCommand({
+      digestDirPath: "/tmp/kept-digest",
       help: false,
       inputPath: "/tmp/book.epub",
       outputPath: "/tmp/output.sdpub",
@@ -253,9 +270,13 @@ describe("cli/convert", () => {
 
     expect(cliMockState.digestCalls.epub).toStrictEqual([
       {
+        documentDirPath: "/tmp/kept-digest",
         extractionPrompt: "Keep the main beats",
         path: "/tmp/book.epub",
       },
+    ]);
+    expect(cliMockState.resetDigestDirCalls).toStrictEqual([
+      "/tmp/kept-digest",
     ]);
     expect(cliMockState.exportCalls).toStrictEqual([
       {

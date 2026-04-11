@@ -7,6 +7,8 @@ describe("cli/args", () => {
     expect(
       parseCLIArguments([
         "--help",
+        "--digest-dir",
+        "/tmp/digest",
         "--input",
         "book.epub",
         "--input-format",
@@ -17,6 +19,7 @@ describe("cli/args", () => {
         "markdown",
       ]),
     ).toStrictEqual({
+      digestDirPath: "/tmp/digest",
       help: true,
       inputFormat: "epub",
       inputPath: "book.epub",
@@ -49,6 +52,10 @@ describe("cli/args", () => {
   it("documents the supported command-line contract", () => {
     expect(CLI_HELP_TEXT).toContain(
       "stdin/stdout only support txt or markdown",
+    );
+    expect(CLI_HELP_TEXT).toContain("--digest-dir keeps the intermediate");
+    expect(CLI_HELP_TEXT).toContain(
+      "--digest-dir clears the target directory before each run",
     );
     expect(CLI_HELP_TEXT).toContain("SPINEDIGEST_LLM_MODEL");
   });
