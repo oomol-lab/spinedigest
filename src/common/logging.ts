@@ -9,6 +9,7 @@ import pino, {
   type StreamEntry,
 } from "pino";
 import pretty from "pino-pretty";
+import type { PrettyOptions } from "pino-pretty";
 
 interface LoggingContext {
   readonly artifactCounters: Map<string, number>;
@@ -149,29 +150,14 @@ function createLogger(input: {
     mkdirSync(dirname(input.eventLogPath), { recursive: true });
     streams.push({
       level: "info",
-      stream: pretty({
-        colorize: false,
-        destination: input.eventLogPath,
-        ignore: "pid,hostname",
-        mkdir: true,
-        singleLine: true,
-        sync: true,
-        translateTime: "SYS:yyyy-mm-dd HH:MM:ss",
-      }),
+      stream: pretty(createPrettyOptions(input.eventLogPath)),
     });
   }
 
   if (input.verbose) {
     streams.push({
       level: "info",
-      stream: pretty({
-        colorize: false,
-        destination: process.stderr,
-        ignore: "pid,hostname",
-        singleLine: true,
-        sync: true,
-        translateTime: "SYS:yyyy-mm-dd HH:MM:ss",
-      }),
+      stream: pretty(createPrettyOptions(process.stderr)),
     });
   }
 
@@ -189,6 +175,20 @@ function createLogger(input: {
     operation: input.operation,
     runId: input.runId,
   });
+}
+
+function createPrettyOptions(
+  destination: string | NodeJS.WritableStream,
+): PrettyOptions {
+  return {
+    colorize: false,
+    destination,
+    ignore: "pid,hostname,operation,runId,component,scope,sessionId",
+    mkdir: typeof destination === "string",
+    singleLine: true,
+    sync: true,
+    translateTime: "SYS:yyyy-mm-dd HH:MM:ss",
+  };
 }
 
 function createRunId(): string {

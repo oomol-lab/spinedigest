@@ -59,6 +59,8 @@ describe("common/logging", () => {
       expect(eventLog).toContain("INFO");
       expect(eventLog).toContain("hello event log");
       expect(eventLog).not.toContain('{"level":');
+      expect(eventLog).not.toContain('{"operation":');
+      expect(eventLog).not.toContain("[digest-test");
     });
   });
 
