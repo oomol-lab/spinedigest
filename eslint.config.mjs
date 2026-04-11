@@ -28,6 +28,12 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ["src/**/*.{js,mjs,ts}"],
+    rules: {
+      "no-console": "error",
+    },
+  },
   eslint.configs.recommended,
   ...tseslint.configs.recommended.map((config) => ({
     ...config,

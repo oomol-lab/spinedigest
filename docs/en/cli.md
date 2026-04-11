@@ -9,13 +9,13 @@ SpineDigest is designed to be used from the command line first.
 Installed CLI:
 
 ```bash
-spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>]
+spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
 ```
 
 From a source checkout:
 
 ```bash
-pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>]
+pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
 ```
 
 ## Flags
@@ -24,6 +24,8 @@ pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--outp
 - `--output <path>`: output file path
 - `--input-format <format>`: input format override
 - `--output-format <format>`: output format override
+- `--digest-dir <path>`: keep the digest workspace; the directory is cleared before each run
+- `--verbose`: write diagnostic logs to `stderr`
 - `-h`, `--help`: print help text
 
 Positional arguments are not supported.
@@ -58,6 +60,16 @@ When `--output` is omitted:
 
 - SpineDigest writes to `stdout`
 - only `txt` and `markdown` are allowed
+- `--verbose` cannot be used at the same time
+
+## Diagnostic Logs
+
+- By default, the CLI stays quiet and does not print diagnostic logs to the terminal.
+- With `--verbose`, diagnostic logs are written to `stderr`.
+- When `paths.debugLogDir` is configured, each run creates `runs/<runId>/` under that directory, including:
+  - `events.jsonl`: structured event log
+  - `artifacts/llm/`: LLM request logs
+  - `artifacts/editor/`: compression logs
 
 ## Common Commands
 
@@ -175,6 +187,7 @@ Expect a plain-text error message on `stderr` and a non-zero exit code when:
 - the input format cannot be inferred
 - the output format cannot be inferred
 - `stdin` or `stdout` is used with a non-text format
+- `--verbose` is used while writing output to `stdout`
 - no LLM configuration is available for a digest operation
 - provider-specific configuration is invalid
 

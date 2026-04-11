@@ -1,5 +1,5 @@
 import { appendFile } from "fs/promises";
-import { join } from "path";
+import { resolveArtifactPath } from "../common/logging.js";
 
 let lastTimestamp: string | undefined;
 let loggerSuffixId = 1;
@@ -40,7 +40,13 @@ export function createRequestLog(logDirPath?: string): RequestLog {
       ? `request ${timestampKey}.log`
       : `request ${timestampKey}_${suffixId}.log`;
 
-  return new RequestLog(join(logDirPath, fileName));
+  return new RequestLog(
+    resolveArtifactPath({
+      category: "llm",
+      fileName,
+      logDirPath,
+    }),
+  );
 }
 
 function formatTimestamp(date: Date): string {

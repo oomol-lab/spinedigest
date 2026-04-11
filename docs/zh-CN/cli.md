@@ -9,13 +9,13 @@ SpineDigest 的设计重心是命令行使用。
 已安装 CLI 时：
 
 ```bash
-spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>]
+spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
 ```
 
 在源码仓库中运行时：
 
 ```bash
-pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>]
+pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
 ```
 
 ## 参数
@@ -24,6 +24,8 @@ pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--outp
 - `--output <path>`：输出文件路径
 - `--input-format <format>`：显式指定输入格式
 - `--output-format <format>`：显式指定输出格式
+- `--digest-dir <path>`：保留 digest 中间工作目录；每次运行前会先清空该目录
+- `--verbose`：把诊断日志输出到 `stderr`
 - `-h`, `--help`：打印帮助文本
 
 不支持 positional arguments。
@@ -58,6 +60,16 @@ pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--outp
 
 - SpineDigest 会写到 `stdout`
 - 仅支持 `txt` 和 `markdown`
+- 不能同时使用 `--verbose`
+
+## 调试日志
+
+- 默认情况下，CLI 不向终端输出诊断日志。
+- 传入 `--verbose` 后，诊断日志会写到 `stderr`。
+- 如果配置了 `paths.debugLogDir`，每次运行会在该目录下创建 `runs/<runId>/`，其中包含：
+  - `events.jsonl`：结构化事件日志
+  - `artifacts/llm/`：LLM 请求日志
+  - `artifacts/editor/`：压缩过程日志
 
 ## 常见命令
 
@@ -175,6 +187,7 @@ SpineDigest 支持通过环境变量覆盖配置值：
 - 无法推断输入格式
 - 无法推断输出格式
 - 对非文本格式使用了 `stdin` 或 `stdout`
+- 在写入 `stdout` 时同时使用了 `--verbose`
 - digest 操作缺少 LLM 配置
 - provider 相关配置不合法
 

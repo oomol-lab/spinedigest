@@ -10,6 +10,7 @@ import {
 } from "ai";
 import type { Environment } from "nunjucks";
 
+import { getLogger } from "../common/logging.js";
 import { createEnv } from "../common/template.js";
 import { AsyncSemaphore } from "../utils/async-semaphore.js";
 import { createHash } from "../utils/hash.js";
@@ -204,7 +205,11 @@ export class LLM<S extends string> {
       const cachedResponse = await this.#cache.read(cacheKey);
 
       if (cachedResponse !== undefined) {
-        console.log(
+        getLogger({
+          component: "llm",
+          scope: input.scope,
+          sessionId: input.sessionId,
+        }).info(
           `[Cache Hit] Using cached response (key: ${cacheKey.slice(0, 12)}...)`,
         );
         await requestLog.append(
