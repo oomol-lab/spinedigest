@@ -304,7 +304,7 @@ export class ChunkBatchParser<
       tempIds.push(data.temp_id);
     }
 
-    this.#validateLinks({
+    const validLinks = this.#filterAndValidateLinks({
       issues,
       links,
       tempIds,
@@ -318,7 +318,7 @@ export class ChunkBatchParser<
     return {
       chunkBatch: {
         chunks,
-        links,
+        links: validLinks,
         orderCorrect: true,
         tempIds,
         ...(importanceAnnotations === undefined
@@ -595,17 +595,18 @@ export class ChunkBatchParser<
     return result;
   }
 
-  #validateLinks(input: {
+  #filterAndValidateLinks(input: {
     issues: string[];
     links: readonly ChunkLink[];
     tempIds: readonly string[];
     visibleChunkIds: readonly number[];
-  }): void {
+  }): ChunkLink[] {
     const validTempIds = createMembershipRecord(input.tempIds);
     const validChunkIds = createMembershipRecord(input.visibleChunkIds);
+    const retainedLinks: ChunkLink[] = [];
 
     for (const [index, link] of input.links.entries()) {
-      this.#validateLinkReference({
+      const fromValid = this.#validateLinkReference({
         fieldName: "from",
         index: index + 1,
         issues: input.issues,
@@ -613,7 +614,7 @@ export class ChunkBatchParser<
         validChunkIds,
         validTempIds,
       });
-      this.#validateLinkReference({
+      const toValid = this.#validateLinkReference({
         fieldName: "to",
         index: index + 1,
         issues: input.issues,
@@ -621,7 +622,13 @@ export class ChunkBatchParser<
         validChunkIds,
         validTempIds,
       });
+
+      if (fromValid && toValid) {
+        retainedLinks.push(link);
+      }
     }
+
+    return retainedLinks;
   }
 
   #validateLinkReference(input: {
@@ -631,22 +638,20 @@ export class ChunkBatchParser<
     reference: number | string;
     validChunkIds: Readonly<Record<string, true>>;
     validTempIds: Readonly<Record<string, true>>;
-  }): void {
+  }): boolean {
     if (typeof input.reference === "string") {
-      if (!hasMembership(input.validTempIds, input.reference)) {
-        input.issues.push(
-          `Link #${input.index}: "${input.fieldName}" temp_id "${input.reference}" does not exist in extracted chunks`,
-        );
-      }
-
-      return;
+      return hasMembership(input.validTempIds, input.reference);
     }
 
     if (!hasMembership(input.validChunkIds, input.reference)) {
       input.issues.push(
         `Link #${input.index}: "${input.fieldName}" chunk_id ${input.reference} does not exist in visible chunks`,
       );
+
+      return false;
     }
+
+    return true;
   }
 
   #resolveLegacySourceSentences(data: ExtractedChunkData): SentenceId[] {

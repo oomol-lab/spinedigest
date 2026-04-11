@@ -155,7 +155,7 @@ describe("reader/chunk-batch/parser", () => {
           ],
           links: [
             {
-              from: "missing-temp",
+              from: "temp-1",
               to: 999,
             },
           ],
@@ -165,6 +165,58 @@ describe("reader/chunk-batch/parser", () => {
         },
       ),
     ).rejects.toBeInstanceOf(ParsedJsonError);
+  });
+
+  it("does not add dangling temp-id link errors for rejected chunks", async () => {
+    const parser = new ChunkBatchParser({
+      choiceSystemPrompt: "choice prompt",
+      metadataField: ChunkMetadataField.Retention,
+      requestChoice: () => Promise.resolve('{"choice":"S1"}'),
+      sentenceTextSource: {
+        getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
+      },
+      sentences: createSentences(),
+      visibleChunkIds: [],
+    });
+
+    await expect(
+      parser.parse(
+        {
+          chunks: [
+            {
+              content: "Valid chunk",
+              label: "Valid label",
+              retention: ChunkRetention.Focused,
+              source_sentences: ["Alpha begins."],
+              temp_id: "temp-1",
+            },
+            {
+              content: "Invalid chunk",
+              evidence: {
+                start_anchor: {
+                  mode: "head_tail",
+                },
+              },
+              label: "Invalid label",
+              retention: ChunkRetention.Focused,
+              temp_id: "temp-2",
+            },
+          ],
+          fragment_summary: "",
+          links: [
+            {
+              from: "temp-1",
+              to: "temp-2",
+            },
+          ],
+        },
+        {
+          isLastGenerationAttempt: false,
+        },
+      ),
+    ).rejects.toMatchObject({
+      issues: ['Chunk #2 ("Invalid label"): Invalid evidence.start_anchor: head_tail anchor requires non-empty \'head\' and \'tail\''],
+    });
   });
 });
 
