@@ -7,7 +7,7 @@
   "packageManager": "pnpm@10.32.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/oomol-lab/spinedigest.git"
+    "url": "git+https://github.com/oomol-lab/spinedigest.git"
   },
   "bugs": {
     "url": "https://github.com/oomol-lab/spinedigest/issues"
@@ -28,7 +28,7 @@
     "LICENSE"
   ],
   "bin": {
-    "spinedigest": "./dist/cli.js"
+    "spinedigest": "dist/cli.js"
   },
   "exports": {
     ".": {
@@ -51,8 +51,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix && prettier . --write",
     "prepack": "pnpm build",
-    "prepublishOnly": "pnpm verify && pnpm test:run && pnpm build",
-    "publish:dry-run": "pnpm publish --dry-run --no-git-checks --access public",
+    "publish:dry-run": "npm publish --dry-run --access public",
     "release:check": "pnpm verify && pnpm test:run && pnpm build && pnpm smoke:pack-install && pnpm publish:dry-run",
     "smoke:pack-install": "node ./scripts/smoke-pack-install.mjs",
     "test": "vitest --passWithNoTests",
