@@ -49,7 +49,7 @@ pnpm cli:uninstall-local
 - Primary interface: CLI
 - Inputs: `.epub`, `.md`, `.txt`, or non-interactive `stdin`
 - Outputs: `.epub`, `.md`, `.txt`, or `.sdpub`
-- Requires: Node `>=20.17.0`, an LLM provider, and credentials for that provider
+- Requires: Node `>=22.12.0`, an LLM provider, and credentials for that provider
 - Good fit: books, chapters, essays, guides, and other long-form reading material
 - Not a fit: exact reproduction, retrieval QA, or fully offline processing
 

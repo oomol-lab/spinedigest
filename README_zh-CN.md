@@ -49,7 +49,7 @@ pnpm cli:uninstall-local
 - 主要接口：CLI
 - 输入：`.epub`、`.md`、`.txt`，或非交互式 `stdin`
 - 输出：`.epub`、`.md`、`.txt`、`.sdpub`
-- 运行要求：Node `>=20.17.0`、一个受支持的 LLM provider，以及对应凭据
+- 运行要求：Node `>=22.12.0`、一个受支持的 LLM provider，以及对应凭据
 - 适合：书籍、章节、长文、指南、教程等长篇阅读材料
 - 不适合：精确复刻原文、检索问答、完全离线处理
 

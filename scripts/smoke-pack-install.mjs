@@ -26,6 +26,42 @@ try {
     stdio: "inherit",
   });
 
+  execFileSync(
+    process.execPath,
+    [
+      "-e",
+      [
+        'const mod = require("spinedigest");',
+        'if (typeof mod.SpineDigestApp !== "function") {',
+        '  throw new Error("CommonJS export SpineDigestApp is not available");',
+        "}",
+      ].join(" "),
+    ],
+    {
+      cwd: tempRoot,
+      stdio: "inherit",
+    },
+  );
+
+  execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      [
+        'const mod = await import("spinedigest");',
+        'if (typeof mod.SpineDigestApp !== "function") {',
+        '  throw new Error("ESM export SpineDigestApp is not available");',
+        "}",
+        "process.exit(0);",
+      ].join(" "),
+    ],
+    {
+      cwd: tempRoot,
+      stdio: "inherit",
+    },
+  );
+
   const installedCliPath = join(
     tempRoot,
     "node_modules",

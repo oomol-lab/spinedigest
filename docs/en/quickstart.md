@@ -6,7 +6,7 @@ This guide is for the primary SpineDigest workflow: running the CLI directly.
 
 ## 1. Requirements
 
-- Node `>=20.17.0`
+- Node `>=22.12.0`
 - access to an LLM provider supported by SpineDigest
 
 Supported providers:

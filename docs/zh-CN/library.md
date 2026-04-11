@@ -6,9 +6,21 @@ SpineDigest 也提供面向 Node 和 TypeScript 环境的程序化 API。
 
 但这是次一级接口。如果你只是想直接使用这条管线，优先看 CLI 文档。
 
+## 环境要求
+
+- Node `>=22.12.0`
+
+## 安装
+
+```bash
+npm install spinedigest
+```
+
 ## 公开入口
 
 这个包会从顶层入口导出 `SpineDigestApp`、`SpineDigest` 以及语言辅助类型。
+
+同时支持 ESM `import` 和 CommonJS `require()`。
 
 ## 典型流程
 
@@ -41,6 +53,13 @@ await app.digestEpubSession(
     await digest.saveAs("./book.sdpub");
   },
 );
+```
+
+## CommonJS 示例
+
+```js
+const { createOpenAI } = require("@ai-sdk/openai");
+const { SpineDigestApp } = require("spinedigest");
 ```
 
 ## 主要 session 方法

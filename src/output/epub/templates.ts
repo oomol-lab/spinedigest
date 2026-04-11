@@ -1,12 +1,7 @@
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
-
+import { resolveDataDirPath } from "../../common/data-dir.js";
 import { createEnv } from "../../common/template.js";
 
-const DATA_DIR_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../../data",
-);
+const DATA_DIR_PATH = resolveDataDirPath();
 const templateEnvironment = createEnv(DATA_DIR_PATH);
 
 export function renderCoverPage(input: {

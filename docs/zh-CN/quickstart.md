@@ -6,7 +6,7 @@
 
 ## 1. 环境要求
 
-- Node `>=20.17.0`
+- Node `>=22.12.0`
 - 一个 SpineDigest 支持的 LLM provider
 
 当前支持的 provider：
