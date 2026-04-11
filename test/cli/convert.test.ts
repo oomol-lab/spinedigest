@@ -115,7 +115,7 @@ vi.mock("../../src/cli/io.js", () => ({
   }),
 }));
 
-vi.mock("fs/promises", async () => ({
+vi.mock("fs/promises", () => ({
   rm: vi.fn((path: string) => {
     cliMockState.resetDigestDirCalls.push(path);
     return Promise.resolve();

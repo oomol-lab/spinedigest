@@ -76,7 +76,9 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
 
     await app.digestTextSession(
       {
-        ...(digestDirPath === undefined ? {} : { documentDirPath: digestDirPath }),
+        ...(digestDirPath === undefined
+          ? {}
+          : { documentDirPath: digestDirPath }),
         sourceFormat: input.format,
         stream: readTextStreamFromStdin(),
         ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
@@ -92,7 +94,9 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     case "epub":
       await app.digestEpubSession(
         {
-          ...(digestDirPath === undefined ? {} : { documentDirPath: digestDirPath }),
+          ...(digestDirPath === undefined
+            ? {}
+            : { documentDirPath: digestDirPath }),
           path: input.path,
           ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
         },
@@ -104,7 +108,9 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     case "markdown":
       await app.digestMarkdownSession(
         {
-          ...(digestDirPath === undefined ? {} : { documentDirPath: digestDirPath }),
+          ...(digestDirPath === undefined
+            ? {}
+            : { documentDirPath: digestDirPath }),
           path: input.path,
           ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
         },
@@ -116,7 +122,9 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     case "txt":
       await app.digestTxtSession(
         {
-          ...(digestDirPath === undefined ? {} : { documentDirPath: digestDirPath }),
+          ...(digestDirPath === undefined
+            ? {}
+            : { documentDirPath: digestDirPath }),
           path: input.path,
           ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
         },

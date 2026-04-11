@@ -215,7 +215,9 @@ describe("reader/chunk-batch/parser", () => {
         },
       ),
     ).rejects.toMatchObject({
-      issues: ['Chunk #2 ("Invalid label"): Invalid evidence.start_anchor: head_tail anchor requires non-empty \'head\' and \'tail\''],
+      issues: [
+        "Chunk #2 (\"Invalid label\"): Invalid evidence.start_anchor: head_tail anchor requires non-empty 'head' and 'tail'",
+      ],
     });
   });
 });
