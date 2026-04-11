@@ -25,3 +25,4 @@ jobs:
       - run: pnpm verify
       - run: pnpm test:run
       - run: pnpm build
+      - run: pnpm smoke:pack-install

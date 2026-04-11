@@ -7,7 +7,6 @@ This guide is for the primary SpineDigest workflow: running the CLI directly.
 ## 1. Requirements
 
 - Node `>=20.17.0`
-- `pnpm`
 - access to an LLM provider supported by SpineDigest
 
 Supported providers:
@@ -17,9 +16,29 @@ Supported providers:
 - `openai`
 - `openai-compatible`
 
-## 2. Install And Enter The Project
+## 2. Install The CLI
 
-Clone the repository and install dependencies:
+For most users, install the published CLI:
+
+```bash
+npm install -g spinedigest
+```
+
+If you prefer a one-off run without a global install:
+
+```bash
+npx spinedigest --help
+```
+
+If you prefer `pnpm`:
+
+```bash
+pnpm add -g spinedigest
+```
+
+## 3. Source Checkout For Development
+
+If you are developing against the repository itself, clone it and install dependencies:
 
 ```bash
 git clone https://github.com/oomol-lab/spinedigest.git
@@ -27,9 +46,7 @@ cd spinedigest
 pnpm install
 ```
 
-If you are reading this from another environment that already exposes the `spinedigest` binary, you can skip the source setup and use the installed command directly.
-
-## 3. Configure The CLI
+## 4. Configure The CLI
 
 SpineDigest reads configuration from:
 
@@ -61,7 +78,13 @@ export SPINEDIGEST_LLM_BASE_URL="https://your-provider.example/v1"
 
 You can also place these fields in `config.json` if your environment requires it.
 
-## 4. Run Your First Digest
+## 5. Run Your First Digest
+
+From an installed CLI:
+
+```bash
+spinedigest --input ./book.md --output ./out/digest.md
+```
 
 From a local clone, the easiest command is:
 
@@ -75,13 +98,7 @@ After the command completes, inspect:
 cat ./out/digest.md
 ```
 
-If you are using an installed CLI instead of a source checkout, run the same flow against one of your own files:
-
-```bash
-spinedigest --input ./book.md --output ./out/digest.md
-```
-
-## 5. Common Output Patterns
+## 6. Common Output Patterns
 
 Write plain text:
 
@@ -113,7 +130,7 @@ Re-open an existing `.sdpub` and export it again:
 spinedigest --input ./book.sdpub --output ./digest.txt
 ```
 
-## 6. Pipe Through Standard Streams
+## 7. Pipe Through Standard Streams
 
 `stdin` and `stdout` are only supported for text formats.
 
@@ -135,7 +152,7 @@ Pipe both directions:
 cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
 ```
 
-## 7. Add A Custom Extraction Prompt
+## 8. Add A Custom Extraction Prompt
 
 You can customize the extraction prompt in config:
 
@@ -147,7 +164,7 @@ You can customize the extraction prompt in config:
 
 This prompt is applied when digesting source files or text streams.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 If you see a missing LLM configuration error:
 

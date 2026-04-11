@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          cache: pnpm
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          node -e 'const pkg = require("./package.json"); const tag = process.env.GITHUB_REF_NAME; if (`v${pkg.version}` !== tag) { throw new Error(`Tag ${tag} does not match package version v${pkg.version}`); }'
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+      - run: pnpm test:run
+      - run: pnpm build
+      - run: pnpm smoke:pack-install
+      - run: pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

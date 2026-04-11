@@ -6,6 +6,26 @@ SpineDigest is a CLI-first tool for digesting long-form text into smaller, porta
 
 It reads EPUB, Markdown, and plain text, runs an LLM-guided digestion pipeline, and writes compressed text, EPUB, or reusable `.sdpub` archives.
 
+## Install
+
+Quick run without a global install:
+
+```bash
+npx spinedigest --help
+```
+
+Global install:
+
+```bash
+npm install -g spinedigest
+```
+
+If you prefer `pnpm`, use:
+
+```bash
+pnpm add -g spinedigest
+```
+
 ## Why People Use It
 
 - Turn long-form text into shorter, easier-to-scan outputs.

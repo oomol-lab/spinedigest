@@ -6,6 +6,26 @@ SpineDigest 是一个以 CLI 为主的长文本压缩处理工具，用于把长
 
 它可以读取 EPUB、Markdown 和纯文本，运行一条由 LLM 驱动的 digest 管线，并输出压缩后的文本、EPUB，或可复用的 `.sdpub` 归档文件。
 
+## 安装
+
+不做全局安装，直接运行：
+
+```bash
+npx spinedigest --help
+```
+
+全局安装：
+
+```bash
+npm install -g spinedigest
+```
+
+如果你更习惯 `pnpm`：
+
+```bash
+pnpm add -g spinedigest
+```
+
 ## 为什么会有人用它
 
 - 把长篇文本压缩成更容易浏览的结果。
