@@ -76,9 +76,14 @@ function createLanguageModel(
       return google(model);
     }
     case "openai": {
+      if (options.baseURL !== undefined) {
+        throw new Error(
+          "openai does not accept llm.baseURL or SPINEDIGEST_LLM_BASE_URL. Use openai-compatible for third-party OpenAI-style APIs.",
+        );
+      }
+
       const openai = createOpenAI({
         ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }),
-        ...(options.baseURL === undefined ? {} : { baseURL: options.baseURL }),
         ...(options.name === undefined ? {} : { name: options.name }),
       });
 

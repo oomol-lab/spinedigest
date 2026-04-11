@@ -86,7 +86,6 @@ describe("cli/llm", () => {
       buildLLMOptions({
         llm: {
           apiKey: "secret",
-          baseURL: "https://api.example/v1",
           model: "gpt-test",
           name: "custom-openai",
           provider: "openai",
@@ -122,7 +121,6 @@ describe("cli/llm", () => {
     expect(llmMockState.openAIFactoryCalls).toStrictEqual([
       {
         apiKey: "secret",
-        baseURL: "https://api.example/v1",
         name: "custom-openai",
       },
     ]);
@@ -225,6 +223,21 @@ describe("cli/llm", () => {
       }),
     ).toThrow(
       "openai-compatible requires llm.baseURL or SPINEDIGEST_LLM_BASE_URL.",
+    );
+  });
+
+  it("rejects custom base urls on the official openai provider", () => {
+    expect(() =>
+      buildLLMOptions({
+        llm: {
+          apiKey: "secret",
+          baseURL: "https://api.example/v1",
+          model: "gpt-test",
+          provider: "openai",
+        },
+      }),
+    ).toThrow(
+      "openai does not accept llm.baseURL or SPINEDIGEST_LLM_BASE_URL. Use openai-compatible for third-party OpenAI-style APIs.",
     );
   });
 });
