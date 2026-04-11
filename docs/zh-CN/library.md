@@ -79,7 +79,7 @@ digest session 的 option 现在可以传入可选的 `onProgress` 回调。
 这个回调在 digest 过程中会提供三种事件：
 
 - `serial-discovered`：报告某个 serial 的 id、fragment 数量和总词数
-- `serial-progress`：报告某个 serial 当前已经完成的词数
+- `serial-progress`：报告某个 serial 当前已经完成的词数和 fragment 数量
 - `digest-progress`：报告整个 digest 当前已完成词数，以及目前已发现 serial 的总词数
 
 ## `SpineDigest` 能做什么

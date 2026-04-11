@@ -232,6 +232,7 @@ describe("facade/digest", () => {
 
   it("emits discovered and progress events for text digest", async () => {
     const events: Array<{
+      readonly completedFragments?: number;
       readonly completedWords?: number;
       readonly fragments?: number;
       readonly id?: number;
@@ -257,6 +258,7 @@ describe("facade/digest", () => {
                 return;
               case "serial-progress":
                 events.push({
+                  completedFragments: event.completedFragments,
                   completedWords: event.completedWords,
                   id: event.id,
                   type: event.type,
@@ -285,6 +287,7 @@ describe("facade/digest", () => {
         totalWords: 2,
       },
       {
+        completedFragments: 1,
         completedWords: 2,
         id: 1,
         type: "serial-progress",

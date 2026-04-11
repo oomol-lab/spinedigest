@@ -71,6 +71,7 @@ function buildLogBindings(
       } satisfies Record<keyof Omit<SerialDiscoveredEvent, "type">, number>;
     case "serial-progress":
       return {
+        completedFragments: event.completedFragments,
         completedWords: event.completedWords,
         id: event.id,
       } satisfies Record<keyof Omit<SerialProgressEvent, "type">, number>;

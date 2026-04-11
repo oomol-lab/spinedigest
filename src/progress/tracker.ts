@@ -56,10 +56,12 @@ export class DigestProgressTracker {
   }
 
   public async emitSerialProgress(input: {
+    readonly completedFragments: number;
     readonly completedWords: number;
     readonly id: number;
   }): Promise<void> {
     await this.#reporter.emit({
+      completedFragments: input.completedFragments,
       completedWords: input.completedWords,
       id: input.id,
       type: "serial-progress",
@@ -68,10 +70,12 @@ export class DigestProgressTracker {
 }
 
 export class SerialProgressTracker {
+  #completedFragments = 0;
   readonly #digestTracker: DigestProgressTracker;
   #completedWords = 0;
   readonly #id: number;
   #started = false;
+  #totalFragments = 0;
   #totalWords = 0;
 
   public constructor(digestTracker: DigestProgressTracker, id: number) {
@@ -84,6 +88,7 @@ export class SerialProgressTracker {
     readonly words: number;
   }): Promise<void> {
     this.#started = true;
+    this.#totalFragments = input.fragments;
     this.#totalWords = input.words;
     await this.#digestTracker.discoverSerial({
       fragments: input.fragments,
@@ -98,7 +103,9 @@ export class SerialProgressTracker {
     }
 
     this.#completedWords += wordsCount;
+    this.#completedFragments += 1;
     await this.#digestTracker.emitSerialProgress({
+      completedFragments: this.#completedFragments,
       completedWords: this.#completedWords,
       id: this.#id,
     });
@@ -110,12 +117,16 @@ export class SerialProgressTracker {
     }
 
     this.#completedWords += finalWordsCount;
+    if (this.#completedFragments < this.#totalFragments) {
+      this.#completedFragments += 1;
+    }
 
     if (this.#completedWords > this.#totalWords) {
       throw new Error(`Serial ${this.#id} completed beyond its total words`);
     }
 
     await this.#digestTracker.emitSerialProgress({
+      completedFragments: this.#completedFragments,
       completedWords: this.#completedWords,
       id: this.#id,
     });

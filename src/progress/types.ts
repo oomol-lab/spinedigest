@@ -15,6 +15,7 @@ export interface SerialProgressEvent {
   readonly type: "serial-progress";
   readonly id: number;
   readonly completedWords: number;
+  readonly completedFragments: number;
 }
 
 export interface DigestProgressEvent {

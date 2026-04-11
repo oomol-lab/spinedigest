@@ -15,7 +15,7 @@ vi.mock("readline", () => ({
 import { createCLIProgressRenderer } from "../../src/cli/progress.js";
 
 describe("cli/progress", () => {
-  it("renders a stable multi-serial snapshot for concurrent progress events", async () => {
+  it("renders stage totals and only keeps active serials visible", async () => {
     const stream = new FakeTTYStream();
     const renderer = createCLIProgressRenderer({
       enabled: true,
@@ -51,45 +51,37 @@ describe("cli/progress", () => {
     await Promise.all([
       renderer.onProgress({
         completedWords: 1576,
+        completedFragments: 2,
         id: 2,
         type: "serial-progress",
       }),
       renderer.onProgress({
         completedWords: 793,
+        completedFragments: 1,
         id: 1,
         type: "serial-progress",
-      }),
-      renderer.onProgress({
-        completedWords: 2369,
-        totalWords: 2702,
-        type: "digest-progress",
       }),
     ]);
 
-    await Promise.all([
-      renderer.onProgress({
-        completedWords: 882,
-        id: 1,
-        type: "serial-progress",
-      }),
-      renderer.onProgress({
-        completedWords: 1820,
-        id: 2,
-        type: "serial-progress",
-      }),
-      renderer.onProgress({
-        completedWords: 2702,
-        totalWords: 2702,
-        type: "digest-progress",
-      }),
-    ]);
+    await renderer.onProgress({
+      completedWords: 882,
+      completedFragments: 2,
+      id: 1,
+      type: "serial-progress",
+    });
+    await renderer.onProgress({
+      completedWords: 882,
+      totalWords: 2702,
+      type: "digest-progress",
+    });
 
     await renderer.stop();
 
     expect(stream.visibleLines()).toStrictEqual([
-      "Digest     [############] 2,702 / 2,702 words",
-      "Serial #1  [############] 882 / 882 words (2 fragments)",
-      "Serial #2  [############] 1,820 / 1,820 words (3 fragments)",
+      "Serial  [###########.] 2,458 / 2,702 words",
+      "Digest  [####........] 882 / 2,702 words",
+      "------------------------",
+      "#2        [##########..] 1,576 / 1,820 words (2/3 fragments)",
     ]);
   });
 });

@@ -429,10 +429,10 @@ describe("cli/convert", () => {
 
     expect(cliMockState.digestCalls.txt[0]).toHaveProperty("onProgress");
     expect(
-      cliMockState.stderrWrites.some((chunk) => chunk.includes("Digest")),
+      cliMockState.stderrWrites.some((chunk) => chunk.includes("Serial")),
     ).toBe(true);
     expect(
-      cliMockState.stderrWrites.some((chunk) => chunk.includes("Serial #1")),
+      cliMockState.stderrWrites.some((chunk) => chunk.includes("#1")),
     ).toBe(true);
   });
 });
@@ -496,6 +496,7 @@ async function emitMockProgress(options: unknown): Promise<void> {
     type: "digest-progress",
   });
   await onProgress({
+    completedFragments: 3,
     completedWords: 2300,
     id: 1,
     type: "serial-progress",
