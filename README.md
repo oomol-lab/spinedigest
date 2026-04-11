@@ -26,6 +26,18 @@ If you prefer `pnpm`, use:
 pnpm add -g spinedigest
 ```
 
+To install the current local checkout into your terminal for pre-release verification:
+
+```bash
+pnpm cli:install-local
+```
+
+Remove that local global install with:
+
+```bash
+pnpm cli:uninstall-local
+```
+
 ## Why People Use It
 
 - Turn long-form text into shorter, easier-to-scan outputs.

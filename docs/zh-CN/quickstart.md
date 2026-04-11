@@ -36,6 +36,18 @@ npx spinedigest --help
 pnpm add -g spinedigest
 ```
 
+如果你想在发布前把当前本地 checkout 全局安装到 Terminal 里验证：
+
+```bash
+pnpm cli:install-local
+```
+
+这个命令会先把当前仓库打成 tarball，再做全局安装。卸载时使用：
+
+```bash
+pnpm cli:uninstall-local
+```
+
 ## 3. 用于开发的源码 checkout
 
 如果你是在仓库里开发，再克隆源码并安装依赖：

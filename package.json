@@ -36,6 +36,8 @@
   "scripts": {
     "build": "rimraf dist && tsc -p tsconfig.build.json",
     "coverage:report": "node ./scripts/coverage-report.mjs",
+    "cli:install-local": "node ./scripts/install-local-cli.mjs",
+    "cli:uninstall-local": "npm uninstall -g spinedigest",
     "dev": "tsx src/cli.ts",
     "fixtures:generate": "node ./scripts/generate-test-fixtures.mjs",
     "format": "prettier . --write",
