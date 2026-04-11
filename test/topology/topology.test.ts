@@ -93,7 +93,7 @@ describe("topology/topology", () => {
         retention: ChunkRetention.Relevant,
         sentenceId: [7, 1, 0],
         sentenceIds: [[7, 1, 0]],
-        tokens: 5,
+        wordsCount: 5,
         weight: 1,
       },
       {
@@ -105,7 +105,7 @@ describe("topology/topology", () => {
         retention: ChunkRetention.Focused,
         sentenceId: [7, 2, 0],
         sentenceIds: [[7, 2, 0]],
-        tokens: 5,
+        wordsCount: 5,
         weight: 12,
       },
     ]);
@@ -127,7 +127,7 @@ describe("topology/topology", () => {
           retention: ChunkRetention.Relevant,
           sentenceId: [7, 1, 0],
           sentenceIds: [[7, 1, 0]],
-          tokens: 5,
+          wordsCount: 5,
           weight: 1,
         },
         {
@@ -139,7 +139,7 @@ describe("topology/topology", () => {
           retention: ChunkRetention.Focused,
           sentenceId: [7, 2, 0],
           sentenceIds: [[7, 2, 0]],
-          tokens: 5,
+          wordsCount: 5,
           weight: 12,
         },
       ],
@@ -152,7 +152,7 @@ describe("topology/topology", () => {
         },
       ],
       fragments: getSerialFragments(),
-      groupTokensCount: 120,
+      groupWordsCount: 120,
       serialId: 7,
     });
     expect(saveFragmentGroups).toHaveBeenCalledWith([
@@ -185,7 +185,7 @@ function createDocumentStub(): {
         sentences: [
           {
             text: `Fragment ${fragmentId}`,
-            tokenCount: 10,
+            wordsCount: 10,
           },
         ],
         serialId: 7,
@@ -241,7 +241,7 @@ function createReaderChunk(
     links: [],
     sentenceId: [7, fragmentId, 0] as const,
     sentenceIds: [[7, fragmentId, 0] as const],
-    tokens: 5,
+    wordsCount: 5,
     ...extra,
   };
 }

@@ -10,7 +10,7 @@ interface FragmentResource {
 
 export function createFragmentGroups(input: {
   fragmentInfos: readonly FragmentInfo[];
-  groupTokensCount: number;
+  groupWordsCount: number;
   serialId: number;
 }): FragmentGroupRecord[] {
   if (input.fragmentInfos.length === 0) {
@@ -19,13 +19,13 @@ export function createFragmentGroups(input: {
 
   const resources = input.fragmentInfos.map(
     (fragmentInfo): FragmentResource => ({
-      count: fragmentInfo.tokenCount,
+      count: fragmentInfo.wordsCount,
       endIncision: fragmentInfo.endIncision,
       fragmentId: fragmentInfo.fragmentId,
       startIncision: fragmentInfo.startIncision,
     }),
   );
-  const groups = allocateFragmentGroups(resources, input.groupTokensCount);
+  const groups = allocateFragmentGroups(resources, input.groupWordsCount);
 
   return groups.flatMap((fragmentIds, groupId) =>
     fragmentIds.map((fragmentId) => ({

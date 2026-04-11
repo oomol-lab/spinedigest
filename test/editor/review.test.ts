@@ -112,7 +112,7 @@ function createChunk(
     label,
     sentenceId: [1, fragmentId, sentenceIndex],
     sentenceIds: [[1, fragmentId, sentenceIndex]],
-    tokens: 3,
+    wordsCount: 3,
     weight: 1,
   };
 }
@@ -141,7 +141,7 @@ function createSerialFragments(): ReadonlySerialFragments {
     sentences: [
       {
         text: "Alpha fragment sentence.",
-        tokenCount: 4,
+        wordsCount: 4,
       },
     ],
     serialId: 1,

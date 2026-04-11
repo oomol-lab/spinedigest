@@ -137,7 +137,7 @@ function createChunkRecord(chunkId: number, content: string): ChunkRecord {
     retention: ChunkRetention.Focused,
     sentenceId: [1, 1, 0],
     sentenceIds: [[1, 1, 0]],
-    tokens: 5,
+    wordsCount: 5,
     weight: 1,
   };
 }

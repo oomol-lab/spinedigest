@@ -20,7 +20,7 @@ describe("topology/grouping", () => {
         2: 10,
         3: 10,
       }),
-      groupTokensCount: 25,
+      groupWordsCount: 25,
       serialId: 7,
     });
 
@@ -56,13 +56,13 @@ function createChunk(
     label: `Chunk ${id}`,
     sentenceId: [7, fragmentId, 0],
     sentenceIds: [[7, fragmentId, 0]],
-    tokens: 5,
+    wordsCount: 5,
     weight,
   };
 }
 
 function createSerialFragments(
-  tokenCountsByFragmentId: Record<number, number>,
+  wordsCountsByFragmentId: Record<number, number>,
 ): ReadonlySerialFragments {
   return {
     getFragment: (fragmentId: number) =>
@@ -71,7 +71,7 @@ function createSerialFragments(
         sentences: [
           {
             text: `Fragment ${fragmentId}`,
-            tokenCount: tokenCountsByFragmentId[fragmentId] ?? 0,
+            wordsCount: wordsCountsByFragmentId[fragmentId] ?? 0,
           },
         ],
         serialId: 7,
@@ -79,7 +79,7 @@ function createSerialFragments(
       }),
     listFragmentIds: () =>
       Promise.resolve(
-        Object.keys(tokenCountsByFragmentId).map((fragmentId) =>
+        Object.keys(wordsCountsByFragmentId).map((fragmentId) =>
           Number(fragmentId),
         ),
       ),

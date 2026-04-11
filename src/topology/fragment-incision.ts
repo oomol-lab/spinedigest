@@ -6,7 +6,7 @@ import type {
 
 export interface FragmentInfo {
   readonly fragmentId: number;
-  readonly tokenCount: number;
+  readonly wordsCount: number;
   readonly startIncision: number;
   readonly endIncision: number;
 }
@@ -16,39 +16,39 @@ export async function computeNormalizedFragmentIncisions(input: {
   edges: readonly KnowledgeEdgeRecord[];
   fragments: ReadonlySerialFragments;
 }): Promise<FragmentInfo[]> {
-  const fragmentTokenCounts = await loadFragmentTokenCounts(input.fragments);
+  const fragmentWordsCounts = await loadFragmentWordsCounts(input.fragments);
 
   return normalizeIncisions(
     computeFragmentIncisions({
       chunks: input.chunks,
       edges: input.edges,
-      fragmentTokenCounts,
+      fragmentWordsCounts,
     }),
   );
 }
 
-async function loadFragmentTokenCounts(
+async function loadFragmentWordsCounts(
   fragments: ReadonlySerialFragments,
 ): Promise<Readonly<Record<string, number>>> {
-  const tokenCounts = createNumberRecord();
+  const wordsCounts = createNumberRecord();
   const fragmentIds = await fragments.listFragmentIds();
 
   for (const fragmentId of fragmentIds) {
     const fragment = await fragments.getFragment(fragmentId);
 
-    tokenCounts[String(fragmentId)] = fragment.sentences.reduce(
-      (total, sentence) => total + sentence.tokenCount,
+    wordsCounts[String(fragmentId)] = fragment.sentences.reduce(
+      (total, sentence) => total + sentence.wordsCount,
       0,
     );
   }
 
-  return tokenCounts;
+  return wordsCounts;
 }
 
 function computeFragmentIncisions(input: {
   chunks: readonly ChunkRecord[];
   edges: readonly KnowledgeEdgeRecord[];
-  fragmentTokenCounts: Readonly<Record<string, number>>;
+  fragmentWordsCounts: Readonly<Record<string, number>>;
 }): FragmentInfo[] {
   const chunkIdsByFragmentId = createNumberListRecord();
   const chunkWeightsById = createNumberRecord();
@@ -151,7 +151,7 @@ function computeFragmentIncisions(input: {
         endIncision,
         fragmentId,
         startIncision,
-        tokenCount: input.fragmentTokenCounts[String(fragmentId)] ?? 0,
+        wordsCount: input.fragmentWordsCounts[String(fragmentId)] ?? 0,
       };
     });
 }

@@ -7,7 +7,7 @@ export async function groupFragments(input: {
   fragments: Parameters<
     typeof computeNormalizedFragmentIncisions
   >[0]["fragments"];
-  groupTokensCount: number;
+  groupWordsCount: number;
   chunks: Parameters<typeof computeNormalizedFragmentIncisions>[0]["chunks"];
   serialId: number;
 }): Promise<FragmentGroupRecord[]> {
@@ -19,7 +19,7 @@ export async function groupFragments(input: {
 
   return createFragmentGroups({
     fragmentInfos,
-    groupTokensCount: input.groupTokensCount,
+    groupWordsCount: input.groupWordsCount,
     serialId: input.serialId,
   });
 }

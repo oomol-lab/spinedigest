@@ -19,7 +19,7 @@ describe("topology/weights", () => {
         sentenceId: [1, 0, 0],
         sentenceIds: [[1, 0, 0]],
         retention: ChunkRetention.Verbatim,
-        tokens: 8,
+        wordsCount: 8,
         weight: 0,
       },
       {
@@ -31,7 +31,7 @@ describe("topology/weights", () => {
         sentenceId: [1, 0, 1],
         sentenceIds: [[1, 0, 1]],
         retention: ChunkRetention.Relevant,
-        tokens: 5,
+        wordsCount: 5,
         weight: 0,
       },
     ]);

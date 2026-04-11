@@ -58,7 +58,7 @@ describe("reader/chunk-batch/parser", () => {
               [1, 0, 0],
               [1, 0, 1],
             ],
-            tokens: 5,
+            wordsCount: 5,
           },
         ],
         links: [],
@@ -82,12 +82,12 @@ describe("reader/chunk-batch/parser", () => {
         {
           sentenceId: [1, 0, 0],
           text: "Echo",
-          tokenCount: 2,
+          wordsCount: 2,
         },
         {
           sentenceId: [1, 0, 1],
           text: "Echo",
-          tokenCount: 3,
+          wordsCount: 3,
         },
       ] satisfies ChunkExtractionSentence[],
       visibleChunkIds: [],
@@ -118,7 +118,7 @@ describe("reader/chunk-batch/parser", () => {
     expect(result.chunkBatch.chunks[0]).toMatchObject({
       sentenceId: [1, 0, 1],
       sentenceIds: [[1, 0, 1]],
-      tokens: 3,
+      wordsCount: 3,
     });
   });
 
@@ -227,17 +227,17 @@ function createSentences(): readonly ChunkExtractionSentence[] {
     {
       sentenceId: [1, 0, 0],
       text: "Alpha begins.",
-      tokenCount: 2,
+      wordsCount: 2,
     },
     {
       sentenceId: [1, 0, 1],
       text: "Beta continues.",
-      tokenCount: 3,
+      wordsCount: 3,
     },
     {
       sentenceId: [1, 0, 2],
       text: "Gamma ends.",
-      tokenCount: 4,
+      wordsCount: 4,
     },
   ];
 }
