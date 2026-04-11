@@ -10,6 +10,15 @@ import {
 } from "yauzl";
 import { ZipFile as YazlZipFile } from "yazl";
 
+const SDPUB_ARCHIVE_PATTERNS = [
+  /^database\.db$/u,
+  /^book-meta\.json$/u,
+  /^toc\.json$/u,
+  /^cover\/(?:data\.bin|info\.json)$/u,
+  /^summaries\/serial-\d+\.txt$/u,
+  /^fragments\/serial-\d+\/fragment_\d+\.json$/u,
+] as const;
+
 export async function extractSdpubArchive(
   inputPath: string,
   outputDirectoryPath: string,
@@ -88,7 +97,7 @@ async function listDocumentFiles(
     });
   }
 
-  return files;
+  return files.filter((file) => isSdpubArchivePath(file.archivePath));
 }
 
 async function indexArchiveEntries(
@@ -122,6 +131,10 @@ function compareDirEntryName(
   right: { readonly name: string },
 ): number {
   return left.name.localeCompare(right.name);
+}
+
+function isSdpubArchivePath(archivePath: string): boolean {
+  return SDPUB_ARCHIVE_PATTERNS.some((pattern) => pattern.test(archivePath));
 }
 
 function assertWithinDirectory(
