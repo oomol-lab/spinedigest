@@ -1,4 +1,5 @@
 import type { Document } from "../document/index.js";
+import type { DigestProgressTracker } from "../progress/index.js";
 import {
   SerialGeneration,
   type GenerateSerialOptions,
@@ -19,6 +20,7 @@ import {
 export interface ImportSourceOptions
   extends GenerateSerialOptions, Omit<SerialGenerationOptions, "document"> {
   readonly adapter: SourceAdapter;
+  readonly digestProgressTracker?: DigestProgressTracker;
   readonly document: Document;
   readonly path: string;
 }
@@ -32,6 +34,7 @@ export interface ImportedSource {
 
 interface PlannedSection {
   readonly section: SourceSection;
+  readonly title: string;
   readonly serialId: number;
 }
 
@@ -86,7 +89,18 @@ export async function importSourceDocument(
   });
   const serials: Serial[] = [];
 
-  for (const plannedSection of plannedSections) {
+  await options.digestProgressTracker?.initializeDigest({
+    totalSerials: plannedSections.length,
+  });
+
+  for (const [index, plannedSection] of plannedSections.entries()) {
+    const serialProgressTracker =
+      options.digestProgressTracker?.createSerialTracker({
+        sectionTitle: plannedSection.title,
+        serialId: plannedSection.serialId,
+        serialIndex: index + 1,
+      });
+
     const serial = await options.document.openSession(async () => {
       return await generation.generateInto(
         plannedSection.serialId,
@@ -97,6 +111,7 @@ export async function importSourceDocument(
             ? {}
             : { userLanguage: options.userLanguage }),
         },
+        serialProgressTracker,
       );
     });
 
@@ -163,6 +178,10 @@ function planTocItem(input: {
   if (serialId !== undefined) {
     input.plannedSections.push({
       section: input.section,
+      title:
+        normalizeTitle(input.section.title) ??
+        normalizeTitle(input.fallbackTitle) ??
+        createSectionFallbackTitle(input.indexPath),
       serialId,
     });
   }

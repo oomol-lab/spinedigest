@@ -3,6 +3,10 @@ import { join, resolve } from "path";
 import { tmpdir } from "os";
 
 import { DirectoryDocument } from "../document/index.js";
+import {
+  createDigestProgressTracker,
+  type SpineDigestProgressCallback,
+} from "../progress/index.js";
 
 import { extractSdpubArchive } from "./archive.js";
 import { SpineDigest } from "./spine-digest.js";
@@ -18,8 +22,21 @@ export class SpineDigestFile {
     operation: (digest: SpineDigest) => Promise<T> | T,
     options: {
       readonly documentDirPath?: string;
+      readonly onProgress?: SpineDigestProgressCallback;
     } = {},
   ): Promise<T> {
+    const progressTracker = createDigestProgressTracker({
+      operation: "open-sdpub",
+      ...(options.onProgress === undefined
+        ? {}
+        : { onProgress: options.onProgress }),
+    });
+
+    await progressTracker.emitSessionStarted({
+      inputFormat: "sdpub",
+      path: this.#path,
+    });
+
     const directoryPath =
       options.documentDirPath === undefined
         ? await mkdtemp(join(tmpdir(), "spinedigest-open-"))
@@ -27,11 +44,14 @@ export class SpineDigestFile {
 
     try {
       await extractSdpubArchive(this.#path, directoryPath);
+      await progressTracker.emitArchiveOpened(this.#path);
 
       const document = await DirectoryDocument.open(directoryPath);
 
       try {
-        return await operation(new SpineDigest(document, directoryPath));
+        return await operation(
+          new SpineDigest(document, directoryPath, progressTracker),
+        );
       } finally {
         await document.release();
       }

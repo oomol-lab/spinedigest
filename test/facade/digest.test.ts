@@ -7,6 +7,7 @@ import type { DirectoryDocument } from "../../src/document/index.js";
 const digestMockState = vi.hoisted(() => ({
   generateCalls: [] as Array<{
     readonly options: unknown;
+    readonly serialId: number;
     readonly streamText: string;
   }>,
   importCalls: [] as Array<{
@@ -32,20 +33,49 @@ vi.mock("../../src/serial.js", () => ({
       stream: AsyncIterable<string> | Iterable<string>,
       options: unknown,
     ): Promise<{ readonly id: number }> {
+      const serialId = await this.#document.createSerial();
+      return await this.generateInto(serialId, stream, options);
+    }
+
+    public async generateInto(
+      serialId: number,
+      stream: AsyncIterable<string> | Iterable<string>,
+      options: unknown,
+      progressTracker?: {
+        begin(input: {
+          totalFragments: number;
+          totalWords: number;
+        }): Promise<void>;
+        complete(): Promise<void>;
+        completeFragment(wordsCount: number): Promise<void>;
+      },
+    ): Promise<{ readonly id: number }> {
       let streamText = "";
 
       for await (const chunk of stream) {
         streamText += chunk;
       }
 
+      const totalWords = streamText
+        .trim()
+        .split(/\s+/)
+        .filter((value) => value !== "").length;
+
+      await progressTracker?.begin({
+        totalFragments: 1,
+        totalWords,
+      });
+      await this.#document.serials.createWithId(serialId);
+      await this.#document.serials.setTopologyReady(serialId);
+      await progressTracker?.completeFragment(totalWords);
+      await this.#document.writeSummary(serialId, streamText.trim());
+      await progressTracker?.complete();
+
       digestMockState.generateCalls.push({
         options,
+        serialId,
         streamText,
       });
-
-      const serialId = await this.#document.createSerial();
-      await this.#document.serials.setTopologyReady(serialId);
-      await this.#document.writeSummary(serialId, streamText.trim());
 
       return { id: serialId };
     }
@@ -152,6 +182,7 @@ describe("facade/digest", () => {
           extractionPrompt: "Keep beats",
           userLanguage: "Simplified Chinese",
         },
+        serialId: 1,
         streamText: "alpha beta",
       },
     ]);
@@ -201,6 +232,87 @@ describe("facade/digest", () => {
         await readFile(`${documentDirPath}/book-meta.json`, "utf8"),
       ).toContain('"sourceFormat": "markdown"');
     });
+  });
+
+  it("emits structured progress events for text digest and export", async () => {
+    const events: Array<{
+      readonly completedFragments?: number;
+      readonly completedSerials?: number;
+      readonly completedWords?: number;
+      readonly isComplete?: boolean;
+      readonly outputKind?: string;
+      readonly type: string;
+    }> = [];
+
+    await withTempDir("spinedigest-digest-", async (path) => {
+      await digestTextSession(
+        {
+          extractionPrompt: "Keep beats",
+          llm: {} as never,
+          onProgress: async (event) => {
+            events.push({
+              ...(event.completedFragments === undefined
+                ? {}
+                : { completedFragments: event.completedFragments }),
+              ...(event.completedSerials === undefined
+                ? {}
+                : { completedSerials: event.completedSerials }),
+              ...(event.completedWords === undefined
+                ? {}
+                : { completedWords: event.completedWords }),
+              ...(event.isComplete === undefined
+                ? {}
+                : { isComplete: event.isComplete }),
+              type: event.type,
+              ...(event.outputKind === undefined
+                ? {}
+                : { outputKind: event.outputKind }),
+            });
+          },
+          stream: ["alpha beta"],
+          title: "Progress Title",
+        },
+        async (digest) => {
+          await digest.exportText(`${path}/digest.txt`);
+        },
+      );
+    });
+
+    expect(events).toStrictEqual([
+      { type: "session-started" },
+      {
+        completedSerials: 0,
+        completedWords: 0,
+        isComplete: false,
+        type: "digest-progress",
+      },
+      {
+        completedFragments: 0,
+        completedWords: 0,
+        isComplete: false,
+        type: "serial-progress",
+      },
+      {
+        completedFragments: 1,
+        completedWords: 2,
+        isComplete: false,
+        type: "serial-progress",
+      },
+      {
+        completedFragments: 1,
+        completedWords: 2,
+        isComplete: true,
+        type: "serial-progress",
+      },
+      {
+        completedSerials: 1,
+        completedWords: 2,
+        isComplete: true,
+        type: "digest-progress",
+      },
+      { outputKind: "text", type: "export-started" },
+      { outputKind: "text", type: "export-completed" },
+    ]);
   });
 
   it("routes source digest sessions through importSource with matching adapters", async () => {

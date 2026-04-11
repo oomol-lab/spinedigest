@@ -25,6 +25,7 @@ At a high level, SpineDigest does this:
 - `reader`: LLM-guided extraction over the text stream
 - `topology`: graph construction from reader output
 - `editor`: compression and summary generation from topology groups
+- `progress`: progress tracking and event callbacks for digest runs
 - `serial.ts`: glue between reader, topology, and editor
 
 ## Public Versus Internal Boundaries

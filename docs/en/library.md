@@ -72,6 +72,17 @@ const { SpineDigestApp } = require("spinedigest");
 
 `openSession` is for existing `.sdpub` archives and does not require a fresh digest run.
 
+## Progress Callbacks
+
+Digest session options accept an optional `onProgress` callback.
+
+The callback reports two progress layers during digest generation:
+
+- serial-level progress, including completed fragment count and completed word count inside the current section
+- digest-level progress, including completed serial count and completed word count across finished sections
+
+Export and `.sdpub` reopen operations also emit lightweight lifecycle events.
+
 ## What `SpineDigest` Can Do
 
 - `readMeta()`

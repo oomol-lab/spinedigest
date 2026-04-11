@@ -4,6 +4,12 @@ import { resolveDataDirPath } from "../common/data-dir.js";
 import type { Language } from "../common/language.js";
 import { withLoggingContext } from "../common/logging.js";
 import { LLM } from "../llm/index.js";
+import type {
+  SpineDigestProgressCallback,
+  SpineDigestProgressEvent,
+  SpineDigestProgressEventType,
+  SpineDigestOperation,
+} from "../progress/index.js";
 
 import {
   digestEpubSession,
@@ -44,6 +50,7 @@ export type SpineDigestOpenSessionOptions = DigestDocumentSessionOptions;
 
 export interface SpineDigestSourceSessionOptions extends DigestDocumentSessionOptions {
   readonly extractionPrompt?: string;
+  readonly onProgress?: SpineDigestProgressCallback;
   readonly path: string;
   readonly userLanguage?: Language;
 }
@@ -51,6 +58,7 @@ export interface SpineDigestSourceSessionOptions extends DigestDocumentSessionOp
 export interface SpineDigestTextSessionOptions extends DigestDocumentSessionOptions {
   readonly bookLanguage?: string | null;
   readonly extractionPrompt?: string;
+  readonly onProgress?: SpineDigestProgressCallback;
   readonly sourceFormat?: "markdown" | "txt";
   readonly stream: AsyncIterable<string> | Iterable<string>;
   readonly title?: string | null;
@@ -110,6 +118,9 @@ export class SpineDigestApp {
           {
             extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
             llm: this.#requireLLM(),
+            ...(options.onProgress === undefined
+              ? {}
+              : { onProgress: options.onProgress }),
             stream: options.stream,
             ...(this.#debugLogDirPath === undefined
               ? {}
@@ -156,6 +167,9 @@ export class SpineDigestApp {
           ...(options.documentDirPath === undefined
             ? {}
             : { documentDirPath: options.documentDirPath }),
+          ...(options.onProgress === undefined
+            ? {}
+            : { onProgress: options.onProgress }),
         }),
     );
   }
@@ -166,6 +180,9 @@ export class SpineDigestApp {
     return {
       extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
       llm: this.#requireLLM(),
+      ...(options.onProgress === undefined
+        ? {}
+        : { onProgress: options.onProgress }),
       path: options.path,
       ...(this.#debugLogDirPath === undefined
         ? {}
@@ -202,6 +219,13 @@ export class SpineDigestApp {
     );
   }
 }
+
+export type {
+  SpineDigestProgressCallback,
+  SpineDigestProgressEvent,
+  SpineDigestProgressEventType,
+  SpineDigestOperation,
+};
 
 function normalizeLLMOptions(
   llm: NonNullable<SpineDigestAppOptions["llm"]>,
