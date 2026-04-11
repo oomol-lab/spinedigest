@@ -1,7 +1,5 @@
 import { defineConfig } from "tsup";
 
-const BUNDLED_DEPENDENCIES_PATTERN = [/.*/];
-const EXTERNAL_DEPENDENCIES = ["sqlite3"];
 const CJS_DATA_DIR_BANNER = [
   'globalThis.__SPINEDIGEST_DATA_DIR__ ??= require("node:path").resolve(',
   "  __dirname,",
@@ -10,10 +8,9 @@ const CJS_DATA_DIR_BANNER = [
 ].join("\n");
 const SHARED_OPTIONS = {
   bundle: true,
-  external: EXTERNAL_DEPENDENCIES,
-  noExternal: BUNDLED_DEPENDENCIES_PATTERN,
   outDir: "dist",
   platform: "node",
+  skipNodeModulesBundle: true,
   sourcemap: true,
   splitting: false,
   target: "node22",

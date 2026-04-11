@@ -87,7 +87,8 @@ describe("facade/spine-digest", () => {
       const flush = vi.fn(async () => {});
 
       await mkdir(sourceDir, { recursive: true });
-      await writeFile(`${sourceDir}/note.txt`, "saved", "utf8");
+      await writeFile(`${sourceDir}/database.db`, "saved", "utf8");
+      await writeFile(`${sourceDir}/database.db-journal`, "transient", "utf8");
 
       const digest = new SpineDigest(
         {
@@ -102,7 +103,10 @@ describe("facade/spine-digest", () => {
 
       const extractDir = `${path}/extract`;
       await extractSdpubArchive(archivePath, extractDir);
-      expect(await readFile(`${extractDir}/note.txt`, "utf8")).toBe("saved");
+      expect(await readFile(`${extractDir}/database.db`, "utf8")).toBe("saved");
+      await expect(
+        readFile(`${extractDir}/database.db-journal`, "utf8"),
+      ).rejects.toThrow();
     });
   });
 });

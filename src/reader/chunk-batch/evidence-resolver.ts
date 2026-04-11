@@ -648,16 +648,33 @@ export class EvidenceResolver {
       };
     }
 
+    if (queryNormalized.includes(candidateNormalized)) {
+      const coverage =
+        candidateNormalized.length / Math.max(1, queryNormalized.length);
+
+      return {
+        exactNormalized: false,
+        exactRaw: false,
+        exactSubstring: false,
+        matchEnd: candidateNormalized.length,
+        matchStart: 0,
+        score: Math.min(0.92, 0.78 + 0.14 * coverage),
+      };
+    }
+
     let bestScore = 0;
     let bestStart = -1;
     let bestEnd = -1;
-    const minWindow = Math.max(1, Math.floor(queryNormalized.length * 0.8));
     const maxWindow = Math.min(
       candidateNormalized.length,
       Math.max(
         queryNormalized.length,
         Math.floor(queryNormalized.length * 1.2),
       ),
+    );
+    const minWindow = Math.min(
+      maxWindow,
+      Math.max(1, Math.floor(queryNormalized.length * 0.8)),
     );
     const queryChars = new Set(queryNormalized);
 
@@ -776,6 +793,14 @@ export class EvidenceResolver {
     const head = typeof rawValue.head === "string" ? rawValue.head.trim() : "";
     const tail = typeof rawValue.tail === "string" ? rawValue.tail.trim() : "";
 
+    if (head !== "" && tail === "") {
+      return [{ mode: "full", text: head }, undefined];
+    }
+
+    if (head === "" && tail !== "") {
+      return [{ mode: "full", text: tail }, undefined];
+    }
+
     if (head === "" || tail === "") {
       return [
         undefined,
@@ -790,8 +815,22 @@ export class EvidenceResolver {
     anchor: AnchorSpec | undefined,
     fieldName: string,
   ): AnchorSpec | undefined {
-    if (anchor === undefined || anchor.mode !== "full") {
-      return anchor;
+    if (anchor === undefined) {
+      return undefined;
+    }
+
+    if (anchor.mode === "head_tail") {
+      const boundaryText =
+        fieldName === "end_anchor"
+          ? this.#selectBoundarySentence(anchor.tail ?? "", "end_anchor")
+          : this.#selectBoundarySentence(anchor.head ?? "", "start_anchor");
+
+      return boundaryText === ""
+        ? undefined
+        : {
+            mode: "full",
+            text: boundaryText,
+          };
     }
 
     const normalizedText = this.#selectBoundarySentence(

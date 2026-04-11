@@ -1,3 +1,6 @@
+import { rm } from "fs/promises";
+import { resolve } from "path";
+
 import { SpineDigestApp, type SpineDigestAppOptions } from "../index.js";
 import type { SpineDigest } from "../facade/index.js";
 
@@ -47,6 +50,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
   const output = resolveOutputEndpoint(args);
   const inputFormat = input.format;
   const requiresDigest = inputFormat !== "sdpub";
+  const digestDirPath = await prepareDigestDirPath(args, requiresDigest);
   const config = await loadRequiredConfig(requiresDigest);
   const app = new SpineDigestApp(createAppOptions(config, requiresDigest));
 
@@ -72,6 +76,9 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
 
     await app.digestTextSession(
       {
+        ...(digestDirPath === undefined
+          ? {}
+          : { documentDirPath: digestDirPath }),
         sourceFormat: input.format,
         stream: readTextStreamFromStdin(),
         ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
@@ -87,6 +94,9 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     case "epub":
       await app.digestEpubSession(
         {
+          ...(digestDirPath === undefined
+            ? {}
+            : { documentDirPath: digestDirPath }),
           path: input.path,
           ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
         },
@@ -98,6 +108,9 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     case "markdown":
       await app.digestMarkdownSession(
         {
+          ...(digestDirPath === undefined
+            ? {}
+            : { documentDirPath: digestDirPath }),
           path: input.path,
           ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
         },
@@ -109,6 +122,9 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     case "txt":
       await app.digestTxtSession(
         {
+          ...(digestDirPath === undefined
+            ? {}
+            : { documentDirPath: digestDirPath }),
           path: input.path,
           ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
         },
@@ -118,6 +134,23 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
       );
       return;
   }
+}
+
+async function prepareDigestDirPath(
+  args: CLIArguments,
+  requiresDigest: boolean,
+): Promise<string | undefined> {
+  const normalizedPath = normalizeIOPath(args.digestDirPath);
+
+  if (normalizedPath === undefined || !requiresDigest) {
+    return undefined;
+  }
+
+  const resolvedPath = resolve(normalizedPath);
+
+  await rm(resolvedPath, { force: true, recursive: true });
+
+  return resolvedPath;
 }
 
 async function loadRequiredConfig(requiresDigest: boolean): Promise<CLIConfig> {

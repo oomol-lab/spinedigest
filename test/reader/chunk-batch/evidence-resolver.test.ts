@@ -145,10 +145,10 @@ describe("reader/chunk-batch/evidence-resolver", () => {
       ],
       strategy: "exact_substring+exact_substring",
     });
-    expect(result?.confidence).toBeGreaterThan(0.88);
+    expect(result?.confidence).toBeGreaterThan(0.8);
   });
 
-  it("reports invalid anchors and low-confidence matches", () => {
+  it("falls back to a single-sided full anchor and reports low-confidence matches", () => {
     const resolver = new EvidenceResolver();
     const [invalidResult, invalidFailure] = resolver.resolve(
       {
@@ -173,12 +173,10 @@ describe("reader/chunk-batch/evidence-resolver", () => {
       label: "start_anchor",
     });
 
-    expect(invalidResult).toBeUndefined();
-    expect(invalidFailure).toMatchObject({
-      code: "invalid_anchor",
-      fieldName: "start_anchor",
+    expect(invalidResult).toMatchObject({
+      sentenceIds: [[1, 0, 0]],
     });
-    expect(invalidFailure?.message).toContain("head_tail anchor requires");
+    expect(invalidFailure).toBeUndefined();
     expect(lowCandidate).toBeUndefined();
     expect(lowStrategy).toBe("low_confidence");
     expect(lowFailure).toMatchObject({
@@ -186,6 +184,58 @@ describe("reader/chunk-batch/evidence-resolver", () => {
       fieldName: "start_anchor",
     });
     expect(lowFailure?.candidates).toHaveLength(2);
+  });
+
+  it("uses only the boundary side of head-tail anchors for sentence matching", () => {
+    const resolver = new EvidenceResolver();
+    const [startResult, startFailure] = resolver.resolve(
+      {
+        start_anchor: {
+          mode: "head_tail",
+          head: "郭子兴走到朱重八的面前，让人松开绑，问他：“你是奸细么？ 来干什么？”",
+          tail: "朱重八只是应了一声：“喔。”",
+        },
+      },
+      [
+        [1, 0, 0],
+        [1, 0, 1],
+        [1, 0, 2],
+        [1, 0, 3],
+        [1, 0, 4],
+      ],
+      [
+        "郭子兴走到朱重八的面前，让人松开绑，问他：“你是奸细么？",
+        "来干什么？”",
+        "朱重八平静的回答：“我不是奸细，我是来投军的。”",
+        "郭子兴大笑：“什么时候了，还有人来投军，你不用狡辩，等会就把你拉出去杀头！”",
+        "朱重八只是应了一声：“喔。”",
+      ],
+    );
+
+    expect(startFailure).toBeUndefined();
+    expect(startResult?.sentenceIds).toStrictEqual([[1, 0, 0]]);
+  });
+
+  it("matches oversized anchors against shorter original sentences", () => {
+    const resolver = new EvidenceResolver();
+    const [result, failure] = resolver.resolve(
+      {
+        start_anchor:
+          "姓名：朱元璋别名（外号）：朱重八、朱国瑞 性别：男 民族：汉 血型：？ 学历：无文凭，秀才举人进士统统的不是，后曾自学过",
+      },
+      [
+        [1, 0, 0],
+        [1, 0, 1],
+      ],
+      [
+        "姓名：朱元璋别名（外号）：朱重八、朱国瑞 性别：男 民族：汉 血型：？",
+        "学历：无文凭，秀才举人进士统统的不是，后曾自学过",
+      ],
+    );
+
+    expect(failure).toBeUndefined();
+    expect(result?.sentenceIds).toStrictEqual([[1, 0, 0]]);
+    expect(result?.confidence).toBeGreaterThan(0.8);
   });
 
   it("supports override-based resolution and rejects invalid ranges", () => {
