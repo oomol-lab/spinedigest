@@ -25,7 +25,9 @@ describe("cli/progress", () => {
     expect(renderer.onProgress).toBeTypeOf("function");
 
     if (renderer.onProgress === undefined) {
-      throw new Error("Progress callback should exist when renderer is enabled");
+      throw new Error(
+        "Progress callback should exist when renderer is enabled",
+      );
     }
 
     await Promise.all([

@@ -4,7 +4,7 @@ import { ProgressReporter } from "../../src/progress/index.js";
 
 describe("progress/reporter", () => {
   it("does not fail the pipeline when the progress callback throws", async () => {
-    const reporter = new ProgressReporter("digest-text", async () => {
+    const reporter = new ProgressReporter("digest-text", () => {
       throw new Error("UI disconnected");
     });
 

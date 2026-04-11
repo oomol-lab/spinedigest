@@ -246,7 +246,7 @@ describe("facade/digest", () => {
         {
           extractionPrompt: "Keep beats",
           llm: {} as never,
-          onProgress: async (event) => {
+          onProgress: (event) => {
             switch (event.type) {
               case "serial-discovered":
                 events.push({
@@ -275,7 +275,7 @@ describe("facade/digest", () => {
           stream: ["alpha beta"],
           title: "Progress Title",
         },
-        async () => undefined,
+        () => undefined,
       );
     });
 
