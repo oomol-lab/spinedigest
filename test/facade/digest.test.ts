@@ -42,12 +42,9 @@ vi.mock("../../src/serial.js", () => ({
       stream: AsyncIterable<string> | Iterable<string>,
       options: unknown,
       progressTracker?: {
-        begin(input: {
-          totalFragments: number;
-          totalWords: number;
-        }): Promise<void>;
-        complete(): Promise<void>;
-        completeFragment(wordsCount: number): Promise<void>;
+        advance(wordsCount: number): Promise<void>;
+        begin(input: { fragments: number; words: number }): Promise<void>;
+        complete(finalWordsCount?: number): Promise<void>;
       },
     ): Promise<{ readonly id: number }> {
       let streamText = "";
@@ -62,14 +59,13 @@ vi.mock("../../src/serial.js", () => ({
         .filter((value) => value !== "").length;
 
       await progressTracker?.begin({
-        totalFragments: 1,
-        totalWords,
+        fragments: 1,
+        words: totalWords,
       });
       await this.#document.serials.createWithId(serialId);
       await this.#document.serials.setTopologyReady(serialId);
-      await progressTracker?.completeFragment(totalWords);
       await this.#document.writeSummary(serialId, streamText.trim());
-      await progressTracker?.complete();
+      await progressTracker?.complete(totalWords);
 
       digestMockState.generateCalls.push({
         options,
@@ -234,84 +230,70 @@ describe("facade/digest", () => {
     });
   });
 
-  it("emits structured progress events for text digest and export", async () => {
+  it("emits discovered and progress events for text digest", async () => {
     const events: Array<{
-      readonly completedFragments?: number;
-      readonly completedSerials?: number;
       readonly completedWords?: number;
-      readonly isComplete?: boolean;
-      readonly outputKind?: string;
+      readonly fragments?: number;
+      readonly id?: number;
+      readonly totalWords?: number;
       readonly type: string;
+      readonly words?: number;
     }> = [];
 
-    await withTempDir("spinedigest-digest-", async (path) => {
+    await withTempDir("spinedigest-digest-", async () => {
       await digestTextSession(
         {
           extractionPrompt: "Keep beats",
           llm: {} as never,
           onProgress: async (event) => {
-            events.push({
-              ...(event.completedFragments === undefined
-                ? {}
-                : { completedFragments: event.completedFragments }),
-              ...(event.completedSerials === undefined
-                ? {}
-                : { completedSerials: event.completedSerials }),
-              ...(event.completedWords === undefined
-                ? {}
-                : { completedWords: event.completedWords }),
-              ...(event.isComplete === undefined
-                ? {}
-                : { isComplete: event.isComplete }),
-              type: event.type,
-              ...(event.outputKind === undefined
-                ? {}
-                : { outputKind: event.outputKind }),
-            });
+            switch (event.type) {
+              case "serial-discovered":
+                events.push({
+                  fragments: event.fragments,
+                  id: event.id,
+                  type: event.type,
+                  words: event.words,
+                });
+                return;
+              case "serial-progress":
+                events.push({
+                  completedWords: event.completedWords,
+                  id: event.id,
+                  type: event.type,
+                });
+                return;
+              case "digest-progress":
+                events.push({
+                  completedWords: event.completedWords,
+                  totalWords: event.totalWords,
+                  type: event.type,
+                });
+            }
           },
           stream: ["alpha beta"],
           title: "Progress Title",
         },
-        async (digest) => {
-          await digest.exportText(`${path}/digest.txt`);
-        },
+        async () => undefined,
       );
     });
 
     expect(events).toStrictEqual([
-      { type: "session-started" },
+      { fragments: 1, id: 1, type: "serial-discovered", words: 2 },
       {
-        completedSerials: 0,
         completedWords: 0,
-        isComplete: false,
         type: "digest-progress",
+        totalWords: 2,
       },
       {
-        completedFragments: 0,
-        completedWords: 0,
-        isComplete: false,
+        completedWords: 2,
+        id: 1,
         type: "serial-progress",
       },
       {
-        completedFragments: 1,
         completedWords: 2,
-        isComplete: false,
-        type: "serial-progress",
-      },
-      {
-        completedFragments: 1,
-        completedWords: 2,
-        isComplete: true,
-        type: "serial-progress",
-      },
-      {
-        completedSerials: 1,
-        completedWords: 2,
-        isComplete: true,
         type: "digest-progress",
+        totalWords: 2,
       },
-      { outputKind: "text", type: "export-started" },
-      { outputKind: "text", type: "export-completed" },
     ]);
   });
 

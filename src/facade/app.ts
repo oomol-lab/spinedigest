@@ -5,6 +5,9 @@ import type { Language } from "../common/language.js";
 import { withLoggingContext } from "../common/logging.js";
 import { LLM } from "../llm/index.js";
 import type {
+  DigestProgressEvent,
+  SerialDiscoveredEvent,
+  SerialProgressEvent,
   SpineDigestProgressCallback,
   SpineDigestProgressEvent,
   SpineDigestProgressEventType,
@@ -167,9 +170,6 @@ export class SpineDigestApp {
           ...(options.documentDirPath === undefined
             ? {}
             : { documentDirPath: options.documentDirPath }),
-          ...(options.onProgress === undefined
-            ? {}
-            : { onProgress: options.onProgress }),
         }),
     );
   }
@@ -221,6 +221,9 @@ export class SpineDigestApp {
 }
 
 export type {
+  DigestProgressEvent,
+  SerialDiscoveredEvent,
+  SerialProgressEvent,
   SpineDigestProgressCallback,
   SpineDigestProgressEvent,
   SpineDigestProgressEventType,

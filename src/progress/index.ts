@@ -6,8 +6,10 @@ export {
 } from "./tracker.js";
 export { createProgressReporter, ProgressReporter } from "./reporter.js";
 export type {
+  DigestProgressEvent,
+  SerialDiscoveredEvent,
+  SerialProgressEvent,
   SpineDigestOperation,
-  SpineDigestOutputKind,
   SpineDigestProgressCallback,
   SpineDigestProgressEvent,
   SpineDigestProgressEventType,

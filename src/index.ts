@@ -1,5 +1,6 @@
 export { LANGUAGES, type Language } from "./common/language.js";
 export {
+  type DigestProgressEvent,
   SpineDigest,
   SpineDigestApp,
   type SpineDigestAppOptions,
@@ -9,6 +10,8 @@ export {
   type SpineDigestProgressEvent,
   type SpineDigestProgressEventType,
   type SpineDigestOperation,
+  type SerialDiscoveredEvent,
+  type SerialProgressEvent,
   type SpineDigestSourceSessionOptions,
   type SpineDigestTextSessionOptions,
 } from "./facade/index.js";

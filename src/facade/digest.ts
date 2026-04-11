@@ -35,7 +35,6 @@ interface DigestSessionOptions {
 
 export interface DigestDocumentSessionOptions {
   readonly documentDirPath?: string;
-  readonly onProgress?: SpineDigestProgressCallback;
 }
 
 export interface DigestSourceSessionOptions extends DigestSessionOptions {
@@ -84,21 +83,12 @@ export async function digestTextSession<T>(
       : { onProgress: options.onProgress }),
   });
 
-  await progressTracker.emitSessionStarted({
-    inputFormat: options.sourceFormat ?? "txt",
-  });
-  await progressTracker.initializeDigest({
-    totalSerials: 1,
-  });
-
   return await withTemporaryDocumentSession(async (document, directoryPath) => {
     await document.openSession(async (openedDocument) => {
       const serialId = await openedDocument.peekNextSerialId();
       const normalizedTitle = normalizeTitle(options.title) ?? "Section 1";
       const serialProgressTracker = progressTracker.createSerialTracker({
-        sectionTitle: normalizedTitle,
-        serialId,
-        serialIndex: 1,
+        id: serialId,
       });
 
       const generation = new SerialGeneration({
@@ -146,9 +136,7 @@ export async function digestTextSession<T>(
       });
     });
 
-    return await operation(
-      new SpineDigest(document, directoryPath, progressTracker),
-    );
+    return await operation(new SpineDigest(document, directoryPath));
   }, options.documentDirPath);
 }
 
@@ -177,11 +165,6 @@ async function digestSourceSession<T>(
       : { onProgress: options.onProgress }),
   });
 
-  await progressTracker.emitSessionStarted({
-    inputFormat: adapter.format,
-    path: options.path,
-  });
-
   return await withTemporaryDocumentSession(async (document, directoryPath) => {
     await importSource({
       adapter,
@@ -201,9 +184,7 @@ async function digestSourceSession<T>(
         : { userLanguage: options.userLanguage }),
     });
 
-    return await operation(
-      new SpineDigest(document, directoryPath, progressTracker),
-    );
+    return await operation(new SpineDigest(document, directoryPath));
   }, options.documentDirPath);
 }
 

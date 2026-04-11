@@ -76,12 +76,11 @@ const { SpineDigestApp } = require("spinedigest");
 
 digest session 的 option 现在可以传入可选的 `onProgress` 回调。
 
-这个回调在 digest 过程中会提供两层进度：
+这个回调在 digest 过程中会提供三种事件：
 
-- serial 级进度：当前章节内部已完成的 fragment 数量与单词数量
-- digest 级进度：已经完成的章节数量，以及这些已完成章节累计的单词数量
-
-导出和 `.sdpub` 重新打开也会发出轻量的生命周期事件。
+- `serial-discovered`：报告某个 serial 的 id、fragment 数量和总词数
+- `serial-progress`：报告某个 serial 当前已经完成的词数
+- `digest-progress`：报告整个 digest 当前已完成词数，以及目前已发现 serial 的总词数
 
 ## `SpineDigest` 能做什么
 

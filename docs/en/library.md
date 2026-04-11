@@ -76,12 +76,11 @@ const { SpineDigestApp } = require("spinedigest");
 
 Digest session options accept an optional `onProgress` callback.
 
-The callback reports two progress layers during digest generation:
+The callback reports three event shapes during digest generation:
 
-- serial-level progress, including completed fragment count and completed word count inside the current section
-- digest-level progress, including completed serial count and completed word count across finished sections
-
-Export and `.sdpub` reopen operations also emit lightweight lifecycle events.
+- `serial-discovered`, which reports a serial id plus its fragment count and total word count
+- `serial-progress`, which reports completed word count for a specific serial id
+- `digest-progress`, which reports completed word count against the current total discovered word count
 
 ## What `SpineDigest` Can Do
 

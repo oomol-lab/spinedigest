@@ -1,41 +1,34 @@
-import type { SourceFormat } from "../source/index.js";
-
 export type SpineDigestOperation =
   | "digest-epub"
   | "digest-markdown"
   | "digest-text"
-  | "digest-txt"
-  | "open-sdpub";
+  | "digest-txt";
 
-export type SpineDigestProgressEventType =
-  | "session-started"
-  | "serial-progress"
-  | "digest-progress"
-  | "archive-opened"
-  | "export-started"
-  | "export-completed";
-
-export type SpineDigestOutputKind = "epub" | "sdpub" | "text";
-
-export interface SpineDigestProgressEvent {
-  readonly type: SpineDigestProgressEventType;
-  readonly message: string;
-  readonly operation: SpineDigestOperation;
-  readonly timestamp: string;
-  readonly completedFragments?: number;
-  readonly completedSerials?: number;
-  readonly completedWords?: number;
-  readonly inputFormat?: SourceFormat | "sdpub";
-  readonly isComplete?: boolean;
-  readonly outputKind?: SpineDigestOutputKind;
-  readonly path?: string;
-  readonly sectionTitle?: string;
-  readonly serialId?: number;
-  readonly serialIndex?: number;
-  readonly totalFragments?: number;
-  readonly totalSerials?: number;
-  readonly totalWords?: number;
+export interface SerialDiscoveredEvent {
+  readonly type: "serial-discovered";
+  readonly id: number;
+  readonly fragments: number;
+  readonly words: number;
 }
+
+export interface SerialProgressEvent {
+  readonly type: "serial-progress";
+  readonly id: number;
+  readonly completedWords: number;
+}
+
+export interface DigestProgressEvent {
+  readonly type: "digest-progress";
+  readonly completedWords: number;
+  readonly totalWords: number;
+}
+
+export type SpineDigestProgressEventType = SpineDigestProgressEvent["type"];
+
+export type SpineDigestProgressEvent =
+  | SerialDiscoveredEvent
+  | SerialProgressEvent
+  | DigestProgressEvent;
 
 export type SpineDigestProgressCallback = (
   event: SpineDigestProgressEvent,

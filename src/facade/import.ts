@@ -34,7 +34,6 @@ export interface ImportedSource {
 
 interface PlannedSection {
   readonly section: SourceSection;
-  readonly title: string;
   readonly serialId: number;
 }
 
@@ -89,16 +88,10 @@ export async function importSourceDocument(
   });
   const serials: Serial[] = [];
 
-  await options.digestProgressTracker?.initializeDigest({
-    totalSerials: plannedSections.length,
-  });
-
-  for (const [index, plannedSection] of plannedSections.entries()) {
+  for (const plannedSection of plannedSections) {
     const serialProgressTracker =
       options.digestProgressTracker?.createSerialTracker({
-        sectionTitle: plannedSection.title,
-        serialId: plannedSection.serialId,
-        serialIndex: index + 1,
+        id: plannedSection.serialId,
       });
 
     const serial = await options.document.openSession(async () => {
@@ -178,10 +171,6 @@ function planTocItem(input: {
   if (serialId !== undefined) {
     input.plannedSections.push({
       section: input.section,
-      title:
-        normalizeTitle(input.section.title) ??
-        normalizeTitle(input.fallbackTitle) ??
-        createSectionFallbackTitle(input.indexPath),
       serialId,
     });
   }

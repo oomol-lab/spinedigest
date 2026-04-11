@@ -80,50 +80,6 @@ describe("facade/spine-digest-file", () => {
       }
     });
   });
-
-  it("emits archive-open and export progress events", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
-      const document = await DirectoryDocument.open(`${path}/document`);
-
-      try {
-        await seedDocument(document);
-
-        const archivePath = `${path}/fixture/book.sdpub`;
-        const events: Array<{
-          readonly outputKind?: string;
-          readonly type: string;
-        }> = [];
-
-        await new SpineDigest(document, document.path).saveAs(archivePath);
-
-        const digestFile = new SpineDigestFile(archivePath);
-        await digestFile.openSession(
-          async (digest) => {
-            await digest.exportText(`${path}/exports/progress.txt`);
-          },
-          {
-            onProgress: async (event) => {
-              events.push({
-                type: event.type,
-                ...(event.outputKind === undefined
-                  ? {}
-                  : { outputKind: event.outputKind }),
-              });
-            },
-          },
-        );
-
-        expect(events).toStrictEqual([
-          { type: "session-started" },
-          { type: "archive-opened" },
-          { outputKind: "text", type: "export-started" },
-          { outputKind: "text", type: "export-completed" },
-        ]);
-      } finally {
-        await document.release();
-      }
-    });
-  });
 });
 
 async function seedDocument(document: DirectoryDocument): Promise<void> {

@@ -133,16 +133,21 @@ export class SerialGeneration {
     options: GenerateSerialOptions,
     progressTracker?: SerialProgressTracker,
   ): Promise<Serial> {
+    let finalWordsCount = 0;
+
     await this.#buildTopology(
       serialId,
       stream,
       options.extractionPrompt,
       options.userLanguage,
       progressTracker,
+      (wordsCount) => {
+        finalWordsCount = wordsCount;
+      },
     );
 
     const summary = await this.#buildSummary(serialId, options.userLanguage);
-    await progressTracker?.complete();
+    await progressTracker?.complete(finalWordsCount);
 
     return new Serial(this.#document, serialId, summary);
   }
@@ -201,6 +206,7 @@ export class SerialGeneration {
     extractionPrompt: string,
     userLanguage: Language | undefined,
     progressTracker?: SerialProgressTracker,
+    setFinalWordsCount?: (wordsCount: number) => void,
   ): Promise<void> {
     const reader = new Reader({
       attention: {
@@ -243,11 +249,11 @@ export class SerialGeneration {
     );
 
     await progressTracker?.begin({
-      totalFragments: fragments.length,
-      totalWords,
+      fragments: fragments.length,
+      words: totalWords,
     });
 
-    for (const fragment of fragments) {
+    for (const [index, fragment] of fragments.entries()) {
       const serialFragments = this.#getSerialFragments(serialId);
       const fragmentDraft = await serialFragments.createDraft();
       const sentences = fragment.sentences.map((sentence) => ({
@@ -282,7 +288,13 @@ export class SerialGeneration {
         getSuccessorChunkIds: (chunkId) =>
           successorIdsByChunkId[String(chunkId)] ?? [],
       });
-      await progressTracker?.completeFragment(fragment.wordsCount);
+
+      if (index < fragments.length - 1) {
+        await progressTracker?.advance(fragment.wordsCount);
+        continue;
+      }
+
+      setFinalWordsCount?.(fragment.wordsCount);
     }
 
     await this.#writeSemaphore.use(async () => {

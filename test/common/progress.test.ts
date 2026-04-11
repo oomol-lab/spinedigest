@@ -10,8 +10,9 @@ describe("progress/reporter", () => {
 
     await expect(
       reporter.emit({
-        message: "Digest session started",
-        type: "session-started",
+        completedWords: 0,
+        totalWords: 12,
+        type: "digest-progress",
       }),
     ).resolves.toBeUndefined();
   });
@@ -21,22 +22,18 @@ describe("progress/reporter", () => {
     const reporter = new ProgressReporter("digest-text", callback);
 
     await reporter.emit({
-      message: "Text export completed",
-      outputKind: "text",
-      path: "/tmp/output.txt",
-      type: "export-completed",
+      fragments: 4,
+      id: 7,
+      type: "serial-discovered",
+      words: 1600,
     });
 
     expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: "Text export completed",
-        operation: "digest-text",
-        outputKind: "text",
-        path: "/tmp/output.txt",
-        timestamp: expect.any(String),
-        type: "export-completed",
-      }),
-    );
+    expect(callback).toHaveBeenCalledWith({
+      fragments: 4,
+      id: 7,
+      type: "serial-discovered",
+      words: 1600,
+    });
   });
 });

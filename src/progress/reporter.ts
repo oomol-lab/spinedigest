@@ -1,6 +1,9 @@
 import { getLogger } from "../common/logging.js";
 
 import type {
+  DigestProgressEvent,
+  SerialDiscoveredEvent,
+  SerialProgressEvent,
   SpineDigestOperation,
   SpineDigestProgressCallback,
   SpineDigestProgressEvent,
@@ -18,64 +21,20 @@ export class ProgressReporter {
     this.#operation = operation;
   }
 
-  public async emit(
-    event: Omit<SpineDigestProgressEvent, "operation" | "timestamp">,
-  ): Promise<void> {
-    const resolvedEvent = {
-      ...event,
-      operation: this.#operation,
-      timestamp: new Date().toISOString(),
-    } satisfies SpineDigestProgressEvent;
-
+  public async emit(event: SpineDigestProgressEvent): Promise<void> {
     getLogger({
       component: "progress",
-      eventType: resolvedEvent.type,
-      operation: resolvedEvent.operation,
-      ...(resolvedEvent.completedFragments === undefined
-        ? {}
-        : { completedFragments: resolvedEvent.completedFragments }),
-      ...(resolvedEvent.completedSerials === undefined
-        ? {}
-        : { completedSerials: resolvedEvent.completedSerials }),
-      ...(resolvedEvent.completedWords === undefined
-        ? {}
-        : { completedWords: resolvedEvent.completedWords }),
-      ...(resolvedEvent.inputFormat === undefined
-        ? {}
-        : { inputFormat: resolvedEvent.inputFormat }),
-      ...(resolvedEvent.isComplete === undefined
-        ? {}
-        : { isComplete: resolvedEvent.isComplete }),
-      ...(resolvedEvent.outputKind === undefined
-        ? {}
-        : { outputKind: resolvedEvent.outputKind }),
-      ...(resolvedEvent.path === undefined ? {} : { path: resolvedEvent.path }),
-      ...(resolvedEvent.sectionTitle === undefined
-        ? {}
-        : { sectionTitle: resolvedEvent.sectionTitle }),
-      ...(resolvedEvent.serialId === undefined
-        ? {}
-        : { serialId: resolvedEvent.serialId }),
-      ...(resolvedEvent.serialIndex === undefined
-        ? {}
-        : { serialIndex: resolvedEvent.serialIndex }),
-      ...(resolvedEvent.totalFragments === undefined
-        ? {}
-        : { totalFragments: resolvedEvent.totalFragments }),
-      ...(resolvedEvent.totalSerials === undefined
-        ? {}
-        : { totalSerials: resolvedEvent.totalSerials }),
-      ...(resolvedEvent.totalWords === undefined
-        ? {}
-        : { totalWords: resolvedEvent.totalWords }),
-    }).info(resolvedEvent.message);
+      eventType: event.type,
+      operation: this.#operation,
+      ...buildLogBindings(event),
+    }).info(buildLogMessage(event));
 
     if (this.#callback === undefined) {
       return;
     }
 
     try {
-      await this.#callback(resolvedEvent);
+      await this.#callback(event);
     } catch (error) {
       getLogger({
         component: "progress",
@@ -98,4 +57,38 @@ export function createProgressReporter(
   callback?: SpineDigestProgressCallback,
 ): ProgressReporter {
   return new ProgressReporter(operation, callback);
+}
+
+function buildLogBindings(
+  event: SpineDigestProgressEvent,
+): Record<string, number> {
+  switch (event.type) {
+    case "serial-discovered":
+      return {
+        fragments: event.fragments,
+        id: event.id,
+        words: event.words,
+      } satisfies Record<keyof Omit<SerialDiscoveredEvent, "type">, number>;
+    case "serial-progress":
+      return {
+        completedWords: event.completedWords,
+        id: event.id,
+      } satisfies Record<keyof Omit<SerialProgressEvent, "type">, number>;
+    case "digest-progress":
+      return {
+        completedWords: event.completedWords,
+        totalWords: event.totalWords,
+      } satisfies Record<keyof Omit<DigestProgressEvent, "type">, number>;
+  }
+}
+
+function buildLogMessage(event: SpineDigestProgressEvent): string {
+  switch (event.type) {
+    case "serial-discovered":
+      return `Discovered serial ${event.id}`;
+    case "serial-progress":
+      return `Serial ${event.id} progressed`;
+    case "digest-progress":
+      return "Digest progressed";
+  }
 }
