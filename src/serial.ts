@@ -1,6 +1,7 @@
 import { AsyncSemaphore } from "./utils/async-semaphore.js";
 import type { Language } from "./common/language.js";
 import type { LLM } from "./llm/index.js";
+import type { SerialProgressTracker } from "./progress/index.js";
 import type {
   ChunkRecord,
   ChunkStore,
@@ -94,11 +95,13 @@ export class SerialGeneration {
   public async generate(
     stream: ReaderTextStream,
     options: GenerateSerialOptions,
+    progressTracker?: SerialProgressTracker,
   ): Promise<Serial> {
     return await this.#generatePrepared(
       await this.#createSerialId(),
       stream,
       options,
+      progressTracker,
     );
   }
 
@@ -113,24 +116,38 @@ export class SerialGeneration {
     serialId: number,
     stream: ReaderTextStream,
     options: GenerateSerialOptions,
+    progressTracker?: SerialProgressTracker,
   ): Promise<Serial> {
     await this.#createExplicitSerialId(serialId);
-    return await this.#generatePrepared(serialId, stream, options);
+    return await this.#generatePrepared(
+      serialId,
+      stream,
+      options,
+      progressTracker,
+    );
   }
 
   async #generatePrepared(
     serialId: number,
     stream: ReaderTextStream,
     options: GenerateSerialOptions,
+    progressTracker?: SerialProgressTracker,
   ): Promise<Serial> {
+    let finalWordsCount = 0;
+
     await this.#buildTopology(
       serialId,
       stream,
       options.extractionPrompt,
       options.userLanguage,
+      progressTracker,
+      (wordsCount) => {
+        finalWordsCount = wordsCount;
+      },
     );
 
     const summary = await this.#buildSummary(serialId, options.userLanguage);
+    await progressTracker?.complete(finalWordsCount);
 
     return new Serial(this.#document, serialId, summary);
   }
@@ -188,6 +205,8 @@ export class SerialGeneration {
     stream: ReaderTextStream,
     extractionPrompt: string,
     userLanguage: Language | undefined,
+    progressTracker?: SerialProgressTracker,
+    setFinalWordsCount?: (wordsCount: number) => void,
   ): Promise<void> {
     const reader = new Reader({
       attention: {
@@ -220,11 +239,21 @@ export class SerialGeneration {
     );
     const allChunks: ReaderChunk[] = [];
     const successorIdsByChunkId = createNumberListRecord();
-
-    for await (const fragment of streamFragments({
+    const fragments = await collectFragments({
       maxWordsCount: this.#fragmentWordsCount,
       stream: reader.segment(stream),
-    })) {
+    });
+    const totalWords = fragments.reduce(
+      (sum, fragment) => sum + fragment.wordsCount,
+      0,
+    );
+
+    await progressTracker?.begin({
+      fragments: fragments.length,
+      words: totalWords,
+    });
+
+    for (const [index, fragment] of fragments.entries()) {
       const serialFragments = this.#getSerialFragments(serialId);
       const fragmentDraft = await serialFragments.createDraft();
       const sentences = fragment.sentences.map((sentence) => ({
@@ -259,6 +288,13 @@ export class SerialGeneration {
         getSuccessorChunkIds: (chunkId) =>
           successorIdsByChunkId[String(chunkId)] ?? [],
       });
+
+      if (index < fragments.length - 1) {
+        await progressTracker?.advance(fragment.wordsCount);
+        continue;
+      }
+
+      setFinalWordsCount?.(fragment.wordsCount);
     }
 
     await this.#writeSemaphore.use(async () => {
@@ -519,4 +555,40 @@ async function* streamFragments(input: {
       sentences: currentSentences,
     };
   }
+}
+
+async function collectFragments(input: {
+  maxWordsCount: number;
+  stream: AsyncIterable<{
+    readonly text: string;
+    readonly wordsCount: number;
+  }>;
+}): Promise<
+  ReadonlyArray<{
+    readonly sentences: ReadonlyArray<{
+      readonly text: string;
+      readonly wordsCount: number;
+    }>;
+    readonly wordsCount: number;
+  }>
+> {
+  const fragments: Array<{
+    readonly sentences: ReadonlyArray<{
+      readonly text: string;
+      readonly wordsCount: number;
+    }>;
+    readonly wordsCount: number;
+  }> = [];
+
+  for await (const fragment of streamFragments(input)) {
+    fragments.push({
+      sentences: fragment.sentences,
+      wordsCount: fragment.sentences.reduce(
+        (sum, sentence) => sum + sentence.wordsCount,
+        0,
+      ),
+    });
+  }
+
+  return fragments;
 }

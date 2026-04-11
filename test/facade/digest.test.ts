@@ -7,6 +7,7 @@ import type { DirectoryDocument } from "../../src/document/index.js";
 const digestMockState = vi.hoisted(() => ({
   generateCalls: [] as Array<{
     readonly options: unknown;
+    readonly serialId: number;
     readonly streamText: string;
   }>,
   importCalls: [] as Array<{
@@ -32,20 +33,45 @@ vi.mock("../../src/serial.js", () => ({
       stream: AsyncIterable<string> | Iterable<string>,
       options: unknown,
     ): Promise<{ readonly id: number }> {
+      const serialId = await this.#document.createSerial();
+      return await this.generateInto(serialId, stream, options);
+    }
+
+    public async generateInto(
+      serialId: number,
+      stream: AsyncIterable<string> | Iterable<string>,
+      options: unknown,
+      progressTracker?: {
+        advance(wordsCount: number): Promise<void>;
+        begin(input: { fragments: number; words: number }): Promise<void>;
+        complete(finalWordsCount?: number): Promise<void>;
+      },
+    ): Promise<{ readonly id: number }> {
       let streamText = "";
 
       for await (const chunk of stream) {
         streamText += chunk;
       }
 
-      digestMockState.generateCalls.push({
-        options,
-        streamText,
-      });
+      const totalWords = streamText
+        .trim()
+        .split(/\s+/)
+        .filter((value) => value !== "").length;
 
-      const serialId = await this.#document.createSerial();
+      await progressTracker?.begin({
+        fragments: 1,
+        words: totalWords,
+      });
+      await this.#document.serials.createWithId(serialId);
       await this.#document.serials.setTopologyReady(serialId);
       await this.#document.writeSummary(serialId, streamText.trim());
+      await progressTracker?.complete(totalWords);
+
+      digestMockState.generateCalls.push({
+        options,
+        serialId,
+        streamText,
+      });
 
       return { id: serialId };
     }
@@ -152,6 +178,7 @@ describe("facade/digest", () => {
           extractionPrompt: "Keep beats",
           userLanguage: "Simplified Chinese",
         },
+        serialId: 1,
         streamText: "alpha beta",
       },
     ]);
@@ -201,6 +228,76 @@ describe("facade/digest", () => {
         await readFile(`${documentDirPath}/book-meta.json`, "utf8"),
       ).toContain('"sourceFormat": "markdown"');
     });
+  });
+
+  it("emits discovered and progress events for text digest", async () => {
+    const events: Array<{
+      readonly completedFragments?: number;
+      readonly completedWords?: number;
+      readonly fragments?: number;
+      readonly id?: number;
+      readonly totalWords?: number;
+      readonly type: string;
+      readonly words?: number;
+    }> = [];
+
+    await withTempDir("spinedigest-digest-", async () => {
+      await digestTextSession(
+        {
+          extractionPrompt: "Keep beats",
+          llm: {} as never,
+          onProgress: (event) => {
+            switch (event.type) {
+              case "serial-discovered":
+                events.push({
+                  fragments: event.fragments,
+                  id: event.id,
+                  type: event.type,
+                  words: event.words,
+                });
+                return;
+              case "serial-progress":
+                events.push({
+                  completedFragments: event.completedFragments,
+                  completedWords: event.completedWords,
+                  id: event.id,
+                  type: event.type,
+                });
+                return;
+              case "digest-progress":
+                events.push({
+                  completedWords: event.completedWords,
+                  totalWords: event.totalWords,
+                  type: event.type,
+                });
+            }
+          },
+          stream: ["alpha beta"],
+          title: "Progress Title",
+        },
+        () => undefined,
+      );
+    });
+
+    expect(events).toStrictEqual([
+      { fragments: 1, id: 1, type: "serial-discovered", words: 2 },
+      {
+        completedWords: 0,
+        type: "digest-progress",
+        totalWords: 2,
+      },
+      {
+        completedFragments: 1,
+        completedWords: 2,
+        id: 1,
+        type: "serial-progress",
+      },
+      {
+        completedWords: 2,
+        type: "digest-progress",
+        totalWords: 2,
+      },
+    ]);
   });
 
   it("routes source digest sessions through importSource with matching adapters", async () => {

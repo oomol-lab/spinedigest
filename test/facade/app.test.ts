@@ -84,11 +84,13 @@ describe("facade/app", () => {
       debugLogDirPath: "/tmp/spinedigest-debug",
       llm: fakeModel as never,
     });
+    const onProgress = vi.fn();
 
     const result = await app.digestTxtSession(
       {
         documentDirPath: "/tmp/spinedigest-document",
         extractionPrompt: "   ",
+        onProgress,
         path: "/tmp/source.txt",
         userLanguage: "Simplified Chinese",
       },
@@ -111,12 +113,14 @@ describe("facade/app", () => {
       readonly extractionPrompt: string;
       readonly llm: unknown;
       readonly logDirPath: string;
+      readonly onProgress: typeof onProgress;
       readonly path: string;
       readonly userLanguage: string;
     };
 
     expect(digestCall.documentDirPath).toBe("/tmp/spinedigest-document");
     expect(digestCall.logDirPath).toBe("/tmp/spinedigest-debug");
+    expect(digestCall.onProgress).toBe(onProgress);
     expect(digestCall.path).toBe("/tmp/source.txt");
     expect(digestCall.userLanguage).toBe("Simplified Chinese");
     expect(digestCall.llm).toBeTruthy();

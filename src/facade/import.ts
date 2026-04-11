@@ -1,4 +1,5 @@
 import type { Document } from "../document/index.js";
+import type { DigestProgressTracker } from "../progress/index.js";
 import {
   SerialGeneration,
   type GenerateSerialOptions,
@@ -19,6 +20,7 @@ import {
 export interface ImportSourceOptions
   extends GenerateSerialOptions, Omit<SerialGenerationOptions, "document"> {
   readonly adapter: SourceAdapter;
+  readonly digestProgressTracker?: DigestProgressTracker;
   readonly document: Document;
   readonly path: string;
 }
@@ -87,6 +89,11 @@ export async function importSourceDocument(
   const serials: Serial[] = [];
 
   for (const plannedSection of plannedSections) {
+    const serialProgressTracker =
+      options.digestProgressTracker?.createSerialTracker({
+        id: plannedSection.serialId,
+      });
+
     const serial = await options.document.openSession(async () => {
       return await generation.generateInto(
         plannedSection.serialId,
@@ -97,6 +104,7 @@ export async function importSourceDocument(
             ? {}
             : { userLanguage: options.userLanguage }),
         },
+        serialProgressTracker,
       );
     });
 

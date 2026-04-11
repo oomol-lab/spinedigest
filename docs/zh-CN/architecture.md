@@ -25,6 +25,7 @@
 - `reader`：基于 LLM 的文本流信息提取
 - `topology`：根据 reader 输出构建图结构
 - `editor`：基于 topology 分组生成压缩摘要
+- `progress`：digest 运行过程中的进度统计与事件回调
 - `serial.ts`：负责把 reader、topology 和 editor 粘合起来
 
 ## 公开边界与内部边界

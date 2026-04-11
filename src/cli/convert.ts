@@ -18,6 +18,7 @@ import {
   removeTemporaryDirectory,
   writeTextFileToStdout,
 } from "./io.js";
+import { createCLIProgressRenderer } from "./progress.js";
 
 type TextCLIFormat = Extract<CLIFormat, "markdown" | "txt">;
 
@@ -62,86 +63,113 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
   const app = new SpineDigestApp(
     createAppOptions(args, config, requiresDigest),
   );
+  const progressRenderer = createCLIProgressRenderer({
+    enabled:
+      requiresDigest &&
+      output.standardStream !== "stdout" &&
+      process.stderr.isTTY === true &&
+      !args.verbose,
+  });
 
   if (inputFormat === "sdpub") {
     if (input.path === undefined) {
       throw new Error("Internal error: sdpub input requires a file path.");
     }
 
-    await app.openSession(input.path, async (digest) => {
-      await writeDigestOutput(digest, output);
-    });
-    return;
+    try {
+      await app.openSession(input.path, async (digest) => {
+        await writeDigestOutput(digest, output);
+      });
+      return;
+    } finally {
+      await progressRenderer.stop();
+    }
   }
 
   const extractionPrompt = config.prompt;
 
-  if (input.path === undefined) {
-    if (process.stdin.isTTY) {
-      throw new Error(
-        "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.",
+  try {
+    if (input.path === undefined) {
+      if (process.stdin.isTTY) {
+        throw new Error(
+          "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.",
+        );
+      }
+
+      await app.digestTextSession(
+        {
+          ...(digestDirPath === undefined
+            ? {}
+            : { documentDirPath: digestDirPath }),
+          ...(progressRenderer.onProgress === undefined
+            ? {}
+            : { onProgress: progressRenderer.onProgress }),
+          sourceFormat: input.format,
+          stream: readTextStreamFromStdin(),
+          ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+        },
+        async (digest) => {
+          await writeDigestOutput(digest, output);
+        },
       );
+      return;
     }
 
-    await app.digestTextSession(
-      {
-        ...(digestDirPath === undefined
-          ? {}
-          : { documentDirPath: digestDirPath }),
-        sourceFormat: input.format,
-        stream: readTextStreamFromStdin(),
-        ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
-      },
-      async (digest) => {
-        await writeDigestOutput(digest, output);
-      },
-    );
-    return;
-  }
-
-  switch (inputFormat) {
-    case "epub":
-      await app.digestEpubSession(
-        {
-          ...(digestDirPath === undefined
-            ? {}
-            : { documentDirPath: digestDirPath }),
-          path: input.path,
-          ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
-        },
-        async (digest) => {
-          await writeDigestOutput(digest, output);
-        },
-      );
-      return;
-    case "markdown":
-      await app.digestMarkdownSession(
-        {
-          ...(digestDirPath === undefined
-            ? {}
-            : { documentDirPath: digestDirPath }),
-          path: input.path,
-          ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
-        },
-        async (digest) => {
-          await writeDigestOutput(digest, output);
-        },
-      );
-      return;
-    case "txt":
-      await app.digestTxtSession(
-        {
-          ...(digestDirPath === undefined
-            ? {}
-            : { documentDirPath: digestDirPath }),
-          path: input.path,
-          ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
-        },
-        async (digest) => {
-          await writeDigestOutput(digest, output);
-        },
-      );
-      return;
+    switch (inputFormat) {
+      case "epub":
+        await app.digestEpubSession(
+          {
+            ...(digestDirPath === undefined
+              ? {}
+              : { documentDirPath: digestDirPath }),
+            ...(progressRenderer.onProgress === undefined
+              ? {}
+              : { onProgress: progressRenderer.onProgress }),
+            path: input.path,
+            ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+          },
+          async (digest) => {
+            await writeDigestOutput(digest, output);
+          },
+        );
+        return;
+      case "markdown":
+        await app.digestMarkdownSession(
+          {
+            ...(digestDirPath === undefined
+              ? {}
+              : { documentDirPath: digestDirPath }),
+            ...(progressRenderer.onProgress === undefined
+              ? {}
+              : { onProgress: progressRenderer.onProgress }),
+            path: input.path,
+            ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+          },
+          async (digest) => {
+            await writeDigestOutput(digest, output);
+          },
+        );
+        return;
+      case "txt":
+        await app.digestTxtSession(
+          {
+            ...(digestDirPath === undefined
+              ? {}
+              : { documentDirPath: digestDirPath }),
+            ...(progressRenderer.onProgress === undefined
+              ? {}
+              : { onProgress: progressRenderer.onProgress }),
+            path: input.path,
+            ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+          },
+          async (digest) => {
+            await writeDigestOutput(digest, output);
+          },
+        );
+        return;
+    }
+  } finally {
+    await progressRenderer.stop();
   }
 }
 
