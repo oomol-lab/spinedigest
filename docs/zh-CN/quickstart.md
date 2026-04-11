@@ -6,8 +6,7 @@
 
 ## 1. 环境要求
 
-- Node `>=20.17.0`
-- `pnpm`
+- Node `>=22.12.0`
 - 一个 SpineDigest 支持的 LLM provider
 
 当前支持的 provider：
@@ -17,9 +16,29 @@
 - `openai`
 - `openai-compatible`
 
-## 2. 安装并进入项目
+## 2. 安装 CLI
 
-克隆仓库并安装依赖：
+对大多数用户，直接安装发布后的 CLI：
+
+```bash
+npm install -g spinedigest
+```
+
+如果你只是想临时执行一次，不做全局安装：
+
+```bash
+npx spinedigest --help
+```
+
+如果你更习惯 `pnpm`：
+
+```bash
+pnpm add -g spinedigest
+```
+
+## 3. 用于开发的源码 checkout
+
+如果你是在仓库里开发，再克隆源码并安装依赖：
 
 ```bash
 git clone https://github.com/oomol-lab/spinedigest.git
@@ -27,9 +46,7 @@ cd spinedigest
 pnpm install
 ```
 
-如果你所在的环境已经提供了可直接调用的 `spinedigest` 命令，可以跳过源码安装，直接使用已安装的 CLI。
-
-## 3. 配置 CLI
+## 4. 配置 CLI
 
 SpineDigest 会从以下位置读取配置：
 
@@ -61,7 +78,13 @@ export SPINEDIGEST_LLM_BASE_URL="https://your-provider.example/v1"
 
 如果你的环境更适合写进 `config.json`，也可以把这些字段写入配置文件。
 
-## 4. 跑第一条命令
+## 5. 跑第一条命令
+
+如果你已经安装好了 CLI，可以直接运行：
+
+```bash
+spinedigest --input ./book.md --output ./out/digest.md
+```
 
 在源码仓库里，最直接的命令是：
 
@@ -75,13 +98,7 @@ pnpm dev -- --input ./test/fixtures/sources/sample-observatory-guide.md --output
 cat ./out/digest.md
 ```
 
-如果你用的是已经安装好的 CLI，请对你自己的文件运行同样的流程：
-
-```bash
-spinedigest --input ./book.md --output ./out/digest.md
-```
-
-## 5. 常见输出模式
+## 6. 常见输出模式
 
 输出纯文本：
 
@@ -113,7 +130,7 @@ spinedigest --input ./book.epub --output ./book.sdpub
 spinedigest --input ./book.sdpub --output ./digest.txt
 ```
 
-## 6. 通过标准流处理
+## 7. 通过标准流处理
 
 `stdin` 和 `stdout` 只支持文本格式。
 
@@ -135,7 +152,7 @@ spinedigest --input ./chapter.md --output-format txt
 cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
 ```
 
-## 7. 添加自定义 extraction prompt
+## 8. 添加自定义 extraction prompt
 
 你可以在配置中自定义 extraction prompt：
 
@@ -147,7 +164,7 @@ cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
 
 这个 prompt 会用于处理源文件或文本流时的 digest 过程。
 
-## 8. 故障排查
+## 9. 故障排查
 
 如果看到缺少 LLM 配置的错误：
 

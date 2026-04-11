@@ -1,20 +1,20 @@
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
-
+import { resolveDataDirPath } from "../../common/data-dir.js";
 import { createEnv } from "../../common/template.js";
 
-const DATA_DIR_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../../data",
-);
-const templateEnvironment = createEnv(DATA_DIR_PATH);
+let templateEnvironment: ReturnType<typeof createEnv> | undefined;
+
+function getTemplateEnvironment(): ReturnType<typeof createEnv> {
+  templateEnvironment ??= createEnv(resolveDataDirPath());
+
+  return templateEnvironment;
+}
 
 export function renderCoverPage(input: {
   readonly coverImageHref: string;
   readonly language: string;
   readonly title: string;
 }): string {
-  return templateEnvironment.render("output/epub/cover.xhtml", input);
+  return getTemplateEnvironment().render("output/epub/cover.xhtml", input);
 }
 
 export function renderNavDocument(input: {
@@ -22,7 +22,7 @@ export function renderNavDocument(input: {
   readonly language: string;
   readonly title: string;
 }): string {
-  return templateEnvironment.render("output/epub/nav.xhtml", input);
+  return getTemplateEnvironment().render("output/epub/nav.xhtml", input);
 }
 
 export function renderPackageOpf(input: {
@@ -43,7 +43,7 @@ export function renderPackageOpf(input: {
   readonly title: string;
   readonly version: string;
 }): string {
-  return templateEnvironment.render("output/epub/package.opf.xml", input);
+  return getTemplateEnvironment().render("output/epub/package.opf.xml", input);
 }
 
 export function renderSectionDocument(input: {
@@ -51,5 +51,5 @@ export function renderSectionDocument(input: {
   readonly paragraphs: readonly string[];
   readonly title: string;
 }): string {
-  return templateEnvironment.render("output/epub/section.xhtml", input);
+  return getTemplateEnvironment().render("output/epub/section.xhtml", input);
 }

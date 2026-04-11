@@ -1,8 +1,6 @@
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
-
 import type { LanguageModel } from "ai";
 
+import { resolveDataDirPath } from "../common/data-dir.js";
 import type { Language } from "../common/language.js";
 import { LLM } from "../llm/index.js";
 
@@ -18,10 +16,7 @@ import {
 import { SpineDigestFile } from "./spine-digest-file.js";
 import type { SpineDigest } from "./spine-digest.js";
 
-const DATA_DIR_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../data",
-);
+const DATA_DIR_PATH = resolveDataDirPath();
 
 const DEFAULT_EXTRACTION_PROMPT =
   "Focus on the main storyline and key character developments. Preserve important dialogues and critical plot points. Background descriptions and minor details can be compressed significantly.";

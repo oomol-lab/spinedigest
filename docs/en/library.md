@@ -6,9 +6,21 @@ SpineDigest also exposes a programmatic API for Node and TypeScript environments
 
 This is a secondary interface. If you only need to run the pipeline, prefer the CLI.
 
+## Requirements
+
+- Node `>=22.12.0`
+
+## Install
+
+```bash
+npm install spinedigest
+```
+
 ## Public Entry Point
 
 The package exports `SpineDigestApp`, `SpineDigest`, and language helpers from the top-level entry point.
+
+Both ESM `import` and CommonJS `require()` are supported.
 
 ## Typical Flow
 
@@ -41,6 +53,13 @@ await app.digestEpubSession(
     await digest.saveAs("./book.sdpub");
   },
 );
+```
+
+## CommonJS Example
+
+```js
+const { createOpenAI } = require("@ai-sdk/openai");
+const { SpineDigestApp } = require("spinedigest");
 ```
 
 ## Main Session Methods

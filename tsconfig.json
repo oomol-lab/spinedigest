@@ -15,7 +15,7 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "declaration": true,
-    "declarationMap": true,
+    "declarationMap": false,
     "sourceMap": true,
     "types": ["node"]
   },
@@ -23,6 +23,7 @@
     "src/**/*.ts",
     "test/**/*.ts",
     "eslint.config.mjs",
+    "tsup.config.ts",
     "vitest.config.ts"
   ]
 }

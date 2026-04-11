@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release to npm
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          cache: pnpm
+          node-version: 22.14.0
+          registry-url: https://registry.npmjs.org
+
+      - name: Ensure release runs from main
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "main" ]; then
+            echo "Release must run from main, got ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+      - name: Read package version
+        id: package
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure npm version is not already published
+        run: |
+          if npm view "spinedigest@${{ steps.package.outputs.version }}" version >/dev/null 2>&1; then
+            echo "spinedigest@${{ steps.package.outputs.version }} is already published" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure release tag does not already exist
+        run: |
+          if git rev-parse "${{ steps.package.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.package.outputs.tag }} already exists locally" >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${{ steps.package.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.package.outputs.tag }} already exists on origin" >&2
+            exit 1
+          fi
+
+      - name: Publish package
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create release tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.package.outputs.tag }}"
+          git push origin "${{ steps.package.outputs.tag }}"
