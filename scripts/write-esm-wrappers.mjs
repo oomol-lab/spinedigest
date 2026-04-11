@@ -12,6 +12,11 @@ copyFileSync(
 writeFileSync(
   join(distDirectoryPath, "index.js"),
   [
+    'import { fileURLToPath } from "node:url";',
+    'import { resolve } from "node:path";',
+    "",
+    'globalThis.__SPINEDIGEST_DATA_DIR__ ??= resolve(fileURLToPath(new URL("../data", import.meta.url)));',
+    "",
     'import spineDigestModule from "./index.cjs";',
     "",
     "export const LANGUAGES = spineDigestModule.LANGUAGES;",
@@ -24,7 +29,16 @@ writeFileSync(
 
 writeFileSync(
   join(distDirectoryPath, "cli.js"),
-  ["#!/usr/bin/env node", 'import "./cli.cjs";', ""].join("\n"),
+  [
+    "#!/usr/bin/env node",
+    'import { fileURLToPath } from "node:url";',
+    'import { resolve } from "node:path";',
+    "",
+    'globalThis.__SPINEDIGEST_DATA_DIR__ ??= resolve(fileURLToPath(new URL("../data", import.meta.url)));',
+    "",
+    'import "./cli.cjs";',
+    "",
+  ].join("\n"),
   {
     mode: 0o755,
   },

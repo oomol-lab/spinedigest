@@ -2,7 +2,18 @@ import { existsSync, statSync } from "fs";
 import { dirname, join, parse } from "path";
 
 export function resolveDataDirPath(): string {
-  let currentDirectoryPath = dirname(resolveCurrentFilePath());
+  const injectedPath = (globalThis as { __SPINEDIGEST_DATA_DIR__?: unknown })
+    .__SPINEDIGEST_DATA_DIR__;
+
+  if (typeof injectedPath === "string" && injectedPath !== "") {
+    return injectedPath;
+  }
+
+  return resolveDataDirPathFromWorkingDirectory();
+}
+
+function resolveDataDirPathFromWorkingDirectory(): string {
+  let currentDirectoryPath = process.cwd();
   const rootDirectoryPath = parse(currentDirectoryPath).root;
 
   while (true) {
@@ -18,26 +29,4 @@ export function resolveDataDirPath(): string {
 
     currentDirectoryPath = dirname(currentDirectoryPath);
   }
-}
-
-function resolveCurrentFilePath(): string {
-  const previousPrepareStackTrace = Error.prepareStackTrace?.bind(Error);
-
-  try {
-    Error.prepareStackTrace = (_error, stackTrace) => stackTrace;
-
-    const stackTrace = new Error().stack as unknown as NodeJS.CallSite[];
-
-    for (const callSite of stackTrace) {
-      const fileName = callSite.getFileName();
-
-      if (fileName !== null && fileName !== undefined) {
-        return fileName;
-      }
-    }
-  } finally {
-    Error.prepareStackTrace = previousPrepareStackTrace;
-  }
-
-  throw new Error("Could not determine current file path");
 }
