@@ -14,6 +14,7 @@ import {
   SPINE_DIGEST_READER_SCOPES,
   SpineDigestScope,
 } from "../../../src/common/llm-scope.js";
+import { Language } from "../../../src/common/language.js";
 import { ChunkImportance } from "../../../src/document/index.js";
 import { ChunkExtractor } from "../../../src/reader/chunk-batch/extractor.js";
 import {
@@ -271,7 +272,7 @@ describe("reader/chunk-batch/extractor", () => {
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
-      userLanguage: "English",
+      userLanguage: Language.English,
     });
 
     const result = await extractor.extractUserFocused({
@@ -323,7 +324,7 @@ describe("reader/chunk-batch/extractor", () => {
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
-      userLanguage: "English",
+      userLanguage: Language.English,
     });
 
     const result = await extractor.extractUserFocused({
@@ -390,7 +391,7 @@ describe("reader/chunk-batch/extractor", () => {
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
-      userLanguage: "English",
+      userLanguage: Language.English,
     });
 
     const result = await extractor.extractUserFocused({

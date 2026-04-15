@@ -12,6 +12,7 @@ vi.mock("tinyld", () => ({
 
 import { checkOutputLanguage } from "../../src/editor/language-review.js";
 import { ReviewSeverity } from "../../src/editor/types.js";
+import { Language } from "../../src/common/language.js";
 
 describe("editor/language-review", () => {
   beforeEach(() => {
@@ -28,7 +29,7 @@ describe("editor/language-review", () => {
     expect(
       checkOutputLanguage({
         compressedText: "English summary",
-        userLanguage: "English",
+        userLanguage: Language.English,
       }),
     ).toBeUndefined();
   });
@@ -38,7 +39,7 @@ describe("editor/language-review", () => {
 
     const result = checkOutputLanguage({
       compressedText: "こんにちは世界",
-      userLanguage: "English",
+      userLanguage: Language.English,
     });
 
     expect(result).toMatchObject({

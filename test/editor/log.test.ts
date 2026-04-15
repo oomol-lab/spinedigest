@@ -2,6 +2,7 @@ import { readdir, readFile } from "fs/promises";
 
 import { describe, expect, it } from "vitest";
 
+import { Language } from "../../src/common/language.js";
 import { ChunkRetention, type ChunkRecord } from "../../src/document/index.js";
 import { CompressionLog } from "../../src/editor/log.js";
 import { ReviewSeverity } from "../../src/editor/types.js";
@@ -28,7 +29,7 @@ describe("editor/log", () => {
         weight: 1,
       },
       targetLanguageCode: "en",
-      userLanguage: "English",
+      userLanguage: Language.English,
     });
     await log.appendFinalSelection(
       {
@@ -83,7 +84,7 @@ describe("editor/log", () => {
           weight: 1,
         },
         targetLanguageCode: "en",
-        userLanguage: "English",
+        userLanguage: Language.English,
       });
       await log.appendFinalSelection(
         {

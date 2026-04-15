@@ -24,6 +24,7 @@ import {
   SPINE_DIGEST_READER_SCOPES,
   SpineDigestScope,
 } from "../../src/common/llm-scope.js";
+import { Language } from "../../src/common/language.js";
 import { ChunkImportance, ChunkRetention } from "../../src/document/index.js";
 import type {
   SentenceStreamAdapter,
@@ -142,7 +143,7 @@ describe("reader/reader", () => {
           choice: SpineDigestScope.ReaderChoice,
           extraction: SpineDigestScope.ReaderExtraction,
         },
-        userLanguage: "English",
+        userLanguage: Language.English,
       }),
       {
         sentences: [
@@ -249,7 +250,7 @@ function createReader(input?: { readonly segmenter?: SentenceStreamAdapter }) {
     sentenceTextSource: {
       getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
     },
-    userLanguage: "English",
+    userLanguage: Language.English,
     ...(input?.segmenter === undefined
       ? {}
       : {

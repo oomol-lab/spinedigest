@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { Language } from "../../src/common/language.js";
 import { DirectoryDocument } from "../../src/document/index.js";
 import type { SourceDocument } from "../../src/source/adapter.js";
 import { createDigestProgressTracker } from "../../src/progress/index.js";
@@ -112,7 +113,7 @@ describe("facade/import", () => {
           document,
           extractionPrompt: "Keep key beats",
           llm: {} as never,
-          userLanguage: "Simplified Chinese",
+          userLanguage: Language.SimplifiedChinese,
         });
 
         expect(imported.meta).toBe(meta);
@@ -152,7 +153,7 @@ describe("facade/import", () => {
           {
             options: {
               extractionPrompt: "Keep key beats",
-              userLanguage: "Simplified Chinese",
+              userLanguage: Language.SimplifiedChinese,
             },
             serialId: 1,
             streamText: "Nested summary",
@@ -160,7 +161,7 @@ describe("facade/import", () => {
           {
             options: {
               extractionPrompt: "Keep key beats",
-              userLanguage: "Simplified Chinese",
+              userLanguage: Language.SimplifiedChinese,
             },
             serialId: 2,
             streamText: "Second summary",

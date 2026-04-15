@@ -50,7 +50,7 @@ vi.mock("../../src/facade/digest.js", () => ({
 import { SpineDigestScope } from "../../src/common/llm-scope.js";
 import { DirectoryDocument } from "../../src/document/index.js";
 import { SpineDigest } from "../../src/facade/spine-digest.js";
-import { SpineDigestApp } from "../../src/index.js";
+import { Language, SpineDigestApp } from "../../src/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/app", () => {
@@ -93,7 +93,7 @@ describe("facade/app", () => {
         extractionPrompt: "   ",
         onProgress,
         path: "/tmp/source.txt",
-        userLanguage: "Simplified Chinese",
+        userLanguage: Language.SimplifiedChinese,
       },
       () => "done",
     );
@@ -134,7 +134,7 @@ describe("facade/app", () => {
     expect(digestCall.logDirPath).toBe("/tmp/spinedigest-debug");
     expect(digestCall.onProgress).toBe(onProgress);
     expect(digestCall.path).toBe("/tmp/source.txt");
-    expect(digestCall.userLanguage).toBe("Simplified Chinese");
+    expect(digestCall.userLanguage).toBe(Language.SimplifiedChinese);
     expect(digestCall.llm).toBeTruthy();
     expect(digestCall.extractionPrompt).toContain(
       "main storyline and key character developments",
@@ -162,7 +162,7 @@ describe("facade/app", () => {
         sourceFormat: "markdown",
         stream: ["alpha", "beta"],
         title: "  Session Title  ",
-        userLanguage: "English",
+        userLanguage: Language.English,
       },
       () => undefined,
     );
@@ -215,7 +215,7 @@ describe("facade/app", () => {
     expect(digestCall.sourceFormat).toBe("markdown");
     expect(digestCall.stream).toStrictEqual(["alpha", "beta"]);
     expect(digestCall.title).toBe("  Session Title  ");
-    expect(digestCall.userLanguage).toBe("English");
+    expect(digestCall.userLanguage).toBe(Language.English);
     expect(digestCall.extractionPrompt).toBe("Keep dialogue only");
   });
 
