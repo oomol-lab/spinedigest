@@ -7,9 +7,9 @@ import type {
 
 interface SerialState {
   completedFragments: number;
-  readonly fragments: number;
   completedWords: number;
-  readonly words: number;
+  fragments?: number;
+  words?: number;
 }
 
 export interface CLIProgressRenderer {
@@ -86,21 +86,29 @@ class TerminalProgressRenderer implements CLIProgressRenderer {
 
   #applyEvent(event: SpineDigestProgressEvent): void {
     switch (event.type) {
-      case "serial-discovered":
-        this.#serials.set(event.id, {
-          completedFragments: 0,
-          completedWords: 0,
-          fragments: event.fragments,
-          words: event.words,
-        });
+      case "serials-discovered":
+        if (!event.available) {
+          return;
+        }
+
+        for (const serial of event.serials) {
+          this.#serials.set(serial.id, {
+            completedFragments: 0,
+            completedWords: 0,
+            fragments: serial.fragments,
+            words: serial.words,
+          });
+        }
         return;
       case "serial-progress": {
-        const serial = this.#serials.get(event.id);
+        const serial = this.#serials.get(event.id) ?? {
+          completedFragments: 0,
+          completedWords: 0,
+        };
 
-        if (serial !== undefined) {
-          serial.completedFragments = event.completedFragments;
-          serial.completedWords = event.completedWords;
-        }
+        serial.completedFragments = event.completedFragments;
+        serial.completedWords = event.completedWords;
+        this.#serials.set(event.id, serial);
         return;
       }
       case "digest-progress":
@@ -148,19 +156,23 @@ class TerminalProgressRenderer implements CLIProgressRenderer {
     const serials = [...this.#serials.entries()].sort(
       ([leftId], [rightId]) => leftId - rightId,
     );
-    const totalSerialWords = serials.reduce(
+    const discoveredSerials = serials.filter(
+      (entry): entry is [number, KnownSerialState] =>
+        hasDiscoveryTotals(entry[1]),
+    );
+    const totalSerialWords = discoveredSerials.reduce(
       (sum, [, serial]) => sum + serial.words,
       0,
     );
-    const totalCompletedSerialWords = serials.reduce(
+    const totalCompletedSerialWords = discoveredSerials.reduce(
       (sum, [, serial]) => sum + serial.completedWords,
       0,
     );
-    const activeSerials = serials.filter(
+    const activeSerials = discoveredSerials.filter(
       ([, serial]) => serial.completedWords < serial.words,
     );
 
-    if (serials.length > 0) {
+    if (discoveredSerials.length > 0) {
       lines.push(
         `${formatStageLabel("Serial")}${renderBar(
           totalCompletedSerialWords,
@@ -216,6 +228,10 @@ function swallowRenderError(): undefined {
   return undefined;
 }
 
+function hasDiscoveryTotals(serial: SerialState): serial is KnownSerialState {
+  return serial.fragments !== undefined && serial.words !== undefined;
+}
+
 function formatStageLabel(label: string): string {
   return label.padEnd(8);
 }
@@ -243,4 +259,9 @@ function renderBar(completed: number, total: number): string {
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
+}
+
+interface KnownSerialState extends SerialState {
+  fragments: number;
+  words: number;
 }

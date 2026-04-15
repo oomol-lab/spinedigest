@@ -2,6 +2,7 @@ import type { Document } from "../document/index.js";
 import type { DigestProgressTracker } from "../progress/index.js";
 import {
   SerialGeneration,
+  discoverSerial,
   type GenerateSerialOptions,
   type Serial,
   type SerialGenerationOptions,
@@ -87,6 +88,24 @@ export async function importSourceDocument(
       : { segmenter: options.segmenter }),
   });
   const serials: Serial[] = [];
+
+  if (options.digestProgressTracker !== undefined) {
+    const discoveries = [];
+
+    for (const plannedSection of plannedSections) {
+      discoveries.push({
+        id: plannedSection.serialId,
+        ...(await discoverSerial({
+          ...(options.segmenter === undefined
+            ? {}
+            : { segmenter: options.segmenter }),
+          stream: await plannedSection.section.open(),
+        })),
+      });
+    }
+
+    await options.digestProgressTracker.discoverSerials(discoveries);
+  }
 
   for (const plannedSection of plannedSections) {
     const serialProgressTracker =

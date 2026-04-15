@@ -2,7 +2,7 @@ import type { SourceAdapter, SourceDocument } from "../adapter.js";
 import type { SourceAsset, SourceSection, SourceTextStream } from "../types.js";
 import { normalizeFragment } from "./archive.js";
 import { EpubArchive } from "./archive.js";
-import { EpubContentCache, type EpubSectionTarget } from "./content.js";
+import { EpubContentLoader, type EpubSectionTarget } from "./content.js";
 import { readEpubNavigation, type EpubNavigationItem } from "./navigation.js";
 import { readEpubPackage, type EpubPackageData } from "./package.js";
 
@@ -53,18 +53,18 @@ export class EpubSourceDocument implements SourceDocument {
   readonly #packageData: EpubPackageData;
   readonly #cover: SourceAsset | undefined;
   readonly #sections: readonly SectionDefinition[];
-  readonly #contentCache: EpubContentCache;
+  readonly #contentLoader: EpubContentLoader;
 
   public constructor(
     packageData: EpubPackageData,
     cover: SourceAsset | undefined,
     sections: readonly SectionDefinition[],
-    contentCache: EpubContentCache,
+    contentLoader: EpubContentLoader,
   ) {
     this.#packageData = packageData;
     this.#cover = cover;
     this.#sections = sections;
-    this.#contentCache = contentCache;
+    this.#contentLoader = contentLoader;
   }
 
   public static async open(archive: EpubArchive): Promise<EpubSourceDocument> {
@@ -78,7 +78,7 @@ export class EpubSourceDocument implements SourceDocument {
       packageData,
       cover,
       sections,
-      new EpubContentCache(archive, targetsByPath),
+      new EpubContentLoader(archive, targetsByPath),
     );
   }
 
@@ -97,7 +97,7 @@ export class EpubSourceDocument implements SourceDocument {
   }
 
   public async openSection(sectionId: string): Promise<SourceTextStream> {
-    return await this.#contentCache.openSection(sectionId);
+    return await this.#contentLoader.openSection(sectionId);
   }
 }
 

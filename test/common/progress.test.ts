@@ -22,18 +22,28 @@ describe("progress/reporter", () => {
     const reporter = new ProgressReporter("digest-text-stream", callback);
 
     await reporter.emit({
-      fragments: 4,
-      id: 7,
-      type: "serial-discovered",
-      words: 1600,
+      available: true,
+      serials: [
+        {
+          fragments: 4,
+          id: 7,
+          words: 1600,
+        },
+      ],
+      type: "serials-discovered",
     });
 
     expect(callback).toHaveBeenCalledTimes(1);
     expect(callback).toHaveBeenCalledWith({
-      fragments: 4,
-      id: 7,
-      type: "serial-discovered",
-      words: 1600,
+      available: true,
+      serials: [
+        {
+          fragments: 4,
+          id: 7,
+          words: 1600,
+        },
+      ],
+      type: "serials-discovered",
     });
   });
 });

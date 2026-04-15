@@ -32,16 +32,20 @@ describe("cli/progress", () => {
 
     await Promise.all([
       renderer.onProgress({
-        fragments: 3,
-        id: 2,
-        type: "serial-discovered",
-        words: 1820,
-      }),
-      renderer.onProgress({
-        fragments: 2,
-        id: 1,
-        type: "serial-discovered",
-        words: 882,
+        available: true,
+        serials: [
+          {
+            fragments: 3,
+            id: 2,
+            words: 1820,
+          },
+          {
+            fragments: 2,
+            id: 1,
+            words: 882,
+          },
+        ],
+        type: "serials-discovered",
       }),
       renderer.onProgress({
         completedWords: 0,

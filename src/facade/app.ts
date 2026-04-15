@@ -7,7 +7,8 @@ import { withLoggingContext } from "../common/logging.js";
 import { LLM } from "../llm/index.js";
 import type {
   DigestProgressEvent,
-  SerialDiscoveredEvent,
+  SerialDiscoveryItem,
+  SerialsDiscoveredEvent,
   SerialProgressEvent,
   SpineDigestProgressCallback,
   SpineDigestProgressEvent,
@@ -234,7 +235,8 @@ export class SpineDigestApp {
 
 export type {
   DigestProgressEvent,
-  SerialDiscoveredEvent,
+  SerialDiscoveryItem,
+  SerialsDiscoveredEvent,
   SerialProgressEvent,
   SpineDigestProgressCallback,
   SpineDigestProgressEvent,

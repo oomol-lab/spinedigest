@@ -1,6 +1,7 @@
 export {
   SpineDigestApp,
   type DigestProgressEvent,
+  type SerialDiscoveryItem,
   type SpineDigestAppOptions,
   type SpineDigestLLMOptions,
   type SpineDigestOpenSessionOptions,
@@ -8,7 +9,7 @@ export {
   type SpineDigestProgressEvent,
   type SpineDigestProgressEventType,
   type SpineDigestOperation,
-  type SerialDiscoveredEvent,
+  type SerialsDiscoveredEvent,
   type SerialProgressEvent,
   type SpineDigestSourceSessionOptions,
   type SpineDigestTextStreamSessionOptions,
