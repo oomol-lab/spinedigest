@@ -1,11 +1,5 @@
 export { LANGUAGES, type Language } from "./common/language.js";
 export {
-  SPINE_DIGEST_EDITOR_SCOPES,
-  SPINE_DIGEST_READER_SCOPES,
-  SPINE_DIGEST_SCOPES,
-  SpineDigestScope,
-} from "./common/llm-scope.js";
-export {
   type DigestProgressEvent,
   SpineDigest,
   SpineDigestApp,

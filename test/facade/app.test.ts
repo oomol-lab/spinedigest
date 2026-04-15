@@ -47,9 +47,10 @@ vi.mock("../../src/facade/digest.js", () => ({
   ),
 }));
 
+import { SpineDigestScope } from "../../src/common/llm-scope.js";
 import { DirectoryDocument } from "../../src/document/index.js";
 import { SpineDigest } from "../../src/facade/spine-digest.js";
-import { SpineDigestApp, SpineDigestScope } from "../../src/index.js";
+import { SpineDigestApp } from "../../src/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/app", () => {
