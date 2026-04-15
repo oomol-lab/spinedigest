@@ -1,31 +1,4 @@
-import type {
-  SamplingProfile,
-  SamplingScopeConfig,
-  TemperatureSetting,
-} from "./types.js";
-
-const DEFAULT_SCOPE_SAMPLING = Object.freeze({
-  "serial-generation/editor-compress": Object.freeze({
-    temperature: 0.7,
-    topP: 0.9,
-  }),
-  "serial-generation/editor-review": Object.freeze({
-    temperature: [0.3, 0.95] as const,
-    topP: [0.4, 0.8] as const,
-  }),
-  "serial-generation/editor-review-guide": Object.freeze({
-    temperature: 0.4,
-    topP: 0.6,
-  }),
-  "serial-generation/reader-choice": Object.freeze({
-    temperature: [0.3, 0.95] as const,
-    topP: [0.4, 0.8] as const,
-  }),
-  "serial-generation/reader-extraction": Object.freeze({
-    temperature: [0.3, 0.95] as const,
-    topP: [0.4, 0.8] as const,
-  }),
-} satisfies SamplingScopeConfig<string>);
+import type { SamplingScopeConfig, TemperatureSetting } from "./types.js";
 
 export function resolveSamplingSetting(
   value: TemperatureSetting | undefined,
@@ -80,50 +53,9 @@ export function resolveTemperatureSetting(
   );
 }
 
-export function createDefaultSamplingConfig(
-  input: {
-    readonly sampling?: SamplingScopeConfig<string>;
-    readonly temperature?: TemperatureSetting;
-    readonly topP?: TemperatureSetting;
-  } = {},
-): SamplingScopeConfig<string> {
-  const profiles = new Map<string, SamplingProfile>(
-    Object.entries(DEFAULT_SCOPE_SAMPLING).map(([scope, profile]) => [
-      scope,
-      { ...profile },
-    ]),
-  );
-
-  for (const [scope, profile] of Object.entries(input.sampling ?? {})) {
-    profiles.set(scope, {
-      ...profiles.get(scope),
-      ...profile,
-    });
-  }
-
-  for (const [scope, profile] of profiles.entries()) {
-    profiles.set(scope, {
-      ...profile,
-      ...(input.temperature === undefined
-        ? {}
-        : { temperature: input.temperature }),
-      ...(input.topP === undefined ? {} : { topP: input.topP }),
-    });
-  }
-
-  return Object.freeze(
-    Object.fromEntries(
-      [...profiles.entries()].map(([scope, profile]) => [
-        scope,
-        Object.freeze(profile),
-      ]),
-    ),
-  ) as SamplingScopeConfig<string>;
-}
-
 export function getScopeDefaults<S extends string>(
   scope: S | undefined,
-  sampling: SamplingScopeConfig<string> | undefined,
+  sampling: SamplingScopeConfig<S> | undefined,
   defaultTemperature: TemperatureSetting,
   defaultTopP: TemperatureSetting,
 ): {

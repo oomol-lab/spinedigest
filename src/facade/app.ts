@@ -23,6 +23,7 @@ import {
   type DigestSourceSessionOptions,
   type DigestTextStreamSessionOptions,
 } from "./digest.js";
+import { createDefaultSpineDigestSampling } from "./llm-sampling.js";
 import { SpineDigestFile } from "./spine-digest-file.js";
 import type { SpineDigest } from "./spine-digest.js";
 
@@ -77,13 +78,22 @@ export class SpineDigestApp {
   public constructor(options: SpineDigestAppOptions) {
     this.#debugLogDirPath = options.debugLogDirPath;
     this.#verbose = options.verbose ?? false;
-    this.#llm =
-      options.llm === undefined
-        ? undefined
-        : new LLM({
-            dataDirPath: DATA_DIR_PATH,
-            ...normalizeLLMOptions(options.llm),
-          });
+    if (options.llm === undefined) {
+      this.#llm = undefined;
+      return;
+    }
+    const llmOptions = normalizeLLMOptions(options.llm);
+
+    this.#llm = new LLM({
+      dataDirPath: DATA_DIR_PATH,
+      sampling: createDefaultSpineDigestSampling({
+        ...(llmOptions.temperature === undefined
+          ? {}
+          : { temperature: llmOptions.temperature }),
+        ...(llmOptions.topP === undefined ? {} : { topP: llmOptions.topP }),
+      }),
+      ...llmOptions,
+    });
   }
 
   public async digestEpubSession<T>(
