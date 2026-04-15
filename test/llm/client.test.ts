@@ -49,6 +49,7 @@ vi.mock("ai", () => ({
   }),
 }));
 
+import { SpineDigestScope } from "../../src/common/llm-scope.js";
 import { LLM } from "../../src/llm/client.js";
 
 describe("llm/client", () => {
@@ -105,14 +106,14 @@ describe("llm/client", () => {
   });
 
   it("uses explicit scoped sampling defaults provided by the caller", async () => {
-    const llm = new LLM({
+    const llm = new LLM<SpineDigestScope.EditorCompress>({
       dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
       } as never,
       sampling: {
-        "serial-generation/editor-compress": {
+        [SpineDigestScope.EditorCompress]: {
           temperature: 0.7,
           topP: 0.9,
         },
@@ -127,7 +128,7 @@ describe("llm/client", () => {
         },
       ],
       {
-        scope: "serial-generation/editor-compress",
+        scope: SpineDigestScope.EditorCompress,
       },
     );
 

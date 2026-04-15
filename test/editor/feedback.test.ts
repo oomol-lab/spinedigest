@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { SpineDigestScope } from "../../src/common/llm-scope.js";
 import {
   calculateScore,
   createRevisionFeedback,
@@ -50,7 +51,7 @@ describe("editor/feedback", () => {
   });
 
   it("creates revision feedback from the top 9 sorted issues", () => {
-    const llm = new ScriptedLLM<"review">();
+    const llm = new ScriptedLLM<SpineDigestScope>();
     const reviews = Array.from({ length: 11 }, (_, index) => ({
       clueId: index + 1,
       issues: [

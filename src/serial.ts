@@ -1,5 +1,10 @@
 import { AsyncSemaphore } from "./utils/async-semaphore.js";
 import type { Language } from "./common/language.js";
+import {
+  SPINE_DIGEST_EDITOR_SCOPES,
+  SPINE_DIGEST_READER_SCOPES,
+  type SpineDigestScope,
+} from "./common/llm-scope.js";
 import type { LLM } from "./llm/index.js";
 import type { SerialProgressTracker } from "./progress/index.js";
 import type {
@@ -40,13 +45,6 @@ const DEFAULT_GROUP_WORDS_COUNT = 9600;
 const DEFAULT_MAX_CLUES = 10;
 const DEFAULT_MAX_ITERATIONS = 5;
 const DEFAULT_WORKING_MEMORY_CAPACITY = 7;
-const SERIAL_GENERATION_SCOPES = {
-  editorCompress: "serial-generation/editor-compress",
-  editorReview: "serial-generation/editor-review",
-  editorReviewGuide: "serial-generation/editor-review-guide",
-  readerChoice: "serial-generation/reader-choice",
-  readerExtraction: "serial-generation/reader-extraction",
-} as const;
 
 export interface GenerateSerialOptions {
   readonly extractionPrompt: string;
@@ -57,7 +55,7 @@ export type CreateSerialOptions = GenerateSerialOptions;
 
 export interface SerialGenerationOptions {
   readonly document?: Document;
-  readonly llm: LLM<string>;
+  readonly llm: LLM<SpineDigestScope>;
   readonly logDirPath?: string;
   readonly segmenter?: ReaderSegmenter;
   /** @deprecated Use `document` instead. */
@@ -71,7 +69,7 @@ export class SerialGeneration {
   readonly #fragmentWordsCount = DEFAULT_FRAGMENT_WORDS_COUNT;
   readonly #fragmentGroups: FragmentGroupStore;
   readonly #idSemaphore = new AsyncSemaphore(1);
-  readonly #llm: LLM<string>;
+  readonly #llm: LLM<SpineDigestScope>;
   readonly #logDirPath: string | undefined;
   readonly #serials: SerialStore;
   readonly #segmenter: ReaderSegmenter | undefined;
@@ -216,10 +214,7 @@ export class SerialGeneration {
       },
       extractionGuidance: extractionPrompt,
       llm: this.#llm,
-      scopes: {
-        choice: SERIAL_GENERATION_SCOPES.readerChoice,
-        extraction: SERIAL_GENERATION_SCOPES.readerExtraction,
-      },
+      scopes: SPINE_DIGEST_READER_SCOPES,
       sentenceTextSource: this.#document,
       ...(this.#segmenter === undefined
         ? {}
@@ -323,18 +318,14 @@ export class SerialGeneration {
     groupId: number;
     serialId: number;
     userLanguage: Language | undefined;
-  }): EditorOptions<string> {
+  }): EditorOptions<SpineDigestScope> {
     return {
       compressionRatio: DEFAULT_COMPRESSION_RATIO,
       groupId: input.groupId,
       llm: this.#llm,
       maxClues: DEFAULT_MAX_CLUES,
       maxIterations: DEFAULT_MAX_ITERATIONS,
-      scopes: {
-        compress: SERIAL_GENERATION_SCOPES.editorCompress,
-        review: SERIAL_GENERATION_SCOPES.editorReview,
-        reviewGuide: SERIAL_GENERATION_SCOPES.editorReviewGuide,
-      },
+      scopes: SPINE_DIGEST_EDITOR_SCOPES,
       serialId: input.serialId,
       document: this.#document,
       ...(this.#logDirPath === undefined

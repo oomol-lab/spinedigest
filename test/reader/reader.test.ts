@@ -20,6 +20,10 @@ vi.mock("../../src/reader/segment/segment.js", () => ({
 }));
 
 import { Reader } from "../../src/reader/reader.js";
+import {
+  SPINE_DIGEST_READER_SCOPES,
+  SpineDigestScope,
+} from "../../src/common/llm-scope.js";
 import { ChunkImportance, ChunkRetention } from "../../src/document/index.js";
 import type {
   SentenceStreamAdapter,
@@ -135,8 +139,8 @@ describe("reader/reader", () => {
       expect.objectContaining({
         extractionGuidance: "Focus on plot",
         scopes: {
-          choice: "choice",
-          extraction: "extract",
+          choice: SpineDigestScope.ReaderChoice,
+          extraction: SpineDigestScope.ReaderExtraction,
         },
         userLanguage: "English",
       }),
@@ -233,7 +237,7 @@ describe("reader/reader", () => {
 function createReader(input?: { readonly segmenter?: SentenceStreamAdapter }) {
   let nextId = 1;
 
-  return new Reader({
+  return new Reader<SpineDigestScope>({
     attention: {
       capacity: 2,
       generationDecayFactor: 0.5,
@@ -241,10 +245,7 @@ function createReader(input?: { readonly segmenter?: SentenceStreamAdapter }) {
     },
     extractionGuidance: "Focus on plot",
     llm: {} as never,
-    scopes: {
-      choice: "choice",
-      extraction: "extract",
-    },
+    scopes: SPINE_DIGEST_READER_SCOPES,
     sentenceTextSource: {
       getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
     },

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  SPINE_DIGEST_EDITOR_SCOPES,
+  SpineDigestScope,
+} from "../../src/common/llm-scope.js";
 import type { ReadonlySerialFragments } from "../../src/document/index.js";
 import type { ChunkRecord, FragmentRecord } from "../../src/document/types.js";
 import {
@@ -13,13 +17,13 @@ import { ScriptedLLM } from "../helpers/scripted-llm.js";
 
 describe("editor/review", () => {
   it("generates clue reviewers from clue markup", async () => {
-    const llm = new ScriptedLLM<"guide" | "review">(["  Reviewer guide  "]);
+    const llm = new ScriptedLLM<SpineDigestScope>(["  Reviewer guide  "]);
     const reviewer = new CompressionReviewer(
       llm as never,
       createSerialFragments(),
       {
-        review: "review",
-        reviewGuide: "guide",
+        review: SPINE_DIGEST_EDITOR_SCOPES.review,
+        reviewGuide: SPINE_DIGEST_EDITOR_SCOPES.reviewGuide,
       },
       "English",
     );
@@ -39,19 +43,19 @@ describe("editor/review", () => {
     expect(llm.prompts[0]?.templateName).toBe(
       CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
     );
-    expect(llm.calls[0]?.options.scope).toBe("guide");
+    expect(llm.calls[0]?.options.scope).toBe(SpineDigestScope.EditorReviewGuide);
   });
 
   it("reviews compression through guaranteed-json requests with history", async () => {
-    const llm = new ScriptedLLM<"guide" | "review">([
+    const llm = new ScriptedLLM<SpineDigestScope>([
       '{"issues":[{"problem":"Missing detail","severity":"major","suggestion":"Restore it"}]}',
     ]);
     const reviewer = new CompressionReviewer(
       llm as never,
       createSerialFragments(),
       {
-        review: "review",
-        reviewGuide: "guide",
+        review: SPINE_DIGEST_EDITOR_SCOPES.review,
+        reviewGuide: SPINE_DIGEST_EDITOR_SCOPES.reviewGuide,
       },
       "English",
     );
@@ -91,7 +95,7 @@ describe("editor/review", () => {
     expect(llm.calls).toHaveLength(1);
     expect(llm.calls[0]?.viaContext).toBe(false);
     expect(llm.calls[0]?.options).toMatchObject({
-      scope: "review",
+      scope: SpineDigestScope.EditorReview,
       useCache: false,
     });
     expect(llm.calls[0]?.messages.map((message) => message.role)).toStrictEqual(

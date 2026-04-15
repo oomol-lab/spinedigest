@@ -49,7 +49,7 @@ vi.mock("../../src/facade/digest.js", () => ({
 
 import { DirectoryDocument } from "../../src/document/index.js";
 import { SpineDigest } from "../../src/facade/spine-digest.js";
-import { SpineDigestApp } from "../../src/index.js";
+import { SpineDigestApp, SpineDigestScope } from "../../src/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/app", () => {
@@ -114,9 +114,7 @@ describe("facade/app", () => {
     expect(isAbsolute(llmOptions.dataDirPath)).toBe(true);
     expect(basename(llmOptions.dataDirPath)).toBe("data");
     expect(llmOptions.model).toBe(fakeModel);
-    expect(
-      llmOptions.sampling["serial-generation/editor-compress"],
-    ).toStrictEqual({
+    expect(llmOptions.sampling[SpineDigestScope.EditorCompress]).toStrictEqual({
       temperature: 0.7,
       topP: 0.9,
     });
@@ -190,14 +188,12 @@ describe("facade/app", () => {
     expect(llmOptions.model).toBe(fakeModel);
     expect(llmOptions.stream).toBe(true);
     expect(llmOptions.temperature).toBe(0.3);
-    expect(
-      llmOptions.sampling["serial-generation/editor-compress"],
-    ).toStrictEqual({
+    expect(llmOptions.sampling[SpineDigestScope.EditorCompress]).toStrictEqual({
       temperature: 0.3,
       topP: 0.9,
     });
     expect(
-      llmOptions.sampling["serial-generation/editor-review-guide"],
+      llmOptions.sampling[SpineDigestScope.EditorReviewGuide],
     ).toStrictEqual({
       temperature: 0.3,
       topP: 0.6,

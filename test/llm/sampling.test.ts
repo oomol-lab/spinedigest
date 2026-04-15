@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { SpineDigestScope } from "../../src/common/llm-scope.js";
 import {
   getScopeDefaults,
   resolveSamplingSetting,
@@ -23,7 +24,12 @@ describe("llm/sampling", () => {
 
   it("resolves scoped defaults with fallback behavior", () => {
     expect(
-      getScopeDefaults("extract", undefined, [0.1, 0.2], 0.9),
+      getScopeDefaults(
+        SpineDigestScope.ReaderExtraction,
+        undefined,
+        [0.1, 0.2],
+        0.9,
+      ),
     ).toStrictEqual({
       temperature: [0.1, 0.2],
       topP: 0.9,
@@ -31,9 +37,9 @@ describe("llm/sampling", () => {
 
     expect(
       getScopeDefaults(
-        "extract",
+        SpineDigestScope.ReaderExtraction,
         {
-          extract: {
+          [SpineDigestScope.ReaderExtraction]: {
             temperature: 0.4,
           },
         },

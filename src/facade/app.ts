@@ -2,6 +2,7 @@ import type { LanguageModel } from "ai";
 
 import { resolveDataDirPath } from "../common/data-dir.js";
 import type { Language } from "../common/language.js";
+import { SpineDigestScope } from "../common/llm-scope.js";
 import { withLoggingContext } from "../common/logging.js";
 import { LLM } from "../llm/index.js";
 import type {
@@ -72,7 +73,7 @@ export interface SpineDigestTextStreamSessionOptions extends DigestDocumentSessi
 
 export class SpineDigestApp {
   readonly #debugLogDirPath: string | undefined;
-  readonly #llm: LLM<string> | undefined;
+  readonly #llm: LLM<SpineDigestScope> | undefined;
   readonly #verbose: boolean;
 
   public constructor(options: SpineDigestAppOptions) {
@@ -84,7 +85,7 @@ export class SpineDigestApp {
     }
     const llmOptions = normalizeLLMOptions(options.llm);
 
-    this.#llm = new LLM({
+    this.#llm = new LLM<SpineDigestScope>({
       dataDirPath: DATA_DIR_PATH,
       sampling: createDefaultSpineDigestSampling({
         ...(llmOptions.temperature === undefined
@@ -207,7 +208,7 @@ export class SpineDigestApp {
     };
   }
 
-  #requireLLM(): LLM<string> {
+  #requireLLM(): LLM<SpineDigestScope> {
     if (this.#llm === undefined) {
       throw new Error(
         "LLM is required for digest operations. Configure `llm` when constructing SpineDigestApp.",
