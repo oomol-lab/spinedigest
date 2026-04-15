@@ -2,7 +2,7 @@ import type { LanguageModel } from "ai";
 
 import { resolveDataDirPath } from "../common/data-dir.js";
 import type { Language } from "../common/language.js";
-import { SpineDigestScope } from "../common/llm-scope.js";
+import type { SpineDigestScope } from "../common/llm-scope.js";
 import { withLoggingContext } from "../common/logging.js";
 import { LLM } from "../llm/index.js";
 import type {

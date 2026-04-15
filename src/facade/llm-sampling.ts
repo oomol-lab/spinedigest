@@ -30,10 +30,12 @@ const DEFAULT_SPINE_DIGEST_SAMPLING = Object.freeze({
   }),
 } satisfies SpineDigestSamplingConfig);
 
-export function createDefaultSpineDigestSampling(input: {
-  readonly temperature?: TemperatureSetting;
-  readonly topP?: TemperatureSetting;
-} = {}): SpineDigestSamplingConfig {
+export function createDefaultSpineDigestSampling(
+  input: {
+    readonly temperature?: TemperatureSetting;
+    readonly topP?: TemperatureSetting;
+  } = {},
+): SpineDigestSamplingConfig {
   return Object.freeze({
     [SpineDigestScope.EditorCompress]: applySamplingOverrides(
       DEFAULT_SPINE_DIGEST_SAMPLING[SpineDigestScope.EditorCompress],

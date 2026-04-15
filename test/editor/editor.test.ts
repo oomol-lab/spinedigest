@@ -147,7 +147,9 @@ describe("editor/editor", () => {
       CLUE_REVIEWER_PROMPT_TEMPLATE,
     ]);
     expect(llm.calls).toHaveLength(5);
-    expect(llm.calls[0]?.options.scope).toBe(SpineDigestScope.EditorReviewGuide);
+    expect(llm.calls[0]?.options.scope).toBe(
+      SpineDigestScope.EditorReviewGuide,
+    );
     expect(llm.calls[1]?.options.scope).toBe(SpineDigestScope.EditorCompress);
     expect(llm.calls[2]?.options.scope).toBe(SpineDigestScope.EditorReview);
     expect(llm.calls[3]?.options.scope).toBe(SpineDigestScope.EditorCompress);

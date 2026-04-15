@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SpineDigestScope } from "../../src/common/llm-scope.js";
+import type { SpineDigestScope } from "../../src/common/llm-scope.js";
 import {
   calculateScore,
   createRevisionFeedback,
