@@ -1,7 +1,7 @@
 export type SpineDigestOperation =
   | "digest-epub"
   | "digest-markdown"
-  | "digest-text"
+  | "digest-text-stream"
   | "digest-txt";
 
 export interface SerialDiscoveredEvent {

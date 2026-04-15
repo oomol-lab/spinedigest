@@ -4,7 +4,7 @@ import { ProgressReporter } from "../../src/progress/index.js";
 
 describe("progress/reporter", () => {
   it("does not fail the pipeline when the progress callback throws", async () => {
-    const reporter = new ProgressReporter("digest-text", () => {
+    const reporter = new ProgressReporter("digest-text-stream", () => {
       throw new Error("UI disconnected");
     });
 
@@ -19,7 +19,7 @@ describe("progress/reporter", () => {
 
   it("delivers structured events to the callback", async () => {
     const callback = vi.fn();
-    const reporter = new ProgressReporter("digest-text", callback);
+    const reporter = new ProgressReporter("digest-text-stream", callback);
 
     await reporter.emit({
       fragments: 4,

@@ -128,7 +128,7 @@ vi.mock("../../src/facade/import.js", () => ({
 import {
   digestEpubSession,
   digestMarkdownSession,
-  digestTextSession,
+  digestTextStreamSession,
   digestTxtSession,
 } from "../../src/facade/digest.js";
 import { withTempDir } from "../helpers/temp.js";
@@ -140,8 +140,8 @@ describe("facade/digest", () => {
     digestMockState.tempDocumentPaths.length = 0;
   });
 
-  it("creates text-session documents and removes temporary directories by default", async () => {
-    const title = await digestTextSession(
+  it("creates text-stream session documents and removes temporary directories by default", async () => {
+    const title = await digestTextStreamSession(
       {
         bookLanguage: "fr",
         extractionPrompt: "Keep beats",
@@ -188,11 +188,11 @@ describe("facade/digest", () => {
     ).rejects.toThrow();
   });
 
-  it("keeps custom text-session directories and uses a fallback toc title", async () => {
+  it("keeps custom text-stream session directories and uses a fallback toc title", async () => {
     await withTempDir("spinedigest-digest-", async (path) => {
       const documentDirPath = `${path}/custom-document`;
 
-      await digestTextSession(
+      await digestTextStreamSession(
         {
           bookLanguage: null,
           documentDirPath,
@@ -230,7 +230,7 @@ describe("facade/digest", () => {
     });
   });
 
-  it("emits discovered and progress events for text digest", async () => {
+  it("emits discovered and progress events for text-stream digest", async () => {
     const events: Array<{
       readonly completedFragments?: number;
       readonly completedWords?: number;
@@ -242,7 +242,7 @@ describe("facade/digest", () => {
     }> = [];
 
     await withTempDir("spinedigest-digest-", async () => {
-      await digestTextSession(
+      await digestTextStreamSession(
         {
           extractionPrompt: "Keep beats",
           llm: {} as never,

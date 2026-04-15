@@ -6,7 +6,7 @@ const appMockState = vi.hoisted(() => ({
   digestCalls: {
     epub: [] as unknown[],
     markdown: [] as unknown[],
-    text: [] as unknown[],
+    textStream: [] as unknown[],
     txt: [] as unknown[],
   },
   llmOptions: [] as unknown[],
@@ -33,9 +33,9 @@ vi.mock("../../src/facade/digest.js", () => ({
       return await operation();
     },
   ),
-  digestTextSession: vi.fn(
+  digestTextStreamSession: vi.fn(
     async (options: unknown, operation: () => unknown) => {
-      appMockState.digestCalls.text.push(options);
+      appMockState.digestCalls.textStream.push(options);
       return await operation();
     },
   ),
@@ -56,7 +56,7 @@ describe("facade/app", () => {
   beforeEach(() => {
     appMockState.digestCalls.epub.length = 0;
     appMockState.digestCalls.markdown.length = 0;
-    appMockState.digestCalls.text.length = 0;
+    appMockState.digestCalls.textStream.length = 0;
     appMockState.digestCalls.txt.length = 0;
     appMockState.llmOptions.length = 0;
   });
@@ -129,7 +129,7 @@ describe("facade/app", () => {
     );
   });
 
-  it("forwards text session options and preserves explicit extraction prompts", async () => {
+  it("forwards text-stream session options and preserves explicit extraction prompts", async () => {
     const fakeModel = {
       provider: "test-model",
     };
@@ -142,7 +142,7 @@ describe("facade/app", () => {
       },
     });
 
-    await app.digestTextSession(
+    await app.digestTextStreamSession(
       {
         bookLanguage: "ja",
         documentDirPath: "/tmp/custom-document",
@@ -170,8 +170,8 @@ describe("facade/app", () => {
     expect(llmOptions.model).toBe(fakeModel);
     expect(llmOptions.stream).toBe(true);
     expect(llmOptions.temperature).toBe(0.3);
-    expect(appMockState.digestCalls.text).toHaveLength(1);
-    const digestCall = appMockState.digestCalls.text[0] as {
+    expect(appMockState.digestCalls.textStream).toHaveLength(1);
+    const digestCall = appMockState.digestCalls.textStream[0] as {
       readonly bookLanguage: string;
       readonly documentDirPath: string;
       readonly extractionPrompt: string;

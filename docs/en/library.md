@@ -67,7 +67,7 @@ const { SpineDigestApp } = require("spinedigest");
 - `digestEpubSession`
 - `digestMarkdownSession`
 - `digestTxtSession`
-- `digestTextSession`
+- `digestTextStreamSession`
 - `openSession`
 
 `openSession` is for existing `.sdpub` archives and does not require a fresh digest run.

@@ -19,7 +19,7 @@ const cliMockState = vi.hoisted(() => ({
   digestCalls: {
     epub: [] as unknown[],
     markdown: [] as unknown[],
-    text: [] as unknown[],
+    textStream: [] as unknown[],
     txt: [] as unknown[],
   },
   exportCalls: [] as Array<{
@@ -78,11 +78,11 @@ vi.mock("../../src/index.js", () => ({
       return await operation(createMockDigest());
     }
 
-    public async digestTextSession(
+    public async digestTextStreamSession(
       options: unknown,
       operation: (digest: MockDigest) => Promise<unknown>,
     ): Promise<unknown> {
-      cliMockState.digestCalls.text.push(options);
+      cliMockState.digestCalls.textStream.push(options);
       await emitMockProgress(options);
       return await operation(createMockDigest());
     }
@@ -153,7 +153,7 @@ describe("cli/convert", () => {
     cliMockState.createTemporaryOutputPathCalls.length = 0;
     cliMockState.digestCalls.epub.length = 0;
     cliMockState.digestCalls.markdown.length = 0;
-    cliMockState.digestCalls.text.length = 0;
+    cliMockState.digestCalls.textStream.length = 0;
     cliMockState.digestCalls.txt.length = 0;
     cliMockState.exportCalls.length = 0;
     cliMockState.openCalls.length = 0;
@@ -229,14 +229,16 @@ describe("cli/convert", () => {
     expect(cliMockState.resetDigestDirCalls).toStrictEqual([
       "/tmp/kept-digest",
     ]);
-    expect(cliMockState.digestCalls.text).toHaveLength(1);
-    expect(cliMockState.digestCalls.text[0]).toStrictEqual({
+    expect(cliMockState.digestCalls.textStream).toHaveLength(1);
+    expect(cliMockState.digestCalls.textStream[0]).toStrictEqual({
       documentDirPath: "/tmp/kept-digest",
       extractionPrompt: "Keep the main beats",
       sourceFormat: "txt",
       stream: mockStdinStream,
     });
-    expect(cliMockState.digestCalls.text[0]).not.toHaveProperty("onProgress");
+    expect(cliMockState.digestCalls.textStream[0]).not.toHaveProperty(
+      "onProgress",
+    );
     expect(cliMockState.stderrWrites).toStrictEqual([]);
     expect(cliMockState.createTemporaryOutputPathCalls).toStrictEqual([
       {
@@ -278,7 +280,7 @@ describe("cli/convert", () => {
       "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.",
     );
 
-    expect(cliMockState.digestCalls.text).toHaveLength(0);
+    expect(cliMockState.digestCalls.textStream).toHaveLength(0);
   });
 
   it("routes epub inputs through digestEpubSession and saves sdpub output", async () => {

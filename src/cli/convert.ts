@@ -96,7 +96,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
         );
       }
 
-      await app.digestTextSession(
+      await app.digestTextStreamSession(
         {
           ...(digestDirPath === undefined
             ? {}

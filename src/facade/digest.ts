@@ -41,7 +41,7 @@ export interface DigestSourceSessionOptions extends DigestSessionOptions {
   readonly path: string;
 }
 
-export interface DigestTextSessionOptions extends DigestSessionOptions {
+export interface DigestTextStreamSessionOptions extends DigestSessionOptions {
   readonly bookLanguage?: string | null;
   readonly sourceFormat?: Extract<SourceFormat, "markdown" | "txt">;
   readonly stream: ReaderTextStream;
@@ -72,12 +72,12 @@ export async function digestMarkdownSession<T>(
   );
 }
 
-export async function digestTextSession<T>(
-  options: DigestTextSessionOptions,
+export async function digestTextStreamSession<T>(
+  options: DigestTextStreamSessionOptions,
   operation: (digest: SpineDigest) => Promise<T> | T,
 ): Promise<T> {
   const progressTracker = createDigestProgressTracker({
-    operation: "digest-text",
+    operation: "digest-text-stream",
     ...(options.onProgress === undefined
       ? {}
       : { onProgress: options.onProgress }),

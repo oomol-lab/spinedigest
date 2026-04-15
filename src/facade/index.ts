@@ -11,6 +11,6 @@ export {
   type SerialDiscoveredEvent,
   type SerialProgressEvent,
   type SpineDigestSourceSessionOptions,
-  type SpineDigestTextSessionOptions,
+  type SpineDigestTextStreamSessionOptions,
 } from "./app.js";
 export { SpineDigest } from "./spine-digest.js";
