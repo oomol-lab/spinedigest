@@ -1,4 +1,4 @@
-export { LANGUAGES, type Language } from "./common/language.js";
+export { Language } from "./common/language.js";
 export {
   type DigestProgressEvent,
   type SerialDiscoveryItem,

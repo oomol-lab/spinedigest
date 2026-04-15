@@ -131,6 +131,7 @@ import {
   digestTextStreamSession,
   digestTxtSession,
 } from "../../src/facade/digest.js";
+import { Language } from "../../src/common/language.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/digest", () => {
@@ -148,7 +149,7 @@ describe("facade/digest", () => {
         llm: {} as never,
         stream: ["alpha ", "beta"],
         title: "  Digest Title  ",
-        userLanguage: "Simplified Chinese",
+        userLanguage: Language.SimplifiedChinese,
       },
       async (digest) => {
         expect(await digest.readMeta()).toMatchObject({
@@ -176,7 +177,7 @@ describe("facade/digest", () => {
       {
         options: {
           extractionPrompt: "Keep beats",
-          userLanguage: "Simplified Chinese",
+          userLanguage: Language.SimplifiedChinese,
         },
         serialId: 1,
         streamText: "alpha beta",
@@ -306,7 +307,7 @@ describe("facade/digest", () => {
           extractionPrompt: "Prompt",
           llm: {} as never,
           path: "/tmp/book.epub",
-          userLanguage: "Japanese",
+          userLanguage: Language.Japanese,
         },
         async (digest) => {
           return (await digest.readMeta())?.title;
@@ -345,7 +346,7 @@ describe("facade/digest", () => {
         adapterFormat: "epub",
         extractionPrompt: "Prompt",
         path: "/tmp/book.epub",
-        userLanguage: "Japanese",
+        userLanguage: Language.Japanese,
       });
       expect(digestMockState.importCalls[0]?.documentPath).toContain("/epub");
       expect(digestMockState.importCalls[1]).toMatchObject({

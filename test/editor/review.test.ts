@@ -4,6 +4,7 @@ import {
   SPINE_DIGEST_EDITOR_SCOPES,
   SpineDigestScope,
 } from "../../src/common/llm-scope.js";
+import { Language } from "../../src/common/language.js";
 import type { ReadonlySerialFragments } from "../../src/document/index.js";
 import type { ChunkRecord, FragmentRecord } from "../../src/document/types.js";
 import {
@@ -25,7 +26,7 @@ describe("editor/review", () => {
         review: SPINE_DIGEST_EDITOR_SCOPES.review,
         reviewGuide: SPINE_DIGEST_EDITOR_SCOPES.reviewGuide,
       },
-      "English",
+      Language.English,
     );
 
     const reviewers = await reviewer.generateClueReviewers([
@@ -59,7 +60,7 @@ describe("editor/review", () => {
         review: SPINE_DIGEST_EDITOR_SCOPES.review,
         reviewGuide: SPINE_DIGEST_EDITOR_SCOPES.reviewGuide,
       },
-      "English",
+      Language.English,
     );
 
     const result = await reviewer.reviewCompression(

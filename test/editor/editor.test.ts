@@ -18,6 +18,7 @@ import {
   SPINE_DIGEST_EDITOR_SCOPES,
   SpineDigestScope,
 } from "../../src/common/llm-scope.js";
+import { Language } from "../../src/common/language.js";
 import type {
   ChunkRecord,
   FragmentGroupRecord,
@@ -133,7 +134,7 @@ describe("editor/editor", () => {
       maxIterations: 3,
       scopes: SPINE_DIGEST_EDITOR_SCOPES,
       serialId: 1,
-      userLanguage: "English",
+      userLanguage: Language.English,
       workspace: document,
     });
 

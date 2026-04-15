@@ -1,6 +1,8 @@
-import { detect, validateISO2 } from "tinyld";
-
-import { getLanguageDetectionCode, type Language } from "../common/language.js";
+import {
+  detectLanguageCode,
+  getLanguageDetectionCode,
+} from "../common/tinyld-language.js";
+import { type Language } from "../common/language.js";
 import { ReviewSeverity, type ReviewResult } from "./types.js";
 
 export interface LanguageReview {
@@ -18,10 +20,6 @@ export function checkOutputLanguage(input: {
   }
 
   const targetLanguageCode = getLanguageDetectionCode(input.userLanguage);
-
-  if (targetLanguageCode === "") {
-    return undefined;
-  }
 
   const detectedLanguageCode = detectLanguageCode(input.compressedText);
 
@@ -47,39 +45,4 @@ export function checkOutputLanguage(input: {
     },
     targetLanguageCode,
   };
-}
-
-function detectLanguageCode(text: string): string | undefined {
-  const normalizedText = text.trim();
-
-  if (normalizedText === "") {
-    return undefined;
-  }
-
-  try {
-    return normalizeLanguageCode(detect(normalizedText));
-  } catch {
-    return undefined;
-  }
-}
-
-function normalizeLanguageCode(languageCode: string): string | undefined {
-  const normalizedLanguageCode = languageCode.trim().toLowerCase();
-  const directLanguageCode = validateISO2(normalizedLanguageCode);
-
-  if (directLanguageCode !== "") {
-    return directLanguageCode;
-  }
-
-  const baseLanguageCode = normalizedLanguageCode.split("-")[0];
-
-  if (baseLanguageCode === undefined) {
-    return undefined;
-  }
-
-  const validatedBaseLanguageCode = validateISO2(baseLanguageCode);
-
-  return validatedBaseLanguageCode === ""
-    ? undefined
-    : validatedBaseLanguageCode;
 }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { LANGUAGES } from "../src/index.js";
+import { Language } from "../src/index.js";
 
 describe("test framework", () => {
   it("runs a hello world smoke test", () => {
-    expect(LANGUAGES).toContain("English");
+    expect(Object.values(Language)).toContain(Language.English);
   });
 });

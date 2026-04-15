@@ -1,24 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  ENGLISH,
-  LANGUAGES,
-  SIMPLIFIED_CHINESE,
-  getLanguageDetectionCode,
-  getLanguageTag,
-} from "../../src/common/language.js";
+import { Language } from "../../src/common/language.js";
+import { getLanguageDetectionCode } from "../../src/common/tinyld-language.js";
 
 describe("common/language", () => {
   it("exposes a stable language list", () => {
-    expect(LANGUAGES).toContain(ENGLISH);
-    expect(LANGUAGES).toContain(SIMPLIFIED_CHINESE);
-    expect(new Set(LANGUAGES).size).toBe(LANGUAGES.length);
+    const languages = Object.values(Language);
+
+    expect(languages).toContain(Language.English);
+    expect(languages).toContain(Language.SimplifiedChinese);
+    expect(new Set(languages).size).toBe(languages.length);
   });
 
-  it("maps languages to tags and detection codes", () => {
-    expect(getLanguageTag(ENGLISH)).toBe("en");
-    expect(getLanguageTag(SIMPLIFIED_CHINESE)).toBe("zh-CN");
-    expect(getLanguageDetectionCode(ENGLISH)).toBe("en");
-    expect(getLanguageDetectionCode(SIMPLIFIED_CHINESE)).toBe("zh");
+  it("maps languages to detection codes", () => {
+    expect(getLanguageDetectionCode(Language.English)).toBe("en");
+    expect(getLanguageDetectionCode(Language.SimplifiedChinese)).toBe("zh");
   });
 });
