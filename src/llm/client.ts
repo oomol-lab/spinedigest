@@ -18,7 +18,11 @@ import { createHash } from "../utils/hash.js";
 import { LLMCache } from "./cache.js";
 import { LLMContext, type LLMContextRequestInput } from "./context.js";
 import { createRequestLog } from "./request-log.js";
-import { getScopeDefaults, resolveSamplingSetting } from "./sampling.js";
+import {
+  createDefaultSamplingConfig,
+  getScopeDefaults,
+  resolveSamplingSetting,
+} from "./sampling.js";
 import type {
   LLMessage,
   LLMModel,
@@ -73,7 +77,13 @@ export class LLM<S extends string> {
     const timeoutMs = timeout * 1000;
     const temperature = options.temperature ?? 0.6;
     const topP = options.topP ?? 0.6;
-    const sampling = options.sampling;
+    const sampling = createDefaultSamplingConfig({
+      sampling: options.sampling,
+      ...(options.temperature === undefined
+        ? {}
+        : { temperature: options.temperature }),
+      ...(options.topP === undefined ? {} : { topP: options.topP }),
+    });
     const stream = options.stream ?? false;
     const modelInfo = resolveModelInfo(options.model);
 
@@ -86,7 +96,7 @@ export class LLM<S extends string> {
       ...(modelInfo.provider === undefined
         ? {}
         : { provider: modelInfo.provider }),
-      ...(sampling === undefined ? {} : { sampling }),
+      ...(options.sampling === undefined ? {} : { sampling: options.sampling }),
     });
     this.#cache = createCache(options.cacheDirPath);
     this.#logDirPath = ensureDirectoryPath(options.logDirPath);

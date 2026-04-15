@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createDefaultSamplingConfig,
   getScopeDefaults,
   resolveSamplingSetting,
   resolveTemperatureSetting,
@@ -43,6 +44,62 @@ describe("llm/sampling", () => {
     ).toStrictEqual({
       temperature: 0.4,
       topP: 0.9,
+    });
+  });
+
+  it("builds built-in scope defaults from the legacy profiles", () => {
+    const sampling = createDefaultSamplingConfig();
+
+    expect(
+      getScopeDefaults(
+        "serial-generation/editor-compress",
+        sampling,
+        0.6,
+        0.6,
+      ),
+    ).toStrictEqual({
+      temperature: 0.7,
+      topP: 0.9,
+    });
+    expect(
+      getScopeDefaults(
+        "serial-generation/reader-extraction",
+        sampling,
+        0.6,
+        0.6,
+      ),
+    ).toStrictEqual({
+      temperature: [0.3, 0.95],
+      topP: [0.4, 0.8],
+    });
+  });
+
+  it("replaces matching values across all scopes when global overrides exist", () => {
+    const sampling = createDefaultSamplingConfig({
+      temperature: 0.2,
+    });
+
+    expect(
+      getScopeDefaults(
+        "serial-generation/editor-compress",
+        sampling,
+        0.6,
+        0.6,
+      ),
+    ).toStrictEqual({
+      temperature: 0.2,
+      topP: 0.9,
+    });
+    expect(
+      getScopeDefaults(
+        "serial-generation/reader-choice",
+        sampling,
+        0.6,
+        0.6,
+      ),
+    ).toStrictEqual({
+      temperature: 0.2,
+      topP: [0.4, 0.8],
     });
   });
 });

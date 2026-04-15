@@ -103,4 +103,75 @@ describe("llm/client", () => {
     expect(aiMockState.generateTextCalls).toHaveLength(0);
     expect(aiMockState.streamTextCalls).toHaveLength(1);
   });
+
+  it("uses built-in scope sampling defaults", async () => {
+    const llm = new LLM({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+    });
+
+    await llm.request(
+      [
+        {
+          content: "hello",
+          role: "user",
+        },
+      ],
+      {
+        scope: "serial-generation/editor-compress",
+      },
+    );
+
+    expect(aiMockState.generateTextCalls).toHaveLength(1);
+    expect(
+      aiMockState.generateTextCalls[0] as {
+        readonly temperature: number;
+        readonly topP: number;
+      },
+    ).toMatchObject({
+      temperature: 0.7,
+      topP: 0.9,
+    });
+  });
+
+  it("replaces scope values when global overrides are provided", async () => {
+    const llm = new LLM({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+      temperature: 0.2,
+    });
+
+    await llm.request(
+      [
+        {
+          content: "hello",
+          role: "user",
+        },
+      ],
+      {
+        retryIndex: 1,
+        retryMax: 2,
+        scope: "serial-generation/reader-extraction",
+      },
+    );
+
+    expect(aiMockState.generateTextCalls).toHaveLength(1);
+    expect(
+      aiMockState.generateTextCalls[0] as {
+        readonly temperature: number;
+        readonly topP: number;
+      },
+    ).toMatchObject({
+      temperature: 0.2,
+    });
+    expect(
+      (aiMockState.generateTextCalls[0] as { readonly topP: number }).topP,
+    ).toBeCloseTo(0.6);
+  });
 });
