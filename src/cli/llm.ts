@@ -37,6 +37,9 @@ export function buildLLMOptions(config: CLIConfig): SpineDigestLLMOptions {
     ...(config.request?.retryTimes === undefined
       ? {}
       : { retryTimes: config.request.retryTimes }),
+    ...(config.request?.stream === undefined
+      ? {}
+      : { stream: config.request.stream }),
     ...(config.request?.temperature === undefined
       ? {}
       : { temperature: config.request.temperature }),

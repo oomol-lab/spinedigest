@@ -66,6 +66,7 @@ describe("cli/config", () => {
               concurrent: 2,
               retryIntervalSeconds: 1.5,
               retryTimes: 3,
+              stream: false,
               temperature: [0.2, 0.4],
               timeout: 12,
               topP: 0.8,
@@ -86,6 +87,7 @@ describe("cli/config", () => {
       process.env.SPINEDIGEST_REQUEST_CONCURRENT = "5";
       process.env.SPINEDIGEST_REQUEST_RETRY_INTERVAL_SECONDS = "2.5";
       process.env.SPINEDIGEST_REQUEST_RETRY_TIMES = "4";
+      process.env.SPINEDIGEST_REQUEST_STREAM = "true";
       process.env.SPINEDIGEST_REQUEST_TEMPERATURE = "[0.3,0.6]";
       process.env.SPINEDIGEST_REQUEST_TIMEOUT = "30";
       process.env.SPINEDIGEST_REQUEST_TOP_P = "0.9";
@@ -107,6 +109,7 @@ describe("cli/config", () => {
           concurrent: 5,
           retryIntervalSeconds: 2.5,
           retryTimes: 4,
+          stream: true,
           temperature: [0.3, 0.6],
           timeout: 30,
           topP: 0.9,
@@ -180,6 +183,13 @@ describe("cli/config", () => {
 
     await expect(loadCLIConfig()).rejects.toThrow(
       "SPINEDIGEST_REQUEST_TEMPERATURE must be a number or JSON number array.",
+    );
+
+    delete process.env.SPINEDIGEST_REQUEST_TEMPERATURE;
+    process.env.SPINEDIGEST_REQUEST_STREAM = "maybe";
+
+    await expect(loadCLIConfig()).rejects.toThrow(
+      "SPINEDIGEST_REQUEST_STREAM must be true/false or 1/0.",
     );
   });
 });

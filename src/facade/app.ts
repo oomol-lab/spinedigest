@@ -38,6 +38,7 @@ export interface SpineDigestLLMOptions {
   readonly model: LanguageModel;
   readonly retryIntervalSeconds?: number;
   readonly retryTimes?: number;
+  readonly stream?: boolean;
   readonly temperature?: number | readonly number[];
   readonly timeout?: number;
   readonly topP?: number | readonly number[];

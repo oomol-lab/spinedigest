@@ -5,6 +5,7 @@ import { setTimeout as sleep } from "timers/promises";
 import {
   APICallError,
   generateText,
+  streamText,
   type LanguageModel,
   type ModelMessage,
 } from "ai";
@@ -50,6 +51,7 @@ export class LLM<S extends string> {
   readonly #retryIntervalSeconds: number;
   readonly #retryTimes: number;
   readonly #sampling: SamplingScopeConfig<S> | undefined;
+  readonly #stream: boolean;
   readonly #templateEnvironment: Environment;
   readonly #temperature: TemperatureSetting;
   readonly #timeoutMs: number;
@@ -59,6 +61,7 @@ export class LLM<S extends string> {
     provider?: string;
     modelId: string;
     sampling?: SamplingScopeConfig<S>;
+    stream: boolean;
     timeout: number;
     temperature: TemperatureSetting;
     topP: TemperatureSetting;
@@ -71,11 +74,13 @@ export class LLM<S extends string> {
     const temperature = options.temperature ?? 0.6;
     const topP = options.topP ?? 0.6;
     const sampling = options.sampling;
+    const stream = options.stream ?? false;
     const modelInfo = resolveModelInfo(options.model);
 
     this.config = Object.freeze({
       modelId: modelInfo.modelId,
       temperature,
+      stream,
       timeout,
       topP,
       ...(modelInfo.provider === undefined
@@ -93,6 +98,7 @@ export class LLM<S extends string> {
     this.#retryIntervalSeconds = options.retryIntervalSeconds ?? 6;
     this.#retryTimes = options.retryTimes ?? 5;
     this.#sampling = sampling;
+    this.#stream = stream;
     this.#templateEnvironment = createEnv(options.dataDirPath);
     this.#temperature = temperature;
     this.#timeoutMs = timeoutMs;
@@ -247,9 +253,18 @@ export class LLM<S extends string> {
             generationInput.topP = resolvedTopP;
           }
 
-          const result = await generateText(generationInput);
+          if (this.#stream) {
+            const textChunks: string[] = [];
+            const result = streamText(generationInput);
 
-          return result.text;
+            for await (const chunk of result.textStream) {
+              textChunks.push(chunk);
+            }
+            return textChunks.join("");
+          } else {
+            const result = await generateText(generationInput);
+            return result.text;
+          }
         });
 
         await requestLog.append(`[[Response]]:\n${response}\n\n`);

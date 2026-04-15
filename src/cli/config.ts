@@ -36,6 +36,7 @@ const cliConfigSchema = z.object({
       concurrent: z.number().int().positive().optional(),
       retryIntervalSeconds: z.number().positive().optional(),
       retryTimes: z.number().int().min(0).optional(),
+      stream: z.boolean().optional(),
       temperature: samplingSettingSchema.optional(),
       timeout: z.number().positive().optional(),
       topP: samplingSettingSchema.optional(),
@@ -63,6 +64,7 @@ export interface CLIConfig {
     readonly concurrent?: number;
     readonly retryIntervalSeconds?: number;
     readonly retryTimes?: number;
+    readonly stream?: boolean;
     readonly temperature?: number | readonly number[];
     readonly timeout?: number;
     readonly topP?: number | readonly number[];
@@ -133,6 +135,13 @@ export async function loadCLIConfig(): Promise<CLIConfig> {
         "SPINEDIGEST_REQUEST_RETRY_TIMES",
       ),
       fileConfig.request?.retryTimes,
+    ),
+    stream: firstDefined(
+      parseOptionalBoolean(
+        process.env.SPINEDIGEST_REQUEST_STREAM,
+        "SPINEDIGEST_REQUEST_STREAM",
+      ),
+      fileConfig.request?.stream,
     ),
     temperature: firstDefined(
       parseOptionalSamplingSetting(
@@ -308,6 +317,27 @@ function parseOptionalPositiveNumber(
   return parsed;
 }
 
+function parseOptionalBoolean(
+  value: string | undefined,
+  name: string,
+): boolean | undefined {
+  const normalized = normalizeString(value)?.toLowerCase();
+
+  if (normalized === undefined) {
+    return undefined;
+  }
+
+  if (normalized === "true" || normalized === "1") {
+    return true;
+  }
+
+  if (normalized === "false" || normalized === "0") {
+    return false;
+  }
+
+  throw new Error(`${name} must be true/false or 1/0.`);
+}
+
 function parseOptionalSamplingSetting(
   value: string | undefined,
   name: string,
@@ -394,6 +424,7 @@ function createRequestConfig(input: {
   readonly concurrent: number | undefined;
   readonly retryIntervalSeconds: number | undefined;
   readonly retryTimes: number | undefined;
+  readonly stream: boolean | undefined;
   readonly temperature: number | readonly number[] | undefined;
   readonly timeout: number | undefined;
   readonly topP: number | readonly number[] | undefined;
@@ -402,6 +433,7 @@ function createRequestConfig(input: {
     input.concurrent === undefined &&
     input.retryIntervalSeconds === undefined &&
     input.retryTimes === undefined &&
+    input.stream === undefined &&
     input.temperature === undefined &&
     input.timeout === undefined &&
     input.topP === undefined
@@ -415,6 +447,7 @@ function createRequestConfig(input: {
       ? {}
       : { retryIntervalSeconds: input.retryIntervalSeconds }),
     ...(input.retryTimes === undefined ? {} : { retryTimes: input.retryTimes }),
+    ...(input.stream === undefined ? {} : { stream: input.stream }),
     ...(input.temperature === undefined
       ? {}
       : { temperature: input.temperature }),

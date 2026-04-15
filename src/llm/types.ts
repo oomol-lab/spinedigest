@@ -29,6 +29,7 @@ export interface LLMOptions<S extends string> {
   readonly logDirPath?: string;
   readonly cacheDirPath?: string;
   readonly concurrent?: number;
+  readonly stream?: boolean;
   readonly timeout?: number;
   readonly temperature?: TemperatureSetting;
   readonly topP?: TemperatureSetting;
