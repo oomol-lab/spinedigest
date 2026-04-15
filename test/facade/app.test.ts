@@ -137,6 +137,7 @@ describe("facade/app", () => {
       llm: {
         cacheDirPath: "/tmp/cache",
         model: fakeModel as never,
+        stream: true,
         temperature: 0.3,
       },
     });
@@ -159,6 +160,7 @@ describe("facade/app", () => {
       readonly cacheDirPath: string;
       readonly dataDirPath: string;
       readonly model: unknown;
+      readonly stream: boolean;
       readonly temperature: number;
     };
 
@@ -166,6 +168,7 @@ describe("facade/app", () => {
     expect(isAbsolute(llmOptions.dataDirPath)).toBe(true);
     expect(basename(llmOptions.dataDirPath)).toBe("data");
     expect(llmOptions.model).toBe(fakeModel);
+    expect(llmOptions.stream).toBe(true);
     expect(llmOptions.temperature).toBe(0.3);
     expect(appMockState.digestCalls.text).toHaveLength(1);
     const digestCall = appMockState.digestCalls.text[0] as {
