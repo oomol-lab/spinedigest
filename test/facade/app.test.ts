@@ -47,6 +47,7 @@ vi.mock("../../src/facade/digest.js", () => ({
   ),
 }));
 
+import { SpineDigestScope } from "../../src/common/llm-scope.js";
 import { DirectoryDocument } from "../../src/document/index.js";
 import { SpineDigest } from "../../src/facade/spine-digest.js";
 import { SpineDigestApp } from "../../src/index.js";
@@ -102,11 +103,22 @@ describe("facade/app", () => {
     const llmOptions = appMockState.llmOptions[0] as {
       readonly dataDirPath: string;
       readonly model: unknown;
+      readonly sampling: Record<
+        string,
+        {
+          readonly temperature: number | readonly number[];
+          readonly topP: number | readonly number[];
+        }
+      >;
     };
 
     expect(isAbsolute(llmOptions.dataDirPath)).toBe(true);
     expect(basename(llmOptions.dataDirPath)).toBe("data");
     expect(llmOptions.model).toBe(fakeModel);
+    expect(llmOptions.sampling[SpineDigestScope.EditorCompress]).toStrictEqual({
+      temperature: 0.7,
+      topP: 0.9,
+    });
     expect(appMockState.digestCalls.txt).toHaveLength(1);
     const digestCall = appMockState.digestCalls.txt[0] as {
       readonly documentDirPath: string;
@@ -160,6 +172,13 @@ describe("facade/app", () => {
       readonly cacheDirPath: string;
       readonly dataDirPath: string;
       readonly model: unknown;
+      readonly sampling: Record<
+        string,
+        {
+          readonly temperature: number | readonly number[];
+          readonly topP: number | readonly number[];
+        }
+      >;
       readonly stream: boolean;
       readonly temperature: number;
     };
@@ -170,6 +189,16 @@ describe("facade/app", () => {
     expect(llmOptions.model).toBe(fakeModel);
     expect(llmOptions.stream).toBe(true);
     expect(llmOptions.temperature).toBe(0.3);
+    expect(llmOptions.sampling[SpineDigestScope.EditorCompress]).toStrictEqual({
+      temperature: 0.3,
+      topP: 0.9,
+    });
+    expect(
+      llmOptions.sampling[SpineDigestScope.EditorReviewGuide],
+    ).toStrictEqual({
+      temperature: 0.3,
+      topP: 0.6,
+    });
     expect(appMockState.digestCalls.textStream).toHaveLength(1);
     const digestCall = appMockState.digestCalls.textStream[0] as {
       readonly bookLanguage: string;

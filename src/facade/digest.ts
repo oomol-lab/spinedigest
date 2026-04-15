@@ -12,6 +12,7 @@ import {
 } from "../source/index.js";
 import { DirectoryDocument } from "../document/index.js";
 import type { Language } from "../common/language.js";
+import type { SpineDigestScope } from "../common/llm-scope.js";
 import {
   createDigestProgressTracker,
   type SpineDigestProgressCallback,
@@ -26,7 +27,7 @@ import { SpineDigest } from "./spine-digest.js";
 interface DigestSessionOptions {
   readonly documentDirPath?: string;
   readonly extractionPrompt: string;
-  readonly llm: LLM<string>;
+  readonly llm: LLM<SpineDigestScope>;
   readonly logDirPath?: string;
   readonly onProgress?: SpineDigestProgressCallback;
   readonly segmenter?: ReaderSegmenter;

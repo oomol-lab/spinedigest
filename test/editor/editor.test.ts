@@ -14,6 +14,10 @@ import type {
   ReadonlyDocument,
   ReadonlySerialFragments,
 } from "../../src/document/index.js";
+import {
+  SPINE_DIGEST_EDITOR_SCOPES,
+  SpineDigestScope,
+} from "../../src/common/llm-scope.js";
 import type {
   ChunkRecord,
   FragmentGroupRecord,
@@ -39,24 +43,20 @@ describe("editor/editor", () => {
   });
 
   it("throws when neither document nor workspace is provided", async () => {
-    const llm = new ScriptedLLM<"compress" | "review" | "guide">([]);
+    const llm = new ScriptedLLM<SpineDigestScope>([]);
 
     await expect(
       compressText({
         groupId: 1,
         llm: llm as never,
-        scopes: {
-          compress: "compress",
-          review: "review",
-          reviewGuide: "guide",
-        },
+        scopes: SPINE_DIGEST_EDITOR_SCOPES,
         serialId: 1,
       }),
     ).rejects.toThrow("Editor requires a document");
   });
 
   it("returns an empty string when the target group has no fragments", async () => {
-    const llm = new ScriptedLLM<"compress" | "review" | "guide">([]);
+    const llm = new ScriptedLLM<SpineDigestScope>([]);
     const document = createDocument({
       chunkIdsBySnakeId: {},
       chunksById: {},
@@ -70,11 +70,7 @@ describe("editor/editor", () => {
       document,
       groupId: 1,
       llm: llm as never,
-      scopes: {
-        compress: "compress",
-        review: "review",
-        reviewGuide: "guide",
-      },
+      scopes: SPINE_DIGEST_EDITOR_SCOPES,
       serialId: 1,
     });
 
@@ -83,7 +79,7 @@ describe("editor/editor", () => {
   });
 
   it("iterates with reviewer history and language correction before selecting the best version", async () => {
-    const llm = new ScriptedLLM<"compress" | "review" | "guide">([
+    const llm = new ScriptedLLM<SpineDigestScope>([
       "Keep chronology intact.",
       [
         "Planning notes",
@@ -135,11 +131,7 @@ describe("editor/editor", () => {
       groupId: 1,
       llm: llm as never,
       maxIterations: 3,
-      scopes: {
-        compress: "compress",
-        review: "review",
-        reviewGuide: "guide",
-      },
+      scopes: SPINE_DIGEST_EDITOR_SCOPES,
       serialId: 1,
       userLanguage: "English",
       workspace: document,
@@ -155,11 +147,13 @@ describe("editor/editor", () => {
       CLUE_REVIEWER_PROMPT_TEMPLATE,
     ]);
     expect(llm.calls).toHaveLength(5);
-    expect(llm.calls[0]?.options.scope).toBe("guide");
-    expect(llm.calls[1]?.options.scope).toBe("compress");
-    expect(llm.calls[2]?.options.scope).toBe("review");
-    expect(llm.calls[3]?.options.scope).toBe("compress");
-    expect(llm.calls[4]?.options.scope).toBe("review");
+    expect(llm.calls[0]?.options.scope).toBe(
+      SpineDigestScope.EditorReviewGuide,
+    );
+    expect(llm.calls[1]?.options.scope).toBe(SpineDigestScope.EditorCompress);
+    expect(llm.calls[2]?.options.scope).toBe(SpineDigestScope.EditorReview);
+    expect(llm.calls[3]?.options.scope).toBe(SpineDigestScope.EditorCompress);
+    expect(llm.calls[4]?.options.scope).toBe(SpineDigestScope.EditorReview);
     expect(llm.calls[3]?.messages.map((message) => message.role)).toStrictEqual(
       ["system", "user", "assistant", "user"],
     );

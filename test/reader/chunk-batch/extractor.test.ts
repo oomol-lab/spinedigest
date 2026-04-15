@@ -10,6 +10,10 @@ vi.mock("tinyld", () => ({
   validateISO2: validateISO2Mock,
 }));
 
+import {
+  SPINE_DIGEST_READER_SCOPES,
+  SpineDigestScope,
+} from "../../../src/common/llm-scope.js";
 import { ChunkImportance } from "../../../src/document/index.js";
 import { ChunkExtractor } from "../../../src/reader/chunk-batch/extractor.js";
 import {
@@ -31,7 +35,7 @@ describe("reader/chunk-batch/extractor", () => {
   });
 
   it("extracts user-focused chunks through the scripted llm protocol", async () => {
-    const llm = new ScriptedLLM<"choice" | "extract">([
+    const llm = new ScriptedLLM<SpineDigestScope>([
       JSON.stringify({
         chunks: [
           {
@@ -46,13 +50,10 @@ describe("reader/chunk-batch/extractor", () => {
         links: [],
       }),
     ]);
-    const extractor = new ChunkExtractor({
+    const extractor = new ChunkExtractor<SpineDigestScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: {
-        choice: "choice",
-        extraction: "extract",
-      },
+      scopes: SPINE_DIGEST_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -99,12 +100,12 @@ describe("reader/chunk-batch/extractor", () => {
       EVIDENCE_CHOICE_PROMPT_TEMPLATE,
     );
     expect(llm.calls).toHaveLength(1);
-    expect(llm.calls[0]?.options.scope).toBe("extract");
+    expect(llm.calls[0]?.options.scope).toBe(SpineDigestScope.ReaderExtraction);
     expect(llm.calls[0]?.viaContext).toBe(true);
   });
 
   it("extracts book-coherence chunks with valid importance annotations", async () => {
-    const llm = new ScriptedLLM<"choice" | "extract">([
+    const llm = new ScriptedLLM<SpineDigestScope>([
       JSON.stringify({
         chunks: [
           {
@@ -124,13 +125,10 @@ describe("reader/chunk-batch/extractor", () => {
         links: [],
       }),
     ]);
-    const extractor = new ChunkExtractor({
+    const extractor = new ChunkExtractor<SpineDigestScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: {
-        choice: "choice",
-        extraction: "extract",
-      },
+      scopes: SPINE_DIGEST_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -205,16 +203,13 @@ describe("reader/chunk-batch/extractor", () => {
       fragment_summary: "ignored",
       links: [],
     });
-    const llm = new ScriptedLLM<"choice" | "extract">(
+    const llm = new ScriptedLLM<SpineDigestScope>(
       Array.from({ length: 8 }, () => invalidResponse),
     );
-    const extractor = new ChunkExtractor({
+    const extractor = new ChunkExtractor<SpineDigestScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: {
-        choice: "choice",
-        extraction: "extract",
-      },
+      scopes: SPINE_DIGEST_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -247,7 +242,7 @@ describe("reader/chunk-batch/extractor", () => {
   });
 
   it("translates extracted chunks when the requested language differs", async () => {
-    const llm = new ScriptedLLM<"choice" | "extract">([
+    const llm = new ScriptedLLM<SpineDigestScope>([
       JSON.stringify({
         chunks: [
           {
@@ -269,13 +264,10 @@ describe("reader/chunk-batch/extractor", () => {
         },
       ]),
     ]);
-    const extractor = new ChunkExtractor({
+    const extractor = new ChunkExtractor<SpineDigestScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: {
-        choice: "choice",
-        extraction: "extract",
-      },
+      scopes: SPINE_DIGEST_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -303,13 +295,13 @@ describe("reader/chunk-batch/extractor", () => {
       TRANSLATE_CHUNKS_PROMPT_TEMPLATE,
     );
     expect(llm.calls).toHaveLength(2);
-    expect(llm.calls[1]?.options.scope).toBe("extract");
+    expect(llm.calls[1]?.options.scope).toBe(SpineDigestScope.ReaderExtraction);
     expect(llm.calls[1]?.viaContext).toBe(false);
   });
 
   it("skips translation when the extracted chunks already match the target language", async () => {
     detectMock.mockReturnValue("en");
-    const llm = new ScriptedLLM<"choice" | "extract">([
+    const llm = new ScriptedLLM<SpineDigestScope>([
       JSON.stringify({
         chunks: [
           {
@@ -324,13 +316,10 @@ describe("reader/chunk-batch/extractor", () => {
         links: [],
       }),
     ]);
-    const extractor = new ChunkExtractor({
+    const extractor = new ChunkExtractor<SpineDigestScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: {
-        choice: "choice",
-        extraction: "extract",
-      },
+      scopes: SPINE_DIGEST_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -368,7 +357,7 @@ describe("reader/chunk-batch/extractor", () => {
         label: "Greeting",
       },
     ]);
-    const llm = new ScriptedLLM<"choice" | "extract">([
+    const llm = new ScriptedLLM<SpineDigestScope>([
       JSON.stringify({
         chunks: [
           {
@@ -394,13 +383,10 @@ describe("reader/chunk-batch/extractor", () => {
       invalidTranslation,
       invalidTranslation,
     ]);
-    const extractor = new ChunkExtractor({
+    const extractor = new ChunkExtractor<SpineDigestScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: {
-        choice: "choice",
-        extraction: "extract",
-      },
+      scopes: SPINE_DIGEST_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },

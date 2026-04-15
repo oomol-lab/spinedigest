@@ -49,6 +49,7 @@ vi.mock("ai", () => ({
   }),
 }));
 
+import { SpineDigestScope } from "../../src/common/llm-scope.js";
 import { LLM } from "../../src/llm/client.js";
 
 describe("llm/client", () => {
@@ -102,5 +103,44 @@ describe("llm/client", () => {
     expect(llm.config.stream).toBe(true);
     expect(aiMockState.generateTextCalls).toHaveLength(0);
     expect(aiMockState.streamTextCalls).toHaveLength(1);
+  });
+
+  it("uses explicit scoped sampling defaults provided by the caller", async () => {
+    const llm = new LLM<SpineDigestScope.EditorCompress>({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+      sampling: {
+        [SpineDigestScope.EditorCompress]: {
+          temperature: 0.7,
+          topP: 0.9,
+        },
+      },
+    });
+
+    await llm.request(
+      [
+        {
+          content: "hello",
+          role: "user",
+        },
+      ],
+      {
+        scope: SpineDigestScope.EditorCompress,
+      },
+    );
+
+    expect(aiMockState.generateTextCalls).toHaveLength(1);
+    expect(
+      aiMockState.generateTextCalls[0] as {
+        readonly temperature: number;
+        readonly topP: number;
+      },
+    ).toMatchObject({
+      temperature: 0.7,
+      topP: 0.9,
+    });
   });
 });

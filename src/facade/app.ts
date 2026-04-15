@@ -2,6 +2,7 @@ import type { LanguageModel } from "ai";
 
 import { resolveDataDirPath } from "../common/data-dir.js";
 import type { Language } from "../common/language.js";
+import type { SpineDigestScope } from "../common/llm-scope.js";
 import { withLoggingContext } from "../common/logging.js";
 import { LLM } from "../llm/index.js";
 import type {
@@ -23,6 +24,7 @@ import {
   type DigestSourceSessionOptions,
   type DigestTextStreamSessionOptions,
 } from "./digest.js";
+import { createDefaultSpineDigestSampling } from "./llm-sampling.js";
 import { SpineDigestFile } from "./spine-digest-file.js";
 import type { SpineDigest } from "./spine-digest.js";
 
@@ -71,19 +73,28 @@ export interface SpineDigestTextStreamSessionOptions extends DigestDocumentSessi
 
 export class SpineDigestApp {
   readonly #debugLogDirPath: string | undefined;
-  readonly #llm: LLM<string> | undefined;
+  readonly #llm: LLM<SpineDigestScope> | undefined;
   readonly #verbose: boolean;
 
   public constructor(options: SpineDigestAppOptions) {
     this.#debugLogDirPath = options.debugLogDirPath;
     this.#verbose = options.verbose ?? false;
-    this.#llm =
-      options.llm === undefined
-        ? undefined
-        : new LLM({
-            dataDirPath: DATA_DIR_PATH,
-            ...normalizeLLMOptions(options.llm),
-          });
+    if (options.llm === undefined) {
+      this.#llm = undefined;
+      return;
+    }
+    const llmOptions = normalizeLLMOptions(options.llm);
+
+    this.#llm = new LLM<SpineDigestScope>({
+      dataDirPath: DATA_DIR_PATH,
+      sampling: createDefaultSpineDigestSampling({
+        ...(llmOptions.temperature === undefined
+          ? {}
+          : { temperature: llmOptions.temperature }),
+        ...(llmOptions.topP === undefined ? {} : { topP: llmOptions.topP }),
+      }),
+      ...llmOptions,
+    });
   }
 
   public async digestEpubSession<T>(
@@ -197,7 +208,7 @@ export class SpineDigestApp {
     };
   }
 
-  #requireLLM(): LLM<string> {
+  #requireLLM(): LLM<SpineDigestScope> {
     if (this.#llm === undefined) {
       throw new Error(
         "LLM is required for digest operations. Configure `llm` when constructing SpineDigestApp.",
