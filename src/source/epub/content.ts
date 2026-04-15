@@ -48,46 +48,34 @@ export interface EpubSectionTarget {
   readonly fragment: string | undefined;
 }
 
-export class EpubContentCache {
+export class EpubContentLoader {
   readonly #archive: EpubArchive;
-  readonly #targetsByPath: ReadonlyMap<string, readonly EpubSectionTarget[]>;
-  readonly #cache = new Map<string, Promise<ReadonlyMap<string, string>>>();
+  readonly #targetsBySectionId: ReadonlyMap<
+    string,
+    {
+      readonly path: string;
+      readonly targets: readonly EpubSectionTarget[];
+    }
+  >;
 
   public constructor(
     archive: EpubArchive,
     targetsByPath: ReadonlyMap<string, readonly EpubSectionTarget[]>,
   ) {
     this.#archive = archive;
-    this.#targetsByPath = targetsByPath;
+    this.#targetsBySectionId = createTargetsBySectionId(targetsByPath);
   }
 
   public async openSection(sectionId: string): Promise<SourceTextStream> {
-    const entry = [...this.#targetsByPath.entries()].find(([, targets]) =>
-      targets.some((target) => target.id === sectionId),
-    );
-    if (entry === undefined) {
+    const target = this.#targetsBySectionId.get(sectionId);
+
+    if (target === undefined) {
       return [];
     }
 
-    const [path, targets] = entry;
-    const sections = await this.#getParsedSections(path, targets);
+    const sections = await this.#parseSections(target.path, target.targets);
 
     return [sections.get(sectionId) ?? ""];
-  }
-
-  async #getParsedSections(
-    path: string,
-    targets: readonly EpubSectionTarget[],
-  ): Promise<ReadonlyMap<string, string>> {
-    const cached = this.#cache.get(path);
-    if (cached !== undefined) {
-      return await cached;
-    }
-
-    const parsing = this.#parseSections(path, targets);
-    this.#cache.set(path, parsing);
-
-    return await parsing;
   }
 
   async #parseSections(
@@ -99,6 +87,32 @@ export class EpubContentCache {
 
     return await parseHtmlSections(stream, targets);
   }
+}
+
+function createTargetsBySectionId(
+  targetsByPath: ReadonlyMap<string, readonly EpubSectionTarget[]>,
+): ReadonlyMap<
+  string,
+  {
+    readonly path: string;
+    readonly targets: readonly EpubSectionTarget[];
+  }
+> {
+  const targetsBySectionId = new Map<
+    string,
+    {
+      readonly path: string;
+      readonly targets: readonly EpubSectionTarget[];
+    }
+  >();
+
+  for (const [path, targets] of targetsByPath.entries()) {
+    for (const target of targets) {
+      targetsBySectionId.set(target.id, { path, targets });
+    }
+  }
+
+  return targetsBySectionId;
 }
 
 async function parseHtmlSections(

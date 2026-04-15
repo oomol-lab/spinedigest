@@ -234,67 +234,112 @@ export class SerialGeneration {
     );
     const allChunks: ReaderChunk[] = [];
     const successorIdsByChunkId = createNumberListRecord();
-    const fragments = await collectFragments({
+    let finalFragment:
+      | {
+          readonly sentences: ReadonlyArray<{
+            readonly text: string;
+            readonly wordsCount: number;
+          }>;
+          readonly wordsCount: number;
+        }
+      | undefined;
+
+    for await (const fragment of streamFragments({
       maxWordsCount: this.#fragmentWordsCount,
       stream: reader.segment(stream),
-    });
-    const totalWords = fragments.reduce(
-      (sum, fragment) => sum + fragment.wordsCount,
-      0,
-    );
-
-    await progressTracker?.begin({
-      fragments: fragments.length,
-      words: totalWords,
-    });
-
-    for (const [index, fragment] of fragments.entries()) {
-      const serialFragments = this.#getSerialFragments(serialId);
-      const fragmentDraft = await serialFragments.createDraft();
-      const sentences = fragment.sentences.map((sentence) => ({
-        sentenceId: fragmentDraft.addSentence(
-          sentence.text,
-          sentence.wordsCount,
-        ),
-        text: sentence.text,
-        wordsCount: sentence.wordsCount,
-      }));
-      const fragmentText = sentences.map((sentence) => sentence.text).join(" ");
-      const userFocused = await reader.extractUserFocused({
-        sentences,
-        text: fragmentText,
-      });
-
-      if (userFocused.fragmentSummary.trim() !== "") {
-        fragmentDraft.setSummary(userFocused.fragmentSummary);
+    })) {
+      if (finalFragment !== undefined) {
+        await this.#processFragment({
+          allChunks,
+          fragment: finalFragment,
+          progressTracker,
+          reader,
+          serialId,
+          successorIdsByChunkId,
+          topology,
+        });
+        await progressTracker?.advance(finalFragment.wordsCount);
       }
 
-      const bookCoherence = await reader.extractBookCoherence({
-        sentences,
-        text: fragmentText,
-        userFocusedChunks: userFocused.delta.chunks,
-      });
+      finalFragment = {
+        sentences: fragment.sentences,
+        wordsCount: countFragmentWords(fragment.sentences),
+      };
+    }
 
-      await fragmentDraft.commit();
-      saveDelta(allChunks, successorIdsByChunkId, topology, userFocused.delta);
-      saveDelta(allChunks, successorIdsByChunkId, topology, bookCoherence);
-      reader.completeFragment({
+    if (finalFragment !== undefined) {
+      await this.#processFragment({
         allChunks,
-        getSuccessorChunkIds: (chunkId) =>
-          successorIdsByChunkId[String(chunkId)] ?? [],
+        fragment: finalFragment,
+        reader,
+        serialId,
+        successorIdsByChunkId,
+        topology,
       });
-
-      if (index < fragments.length - 1) {
-        await progressTracker?.advance(fragment.wordsCount);
-        continue;
-      }
-
-      setFinalWordsCount?.(fragment.wordsCount);
+      setFinalWordsCount?.(finalFragment.wordsCount);
     }
 
     await this.#writeSemaphore.use(async () => {
       await topology.finalize();
       await this.#serials.setTopologyReady(serialId);
+    });
+  }
+
+  async #processFragment(input: {
+    readonly allChunks: ReaderChunk[];
+    readonly fragment: {
+      readonly sentences: ReadonlyArray<{
+        readonly text: string;
+        readonly wordsCount: number;
+      }>;
+      readonly wordsCount: number;
+    };
+    readonly progressTracker?: SerialProgressTracker;
+    readonly reader: Reader<SpineDigestScope>;
+    readonly serialId: number;
+    readonly successorIdsByChunkId: Record<string, number[] | undefined>;
+    readonly topology: Topology;
+  }): Promise<void> {
+    const serialFragments = this.#getSerialFragments(input.serialId);
+    const fragmentDraft = await serialFragments.createDraft();
+    const sentences = input.fragment.sentences.map((sentence) => ({
+      sentenceId: fragmentDraft.addSentence(sentence.text, sentence.wordsCount),
+      text: sentence.text,
+      wordsCount: sentence.wordsCount,
+    }));
+    const fragmentText = sentences.map((sentence) => sentence.text).join(" ");
+    const userFocused = await input.reader.extractUserFocused({
+      sentences,
+      text: fragmentText,
+    });
+
+    if (userFocused.fragmentSummary.trim() !== "") {
+      fragmentDraft.setSummary(userFocused.fragmentSummary);
+    }
+
+    const bookCoherence = await input.reader.extractBookCoherence({
+      sentences,
+      text: fragmentText,
+      userFocusedChunks: userFocused.delta.chunks,
+    });
+
+    await fragmentDraft.commit();
+    saveDelta(
+      input.allChunks,
+      input.successorIdsByChunkId,
+      input.topology,
+      userFocused.delta,
+    );
+    saveDelta(
+      input.allChunks,
+      input.successorIdsByChunkId,
+      input.topology,
+      bookCoherence,
+    );
+    input.reader.completeFragment({
+      allChunks: input.allChunks,
+      getSuccessorChunkIds: (chunkId) =>
+        input.successorIdsByChunkId[String(chunkId)] ?? [],
     });
   }
 
@@ -548,38 +593,11 @@ async function* streamFragments(input: {
   }
 }
 
-async function collectFragments(input: {
-  maxWordsCount: number;
-  stream: AsyncIterable<{
+function countFragmentWords(
+  sentences: ReadonlyArray<{
     readonly text: string;
     readonly wordsCount: number;
-  }>;
-}): Promise<
-  ReadonlyArray<{
-    readonly sentences: ReadonlyArray<{
-      readonly text: string;
-      readonly wordsCount: number;
-    }>;
-    readonly wordsCount: number;
-  }>
-> {
-  const fragments: Array<{
-    readonly sentences: ReadonlyArray<{
-      readonly text: string;
-      readonly wordsCount: number;
-    }>;
-    readonly wordsCount: number;
-  }> = [];
-
-  for await (const fragment of streamFragments(input)) {
-    fragments.push({
-      sentences: fragment.sentences,
-      wordsCount: fragment.sentences.reduce(
-        (sum, sentence) => sum + sentence.wordsCount,
-        0,
-      ),
-    });
-  }
-
-  return fragments;
+  }>,
+): number {
+  return sentences.reduce((sum, sentence) => sum + sentence.wordsCount, 0);
 }

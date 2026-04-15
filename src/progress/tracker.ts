@@ -46,8 +46,14 @@ export class DigestProgressTracker {
     });
   }
 
-  public async completeSerial(words: number): Promise<void> {
-    this.#completedWords += words;
+  public async completeSerial(input: {
+    readonly completedWords: number;
+    readonly discoveredWords?: number;
+  }): Promise<void> {
+    this.#completedWords += input.completedWords;
+    if (input.discoveredWords !== undefined) {
+      this.#totalWords += input.discoveredWords;
+    }
     await this.#reporter.emit({
       completedWords: this.#completedWords,
       totalWords: this.#totalWords,
@@ -75,6 +81,7 @@ export class SerialProgressTracker {
   #completedWords = 0;
   readonly #id: number;
   #started = false;
+  #totalsKnown = false;
   #totalFragments = 0;
   #totalWords = 0;
 
@@ -88,6 +95,7 @@ export class SerialProgressTracker {
     readonly words: number;
   }): Promise<void> {
     this.#started = true;
+    this.#totalsKnown = true;
     this.#totalFragments = input.fragments;
     this.#totalWords = input.words;
     await this.#digestTracker.discoverSerial({
@@ -98,9 +106,7 @@ export class SerialProgressTracker {
   }
 
   public async advance(wordsCount: number): Promise<void> {
-    if (!this.#started) {
-      throw new Error("Serial progress has not started");
-    }
+    this.#started = true;
 
     this.#completedWords += wordsCount;
     this.#completedFragments += 1;
@@ -112,16 +118,18 @@ export class SerialProgressTracker {
   }
 
   public async complete(finalWordsCount = 0): Promise<void> {
-    if (!this.#started) {
-      throw new Error("Serial progress has not started");
-    }
+    this.#started = true;
 
     this.#completedWords += finalWordsCount;
-    if (this.#completedFragments < this.#totalFragments) {
+    if (
+      this.#totalsKnown
+        ? this.#completedFragments < this.#totalFragments
+        : this.#completedWords > 0
+    ) {
       this.#completedFragments += 1;
     }
 
-    if (this.#completedWords > this.#totalWords) {
+    if (this.#totalsKnown && this.#completedWords > this.#totalWords) {
       throw new Error(`Serial ${this.#id} completed beyond its total words`);
     }
 
@@ -130,7 +138,10 @@ export class SerialProgressTracker {
       completedWords: this.#completedWords,
       id: this.#id,
     });
-    await this.#digestTracker.completeSerial(this.#totalWords);
+    await this.#digestTracker.completeSerial({
+      completedWords: this.#totalsKnown ? this.#totalWords : this.#completedWords,
+      ...(this.#totalsKnown ? {} : { discoveredWords: this.#completedWords }),
+    });
   }
 }
 
