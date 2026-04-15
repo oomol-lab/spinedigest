@@ -23,4 +23,3 @@ export enum Language {
   Turkish = "Turkish",
   Vietnamese = "Vietnamese",
 }
-
