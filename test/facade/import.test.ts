@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DirectoryDocument } from "../../src/document/index.js";
 import type { SourceDocument } from "../../src/source/adapter.js";
+import { createDigestProgressTracker } from "../../src/progress/index.js";
 import type {
   BookMeta,
   SourceAsset,
@@ -20,6 +21,23 @@ const serialMockState = vi.hoisted(() => ({
 }));
 
 vi.mock("../../src/serial.js", () => ({
+  discoverSerial: async (input: {
+    readonly stream: AsyncIterable<string> | Iterable<string>;
+  }) => {
+    let streamText = "";
+
+    for await (const chunk of input.stream) {
+      streamText += chunk;
+    }
+
+    return {
+      fragments: streamText.trim() === "" ? 0 : 1,
+      words: streamText
+        .trim()
+        .split(/\s+/)
+        .filter((value) => value !== "").length,
+    };
+  },
   SerialGeneration: class {
     readonly #document: DirectoryDocument;
 
@@ -234,6 +252,70 @@ describe("facade/import", () => {
     });
   });
 
+  it("discovers all serials before generation and reopens sections for import", async () => {
+    await withTempDir("spinedigest-import-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+      const openCounts = new Map<string, number>();
+      const events: unknown[] = [];
+
+      try {
+        await importSourceDocument(
+          createSourceDocument({
+            meta: createBookMeta({
+              title: "Discovery Fixture",
+            }),
+            sections: [
+              createSourceSection({
+                hasContent: true,
+                openCounts,
+                streamText: "alpha beta",
+                title: "Chapter 1",
+              }),
+              createSourceSection({
+                hasContent: true,
+                openCounts,
+                streamText: "gamma delta epsilon",
+                title: "Chapter 2",
+              }),
+            ],
+          }),
+          {
+            digestProgressTracker: createDigestProgressTracker({
+              onProgress: (event) => {
+                events.push(event);
+              },
+              operation: "digest-txt",
+            }),
+            document,
+            extractionPrompt: "Keep key beats",
+            llm: {} as never,
+          },
+        );
+
+        expect(events).toContainEqual({
+          available: true,
+          serials: [
+            {
+              fragments: 1,
+              id: 1,
+              words: 2,
+            },
+            {
+              fragments: 1,
+              id: 2,
+              words: 3,
+            },
+          ],
+          type: "serials-discovered",
+        });
+        expect(openCounts.get("Chapter 1")).toBe(2);
+        expect(openCounts.get("Chapter 2")).toBe(2);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("rejects imports when the target document already has content", async () => {
     await withTempDir("spinedigest-import-", async (path) => {
       const sourceDocument = createSourceDocument({
@@ -326,15 +408,31 @@ function createSourceDocument(input: {
 function createSourceSection(input: {
   readonly children?: readonly SourceSection[];
   readonly hasContent: boolean;
+  readonly openCounts?: Map<string, number>;
   readonly streamText?: string;
   readonly title?: string;
 }): SourceSection {
+  const id = crypto.randomUUID();
+
   return {
     children: input.children ?? [],
     hasContent: input.hasContent,
-    id: crypto.randomUUID(),
-    open: () =>
-      Promise.resolve(input.streamText === undefined ? [] : [input.streamText]),
+    id,
+    open: () => {
+      if (input.openCounts !== undefined) {
+        input.openCounts.set(id, (input.openCounts.get(id) ?? 0) + 1);
+        if (input.title !== undefined) {
+          input.openCounts.set(
+            input.title,
+            (input.openCounts.get(input.title) ?? 0) + 1,
+          );
+        }
+      }
+
+      return Promise.resolve(
+        input.streamText === undefined ? [] : [input.streamText],
+      );
+    },
     title: input.title,
   };
 }

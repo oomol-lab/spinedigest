@@ -1,5 +1,6 @@
 import { createProgressReporter, type ProgressReporter } from "./reporter.js";
 import type {
+  SerialDiscoveryItem,
   SpineDigestOperation,
   SpineDigestProgressCallback,
 } from "./types.js";
@@ -13,6 +14,7 @@ export class DigestProgressTracker {
   readonly #reporter: ProgressReporter;
   #completedWords = 0;
   #totalWords = 0;
+  #discoverySettled = false;
 
   public constructor(options: CreateDigestProgressTrackerOptions) {
     this.#reporter = createProgressReporter(
@@ -27,38 +29,38 @@ export class DigestProgressTracker {
     return new SerialProgressTracker(this, input.id);
   }
 
-  public async discoverSerial(input: {
-    readonly fragments: number;
-    readonly id: number;
-    readonly words: number;
-  }): Promise<void> {
-    this.#totalWords += input.words;
+  public async discoverSerials(
+    serials: readonly SerialDiscoveryItem[],
+  ): Promise<void> {
+    this.#ensureDiscoveryOpen();
+    this.#discoverySettled = true;
+    this.#totalWords = serials.reduce((sum, serial) => sum + serial.words, 0);
+
     await this.#reporter.emit({
-      fragments: input.fragments,
-      id: input.id,
-      type: "serial-discovered",
-      words: input.words,
+      available: true,
+      serials,
+      type: "serials-discovered",
     });
+    await this.#emitDigestProgress();
+  }
+
+  public async markDiscoveryUnavailable(): Promise<void> {
+    this.#ensureDiscoveryOpen();
+    this.#discoverySettled = true;
+
     await this.#reporter.emit({
-      completedWords: this.#completedWords,
-      totalWords: this.#totalWords,
-      type: "digest-progress",
+      available: false,
+      serials: [],
+      type: "serials-discovered",
     });
   }
 
-  public async completeSerial(input: {
-    readonly completedWords: number;
-    readonly discoveredWords?: number;
-  }): Promise<void> {
-    this.#completedWords += input.completedWords;
-    if (input.discoveredWords !== undefined) {
-      this.#totalWords += input.discoveredWords;
+  public async completeSerial(words: number): Promise<void> {
+    this.#completedWords += words;
+    if (this.#completedWords > this.#totalWords) {
+      this.#totalWords = this.#completedWords;
     }
-    await this.#reporter.emit({
-      completedWords: this.#completedWords,
-      totalWords: this.#totalWords,
-      type: "digest-progress",
-    });
+    await this.#emitDigestProgress();
   }
 
   public async emitSerialProgress(input: {
@@ -73,6 +75,20 @@ export class DigestProgressTracker {
       type: "serial-progress",
     });
   }
+
+  async #emitDigestProgress(): Promise<void> {
+    await this.#reporter.emit({
+      completedWords: this.#completedWords,
+      totalWords: this.#totalWords,
+      type: "digest-progress",
+    });
+  }
+
+  #ensureDiscoveryOpen(): void {
+    if (this.#discoverySettled) {
+      throw new Error("Serial discovery has already been reported");
+    }
+  }
 }
 
 export class SerialProgressTracker {
@@ -80,34 +96,18 @@ export class SerialProgressTracker {
   readonly #digestTracker: DigestProgressTracker;
   #completedWords = 0;
   readonly #id: number;
-  #started = false;
-  #totalsKnown = false;
-  #totalFragments = 0;
-  #totalWords = 0;
 
   public constructor(digestTracker: DigestProgressTracker, id: number) {
     this.#digestTracker = digestTracker;
     this.#id = id;
   }
 
-  public async begin(input: {
+  public async begin(_input?: {
     readonly fragments: number;
     readonly words: number;
-  }): Promise<void> {
-    this.#started = true;
-    this.#totalsKnown = true;
-    this.#totalFragments = input.fragments;
-    this.#totalWords = input.words;
-    await this.#digestTracker.discoverSerial({
-      fragments: input.fragments,
-      id: this.#id,
-      words: this.#totalWords,
-    });
-  }
+  }): Promise<void> {}
 
   public async advance(wordsCount: number): Promise<void> {
-    this.#started = true;
-
     this.#completedWords += wordsCount;
     this.#completedFragments += 1;
     await this.#digestTracker.emitSerialProgress({
@@ -118,19 +118,9 @@ export class SerialProgressTracker {
   }
 
   public async complete(finalWordsCount = 0): Promise<void> {
-    this.#started = true;
-
     this.#completedWords += finalWordsCount;
-    if (
-      this.#totalsKnown
-        ? this.#completedFragments < this.#totalFragments
-        : this.#completedWords > 0
-    ) {
+    if (this.#completedWords > 0) {
       this.#completedFragments += 1;
-    }
-
-    if (this.#totalsKnown && this.#completedWords > this.#totalWords) {
-      throw new Error(`Serial ${this.#id} completed beyond its total words`);
     }
 
     await this.#digestTracker.emitSerialProgress({
@@ -138,10 +128,7 @@ export class SerialProgressTracker {
       completedWords: this.#completedWords,
       id: this.#id,
     });
-    await this.#digestTracker.completeSerial({
-      completedWords: this.#totalsKnown ? this.#totalWords : this.#completedWords,
-      ...(this.#totalsKnown ? {} : { discoveredWords: this.#completedWords }),
-    });
+    await this.#digestTracker.completeSerial(this.#completedWords);
   }
 }
 

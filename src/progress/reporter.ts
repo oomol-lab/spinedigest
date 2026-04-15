@@ -2,7 +2,6 @@ import { getLogger } from "../common/logging.js";
 
 import type {
   DigestProgressEvent,
-  SerialDiscoveredEvent,
   SerialProgressEvent,
   SpineDigestOperation,
   SpineDigestProgressCallback,
@@ -63,12 +62,19 @@ function buildLogBindings(
   event: SpineDigestProgressEvent,
 ): Record<string, number> {
   switch (event.type) {
-    case "serial-discovered":
+    case "serials-discovered":
       return {
-        fragments: event.fragments,
-        id: event.id,
-        words: event.words,
-      } satisfies Record<keyof Omit<SerialDiscoveredEvent, "type">, number>;
+        available: Number(event.available),
+        serials: event.serials.length,
+        totalFragments: event.serials.reduce(
+          (sum, serial) => sum + serial.fragments,
+          0,
+        ),
+        totalWords: event.serials.reduce(
+          (sum, serial) => sum + serial.words,
+          0,
+        ),
+      } satisfies Record<string, number>;
     case "serial-progress":
       return {
         completedFragments: event.completedFragments,
@@ -85,8 +91,10 @@ function buildLogBindings(
 
 function buildLogMessage(event: SpineDigestProgressEvent): string {
   switch (event.type) {
-    case "serial-discovered":
-      return `Discovered serial ${event.id}`;
+    case "serials-discovered":
+      return event.available
+        ? `Discovered ${event.serials.length} serials`
+        : "Serial discovery unavailable";
     case "serial-progress":
       return `Serial ${event.id} progressed`;
     case "digest-progress":

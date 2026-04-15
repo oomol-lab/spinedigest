@@ -1,5 +1,8 @@
+import { Readable } from "stream";
+
 import { describe, expect, it } from "vitest";
 
+import { EpubContentLoader } from "../../src/source/epub/content.js";
 import { EPUB_SOURCE_ADAPTER } from "../../src/source/index.js";
 import {
   collectSectionTitles,
@@ -69,5 +72,39 @@ describe("source/epub", () => {
         expect(stormLedgerText).toContain("west stair sounded hollow");
       },
     );
+  });
+
+  it("reopens the underlying xhtml entry for repeated section reads", async () => {
+    let openReadStreamCount = 0;
+    const loader = new EpubContentLoader(
+      {
+        openReadStream: () => {
+          openReadStreamCount += 1;
+          return Promise.resolve(
+            Readable.from(["<html><body><p>Alpha beta.</p></body></html>"]),
+          );
+        },
+      } as never,
+      new Map([
+        [
+          "chapter.xhtml",
+          [
+            {
+              fragment: undefined,
+              id: "chapter.xhtml",
+              path: "chapter.xhtml",
+            },
+          ],
+        ],
+      ]),
+    );
+
+    expect(
+      await readStreamText(await loader.openSection("chapter.xhtml")),
+    ).toBe("Alpha beta.");
+    expect(
+      await readStreamText(await loader.openSection("chapter.xhtml")),
+    ).toBe("Alpha beta.");
+    expect(openReadStreamCount).toBe(2);
   });
 });

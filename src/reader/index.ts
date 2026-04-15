@@ -1,4 +1,5 @@
 export { Reader } from "./reader.js";
+export { segmentTextStream } from "./segment/segment.js";
 export type {
   ReaderChunk,
   ReaderGraphDelta,

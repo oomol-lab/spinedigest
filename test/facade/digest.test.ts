@@ -232,13 +232,17 @@ describe("facade/digest", () => {
 
   it("emits discovered and progress events for text-stream digest", async () => {
     const events: Array<{
+      readonly available?: boolean;
       readonly completedFragments?: number;
       readonly completedWords?: number;
-      readonly fragments?: number;
+      readonly serials?: readonly {
+        readonly fragments: number;
+        readonly id: number;
+        readonly words: number;
+      }[];
       readonly id?: number;
       readonly totalWords?: number;
       readonly type: string;
-      readonly words?: number;
     }> = [];
 
     await withTempDir("spinedigest-digest-", async () => {
@@ -248,12 +252,11 @@ describe("facade/digest", () => {
           llm: {} as never,
           onProgress: (event) => {
             switch (event.type) {
-              case "serial-discovered":
+              case "serials-discovered":
                 events.push({
-                  fragments: event.fragments,
-                  id: event.id,
+                  available: event.available,
+                  serials: event.serials,
                   type: event.type,
-                  words: event.words,
                 });
                 return;
               case "serial-progress":
@@ -280,12 +283,7 @@ describe("facade/digest", () => {
     });
 
     expect(events).toStrictEqual([
-      { fragments: 1, id: 1, type: "serial-discovered", words: 2 },
-      {
-        completedWords: 0,
-        type: "digest-progress",
-        totalWords: 2,
-      },
+      { available: false, serials: [], type: "serials-discovered" },
       {
         completedFragments: 1,
         completedWords: 2,

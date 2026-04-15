@@ -91,6 +91,7 @@ export async function digestTextStreamSession<T>(
       const serialProgressTracker = progressTracker.createSerialTracker({
         id: serialId,
       });
+      await progressTracker.markDiscoveryUnavailable();
 
       const generation = new SerialGeneration({
         document: openedDocument,

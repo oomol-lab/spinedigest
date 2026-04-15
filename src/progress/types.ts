@@ -4,11 +4,16 @@ export type SpineDigestOperation =
   | "digest-text-stream"
   | "digest-txt";
 
-export interface SerialDiscoveredEvent {
-  readonly type: "serial-discovered";
+export interface SerialDiscoveryItem {
   readonly id: number;
   readonly fragments: number;
   readonly words: number;
+}
+
+export interface SerialsDiscoveredEvent {
+  readonly type: "serials-discovered";
+  readonly available: boolean;
+  readonly serials: readonly SerialDiscoveryItem[];
 }
 
 export interface SerialProgressEvent {
@@ -27,7 +32,7 @@ export interface DigestProgressEvent {
 export type SpineDigestProgressEventType = SpineDigestProgressEvent["type"];
 
 export type SpineDigestProgressEvent =
-  | SerialDiscoveredEvent
+  | SerialsDiscoveredEvent
   | SerialProgressEvent
   | DigestProgressEvent;
 

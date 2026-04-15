@@ -28,7 +28,7 @@ import type {
   SnakeEdgeRecord,
   SnakeRecord,
 } from "./document/index.js";
-import { Reader } from "./reader/index.js";
+import { Reader, segmentTextStream } from "./reader/index.js";
 import type {
   ReaderChunk,
   ReaderGraphDelta,
@@ -51,6 +51,14 @@ export interface GenerateSerialOptions {
   readonly userLanguage?: Language;
 }
 
+export interface SerialDiscovery {
+  readonly fragments: number;
+  readonly words: number;
+}
+
+type ReaderProgressScope =
+  (typeof SPINE_DIGEST_READER_SCOPES)[keyof typeof SPINE_DIGEST_READER_SCOPES];
+
 export type CreateSerialOptions = GenerateSerialOptions;
 
 export interface SerialGenerationOptions {
@@ -63,6 +71,29 @@ export interface SerialGenerationOptions {
 }
 
 export type SerialHubOptions = SerialGenerationOptions;
+
+export async function discoverSerial(input: {
+  readonly segmenter?: ReaderSegmenter;
+  readonly stream: ReaderTextStream;
+}): Promise<SerialDiscovery> {
+  let fragments = 0;
+  let words = 0;
+
+  for await (const fragment of streamFragments({
+    maxWordsCount: DEFAULT_FRAGMENT_WORDS_COUNT,
+    stream: segmentTextStream(input.stream, {
+      ...(input.segmenter === undefined ? {} : { adapter: input.segmenter }),
+    }),
+  })) {
+    fragments += 1;
+    words += countFragmentWords(fragment.sentences);
+  }
+
+  return {
+    fragments,
+    words,
+  };
+}
 
 export class SerialGeneration {
   readonly #chunks: ChunkStore;
@@ -252,7 +283,6 @@ export class SerialGeneration {
         await this.#processFragment({
           allChunks,
           fragment: finalFragment,
-          progressTracker,
           reader,
           serialId,
           successorIdsByChunkId,
@@ -294,8 +324,7 @@ export class SerialGeneration {
       }>;
       readonly wordsCount: number;
     };
-    readonly progressTracker?: SerialProgressTracker;
-    readonly reader: Reader<SpineDigestScope>;
+    readonly reader: Reader<ReaderProgressScope>;
     readonly serialId: number;
     readonly successorIdsByChunkId: Record<string, number[] | undefined>;
     readonly topology: Topology;

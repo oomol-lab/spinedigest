@@ -487,10 +487,15 @@ async function emitMockProgress(options: unknown): Promise<void> {
   }
 
   await onProgress({
-    fragments: 6,
-    id: 1,
-    type: "serial-discovered",
-    words: 4800,
+    available: true,
+    serials: [
+      {
+        fragments: 6,
+        id: 1,
+        words: 4800,
+      },
+    ],
+    type: "serials-discovered",
   });
   await onProgress({
     completedWords: 0,

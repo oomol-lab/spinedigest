@@ -78,9 +78,9 @@ Digest session options accept an optional `onProgress` callback.
 
 The callback reports three event shapes during digest generation:
 
-- `serial-discovered`, which reports a serial id plus its fragment count and total word count
+- `serials-discovered`, which reports all discovered serial ids plus their fragment counts and total word counts in one batch; when discovery cannot be done up front, it is emitted once with `available: false` and an empty `serials` array
 - `serial-progress`, which reports completed word count and completed fragment count for a specific serial id
-- `digest-progress`, which reports completed word count against the current total discovered word count
+- `digest-progress`, which reports completed word count against the current known total word count
 
 ## What `SpineDigest` Can Do
 

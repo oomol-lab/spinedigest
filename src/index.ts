@@ -1,6 +1,7 @@
 export { LANGUAGES, type Language } from "./common/language.js";
 export {
   type DigestProgressEvent,
+  type SerialDiscoveryItem,
   SpineDigest,
   SpineDigestApp,
   type SpineDigestAppOptions,
@@ -10,7 +11,7 @@ export {
   type SpineDigestProgressEvent,
   type SpineDigestProgressEventType,
   type SpineDigestOperation,
-  type SerialDiscoveredEvent,
+  type SerialsDiscoveredEvent,
   type SerialProgressEvent,
   type SpineDigestSourceSessionOptions,
   type SpineDigestTextStreamSessionOptions,

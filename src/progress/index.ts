@@ -7,7 +7,8 @@ export {
 export { createProgressReporter, ProgressReporter } from "./reporter.js";
 export type {
   DigestProgressEvent,
-  SerialDiscoveredEvent,
+  SerialDiscoveryItem,
+  SerialsDiscoveredEvent,
   SerialProgressEvent,
   SpineDigestOperation,
   SpineDigestProgressCallback,
