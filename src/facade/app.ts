@@ -17,11 +17,11 @@ import type {
 import {
   digestEpubSession,
   digestMarkdownSession,
-  digestTextSession,
+  digestTextStreamSession,
   digestTxtSession,
   type DigestDocumentSessionOptions,
   type DigestSourceSessionOptions,
-  type DigestTextSessionOptions,
+  type DigestTextStreamSessionOptions,
 } from "./digest.js";
 import { SpineDigestFile } from "./spine-digest-file.js";
 import type { SpineDigest } from "./spine-digest.js";
@@ -59,7 +59,7 @@ export interface SpineDigestSourceSessionOptions extends DigestDocumentSessionOp
   readonly userLanguage?: Language;
 }
 
-export interface SpineDigestTextSessionOptions extends DigestDocumentSessionOptions {
+export interface SpineDigestTextStreamSessionOptions extends DigestDocumentSessionOptions {
   readonly bookLanguage?: string | null;
   readonly extractionPrompt?: string;
   readonly onProgress?: SpineDigestProgressCallback;
@@ -111,14 +111,14 @@ export class SpineDigestApp {
     );
   }
 
-  public async digestTextSession<T>(
-    options: SpineDigestTextSessionOptions,
+  public async digestTextStreamSession<T>(
+    options: SpineDigestTextStreamSessionOptions,
     operation: (digest: SpineDigest) => Promise<T> | T,
   ): Promise<T> {
     return await this.#withLogging(
-      "digest-text",
+      "digest-text-stream",
       async () =>
-        await digestTextSession(
+        await digestTextStreamSession(
           {
             extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
             llm: this.#requireLLM(),
@@ -142,7 +142,7 @@ export class SpineDigestApp {
             ...(options.userLanguage === undefined
               ? {}
               : { userLanguage: options.userLanguage }),
-          } satisfies DigestTextSessionOptions,
+          } satisfies DigestTextStreamSessionOptions,
           operation,
         ),
     );

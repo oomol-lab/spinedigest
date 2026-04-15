@@ -67,7 +67,7 @@ const { SpineDigestApp } = require("spinedigest");
 - `digestEpubSession`
 - `digestMarkdownSession`
 - `digestTxtSession`
-- `digestTextSession`
+- `digestTextStreamSession`
 - `openSession`
 
 `openSession` 面向已有的 `.sdpub` 归档，不需要重新执行一轮新的 digest。

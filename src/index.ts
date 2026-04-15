@@ -13,5 +13,5 @@ export {
   type SerialDiscoveredEvent,
   type SerialProgressEvent,
   type SpineDigestSourceSessionOptions,
-  type SpineDigestTextSessionOptions,
+  type SpineDigestTextStreamSessionOptions,
 } from "./facade/index.js";
