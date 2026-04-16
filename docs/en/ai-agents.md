@@ -93,3 +93,4 @@ Environment variable overrides are supported and are often better for secrets.
 
 - [Quick Start](./quickstart.md)
 - [CLI Reference](./cli.md)
+- [The `.sdpub` Format](../sdpub.md)
