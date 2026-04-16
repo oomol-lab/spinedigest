@@ -2,6 +2,7 @@ import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  GuaranteedEmptyResponseError,
   GuaranteedParseValidationError,
   ParsedJsonError,
   SuspectedModelRefusalError,
@@ -60,6 +61,30 @@ describe("guaranteed/request", () => {
         schema,
       }),
     ).rejects.toBeInstanceOf(SuspectedModelRefusalError);
+  });
+
+  it("retries empty responses and fails with an empty-response error", async () => {
+    const request = vi
+      .fn<
+        (
+          messages: readonly LLMessage[],
+          retryIndex: number,
+          retryMax: number,
+        ) => Promise<string | undefined>
+      >()
+      .mockResolvedValueOnce("")
+      .mockResolvedValueOnce(undefined);
+
+    await expect(
+      requestGuaranteedJson({
+        maxRetries: 1,
+        messages: [],
+        parse: (data) => data.value,
+        request,
+        schema,
+      }),
+    ).rejects.toBeInstanceOf(GuaranteedEmptyResponseError);
+    expect(request).toHaveBeenCalledTimes(2);
   });
 
   it("throws a parse validation error after exhausting retries", async () => {

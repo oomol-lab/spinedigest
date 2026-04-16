@@ -5,7 +5,7 @@ export type GuaranteedRequest = (
   messages: readonly LLMessage[],
   index: number,
   maxRetries: number,
-) => Promise<string>;
+) => Promise<string | undefined>;
 
 export type GuaranteedParser<TData, TResult> = (
   data: TData,

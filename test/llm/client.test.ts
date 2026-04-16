@@ -1,19 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const aiMockState = vi.hoisted(() => ({
+  generateTextResponse: "generated response",
   generateTextCalls: [] as unknown[],
+  generateTextError: undefined as Error | undefined,
   streamTextCalls: [] as unknown[],
 }));
 
 vi.mock("ai", () => ({
   APICallError: class extends Error {
+    public readonly isRetryable: boolean;
+    public readonly statusCode: number | undefined;
+
+    public constructor(
+      message: string,
+      options: {
+        cause?: unknown;
+        isRetryable?: boolean;
+        statusCode?: number;
+      } = {},
+    ) {
+      super(message, options);
+      this.name = "AI_APICallError";
+      this.isRetryable = options.isRetryable ?? false;
+      this.statusCode = options.statusCode;
+    }
+
     public static isInstance(error: unknown): boolean {
       return error instanceof this;
     }
   },
   generateText: vi.fn((input: unknown) => {
     aiMockState.generateTextCalls.push(input);
-    return Promise.resolve({ text: "generated response" });
+
+    if (aiMockState.generateTextError !== undefined) {
+      return Promise.reject(aiMockState.generateTextError);
+    }
+
+    return Promise.resolve({ text: aiMockState.generateTextResponse });
   }),
   streamText: vi.fn((input: unknown) => {
     aiMockState.streamTextCalls.push(input);
@@ -54,7 +78,9 @@ import { LLM } from "../../src/llm/client.js";
 
 describe("llm/client", () => {
   beforeEach(() => {
+    aiMockState.generateTextResponse = "generated response";
     aiMockState.generateTextCalls.length = 0;
+    aiMockState.generateTextError = undefined;
     aiMockState.streamTextCalls.length = 0;
   });
 
@@ -142,5 +168,80 @@ describe("llm/client", () => {
       temperature: 0.7,
       topP: 0.9,
     });
+  });
+
+  it("treats an empty string response as a successful result", async () => {
+    aiMockState.generateTextResponse = "";
+
+    const llm = new LLM({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+    });
+
+    await expect(
+      llm.request([
+        {
+          content: "hello",
+          role: "user",
+        },
+      ]),
+    ).resolves.toBe("");
+    expect(aiMockState.generateTextCalls).toHaveLength(1);
+  });
+
+  it("preserves the last retry error as the request cause", async () => {
+    const { APICallError } = await import("ai");
+    const MockAPICallError = APICallError as unknown as {
+      new (
+        message: string,
+        options?: {
+          cause?: unknown;
+          isRetryable?: boolean;
+          statusCode?: number;
+        },
+      ): Error;
+    };
+    const tlsError = Object.assign(
+      new Error(
+        "Client network socket disconnected before secure TLS connection was established",
+      ),
+      {
+        code: "ECONNRESET",
+      },
+    );
+
+    aiMockState.generateTextError = new MockAPICallError(
+      "Cannot connect to API",
+      {
+        cause: tlsError,
+        isRetryable: true,
+      },
+    );
+
+    const llm = new LLM({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+      retryIntervalSeconds: 0,
+    });
+
+    await expect(
+      llm.request([
+        {
+          content: "hello",
+          role: "user",
+        },
+      ]),
+    ).rejects.toMatchObject({
+      cause: aiMockState.generateTextError,
+      message:
+        "LLM request failed after 6 attempts: Cannot connect to API: Client network socket disconnected before secure TLS connection was established (ECONNRESET)",
+    });
+    expect(aiMockState.generateTextCalls).toHaveLength(6);
   });
 });

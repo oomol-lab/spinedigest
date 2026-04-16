@@ -28,8 +28,8 @@ export async function requestGuaranteedJson<TData, TResult>(
 
   for (let index = 0; index <= maxRetries; index += 1) {
     const response = await options.request(currentMessages, index, maxRetries);
-    if (response.trim() === "") {
-      if (index > maxRetries) {
+    if (response === undefined || response.trim() === "") {
+      if (index >= maxRetries) {
         throw new GuaranteedEmptyResponseError(index + 1, maxRetries);
       }
       continue;
