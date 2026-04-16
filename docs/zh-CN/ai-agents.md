@@ -93,3 +93,4 @@ SpineDigest 至少需要：
 
 - [Quick Start](./quickstart.md)
 - [CLI Reference](./cli.md)
+- [`.sdpub` 格式](../sdpub.md)
