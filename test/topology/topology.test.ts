@@ -38,6 +38,9 @@ describe("topology/topology", () => {
       saveChunk,
       saveEdge,
       saveFragmentGroups,
+      createSnake,
+      saveSnakeChunk,
+      saveSnakeEdge,
     } = createDocumentStub();
     const topology = new Topology(document, 7, 120);
 
@@ -167,16 +170,145 @@ describe("topology/topology", () => {
         serialId: 7,
       },
     ]);
+    expect(createSnake).toHaveBeenCalledTimes(1);
+    expect(createSnake).toHaveBeenCalledWith({
+      firstLabel: "Chunk 1",
+      groupId: 0,
+      lastLabel: "Chunk 2",
+      localSnakeId: 0,
+      serialId: 7,
+      size: 2,
+      weight: 13,
+      wordsCount: 10,
+    });
+    expect(saveSnakeChunk.mock.calls).toStrictEqual([
+      [
+        {
+          chunkId: 1,
+          position: 0,
+          snakeId: 1,
+        },
+      ],
+      [
+        {
+          chunkId: 2,
+          position: 1,
+          snakeId: 1,
+        },
+      ],
+    ]);
+    expect(saveSnakeEdge).not.toHaveBeenCalled();
+  });
+
+  it("creates separate snakes per group and preserves cross-group relations", async () => {
+    groupFragmentsMock.mockResolvedValue([
+      {
+        fragmentId: 1,
+        groupId: 0,
+        serialId: 7,
+      },
+      {
+        fragmentId: 2,
+        groupId: 0,
+        serialId: 7,
+      },
+      {
+        fragmentId: 3,
+        groupId: 1,
+        serialId: 7,
+      },
+    ]);
+    const { document, createSnake, saveSnakeChunk, saveSnakeEdge } =
+      createDocumentStub();
+    const topology = new Topology(document, 7, 120);
+
+    topology.accept({
+      chunks: [createReaderChunk(1, 1), createReaderChunk(2, 2), createReaderChunk(3, 3)],
+      edges: [
+        {
+          fromId: 2,
+          toId: 1,
+        },
+        {
+          fromId: 3,
+          toId: 1,
+        },
+      ],
+    });
+
+    await topology.finalize();
+
+    expect(createSnake.mock.calls).toStrictEqual([
+      [
+        {
+          firstLabel: "Chunk 1",
+          groupId: 0,
+          lastLabel: "Chunk 2",
+          localSnakeId: 0,
+          serialId: 7,
+          size: 2,
+          weight: 0,
+          wordsCount: 10,
+        },
+      ],
+      [
+        {
+          firstLabel: "Chunk 3",
+          groupId: 1,
+          lastLabel: "Chunk 3",
+          localSnakeId: 0,
+          serialId: 7,
+          size: 1,
+          weight: 0,
+          wordsCount: 5,
+        },
+      ],
+    ]);
+    expect(saveSnakeChunk.mock.calls).toStrictEqual([
+      [
+        {
+          chunkId: 1,
+          position: 0,
+          snakeId: 1,
+        },
+      ],
+      [
+        {
+          chunkId: 2,
+          position: 1,
+          snakeId: 1,
+        },
+      ],
+      [
+        {
+          chunkId: 3,
+          position: 0,
+          snakeId: 2,
+        },
+      ],
+    ]);
+    expect(saveSnakeEdge.mock.calls).toStrictEqual([
+      [
+        {
+          fromSnakeId: 2,
+          toSnakeId: 1,
+          weight: 0.1,
+        },
+      ],
+    ]);
   });
 });
 
 function createDocumentStub(): {
   readonly document: Document;
+  readonly createSnake: ReturnType<typeof vi.fn>;
   readonly ensureSerial: ReturnType<typeof vi.fn>;
   readonly getSerialFragments: () => ReadonlySerialFragments;
   readonly saveChunk: ReturnType<typeof vi.fn>;
   readonly saveEdge: ReturnType<typeof vi.fn>;
   readonly saveFragmentGroups: ReturnType<typeof vi.fn>;
+  readonly saveSnakeChunk: ReturnType<typeof vi.fn>;
+  readonly saveSnakeEdge: ReturnType<typeof vi.fn>;
 } {
   const fragments = {
     getFragment: (fragmentId: number) =>
@@ -198,10 +330,18 @@ function createDocumentStub(): {
   const saveChunk = vi.fn(() => Promise.resolve());
   const saveEdge = vi.fn(() => Promise.resolve());
   const saveFragmentGroups = vi.fn(() => Promise.resolve());
+  const createSnake = vi
+    .fn()
+    .mockResolvedValueOnce(1)
+    .mockResolvedValueOnce(2)
+    .mockResolvedValue(999);
+  const saveSnakeChunk = vi.fn(() => Promise.resolve());
+  const saveSnakeEdge = vi.fn(() => Promise.resolve());
   const ensureSerial = vi.fn(() => Promise.resolve());
   const getSerialFragments = () => fragments;
 
   return {
+    createSnake,
     document: {
       chunks: {
         save: saveChunk,
@@ -216,12 +356,23 @@ function createDocumentStub(): {
       serials: {
         ensure: ensureSerial,
       },
+      snakeChunks: {
+        save: saveSnakeChunk,
+      },
+      snakeEdges: {
+        save: saveSnakeEdge,
+      },
+      snakes: {
+        create: createSnake,
+      },
     } as unknown as Document,
     ensureSerial,
     getSerialFragments,
     saveChunk,
     saveEdge,
     saveFragmentGroups,
+    saveSnakeChunk,
+    saveSnakeEdge,
   };
 }
 
