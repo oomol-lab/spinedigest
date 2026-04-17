@@ -20,11 +20,11 @@ vi.mock("../../src/reader/segment/segment.js", () => ({
 }));
 
 import { Reader } from "../../src/reader/reader.js";
+import { Language } from "../../src/common/language.js";
 import {
   SPINE_DIGEST_READER_SCOPES,
   SpineDigestScope,
 } from "../../src/common/llm-scope.js";
-import { Language } from "../../src/common/language.js";
 import { ChunkImportance, ChunkRetention } from "../../src/document/index.js";
 import type {
   SentenceStreamAdapter,
@@ -183,7 +183,7 @@ describe("reader/reader", () => {
         ],
         text: "Beta sentence.",
         userFocusedChunks: userFocused.delta.chunks,
-        visibleChunkIds: [1],
+        visibleChunkIds: [],
         workingMemoryPrompt: "(empty)",
       },
     );
@@ -201,6 +201,11 @@ describe("reader/reader", () => {
         importance: ChunkImportance.Important,
       },
     ]);
+
+    reader.completeFragment({
+      allChunks: [...userFocused.delta.chunks, ...coherenceDelta.chunks],
+      getSuccessorChunkIds: (chunkId) => (chunkId === 1 ? [2] : []),
+    });
 
     reader.clear();
 
@@ -232,6 +237,112 @@ describe("reader/reader", () => {
       },
     );
     expect(afterClear.delta.chunks.map((chunk) => chunk.id)).toStrictEqual([3]);
+  });
+
+  it("shows the previous fragment to the next fragment user-focused stage", async () => {
+    extractUserFocusedChunkBatchMock
+      .mockResolvedValueOnce({
+        chunkBatch: {
+          chunks: [
+            createChunk(0, 0, [1, 0, 0], "Alpha", "Alpha content", {
+              retention: ChunkRetention.Focused,
+            }),
+          ],
+          links: [],
+          orderCorrect: true,
+          tempIds: ["temp-a"],
+        },
+        fragmentSummary: "Fragment summary",
+      })
+      .mockResolvedValueOnce({
+        chunkBatch: {
+          chunks: [
+            createChunk(0, 0, [1, 1, 0], "Gamma", "Gamma content", {
+              retention: ChunkRetention.Relevant,
+            }),
+          ],
+          links: [],
+          orderCorrect: true,
+          tempIds: ["temp-c"],
+        },
+        fragmentSummary: "Next fragment",
+      });
+    extractBookCoherenceChunkBatchMock
+      .mockResolvedValueOnce({
+        chunks: [
+          createChunk(0, 0, [1, 0, 1], "Beta", "Beta content", {
+            importance: ChunkImportance.Important,
+          }),
+        ],
+        links: [],
+        orderCorrect: true,
+        tempIds: ["temp-b"],
+      })
+      .mockResolvedValueOnce({
+        chunks: [],
+        links: [],
+        orderCorrect: true,
+        tempIds: [],
+      });
+
+    const reader = createReader();
+    const firstUserFocused = await reader.extractUserFocused({
+      sentences: [
+        {
+          sentenceId: [1, 0, 0],
+          text: "Alpha sentence.",
+          wordsCount: 2,
+        },
+      ],
+      text: "Alpha sentence.",
+    });
+    const firstCoherence = await reader.extractBookCoherence({
+      sentences: [
+        {
+          sentenceId: [1, 0, 1],
+          text: "Beta sentence.",
+          wordsCount: 3,
+        },
+      ],
+      text: "Beta sentence.",
+      userFocusedChunks: firstUserFocused.delta.chunks,
+    });
+
+    reader.completeFragment({
+      allChunks: [...firstUserFocused.delta.chunks, ...firstCoherence.chunks],
+      getSuccessorChunkIds: (chunkId) => (chunkId === 1 ? [2] : []),
+    });
+
+    await reader.extractUserFocused({
+      sentences: [
+        {
+          sentenceId: [1, 1, 0],
+          text: "Gamma sentence.",
+          wordsCount: 4,
+        },
+      ],
+      text: "Gamma sentence.",
+    });
+
+    expect(extractUserFocusedChunkBatchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Object),
+      {
+        sentences: [
+          {
+            sentenceId: [1, 1, 0],
+            text: "Gamma sentence.",
+            wordsCount: 4,
+          },
+        ],
+        text: "Gamma sentence.",
+        visibleChunkIds: [1, 2],
+        workingMemoryPrompt: [
+          "1. [Alpha] - Alpha content",
+          "2. [Beta] - Beta content",
+        ].join("\n"),
+      },
+    );
   });
 });
 

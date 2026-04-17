@@ -45,8 +45,12 @@ export class Attention {
   public createChunkBatchContext(input?: {
     includeCurrentFragment?: boolean;
   }): ChunkBatchContext {
+    const chunks = this.#workingMemory.getChunksForPrompt(
+      input?.includeCurrentFragment ?? true,
+    );
+
     return {
-      visibleChunkIds: this.#workingMemory.getChunks().map((chunk) => chunk.id),
+      visibleChunkIds: chunks.map((chunk) => chunk.id),
       workingMemoryPrompt: this.#workingMemory.formatForPrompt(
         input?.includeCurrentFragment ?? true,
       ),
@@ -72,9 +76,8 @@ export class Attention {
     allChunks: readonly CognitiveChunk[];
     getSuccessorChunkIds: (chunkId: number) => readonly number[];
   }): void {
-    const latestChunkIds = this.#workingMemory
-      .getAllChunksForSaving()
-      .map((chunk) => chunk.id);
+    const previousFragmentChunks = this.#workingMemory.getAllChunksForSaving();
+    const latestChunkIds = previousFragmentChunks.map((chunk) => chunk.id);
     const extraChunks = this.#waveReflection.selectTopChunks({
       allChunks: input.allChunks,
       capacity: this.#workingMemory.capacity,
@@ -82,7 +85,10 @@ export class Attention {
       latestChunkIds,
     });
 
-    this.#workingMemory.setExtraChunks(extraChunks);
+    this.#workingMemory.setRetainedChunks({
+      extraChunks,
+      previousFragmentChunks,
+    });
     this.#workingMemory.finalizeFragment();
   }
 

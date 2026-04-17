@@ -55,7 +55,7 @@ describe("reader/attention", () => {
     });
   });
 
-  it("retains reflected historical chunks after fragment completion and clears them", async () => {
+  it("keeps the previous fragment visible for one round and also retains reflected history", async () => {
     const attention = new Attention(2, 1, createIdGenerator([10, 11]));
 
     const firstDelta = await attention.acceptChunkBatch({
@@ -83,8 +83,11 @@ describe("reader/attention", () => {
     });
 
     expect(attention.createChunkBatchContext()).toStrictEqual({
-      visibleChunkIds: [10],
-      workingMemoryPrompt: "10. [Earlier] - Earlier content",
+      visibleChunkIds: [11, 10],
+      workingMemoryPrompt: [
+        "11. [Latest] - Latest content",
+        "10. [Earlier] - Earlier content",
+      ].join("\n"),
     });
 
     attention.clear();
@@ -92,6 +95,35 @@ describe("reader/attention", () => {
     expect(attention.createChunkBatchContext()).toStrictEqual({
       visibleChunkIds: [],
       workingMemoryPrompt: "(empty)",
+    });
+  });
+
+  it("keeps all latest chunks even when they exceed capacity", async () => {
+    const attention = new Attention(2, 1, createIdGenerator([10, 11, 12]));
+
+    const firstDelta = await attention.acceptChunkBatch({
+      chunks: [
+        createChunk(0, 0, [1, 0, 0], "Alpha", "Alpha content"),
+        createChunk(0, 0, [1, 0, 1], "Beta", "Beta content"),
+        createChunk(0, 0, [1, 0, 2], "Gamma", "Gamma content"),
+      ],
+      links: [],
+      orderCorrect: true,
+      tempIds: ["temp-a", "temp-b", "temp-c"],
+    });
+
+    attention.completeFragment({
+      allChunks: firstDelta.chunks,
+      getSuccessorChunkIds: () => [],
+    });
+
+    expect(attention.createChunkBatchContext()).toStrictEqual({
+      visibleChunkIds: [10, 11, 12],
+      workingMemoryPrompt: [
+        "10. [Alpha] - Alpha content",
+        "11. [Beta] - Beta content",
+        "12. [Gamma] - Gamma content",
+      ].join("\n"),
     });
   });
 });

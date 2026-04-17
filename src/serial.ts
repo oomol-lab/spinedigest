@@ -39,9 +39,9 @@ import { compressText, type EditorOptions } from "./editor/index.js";
 import { Topology } from "./topology/index.js";
 
 const DEFAULT_COMPRESSION_RATIO = 0.2;
-const DEFAULT_FRAGMENT_WORDS_COUNT = 800;
+const DEFAULT_FRAGMENT_WORDS_COUNT = 320;
 const DEFAULT_GENERATION_DECAY_FACTOR = 0.5;
-const DEFAULT_GROUP_WORDS_COUNT = 9600;
+const DEFAULT_GROUP_WORDS_COUNT = 3840;
 const DEFAULT_MAX_CLUES = 10;
 const DEFAULT_MAX_ITERATIONS = 5;
 const DEFAULT_WORKING_MEMORY_CAPACITY = 7;
