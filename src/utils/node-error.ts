@@ -16,7 +16,7 @@ export function formatError(error: unknown): string {
       continue;
     }
 
-    pushErrorMessage(messages, String(current));
+    pushErrorMessage(messages, String(current as unknown));
     break;
   }
 
