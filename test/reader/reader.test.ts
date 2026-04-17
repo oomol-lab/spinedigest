@@ -344,7 +344,6 @@ describe("reader/reader", () => {
       },
     );
   });
-
 });
 
 function createReader(input?: { readonly segmenter?: SentenceStreamAdapter }) {

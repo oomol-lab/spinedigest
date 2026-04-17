@@ -126,7 +126,6 @@ describe("reader/attention", () => {
       ].join("\n"),
     });
   });
-
 });
 
 function createChunk(
