@@ -17,7 +17,7 @@ import {
   getKnowledgeEdgeKey,
 } from "./weights.js";
 
-const DEFAULT_SNAKE_WORDS_COUNT = 700;
+const DEFAULT_SNAKE_WORDS_COUNT = 280;
 
 export class Topology {
   readonly #chunkIds: number[] = [];
