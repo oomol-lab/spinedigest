@@ -3,6 +3,7 @@ import type { CognitiveChunk } from "../chunk-batch/types.js";
 export class WorkingMemory {
   readonly #capacity: number;
   readonly #currentFragmentChunks: CognitiveChunk[] = [];
+  readonly #previousFragmentChunks: CognitiveChunk[] = [];
   readonly #extraChunks: CognitiveChunk[] = [];
   #generation = 0;
 
@@ -22,8 +23,16 @@ export class WorkingMemory {
     this.#currentFragmentChunks.push(...chunks);
   }
 
-  public setExtraChunks(extraChunks: readonly CognitiveChunk[]): void {
-    this.#extraChunks.splice(0, this.#extraChunks.length, ...extraChunks);
+  public setRetainedChunks(input: {
+    readonly extraChunks: readonly CognitiveChunk[];
+    readonly previousFragmentChunks: readonly CognitiveChunk[];
+  }): void {
+    this.#previousFragmentChunks.splice(
+      0,
+      this.#previousFragmentChunks.length,
+      ...input.previousFragmentChunks,
+    );
+    this.#extraChunks.splice(0, this.#extraChunks.length, ...input.extraChunks);
   }
 
   public finalizeFragment(): CognitiveChunk[] {
@@ -36,49 +45,38 @@ export class WorkingMemory {
   }
 
   public getChunks(): CognitiveChunk[] {
-    return [...this.#currentFragmentChunks, ...this.#extraChunks];
+    return [
+      ...this.#currentFragmentChunks,
+      ...this.#previousFragmentChunks,
+      ...this.#extraChunks,
+    ];
   }
 
   public getAllChunksForSaving(): CognitiveChunk[] {
     return [...this.#currentFragmentChunks];
   }
 
-  public formatForPrompt(includeCurrentFragment = true): string {
-    const chunks = includeCurrentFragment
+  public getChunksForPrompt(includeCurrentFragment = true): CognitiveChunk[] {
+    return includeCurrentFragment
       ? this.getChunks()
-      : [...this.#extraChunks];
+      : [...this.#previousFragmentChunks, ...this.#extraChunks];
+  }
+
+  public formatForPrompt(includeCurrentFragment = true): string {
+    const chunks = this.getChunksForPrompt(includeCurrentFragment);
 
     if (chunks.length === 0) {
       return "(empty)";
     }
 
-    const sortedChunks = [...chunks].sort((left, right) => {
-      if (left.generation !== right.generation) {
-        return left.generation - right.generation;
-      }
-
-      if (left.sentenceId[0] !== right.sentenceId[0]) {
-        return left.sentenceId[0] - right.sentenceId[0];
-      }
-
-      if (left.sentenceId[1] !== right.sentenceId[1]) {
-        return left.sentenceId[1] - right.sentenceId[1];
-      }
-
-      if (left.sentenceId[2] !== right.sentenceId[2]) {
-        return left.sentenceId[2] - right.sentenceId[2];
-      }
-
-      return left.id - right.id;
-    });
-
-    return sortedChunks
+    return chunks
       .map((chunk) => `${chunk.id}. [${chunk.label}] - ${chunk.content}`)
       .join("\n");
   }
 
   public clear(): void {
     this.#currentFragmentChunks.splice(0, this.#currentFragmentChunks.length);
+    this.#previousFragmentChunks.splice(0, this.#previousFragmentChunks.length);
     this.#extraChunks.splice(0, this.#extraChunks.length);
   }
 }
