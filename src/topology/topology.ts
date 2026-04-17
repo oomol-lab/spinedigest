@@ -6,11 +6,18 @@ import type {
 } from "../document/index.js";
 import type { ReaderChunk, ReaderGraphDelta } from "../reader/index.js";
 import { groupFragments } from "./grouping.js";
+import { buildSnakeGraph } from "./snake-graph-builder.js";
+import {
+  detectSnakesInComponent,
+  splitConnectedComponents,
+} from "./snake-detector.js";
 import {
   computeChunkWeights,
   computeKnowledgeEdgeWeights,
   getKnowledgeEdgeKey,
 } from "./weights.js";
+
+const DEFAULT_SNAKE_WORDS_COUNT = 700;
 
 export class Topology {
   readonly #chunkIds: number[] = [];
@@ -260,15 +267,16 @@ function buildSnakeTopology(input: {
 } {
   const chunksById = createChunkRecord();
   const chunkIdsByGroupId = createNumberListRecord();
+  const edgesByGroupId = createKnowledgeEdgeListRecord();
   const groupIdByFragmentId = createOptionalNumberRecord();
-  const adjacentChunkIdsByChunkId = createNumberListRecord();
 
   for (const fragmentGroup of input.fragmentGroups) {
     if (fragmentGroup.serialId !== input.serialId) {
       continue;
     }
 
-    groupIdByFragmentId[String(fragmentGroup.fragmentId)] = fragmentGroup.groupId;
+    groupIdByFragmentId[String(fragmentGroup.fragmentId)] =
+      fragmentGroup.groupId;
   }
 
   for (const chunk of input.chunks) {
@@ -301,81 +309,58 @@ function buildSnakeTopology(input: {
     if (fromGroupId !== toGroupId) {
       continue;
     }
+    if (edgesByGroupId[String(fromGroupId)] === undefined) {
+      edgesByGroupId[String(fromGroupId)] = [];
+    }
 
-    attachChunkAdjacency(adjacentChunkIdsByChunkId, edge.fromId, edge.toId);
-    attachChunkAdjacency(adjacentChunkIdsByChunkId, edge.toId, edge.fromId);
+    edgesByGroupId[String(fromGroupId)]?.push(edge);
   }
 
   const snakes: SnakeDraft[] = [];
   const snakeChunks: SnakeChunkDraft[] = [];
-  const snakeIndexByChunkId = createOptionalNumberRecord();
+  const snakeEdges: SnakeEdgeDraft[] = [];
 
   for (const groupId of listSortedRecordNumbers(chunkIdsByGroupId)) {
-    const groupChunkIds = (chunkIdsByGroupId[String(groupId)] ?? []).sort(
-      compareChunkIdsBySentence,
+    const groupChunkIds = [...(chunkIdsByGroupId[String(groupId)] ?? [])].sort(
+      compareNumber,
     );
-    const groupChunkIdRecord = createBooleanRecord();
-    const visitedChunkIds = createBooleanRecord();
+    const groupEdges = edgesByGroupId[String(groupId)] ?? [];
+    const groupSnakeChunkIds: number[][] = [];
 
-    for (const chunkId of groupChunkIds) {
-      groupChunkIdRecord[String(chunkId)] = true;
+    for (const componentChunkIds of splitConnectedComponents({
+      chunkIds: groupChunkIds,
+      edges: groupEdges,
+    })) {
+      const componentChunkIdRecord = createBooleanRecord();
+
+      for (const chunkId of componentChunkIds) {
+        componentChunkIdRecord[String(chunkId)] = true;
+      }
+
+      groupSnakeChunkIds.push(
+        ...detectSnakesInComponent({
+          chunks: componentChunkIds
+            .map((chunkId) => chunksById[String(chunkId)])
+            .filter((chunk): chunk is ChunkRecord => chunk !== undefined),
+          edges: groupEdges.filter(
+            (edge) =>
+              componentChunkIdRecord[String(edge.fromId)] === true &&
+              componentChunkIdRecord[String(edge.toId)] === true,
+          ),
+          snakeWordsCount: DEFAULT_SNAKE_WORDS_COUNT,
+        }),
+      );
     }
 
-    const components: number[][] = [];
+    const snakeStartIndex = snakes.length;
 
-    for (const chunkId of groupChunkIds) {
-      if (visitedChunkIds[String(chunkId)] === true) {
-        continue;
-      }
-
-      const stack = [chunkId];
-      const component: number[] = [];
-      visitedChunkIds[String(chunkId)] = true;
-
-      while (stack.length > 0) {
-        const currentChunkId = stack.pop();
-
-        if (currentChunkId === undefined) {
-          continue;
-        }
-
-        component.push(currentChunkId);
-
-        for (const nextChunkId of adjacentChunkIdsByChunkId[
-          String(currentChunkId)
-        ] ?? []) {
-          if (groupChunkIdRecord[String(nextChunkId)] !== true) {
-            continue;
-          }
-          if (visitedChunkIds[String(nextChunkId)] === true) {
-            continue;
-          }
-
-          visitedChunkIds[String(nextChunkId)] = true;
-          stack.push(nextChunkId);
-        }
-      }
-
-      component.sort(compareChunkIdsBySentence);
-      components.push(component);
-    }
-
-    components.sort((left, right) => {
-      const leftFirstChunkId = left[0];
-      const rightFirstChunkId = right[0];
-
-      if (leftFirstChunkId === undefined || rightFirstChunkId === undefined) {
-        return left.length - right.length;
-      }
-
-      return compareChunkIdsBySentence(leftFirstChunkId, rightFirstChunkId);
-    });
-
-    for (const [localSnakeId, component] of components.entries()) {
-      const firstChunkId = component[0];
-      const lastChunkId = component[component.length - 1];
+    for (const [localSnakeId, snakeChunkIds] of groupSnakeChunkIds.entries()) {
+      const firstChunkId = snakeChunkIds[0];
+      const lastChunkId = snakeChunkIds[snakeChunkIds.length - 1];
       const firstChunk =
-        firstChunkId === undefined ? undefined : chunksById[String(firstChunkId)];
+        firstChunkId === undefined
+          ? undefined
+          : chunksById[String(firstChunkId)];
       const lastChunk =
         lastChunkId === undefined ? undefined : chunksById[String(lastChunkId)];
 
@@ -383,117 +368,49 @@ function buildSnakeTopology(input: {
         continue;
       }
 
-      const snakeIndex = snakes.length;
+      const snakeIndex = snakeStartIndex + localSnakeId;
 
       snakes.push({
         firstLabel: firstChunk.label,
         groupId,
         lastLabel: lastChunk.label,
         localSnakeId,
-        size: component.length,
-        weight: component.reduce((sum, currentChunkId) => {
-          return sum + (chunksById[String(currentChunkId)]?.weight ?? 0);
+        size: snakeChunkIds.length,
+        weight: snakeChunkIds.reduce((sum, chunkId) => {
+          return sum + (chunksById[String(chunkId)]?.weight ?? 0);
         }, 0),
-        wordsCount: component.reduce((sum, currentChunkId) => {
-          return sum + (chunksById[String(currentChunkId)]?.wordsCount ?? 0);
+        wordsCount: snakeChunkIds.reduce((sum, chunkId) => {
+          return sum + (chunksById[String(chunkId)]?.wordsCount ?? 0);
         }, 0),
       });
 
-      for (const [position, currentChunkId] of component.entries()) {
-        snakeIndexByChunkId[String(currentChunkId)] = snakeIndex;
+      for (const [position, chunkId] of snakeChunkIds.entries()) {
         snakeChunks.push({
-          chunkId: currentChunkId,
+          chunkId,
           position,
           snakeIndex,
         });
       }
     }
-  }
 
-  const snakeEdgeWeightByKey = createNumberRecord();
-
-  for (const edge of input.edges) {
-    const fromSnakeIndex = snakeIndexByChunkId[String(edge.fromId)];
-    const toSnakeIndex = snakeIndexByChunkId[String(edge.toId)];
-
-    if (
-      fromSnakeIndex === undefined ||
-      toSnakeIndex === undefined ||
-      fromSnakeIndex === toSnakeIndex
-    ) {
-      continue;
-    }
-
-    const key = getKnowledgeEdgeKey(fromSnakeIndex, toSnakeIndex);
-
-    snakeEdgeWeightByKey[key] =
-      (snakeEdgeWeightByKey[key] ?? 0) + edge.weight;
+    snakeEdges.push(
+      ...buildSnakeGraph({
+        chunksById,
+        edges: groupEdges,
+        snakes: groupSnakeChunkIds,
+      }).map((edge) => ({
+        fromSnakeIndex: snakeStartIndex + edge.fromSnakeIndex,
+        toSnakeIndex: snakeStartIndex + edge.toSnakeIndex,
+        weight: edge.weight,
+      })),
+    );
   }
 
   return {
     snakeChunks,
-    snakeEdges: Object.keys(snakeEdgeWeightByKey)
-      .sort(compareEdgeKey)
-      .map((edgeKey) => {
-        const [fromSnakeIndexText = "", toSnakeIndexText = ""] = edgeKey.split(
-          ":",
-        );
-
-        return {
-          fromSnakeIndex: Number(fromSnakeIndexText),
-          toSnakeIndex: Number(toSnakeIndexText),
-          weight: snakeEdgeWeightByKey[edgeKey] ?? 0,
-        };
-      }),
+    snakeEdges,
     snakes,
   };
-
-  function compareChunkIdsBySentence(leftId: number, rightId: number): number {
-    const leftChunk = chunksById[String(leftId)];
-    const rightChunk = chunksById[String(rightId)];
-
-    if (leftChunk === undefined || rightChunk === undefined) {
-      return leftId - rightId;
-    }
-
-    return compareChunkBySentence(leftChunk, rightChunk);
-  }
-}
-
-function attachChunkAdjacency(
-  adjacentChunkIdsByChunkId: Record<string, number[] | undefined>,
-  fromId: number,
-  toId: number,
-): void {
-  const existingAdjacentChunkIds = adjacentChunkIdsByChunkId[String(fromId)] ?? [];
-
-  if (existingAdjacentChunkIds.includes(toId)) {
-    return;
-  }
-
-  adjacentChunkIdsByChunkId[String(fromId)] = [
-    ...existingAdjacentChunkIds,
-    toId,
-  ];
-}
-
-function compareChunkBySentence(left: ChunkRecord, right: ChunkRecord): number {
-  const [leftSerialId, leftFragmentId, leftSentenceIndex] = left.sentenceId;
-  const [rightSerialId, rightFragmentId, rightSentenceIndex] = right.sentenceId;
-
-  if (leftSerialId !== rightSerialId) {
-    return leftSerialId - rightSerialId;
-  }
-
-  if (leftFragmentId !== rightFragmentId) {
-    return leftFragmentId - rightFragmentId;
-  }
-
-  if (leftSentenceIndex !== rightSentenceIndex) {
-    return leftSentenceIndex - rightSentenceIndex;
-  }
-
-  return left.id - right.id;
 }
 
 function createBooleanRecord(): Record<string, boolean | undefined> {
@@ -504,8 +421,14 @@ function createNumberListRecord(): Record<string, number[] | undefined> {
   return Object.create(null) as Record<string, number[] | undefined>;
 }
 
-function createNumberRecord(): Record<string, number> {
-  return Object.create(null) as Record<string, number>;
+function createKnowledgeEdgeListRecord(): Record<
+  string,
+  KnowledgeEdgeRecord[] | undefined
+> {
+  return Object.create(null) as Record<
+    string,
+    KnowledgeEdgeRecord[] | undefined
+  >;
 }
 
 function createOptionalNumberRecord(): Record<string, number | undefined> {

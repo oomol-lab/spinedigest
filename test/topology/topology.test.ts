@@ -200,7 +200,7 @@ describe("topology/topology", () => {
     expect(saveSnakeEdge).not.toHaveBeenCalled();
   });
 
-  it("creates separate snakes per group and preserves cross-group relations", async () => {
+  it("keeps cross-group relations out of persisted snake edges", async () => {
     groupFragmentsMock.mockResolvedValue([
       {
         fragmentId: 1,
@@ -223,7 +223,11 @@ describe("topology/topology", () => {
     const topology = new Topology(document, 7, 120);
 
     topology.accept({
-      chunks: [createReaderChunk(1, 1), createReaderChunk(2, 2), createReaderChunk(3, 3)],
+      chunks: [
+        createReaderChunk(1, 1),
+        createReaderChunk(2, 2),
+        createReaderChunk(3, 3),
+      ],
       edges: [
         {
           fromId: 2,
@@ -287,11 +291,120 @@ describe("topology/topology", () => {
         },
       ],
     ]);
+    expect(saveSnakeEdge).not.toHaveBeenCalled();
+  });
+
+  it("splits a connected component into multiple snakes and normalizes snake-edge direction", async () => {
+    groupFragmentsMock.mockResolvedValue([
+      {
+        fragmentId: 1,
+        groupId: 0,
+        serialId: 7,
+      },
+    ]);
+    const { document, createSnake, saveSnakeChunk, saveSnakeEdge } =
+      createDocumentStub();
+    const topology = new Topology(document, 7, 120);
+
+    topology.accept({
+      chunks: [
+        createReaderChunk(1, 1, {
+          wordsCount: 400,
+        }),
+        createReaderChunk(2, 1, {
+          wordsCount: 400,
+        }),
+        createReaderChunk(3, 1, {
+          wordsCount: 400,
+        }),
+      ],
+      edges: [
+        {
+          fromId: 3,
+          toId: 2,
+        },
+        {
+          fromId: 2,
+          toId: 1,
+        },
+      ],
+    });
+
+    await topology.finalize();
+
+    expect(createSnake.mock.calls).toStrictEqual([
+      [
+        {
+          firstLabel: "Chunk 1",
+          groupId: 0,
+          lastLabel: "Chunk 1",
+          localSnakeId: 0,
+          serialId: 7,
+          size: 1,
+          weight: 0,
+          wordsCount: 400,
+        },
+      ],
+      [
+        {
+          firstLabel: "Chunk 2",
+          groupId: 0,
+          lastLabel: "Chunk 2",
+          localSnakeId: 1,
+          serialId: 7,
+          size: 1,
+          weight: 0,
+          wordsCount: 400,
+        },
+      ],
+      [
+        {
+          firstLabel: "Chunk 3",
+          groupId: 0,
+          lastLabel: "Chunk 3",
+          localSnakeId: 2,
+          serialId: 7,
+          size: 1,
+          weight: 0,
+          wordsCount: 400,
+        },
+      ],
+    ]);
+    expect(saveSnakeChunk.mock.calls).toStrictEqual([
+      [
+        {
+          chunkId: 1,
+          position: 0,
+          snakeId: 1,
+        },
+      ],
+      [
+        {
+          chunkId: 2,
+          position: 0,
+          snakeId: 2,
+        },
+      ],
+      [
+        {
+          chunkId: 3,
+          position: 0,
+          snakeId: 3,
+        },
+      ],
+    ]);
     expect(saveSnakeEdge.mock.calls).toStrictEqual([
       [
         {
+          fromSnakeId: 1,
+          toSnakeId: 2,
+          weight: 0.1,
+        },
+      ],
+      [
+        {
           fromSnakeId: 2,
-          toSnakeId: 1,
+          toSnakeId: 3,
           weight: 0.1,
         },
       ],
@@ -330,11 +443,8 @@ function createDocumentStub(): {
   const saveChunk = vi.fn(() => Promise.resolve());
   const saveEdge = vi.fn(() => Promise.resolve());
   const saveFragmentGroups = vi.fn(() => Promise.resolve());
-  const createSnake = vi
-    .fn()
-    .mockResolvedValueOnce(1)
-    .mockResolvedValueOnce(2)
-    .mockResolvedValue(999);
+  let nextSnakeId = 1;
+  const createSnake = vi.fn(() => Promise.resolve(nextSnakeId++));
   const saveSnakeChunk = vi.fn(() => Promise.resolve());
   const saveSnakeEdge = vi.fn(() => Promise.resolve());
   const ensureSerial = vi.fn(() => Promise.resolve());
@@ -382,6 +492,7 @@ function createReaderChunk(
   extra: {
     readonly importance?: ChunkImportance;
     readonly retention?: ChunkRetention;
+    readonly wordsCount?: number;
   } = {},
 ) {
   return {
@@ -392,7 +503,7 @@ function createReaderChunk(
     links: [],
     sentenceId: [7, fragmentId, 0] as const,
     sentenceIds: [[7, fragmentId, 0] as const],
-    wordsCount: 5,
+    wordsCount: extra.wordsCount ?? 5,
     ...extra,
   };
 }
