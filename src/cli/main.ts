@@ -1,5 +1,6 @@
 import { CLI_HELP_TEXT, parseCLIArguments } from "./args.js";
 import { runConvertCommand } from "./convert.js";
+import { formatError } from "../utils/node-error.js";
 
 export async function main(): Promise<void> {
   try {
@@ -15,8 +16,4 @@ export async function main(): Promise<void> {
     process.stderr.write(`${formatError(error)}\n`);
     process.exitCode = 1;
   }
-}
-
-function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

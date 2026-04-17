@@ -184,7 +184,7 @@ describe("reader/reader", () => {
         text: "Beta sentence.",
         userFocusedChunks: userFocused.delta.chunks,
         visibleChunkIds: [1],
-        workingMemoryPrompt: "1. [Alpha] - Alpha content",
+        workingMemoryPrompt: "(empty)",
       },
     );
     expect(coherenceDelta.chunks.map((chunk) => chunk.id)).toStrictEqual([2]);

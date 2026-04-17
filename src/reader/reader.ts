@@ -79,7 +79,9 @@ export class Reader<S extends string> {
     readonly text: string;
     readonly userFocusedChunks: readonly ReaderChunk[];
   }): Promise<ReaderGraphDelta> {
-    const context = this.#attention.createChunkBatchContext();
+    const context = this.#attention.createChunkBatchContext({
+      includeCurrentFragment: false,
+    });
     const chunkBatch = await extractBookCoherenceChunkBatch(
       this.#chunkBatchOptions,
       {

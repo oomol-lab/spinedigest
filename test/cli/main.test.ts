@@ -120,4 +120,16 @@ describe("cli/main", () => {
     expect(mainMockState.runCalls).toStrictEqual([{ help: false }]);
     expect(process.exitCode).toBe(1);
   });
+
+  it("writes the full cause chain to stderr", async () => {
+    mainMockState.argsResult = { help: false };
+    mainMockState.runError = new Error("convert failed", {
+      cause: new Error("tls reset"),
+    });
+
+    await main();
+
+    expect(stderrChunks).toStrictEqual(["convert failed: tls reset\n"]);
+    expect(process.exitCode).toBe(1);
+  });
 });

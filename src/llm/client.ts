@@ -15,6 +15,7 @@ import { getLogger } from "../common/logging.js";
 import { createEnv } from "../common/template.js";
 import { AsyncSemaphore } from "../utils/async-semaphore.js";
 import { createHash } from "../utils/hash.js";
+import { formatError } from "../utils/node-error.js";
 import { LLMCache } from "./cache.js";
 import { LLMContext, type LLMContextRequestInput } from "./context.js";
 import { createRequestLog } from "./request-log.js";
@@ -225,7 +226,7 @@ export class LLM<S extends string> {
       }
     }
 
-    let response = "";
+    let response: string | undefined;
     let lastError: unknown;
 
     for (let attempt = 0; attempt <= this.#retryTimes; attempt += 1) {
@@ -287,14 +288,17 @@ export class LLM<S extends string> {
       }
     }
 
-    if (response.length === 0) {
-      await requestLog.append(`[[Error]]:\n${formatError(lastError)}\n\n`);
-
-      throw new Error(
+    if (response === undefined) {
+      const failureMessage =
         lastError === undefined
           ? `LLM request failed after ${this.#retryTimes + 1} attempts`
-          : `LLM request failed after ${this.#retryTimes + 1} attempts: ${formatError(lastError)}`,
-      );
+          : `LLM request failed after ${this.#retryTimes + 1} attempts: ${formatError(lastError)}`;
+
+      await requestLog.append(`[[Error]]:\n${failureMessage}\n\n`);
+
+      throw new Error(failureMessage, {
+        ...(lastError === undefined ? {} : { cause: lastError }),
+      });
     }
 
     if (cacheKey !== undefined && this.#cache !== undefined && useCache) {
@@ -428,14 +432,6 @@ function capitalize(value: string): string {
   }
 
   return `${value[0]?.toUpperCase() ?? ""}${value.slice(1)}`;
-}
-
-function formatError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return String(error);
 }
 
 function isRetryableError(error: unknown): boolean {

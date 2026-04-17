@@ -1,15 +1,23 @@
 import type {
   ChunkRecord,
   Document,
+  FragmentGroupRecord,
   KnowledgeEdgeRecord,
 } from "../document/index.js";
 import type { ReaderChunk, ReaderGraphDelta } from "../reader/index.js";
 import { groupFragments } from "./grouping.js";
+import { buildSnakeGraph } from "./snake-graph-builder.js";
+import {
+  detectSnakesInComponent,
+  splitConnectedComponents,
+} from "./snake-detector.js";
 import {
   computeChunkWeights,
   computeKnowledgeEdgeWeights,
   getKnowledgeEdgeKey,
 } from "./weights.js";
+
+const DEFAULT_SNAKE_WORDS_COUNT = 700;
 
 export class Topology {
   readonly #chunkIds: number[] = [];
@@ -63,38 +71,85 @@ export class Topology {
       chunkWeights,
       edges,
     });
+    const weightedChunks = chunks.map((chunk) => ({
+      ...chunk,
+      weight: chunkWeights[String(chunk.id)] ?? 0,
+    }));
+    const weightedEdges = edges.map((edge) => ({
+      ...edge,
+      weight: edgeWeights[getKnowledgeEdgeKey(edge.fromId, edge.toId)] ?? 0,
+    }));
+    const fragmentGroups = await groupFragments({
+      chunks: weightedChunks,
+      edges: weightedEdges,
+      fragments: this.#document.getSerialFragments(this.#serialId),
+      groupWordsCount: this.#groupWordsCount,
+      serialId: this.#serialId,
+    });
+    const snakeTopology = buildSnakeTopology({
+      chunks: weightedChunks,
+      edges: weightedEdges,
+      fragmentGroups,
+      serialId: this.#serialId,
+    });
 
     await this.#document.serials.ensure(this.#serialId);
 
-    for (const chunk of chunks) {
-      await this.#document.chunks.save({
-        ...chunk,
-        weight: chunkWeights[String(chunk.id)] ?? 0,
+    for (const chunk of weightedChunks) {
+      await this.#document.chunks.save(chunk);
+    }
+
+    for (const edge of weightedEdges) {
+      await this.#document.knowledgeEdges.save(edge);
+    }
+
+    await this.#document.fragmentGroups.saveMany(fragmentGroups);
+
+    const snakeIds: number[] = [];
+
+    for (const snake of snakeTopology.snakes) {
+      snakeIds.push(
+        await this.#document.snakes.create({
+          firstLabel: snake.firstLabel,
+          groupId: snake.groupId,
+          lastLabel: snake.lastLabel,
+          localSnakeId: snake.localSnakeId,
+          serialId: this.#serialId,
+          size: snake.size,
+          weight: snake.weight,
+          wordsCount: snake.wordsCount,
+        }),
+      );
+    }
+
+    for (const snakeChunk of snakeTopology.snakeChunks) {
+      const snakeId = snakeIds[snakeChunk.snakeIndex];
+
+      if (snakeId === undefined) {
+        continue;
+      }
+
+      await this.#document.snakeChunks.save({
+        chunkId: snakeChunk.chunkId,
+        position: snakeChunk.position,
+        snakeId,
       });
     }
 
-    for (const edge of edges) {
-      await this.#document.knowledgeEdges.save({
-        ...edge,
-        weight: edgeWeights[getKnowledgeEdgeKey(edge.fromId, edge.toId)] ?? 0,
+    for (const snakeEdge of snakeTopology.snakeEdges) {
+      const fromSnakeId = snakeIds[snakeEdge.fromSnakeIndex];
+      const toSnakeId = snakeIds[snakeEdge.toSnakeIndex];
+
+      if (fromSnakeId === undefined || toSnakeId === undefined) {
+        continue;
+      }
+
+      await this.#document.snakeEdges.save({
+        fromSnakeId,
+        toSnakeId,
+        weight: snakeEdge.weight,
       });
     }
-
-    await this.#document.fragmentGroups.saveMany(
-      await groupFragments({
-        chunks: chunks.map((chunk) => ({
-          ...chunk,
-          weight: chunkWeights[String(chunk.id)] ?? 0,
-        })),
-        edges: edges.map((edge) => ({
-          ...edge,
-          weight: edgeWeights[getKnowledgeEdgeKey(edge.fromId, edge.toId)] ?? 0,
-        })),
-        fragments: this.#document.getSerialFragments(this.#serialId),
-        groupWordsCount: this.#groupWordsCount,
-        serialId: this.#serialId,
-      }),
-    );
   }
 
   #listChunks(): ChunkRecord[] {
@@ -176,4 +231,212 @@ function createChunkRecord(): Record<string, ChunkRecord | undefined> {
 
 function createEdgeRecord(): Record<string, KnowledgeEdgeRecord | undefined> {
   return Object.create(null) as Record<string, KnowledgeEdgeRecord | undefined>;
+}
+
+interface SnakeDraft {
+  readonly firstLabel: string;
+  readonly groupId: number;
+  readonly lastLabel: string;
+  readonly localSnakeId: number;
+  readonly size: number;
+  readonly weight: number;
+  readonly wordsCount: number;
+}
+
+interface SnakeChunkDraft {
+  readonly chunkId: number;
+  readonly position: number;
+  readonly snakeIndex: number;
+}
+
+interface SnakeEdgeDraft {
+  readonly fromSnakeIndex: number;
+  readonly toSnakeIndex: number;
+  readonly weight: number;
+}
+
+function buildSnakeTopology(input: {
+  chunks: readonly ChunkRecord[];
+  edges: readonly KnowledgeEdgeRecord[];
+  fragmentGroups: readonly FragmentGroupRecord[];
+  serialId: number;
+}): {
+  readonly snakeChunks: readonly SnakeChunkDraft[];
+  readonly snakeEdges: readonly SnakeEdgeDraft[];
+  readonly snakes: readonly SnakeDraft[];
+} {
+  const chunksById = createChunkRecord();
+  const chunkIdsByGroupId = createNumberListRecord();
+  const edgesByGroupId = createKnowledgeEdgeListRecord();
+  const groupIdByFragmentId = createOptionalNumberRecord();
+
+  for (const fragmentGroup of input.fragmentGroups) {
+    if (fragmentGroup.serialId !== input.serialId) {
+      continue;
+    }
+
+    groupIdByFragmentId[String(fragmentGroup.fragmentId)] =
+      fragmentGroup.groupId;
+  }
+
+  for (const chunk of input.chunks) {
+    const groupId = groupIdByFragmentId[String(chunk.sentenceId[1])];
+
+    chunksById[String(chunk.id)] = chunk;
+    if (groupId === undefined) {
+      continue;
+    }
+    if (chunkIdsByGroupId[String(groupId)] === undefined) {
+      chunkIdsByGroupId[String(groupId)] = [];
+    }
+    chunkIdsByGroupId[String(groupId)]?.push(chunk.id);
+  }
+
+  for (const edge of input.edges) {
+    const fromChunk = chunksById[String(edge.fromId)];
+    const toChunk = chunksById[String(edge.toId)];
+
+    if (fromChunk === undefined || toChunk === undefined) {
+      continue;
+    }
+
+    const fromGroupId = groupIdByFragmentId[String(fromChunk.sentenceId[1])];
+    const toGroupId = groupIdByFragmentId[String(toChunk.sentenceId[1])];
+
+    if (fromGroupId === undefined || toGroupId === undefined) {
+      continue;
+    }
+    if (fromGroupId !== toGroupId) {
+      continue;
+    }
+    if (edgesByGroupId[String(fromGroupId)] === undefined) {
+      edgesByGroupId[String(fromGroupId)] = [];
+    }
+
+    edgesByGroupId[String(fromGroupId)]?.push(edge);
+  }
+
+  const snakes: SnakeDraft[] = [];
+  const snakeChunks: SnakeChunkDraft[] = [];
+  const snakeEdges: SnakeEdgeDraft[] = [];
+
+  for (const groupId of listSortedRecordNumbers(chunkIdsByGroupId)) {
+    const groupChunkIds = [...(chunkIdsByGroupId[String(groupId)] ?? [])].sort(
+      compareNumber,
+    );
+    const groupEdges = edgesByGroupId[String(groupId)] ?? [];
+    const groupSnakeChunkIds: number[][] = [];
+
+    for (const componentChunkIds of splitConnectedComponents({
+      chunkIds: groupChunkIds,
+      edges: groupEdges,
+    })) {
+      const componentChunkIdRecord = createBooleanRecord();
+
+      for (const chunkId of componentChunkIds) {
+        componentChunkIdRecord[String(chunkId)] = true;
+      }
+
+      groupSnakeChunkIds.push(
+        ...detectSnakesInComponent({
+          chunks: componentChunkIds
+            .map((chunkId) => chunksById[String(chunkId)])
+            .filter((chunk): chunk is ChunkRecord => chunk !== undefined),
+          edges: groupEdges.filter(
+            (edge) =>
+              componentChunkIdRecord[String(edge.fromId)] === true &&
+              componentChunkIdRecord[String(edge.toId)] === true,
+          ),
+          snakeWordsCount: DEFAULT_SNAKE_WORDS_COUNT,
+        }),
+      );
+    }
+
+    const snakeStartIndex = snakes.length;
+
+    for (const [localSnakeId, snakeChunkIds] of groupSnakeChunkIds.entries()) {
+      const firstChunkId = snakeChunkIds[0];
+      const lastChunkId = snakeChunkIds[snakeChunkIds.length - 1];
+      const firstChunk =
+        firstChunkId === undefined
+          ? undefined
+          : chunksById[String(firstChunkId)];
+      const lastChunk =
+        lastChunkId === undefined ? undefined : chunksById[String(lastChunkId)];
+
+      if (firstChunk === undefined || lastChunk === undefined) {
+        continue;
+      }
+
+      const snakeIndex = snakeStartIndex + localSnakeId;
+
+      snakes.push({
+        firstLabel: firstChunk.label,
+        groupId,
+        lastLabel: lastChunk.label,
+        localSnakeId,
+        size: snakeChunkIds.length,
+        weight: snakeChunkIds.reduce((sum, chunkId) => {
+          return sum + (chunksById[String(chunkId)]?.weight ?? 0);
+        }, 0),
+        wordsCount: snakeChunkIds.reduce((sum, chunkId) => {
+          return sum + (chunksById[String(chunkId)]?.wordsCount ?? 0);
+        }, 0),
+      });
+
+      for (const [position, chunkId] of snakeChunkIds.entries()) {
+        snakeChunks.push({
+          chunkId,
+          position,
+          snakeIndex,
+        });
+      }
+    }
+
+    snakeEdges.push(
+      ...buildSnakeGraph({
+        chunksById,
+        edges: groupEdges,
+        snakes: groupSnakeChunkIds,
+      }).map((edge) => ({
+        fromSnakeIndex: snakeStartIndex + edge.fromSnakeIndex,
+        toSnakeIndex: snakeStartIndex + edge.toSnakeIndex,
+        weight: edge.weight,
+      })),
+    );
+  }
+
+  return {
+    snakeChunks,
+    snakeEdges,
+    snakes,
+  };
+}
+
+function createBooleanRecord(): Record<string, boolean | undefined> {
+  return Object.create(null) as Record<string, boolean | undefined>;
+}
+
+function createNumberListRecord(): Record<string, number[] | undefined> {
+  return Object.create(null) as Record<string, number[] | undefined>;
+}
+
+function createKnowledgeEdgeListRecord(): Record<
+  string,
+  KnowledgeEdgeRecord[] | undefined
+> {
+  return Object.create(null) as Record<
+    string,
+    KnowledgeEdgeRecord[] | undefined
+  >;
+}
+
+function createOptionalNumberRecord(): Record<string, number | undefined> {
+  return Object.create(null) as Record<string, number | undefined>;
+}
+
+function listSortedRecordNumbers(
+  record: Readonly<Record<string, number[] | undefined>>,
+): number[] {
+  return Object.keys(record).map(Number).sort(compareNumber);
 }
