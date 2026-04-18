@@ -8,11 +8,11 @@
   </p>
 </div>
 
-![SpineDigest Terminal Demo](./docs/images/terminal-demo.png)
+![SpineDigest Terminal Demo](./docs/images/terminal-en.png)
 
 **Distill every book down to its spine**: SpineDigest feeds long-form books into an LLM pipeline and distills them into their essential content. The output isn't just a text summary — it also builds a chapter topology and a knowledge graph so the structure of the whole book is visible at a glance.
 
-![Inkora screenshot](./docs/images/inkora-screenshot.png)
+![Inkora screenshot](./docs/images/app-screenshot-en.png)
 
 <div align=center>
   <sub><a href="http://inkora.oomol.com/download/sdpub">Inkora</a> opening a .sdpub file</sub>
