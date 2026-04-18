@@ -2,13 +2,28 @@
 
 # SpineDigest
 
-SpineDigest 是一个以 CLI 为主的长文本压缩处理工具，用于把长篇内容整理成更短、更便于携带和复用的输出。
+**把书读薄。**
 
-它可以读取 EPUB、Markdown 和纯文本，运行一条由 LLM 驱动的 digest 管线，并输出压缩后的文本、EPUB，或可复用的 `.sdpub` 归档文件。
+[![npm version](https://img.shields.io/npm/v/spinedigest)](https://www.npmjs.com/package/spinedigest)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Node >=22.12.0](https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen)](https://nodejs.org/)
+
+---
+
+<!-- 占位图1：Terminal 截图 — 展示 spinedigest CLI 运行效果 -->
+
+![SpineDigest Terminal 演示](./docs/images/terminal-demo.png)
+
+SpineDigest 把长篇书籍喂给 AI，自动提炼核心内容。处理结果不只是文字摘要——它同时生成章节拓扑与知识脉络图，让整本书的结构一眼可见。
+
+<!-- 占位图2：Inkora 界面截图 — 展示打开 .sdpub 后的章节拓扑图与知识关系图 -->
+
+![Inkora 打开效果](./docs/images/inkora-screenshot.png)
+<sub>[Inkora](http://inkora.oomol.com/download/sdpub) 打开 .sdpub 效果</sub>
 
 ## 安装
 
-不做全局安装，直接运行：
+无需全局安装，直接试用：
 
 ```bash
 npx spinedigest --help
@@ -20,111 +35,85 @@ npx spinedigest --help
 npm install -g spinedigest
 ```
 
-如果你更习惯 `pnpm`：
-
-```bash
-pnpm add -g spinedigest
-```
-
-## 为什么会有人用它
-
-- 把长篇文本压缩成更容易浏览的结果。
-- 用 `.sdpub` 保存可复用的 digest 成果，而不是每次都重新跑整条流程。
-- 直接通过命令行完成工作，而不是先写一层集成代码。
-
-## 快速事实
-
-- 主要接口：CLI
-- 输入：`.epub`、`.md`、`.txt`，或非交互式 `stdin`
-- 输出：`.epub`、`.md`、`.txt`、`.sdpub`
-- 运行要求：Node `>=22.12.0`、一个受支持的 LLM provider，以及对应凭据
-- 适合：书籍、章节、长文、指南、教程等长篇阅读材料
-- 不适合：精确复刻原文、检索问答、完全离线处理
-
-## CLI 一眼看懂
-
-如果你是从仓库源码直接运行：
-
-```bash
-pnpm dev -- --input ./path/to/book.epub --output ./digest.md
-```
-
-如果你已经安装了 CLI：
-
-```bash
-spinedigest --input ./path/to/book.epub --output ./digest.md
-```
-
-两种方式使用的是同一套参数。
-
-为了简洁，下面的示例默认都写成 `spinedigest`。如果你是在源码仓库里运行，请把它替换成 `pnpm dev --`。
-
 ## 快速开始
 
-先看 CLI 文档：
-
-- [Quick Start](./docs/zh-CN/quickstart.md)
-- [CLI Reference](./docs/zh-CN/cli.md)
-
-## 常见流程示例
-
-把 Markdown 压缩成纯文本：
+把一本 EPUB 摘要成 Markdown：
 
 ```bash
-spinedigest --input ./book.md --output ./digest.txt
+spinedigest --input ./book.epub --output ./digest.md
 ```
 
-处理 EPUB，并保留一个可复用的归档文件：
+先保存归档，之后再导出：
 
 ```bash
 spinedigest --input ./book.epub --output ./book.sdpub
-```
-
-打开已有的 `.sdpub`，再次导出，而不重新处理原始输入：
-
-```bash
 spinedigest --input ./book.sdpub --output ./book.epub
 ```
 
-通过 `stdin` 输入文本，并从 `stdout` 获取 Markdown：
+从 stdin 读取，从 stdout 输出：
 
 ```bash
 cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
 ```
 
-## `.sdpub` 是什么
+完整参数说明见 [CLI Reference](./docs/zh-CN/cli.md)。
 
-`.sdpub` 是 SpineDigest 的可移植归档格式，用来保存已经处理完成的 digest 文档。
+## 为什么要做这个项目
 
-适合以下场景：
+有人说，因为上下文窗口有限，你无法将一整本书传给 LLM 让它生成整书摘要。然而，别忘了，人类的短期记忆只有 7±2 个单位（Miller 定律），远比任何大语言模型的上下文窗口短得多。可是，人类却能读完整本书并写出摘要。
 
-- 保存处理结果
-- 之后再导出成其他格式
-- 避免重复执行原始 digest 流程
+也许，瓶颈不在窗口，而在取舍。不要贪多，要接受“摘要不可能保留所有细节”，“舍”比“取”更难，也更关键。不敢大胆删减，摘要就写不成。更深一层，丢什么本来就没有公认的标准。它取决于你读这本书的目的：“作者给了哪些实用建议”、”作者的核心论点是什么”、”主角经历了怎样的转变”……每一个目的都会导向截然不同的取舍结果。强行让 AI 在没有前提的情况下做摘要，它其实不知道该怎么做。因为根本不存在一个所有人都认可的通用标准。
 
-## 面向 AI Agent
+SpineDigest 用一套分阶段的流程来解决这件事。首先，AI 逐段阅读原文，模拟人类阅读时被重点"吸引"的过程，从中识别出若干 [chunk](<https://en.wikipedia.org/wiki/Chunking_(psychology)>)（认知心理学对短期记忆信息单元的称呼）。每一个 chunk 是一个注意力的落点，对应原文中的一个独立知识点。
 
-如果决定是否安装或运行 SpineDigest 的不是人，而是 AI agent，那么它可以把 SpineDigest 理解成一个简单明确的 CLI 工具：
+接下来，就得靠传统算法了。我以 chunk 为节点构建知识图谱，根据概念相关性建立连接，再通过图遍历与社区发现，把语义上内聚的 chunk 聚合在一起。每一组聚合结果按原文顺序串联成线索——我把它叫做 snake，因为它在图中把属于同一主题的知识点首尾相连，像一条蛇一样穿行在原文之中。
 
-- SpineDigest 是 CLI-first 的工具。除非明确需要代码级集成，否则优先使用 CLI。
-- 为了保证流程稳定，优先显式传入 `--input` 和 `--output`。
-- `stdin` 只适用于 `txt` 和 `markdown`，而且应当用于非交互式流程。
-- 处理源文件时需要先准备好 LLM 配置；如果输入是 `.sdpub`，则不需要 LLM。
-- 失败时会返回非零退出码，并在 `stderr` 输出纯文本错误信息。
-- 如果同一个 digest 结果后续还要导出多次，优先把 `.sdpub` 作为中间产物。
+最后，到了做摘要阶段，又切回了基于 LLM 的方案。我用了一个对抗性的 Multi-Agent 框架，角色分为两类：负责生成摘要的答辩人，以及负责审查的教授。
 
-更偏向 agent 的操作说明见 [AI Agent Guide](./docs/zh-CN/ai-agents.md)。
+**每一位教授手里，都攥着一条 snake。**
 
-## 文档
+想象一场毕业论文答辩。答辩人站在台上，所有的教授同时围坐在场。每位教授攥着自己负责的那段原文，对照你给出的提取目标，轮流质询答辩人：这里你漏了，那里你没有公平对待。答辩人必须逐一回应，不能完全忽视任何一方，却也不可能让所有人都满意。经过多轮来回，答辩人最终交出摘要了，却也是在所有质询下被迫做出的折中：每一段原文在摘要里都得到了某种程度的体现，或许只是短短一句，但不会被彻底抹去。
 
-- [Quick Start](./docs/zh-CN/quickstart.md)
-- [CLI Reference](./docs/zh-CN/cli.md)
-- [AI Agent Guide](./docs/zh-CN/ai-agents.md)
-- [Library Usage](./docs/zh-CN/library.md)
-- [Architecture](./docs/zh-CN/architecture.md)
+![SpineDigest 架构图](./docs/images/flowchart.svg)
+
+以上流程中，你的意志是贯穿一切的主轴。在阅读阶段，AI 的注意力方向就已经被塑造：你告诉它关注什么，它在读原文时就对什么敏感；chunk 的提取，本质上是你的兴趣在原文里的落点。到了答辩阶段，教授们也用同一个标准来审查：符合你意愿的内容会被多名教授共同保护；不符合你的意愿的内容，由于无人庇护，在答辩人承受的多轮质询压力下会被逐渐舍弃。你在开始时用自然语言说出的要求，在两个阶段都在发挥作用。
+
+## `.sdpub` 格式
+
+SpineDigest 每次处理完都会生成一份 `.sdpub` 文件。可以把它理解成一份"处理存档"：里面装的不只是摘要文字，还有 SpineDigest 在整个流程中建立的完整知识结构（chunk、snake、概念关系图）。
+
+有了这份存档，你可以随时将它导出成 EPUB、Markdown 或纯文本，不需要重新调用 LLM 跑一遍原始流程。注意，导出为其他格式后，回丢失 `.sdpub` 特有的章节拓扑图和知识关系。换句话说，`.sdpub` 是唯一能完整保留 SpineDigest 处理结果的形式——如果你将来还想重新导出，或者想在可视化工具里查看这本书的结构，就应该把它留着。
+
+打开 `.sdpub` 文件，可以使用 **[Inkora](http://inkora.oomol.com/download/sdpub)**——这是专门为它设计的免费应用，提供章节拓扑图和知识关系图两个视图。
+
+想了解 `.sdpub` 的内部结构或自行解析，参见[格式规格文档](./docs/sdpub.md)。
+
+## 输入与输出
+
+| 格式                | 输入 | 输出 |
+| ------------------- | ---- | ---- |
+| `.epub`             | ✓    | ✓    |
+| `.md`               | ✓    | ✓    |
+| `.txt`              | ✓    | ✓    |
+| `.sdpub`            | ✓    | ✓    |
+| `stdin`（txt / md） | ✓    | —    |
+| `stdout`            | —    | ✓    |
+
+运行要求：Node `>=22.12.0`，以及任意受支持的 LLM provider 及其凭据。输入为 `.sdpub` 时不需要 LLM 访问权限。
 
 ## 作为库使用
 
-SpineDigest 也提供程序化 API，但这是次一级的使用方式。
+SpineDigest 也提供程序化 API，适合把摘要流程嵌入自己的 Node 或 TypeScript 代码。CLI 之外的集成方式见 [Library Usage](./docs/zh-CN/library.md)。
 
-如果你确实需要把这条管线嵌入自己的 Node 或 TypeScript 代码，请从 [Library Usage](./docs/zh-CN/library.md) 开始。
+## 面向 AI Agent
+
+CLI 优先的设计让 SpineDigest 可以直接被 AI agent 调用，无需额外集成代码。
+
+- **CLI 优先。** 除非明确需要代码级集成，否则优先使用 CLI。
+- **行为确定性。** 用显式的 `--input` 和 `--output` 保证每次运行结果一致。
+- **退出码。** 成功返回 `0`；失败返回非零退出码，并在 `stderr` 输出纯文本错误信息。
+- **stdin 支持。** 仅接受 `txt` 和 `md`，且只用于非交互式流程。
+- **无 LLM 依赖。** 输入为 `.sdpub` 时不调用任何 LLM provider。
+- **优先保留归档。** 如果同一份摘要将来还需要再次导出，把 `.sdpub` 作为中间产物。
+
+完整 agent 操作参考见 [AI Agent Guide](./docs/zh-CN/ai-agents.md)。
