@@ -2,13 +2,24 @@
 
 # SpineDigest
 
-SpineDigest is a CLI-first tool for digesting long-form text into smaller, portable outputs.
+**Distill every book down to its spine.**
 
-It reads EPUB, Markdown, and plain text, runs an LLM-guided digestion pipeline, and writes compressed text, EPUB, or reusable `.sdpub` archives.
+[![npm version](https://img.shields.io/npm/v/spinedigest)](https://www.npmjs.com/package/spinedigest)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Node >=22.12.0](https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen)](https://nodejs.org/)
+
+---
+
+![SpineDigest Terminal Demo](./docs/images/terminal-demo.png)
+
+SpineDigest feeds long-form books into an LLM pipeline and distills them into their essential content. The output isn't just a text summary — it also builds a chapter topology and a knowledge graph so the structure of the whole book is visible at a glance.
+
+![Inkora screenshot](./docs/images/inkora-screenshot.png)
+<sub><a href="http://inkora.oomol.com/download/sdpub">Inkora</a> opening a .sdpub file</sub>
 
 ## Install
 
-Quick run without a global install:
+Try it without a global install:
 
 ```bash
 npx spinedigest --help
@@ -20,111 +31,89 @@ Global install:
 npm install -g spinedigest
 ```
 
-If you prefer `pnpm`, use:
-
-```bash
-pnpm add -g spinedigest
-```
-
-## Why People Use It
-
-- Turn long-form text into shorter, easier-to-scan outputs.
-- Keep a portable digest artifact as `.sdpub` instead of repeating the full pipeline.
-- Work from the command line without writing integration code.
-
-## Quick Facts
-
-- Primary interface: CLI
-- Inputs: `.epub`, `.md`, `.txt`, or non-interactive `stdin`
-- Outputs: `.epub`, `.md`, `.txt`, or `.sdpub`
-- Requires: Node `>=22.12.0`, an LLM provider, and credentials for that provider
-- Good fit: books, chapters, essays, guides, and other long-form reading material
-- Not a fit: exact reproduction, retrieval QA, or fully offline processing
-
-## CLI At A Glance
-
-If you are running from a local clone of this repository, use:
-
-```bash
-pnpm dev -- --input ./path/to/book.epub --output ./digest.md
-```
-
-If you installed the package as a CLI, use:
-
-```bash
-spinedigest --input ./path/to/book.epub --output ./digest.md
-```
-
-The same flags work in both cases.
-
-For brevity, the examples below use `spinedigest`. In a source checkout, replace that command with `pnpm dev --`.
-
 ## Quick Start
 
-Start with the CLI guide:
-
-- [Quick Start](./docs/en/quickstart.md)
-- [CLI Reference](./docs/en/cli.md)
-
-## Example Flows
-
-Digest a Markdown file into plain text:
+Digest an EPUB into Markdown:
 
 ```bash
-spinedigest --input ./book.md --output ./digest.txt
+spinedigest --input ./book.epub --output ./digest.md
 ```
 
-Digest an EPUB and keep a reusable archive:
+Save a reusable archive first, then export later:
 
 ```bash
 spinedigest --input ./book.epub --output ./book.sdpub
-```
-
-Open a saved `.sdpub` and export it again without re-digesting the original source:
-
-```bash
 spinedigest --input ./book.sdpub --output ./book.epub
 ```
 
-Pipe text through `stdin` and receive Markdown on `stdout`:
+Pipe from stdin, receive on stdout:
 
 ```bash
 cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
 ```
 
-## What `.sdpub` Is
+Full flag reference: [CLI Reference](./docs/en/cli.md).
 
-`.sdpub` is SpineDigest's portable archive format for a processed digest document.
+## Why We Built This
 
-Use it when you want to:
+People say you can't summarize a whole book with an LLM because the context window isn't long enough. But consider this: human short-term memory holds only 7±2 items (Miller's Law) — far shorter than any LLM context window. Humans still manage to read entire books and write summaries.
 
-- preserve the processed result
-- export to another output format later
-- avoid repeating the original digest step
+The bottleneck isn't the window. It's knowing what to cut.
 
-## For AI Agents
+A good summary can't preserve everything, and deciding what to drop is harder than deciding what to keep. There's no universal standard for what matters, either. It depends entirely on why you're reading: "What practical advice does the author give?", "What's the central argument?", "How does the protagonist change?" Each purpose leads to completely different trade-offs. Ask an AI to summarize without any direction and it genuinely doesn't know how — there's no single right answer that works for everyone.
 
-If an AI agent is deciding whether to install or run SpineDigest, the operational contract is simple:
+SpineDigest solves this with a staged pipeline.
 
-- SpineDigest is a CLI-first tool. Prefer the CLI unless integration code is explicitly required.
-- Use explicit `--input` and `--output` paths for deterministic runs.
-- Use `stdin` only for `txt` or `markdown`, and only in non-interactive flows.
-- Provide LLM configuration before digesting source files. `.sdpub` input does not require LLM access.
-- Expect non-zero exit codes on failure and a plain-text error message on `stderr`.
-- Prefer `.sdpub` as an intermediate artifact when the same digest may need to be exported again.
+First, an LLM reads the source text section by section, simulating the way human attention is drawn to key ideas. It extracts a set of [chunks](<https://en.wikipedia.org/wiki/Chunking_(psychology)>) — the term cognitive psychology uses for discrete units of information in working memory. Each chunk is an attention landing point: one independent knowledge unit from the original text.
 
-For agent-oriented guidance, see [AI Agent Guide](./docs/en/ai-agents.md).
+Next, the pipeline hands off to a classical algorithm. I build a knowledge graph with chunks as nodes, connect them by conceptual relevance, then use graph traversal and community detection to cluster the semantically related ones together. Each cluster is serialized in original reading order into what I call a snake — a threaded knowledge chain that winds through the source text, linking related ideas end to end.
 
-## Documentation
+Finally, the summarization phase switches back to LLMs, using an adversarial Multi-Agent framework with two roles: a respondent who writes the summary, and a panel of professors who challenge it.
 
-- [Quick Start](./docs/en/quickstart.md)
-- [CLI Reference](./docs/en/cli.md)
-- [AI Agent Guide](./docs/en/ai-agents.md)
-- [Library Usage](./docs/en/library.md)
-- [Architecture](./docs/en/architecture.md)
+**Every professor holds a snake.**
+
+Picture a dissertation defense. The respondent stands at the front. The professors sit around the table, each holding a section of the original text, each measuring the draft against your stated extraction goal. They take turns: you missed this point, you didn't give that passage fair treatment. The respondent has to answer every challenge — they can't fully ignore anyone, but they can't fully satisfy everyone either. After several rounds, the final summary is the result of that pressure: a forced compromise where every part of the source gets some representation, even if it's just a sentence, and nothing is erased entirely.
+
+![SpineDigest architecture](./docs/images/flowchart.svg)
+
+Your intent runs through the whole pipeline. During the reading phase, the AI's attention is already shaped by what you told it to care about — your interests determine where the chunks land. During the defense phase, the professors apply that same goal as their evaluation standard. Content that aligns with your stated purpose gets protected by multiple professors at once; content that doesn't loses its advocates and gets pushed out under sustained pressure. The one sentence you wrote at the start keeps working at both ends.
+
+## The `.sdpub` Format
+
+Every time SpineDigest finishes processing, it produces a `.sdpub` file. Think of it as a processed archive: it holds not just the summary text but the complete knowledge structure built along the way — chunks, snakes, the full concept graph.
+
+With that archive on hand, you can export to EPUB, Markdown, or plain text any time without re-running the LLM pipeline. The trade-off: exported formats carry the text but lose the structural data. The chapter topology, snake connections, and knowledge graph live only inside `.sdpub`. If you might want to re-export later, or browse the book's structure in a visualization tool, keep the file around.
+
+To open a `.sdpub` file, use **[Inkora](http://inkora.oomol.com/download/sdpub)** — a free app built specifically for it, with chapter topology and knowledge graph views.
+
+For the internal layout and parser guidance, see the [format spec](./docs/sdpub.md).
+
+## Inputs and Outputs
+
+| Format             | Input | Output |
+| ------------------ | ----- | ------ |
+| `.epub`            | ✓     | ✓      |
+| `.md`              | ✓     | ✓      |
+| `.txt`             | ✓     | ✓      |
+| `.sdpub`           | ✓     | ✓      |
+| `stdin` (txt / md) | ✓     | —      |
+| `stdout`           | —     | ✓      |
+
+Requirements: Node `>=22.12.0` and a supported LLM provider with credentials. `.sdpub` input does not require LLM access.
 
 ## Library Usage
 
-SpineDigest also exposes a programmatic API, but that is a secondary interface.
+SpineDigest also exposes a programmatic API for embedding the pipeline in your own Node or TypeScript code. See [Library Usage](./docs/en/library.md).
 
-If you need to embed the pipeline into your own Node or TypeScript code, start with [Library Usage](./docs/en/library.md).
+## For AI Agents
+
+SpineDigest's CLI-first design means AI agents can call it directly with no extra integration code.
+
+- **Prefer the CLI.** Use the programmatic API only when code-level integration is explicitly required.
+- **Use explicit paths.** Pass `--input` and `--output` for deterministic, repeatable runs.
+- **Check exit codes.** Success returns `0`; failure returns non-zero with a plain-text error on `stderr`.
+- **stdin is narrow.** Only `txt` and `md` are accepted, and only in non-interactive flows.
+- **No LLM needed for `.sdpub`.** Re-exporting an archive never calls an LLM provider.
+- **Keep the archive.** If the same digest might need re-exporting, treat `.sdpub` as the intermediate artifact.
+
+Full agent guidance: [AI Agent Guide](./docs/en/ai-agents.md).
