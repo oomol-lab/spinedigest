@@ -30,7 +30,9 @@ pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 - `--verbose`: write diagnostic logs to `stderr`
 - `-h`, `--help`: print help text
 
-Positional arguments are not supported.
+The main conversion command does not support positional arguments.
+
+The `sdpub` inspection interface uses positional subcommands: `spinedigest sdpub <subcommand>`.
 
 The `sdpub` inspection subcommands only accept `--input`, and `cat` also requires `--serial`.
 
@@ -204,6 +206,10 @@ Expect a plain-text error message on `stderr` and a non-zero exit code when:
 - `stdin` or `stdout` is used with a non-text format
 - `--verbose` is used while writing output to `stdout`
 - no LLM configuration is available for a digest operation
+- `spinedigest sdpub cat` is used without `--serial`
+- `sdpub` inspection subcommands are used with unsupported flags such as `--output`, `--output-format`, or `--verbose`
+- `spinedigest sdpub cover` tries to write binary data to an interactive terminal
+- `spinedigest sdpub cover` is used on an archive without a cover
 - provider-specific configuration is invalid
 
 ## Related Docs

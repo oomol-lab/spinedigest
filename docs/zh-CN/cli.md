@@ -30,7 +30,9 @@ pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 - `--verbose`：把诊断日志输出到 `stderr`
 - `-h`, `--help`：打印帮助文本
 
-不支持 positional arguments。
+主转换命令不支持 positional arguments。
+
+`sdpub` 检查接口本身使用 positional subcommands：`spinedigest sdpub <subcommand>`。
 
 `sdpub` 检查子命令只接受 `--input`，其中 `cat` 还要求提供 `--serial`。
 
@@ -204,6 +206,10 @@ SpineDigest 支持通过环境变量覆盖配置值：
 - 对非文本格式使用了 `stdin` 或 `stdout`
 - 在写入 `stdout` 时同时使用了 `--verbose`
 - digest 操作缺少 LLM 配置
+- `spinedigest sdpub cat` 缺少 `--serial`
+- `sdpub` 检查子命令使用了不支持的参数，例如 `--output`、`--output-format` 或 `--verbose`
+- `spinedigest sdpub cover` 试图向交互式终端输出二进制数据
+- `spinedigest sdpub cover` 针对一个没有封面的归档运行
 - provider 相关配置不合法
 
 ## 相关文档
