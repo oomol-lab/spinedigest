@@ -1,17 +1,29 @@
-import { CLI_HELP_TEXT, parseCLIArguments } from "./args.js";
+import { parseCLIArguments } from "./args.js";
 import { runConvertCommand } from "./convert.js";
+import { runSdpubCommand } from "./sdpub.js";
 import { formatError } from "../utils/node-error.js";
 
 export async function main(): Promise<void> {
   try {
-    const args = parseCLIArguments();
+    const parsed = parseCLIArguments();
 
-    if (args.help) {
-      process.stdout.write(`${CLI_HELP_TEXT}\n`);
+    if (parsed.help) {
+      process.stdout.write(`${parsed.helpText}\n`);
       return;
     }
 
-    await runConvertCommand(args);
+    switch (parsed.kind) {
+      case "convert":
+        await runConvertCommand(parsed.args);
+        return;
+      case "sdpub":
+        if (parsed.args === undefined) {
+          throw new Error("Internal error: missing sdpub command arguments.");
+        }
+
+        await runSdpubCommand(parsed.args);
+        return;
+    }
   } catch (error) {
     process.stderr.write(`${formatError(error)}\n`);
     process.exitCode = 1;

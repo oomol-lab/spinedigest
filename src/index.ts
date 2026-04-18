@@ -16,3 +16,4 @@ export {
   type SpineDigestSourceSessionOptions,
   type SpineDigestTextStreamSessionOptions,
 } from "./facade/index.js";
+export type { SpineDigestSerialEntry } from "./facade/index.js";

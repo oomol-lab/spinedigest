@@ -1,8 +1,14 @@
 import type { ReadonlyDocument } from "../document/index.js";
 import { writeEpub, writePlainText } from "../output/index.js";
-import type { BookMeta, SourceAsset, TocFile } from "../source/index.js";
+import type {
+  BookMeta,
+  SourceAsset,
+  TocFile,
+  TocItem,
+} from "../source/index.js";
 
 import { writeSdpubArchive } from "./archive.js";
+import type { SpineDigestSerialEntry } from "./types.js";
 
 export class SpineDigest {
   readonly #document: ReadonlyDocument;
@@ -42,6 +48,36 @@ export class SpineDigest {
     return await this.#document.readToc();
   }
 
+  public async listSerials(): Promise<readonly SpineDigestSerialEntry[]> {
+    return await this.#document.openSession(async (document) => {
+      const toc = await document.readToc();
+
+      if (toc === undefined) {
+        throw new Error("Document TOC is missing");
+      }
+
+      return await collectSerialEntries(document, toc.items);
+    });
+  }
+
+  public async readSerialSummary(serialId: number): Promise<string> {
+    return await this.#document.openSession(async (document) => {
+      const record = await document.serials.getById(serialId);
+
+      if (record === undefined) {
+        throw new Error(`Serial ${serialId} does not exist`);
+      }
+
+      const summary = await document.readSummary(serialId);
+
+      if (summary === undefined) {
+        throw new Error(`Serial ${serialId} summary is missing`);
+      }
+
+      return summary;
+    });
+  }
+
   public async saveAs(path: string): Promise<void> {
     await flushDocument(this.#document);
     await writeSdpubArchive(this.#documentDirectoryPath, path);
@@ -60,4 +96,33 @@ function isFlushableDocument(
   document: ReadonlyDocument,
 ): document is ReadonlyDocument & { flush(): Promise<void> } {
   return "flush" in document && typeof document.flush === "function";
+}
+
+async function collectSerialEntries(
+  document: ReadonlyDocument,
+  items: readonly TocItem[],
+  ancestorTitles: readonly string[] = [],
+): Promise<readonly SpineDigestSerialEntry[]> {
+  const entries: SpineDigestSerialEntry[] = [];
+
+  for (const item of items) {
+    const tocPath = [...ancestorTitles, item.title];
+
+    if (item.serialId !== undefined) {
+      entries.push({
+        fragmentCount: (
+          await document.getSerialFragments(item.serialId).listFragmentIds()
+        ).length,
+        serialId: item.serialId,
+        title: item.title,
+        tocPath,
+      });
+    }
+
+    entries.push(
+      ...(await collectSerialEntries(document, item.children, tocPath)),
+    );
+  }
+
+  return entries;
 }

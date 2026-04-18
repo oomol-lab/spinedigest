@@ -15,3 +15,4 @@ export {
   type SpineDigestTextStreamSessionOptions,
 } from "./app.js";
 export { SpineDigest } from "./spine-digest.js";
+export type { SpineDigestSerialEntry } from "./types.js";

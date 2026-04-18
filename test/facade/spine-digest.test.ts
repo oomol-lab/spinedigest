@@ -41,6 +41,21 @@ describe("facade/spine-digest", () => {
             },
           ],
         });
+        expect(await digest.listSerials()).toStrictEqual([
+          {
+            fragmentCount: 1,
+            serialId: 1,
+            title: "Chapter 1",
+            tocPath: ["Chapter 1"],
+          },
+          {
+            fragmentCount: 1,
+            serialId: 2,
+            title: "Appendix",
+            tocPath: ["Chapter 1", "Appendix"],
+          },
+        ]);
+        expect(await digest.readSerialSummary(2)).toBe("Summary two");
 
         await digest.exportText(textPath);
         expect(await readFile(textPath, "utf8")).toBe(
@@ -133,6 +148,16 @@ async function seedDocument(document: DirectoryDocument): Promise<void> {
     });
     await openedDocument.writeSummary(1, "Summary one");
     await openedDocument.writeSummary(2, "Summary two");
+    const firstDraft = await openedDocument.getSerialFragments(1).createDraft();
+    firstDraft.setSummary("Fragment summary one");
+    firstDraft.addSentence("Sentence one.", 2);
+    await firstDraft.commit();
+    const secondDraft = await openedDocument
+      .getSerialFragments(2)
+      .createDraft();
+    secondDraft.setSummary("Fragment summary two");
+    secondDraft.addSentence("Sentence two.", 2);
+    await secondDraft.commit();
     await openedDocument.writeToc({
       items: [
         {
