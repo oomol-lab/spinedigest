@@ -86,7 +86,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     }
   }
 
-  const extractionPrompt = config.prompt;
+  const extractionPrompt = args.prompt ?? config.prompt;
 
   try {
     if (input.path === undefined) {

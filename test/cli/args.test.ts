@@ -21,6 +21,8 @@ describe("cli/args", () => {
         "out.txt",
         "--output-format",
         "markdown",
+        "--prompt",
+        "Keep named entities",
       ]),
     ).toStrictEqual({
       args: {
@@ -30,6 +32,7 @@ describe("cli/args", () => {
         inputPath: "book.epub",
         outputFormat: "markdown",
         outputPath: "out.txt",
+        prompt: "Keep named entities",
         verbose: false,
       },
       help: true,
@@ -60,6 +63,21 @@ describe("cli/args", () => {
       helpText: CLI_HELP_TEXT,
       kind: "convert",
     });
+  });
+
+  it("parses --prompt for the main convert command", () => {
+    expect(parseCLIArguments(["--prompt", "Keep dialogue only"])).toStrictEqual(
+      {
+        args: {
+          help: false,
+          prompt: "Keep dialogue only",
+          verbose: false,
+        },
+        help: false,
+        helpText: CLI_HELP_TEXT,
+        kind: "convert",
+      },
+    );
   });
 
   it("parses sdpub subcommands", () => {
@@ -120,6 +138,11 @@ describe("cli/args", () => {
       "The `sdpub` subcommands do not support --output. Use stdout redirection or pipes instead.",
     );
     expect(() =>
+      parseCLIArguments(["sdpub", "info", "--prompt", "Keep dialogue only"]),
+    ).toThrow(
+      "The `sdpub` subcommands do not support --prompt. It only applies to digest generation from source inputs.",
+    );
+    expect(() =>
       parseCLIArguments(["sdpub", "cat", "--input", "book.sdpub"]),
     ).toThrow("Missing --serial. `spinedigest sdpub cat` requires it.");
     expect(() =>
@@ -154,6 +177,9 @@ describe("cli/args", () => {
     expect(CLI_HELP_TEXT).toContain("--digest-dir keeps the intermediate");
     expect(CLI_HELP_TEXT).toContain(
       "--digest-dir clears the target directory before each run",
+    );
+    expect(CLI_HELP_TEXT).toContain(
+      "--prompt overrides config/env extraction prompts",
     );
     expect(CLI_HELP_TEXT).toContain(
       "--verbose writes diagnostic logs to stderr",

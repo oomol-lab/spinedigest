@@ -37,7 +37,7 @@ npm install -g spinedigest
 把一本 EPUB 摘要成 Markdown：
 
 ```bash
-spinedigest --input ./book.epub --output ./digest.md
+spinedigest --input ./book.epub --output ./digest.md --prompt "重点保留主主角、配角的情绪变化细节"
 ```
 
 先保存归档，之后再导出：

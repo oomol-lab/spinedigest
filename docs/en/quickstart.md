@@ -154,7 +154,13 @@ cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
 
 ## 8. Add A Custom Extraction Prompt
 
-You can customize the extraction prompt in config:
+For a one-off run, pass `--prompt`:
+
+```bash
+spinedigest --input ./book.md --output ./digest.md --prompt "Preserve key arguments, named entities, and decisive transitions."
+```
+
+For a persistent default, set it in config:
 
 ```json
 {
@@ -162,7 +168,9 @@ You can customize the extraction prompt in config:
 }
 ```
 
-This prompt is applied when digesting source files or text streams.
+For the main digest command, `--prompt` overrides `SPINEDIGEST_PROMPT`, which overrides `config.json`. If none is set, SpineDigest uses its built-in default prompt.
+
+This prompt is applied when digesting source files or text streams. It is not used when reopening an existing `.sdpub`.
 
 ## 9. Troubleshooting
 
