@@ -260,6 +260,31 @@ describe("cli/convert", () => {
     ]);
   });
 
+  it("lets --prompt override the configured extraction prompt", async () => {
+    cliMockState.config = {
+      llm: {
+        model: "gpt-test",
+        provider: "openai",
+      },
+      prompt: "Configured prompt",
+    };
+
+    await runConvertCommand({
+      help: false,
+      inputPath: "/tmp/book.txt",
+      outputPath: "/tmp/output.txt",
+      prompt: "CLI prompt",
+      verbose: false,
+    });
+
+    expect(cliMockState.digestCalls.txt).toStrictEqual([
+      {
+        extractionPrompt: "CLI prompt",
+        path: "/tmp/book.txt",
+      },
+    ]);
+  });
+
   it("refuses to read interactive stdin when input is omitted", async () => {
     cliMockState.config = {
       llm: {

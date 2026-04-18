@@ -9,6 +9,7 @@ export interface CLIArguments {
   readonly inputFormat?: CLIFormat;
   readonly outputPath?: string;
   readonly outputFormat?: CLIFormat;
+  readonly prompt?: string;
   readonly verbose: boolean;
 }
 
@@ -44,7 +45,7 @@ export type ParsedCLIArguments =
 
 export const CLI_HELP_TEXT = `
 Usage:
-  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
+  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
   spinedigest sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 
 Behavior:
@@ -55,6 +56,7 @@ Behavior:
   - If a format flag is omitted, the format is inferred from the file extension.
   - --digest-dir keeps the intermediate digest workspace for digest inputs.
   - --digest-dir clears the target directory before each run.
+  - --prompt overrides config/env extraction prompts for the current digest run.
   - --verbose writes diagnostic logs to stderr.
 
 Formats:
@@ -124,6 +126,9 @@ export function parseCLIArguments(
       "output-format": {
         type: "string",
       },
+      prompt: {
+        type: "string",
+      },
       serial: {
         type: "string",
       },
@@ -169,6 +174,7 @@ export function parseCLIArguments(
               "--output-format",
             ),
           }),
+      ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
       verbose: values.verbose ?? false,
     },
     help: values.help ?? false,
@@ -186,6 +192,7 @@ function parseSdpubArguments(
     readonly "input-format"?: string;
     readonly output?: string;
     readonly "output-format"?: string;
+    readonly prompt?: string;
     readonly serial?: string;
     readonly verbose?: boolean;
   },
@@ -239,6 +246,11 @@ function parseSdpubArguments(
   if (values["output-format"] !== undefined) {
     throw new Error(
       "The `sdpub` subcommands do not support --output-format. Their output format is fixed by the subcommand.",
+    );
+  }
+  if (values.prompt !== undefined) {
+    throw new Error(
+      "The `sdpub` subcommands do not support --prompt. It only applies to digest generation from source inputs.",
     );
   }
   if (values.verbose) {
