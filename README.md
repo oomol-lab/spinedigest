@@ -1,21 +1,22 @@
-<p>English | <a href="./README_zh-CN.md">中文</a></p>
+<div align=center>
+  <h1>SpineDigest</h1>
+  <p>English | <a href="./README_zh-CN.md">中文</a></p>
+  <p>
+    <a href="https://www.npmjs.com/package/spinedigest"><img alt="npm version" src="https://img.shields.io/npm/v/spinedigest"></a>
+    <a href="https://opensource.org/licenses/Apache-2.0"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg"></a>
+    <a href="https://nodejs.org/"><img alt="Node >=22.12.0" src="https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen"></a>
+  </p>
+</div>
 
-# SpineDigest
+![SpineDigest Terminal Demo](./docs/images/terminal-en.png)
 
-**Distill every book down to its spine.**
+**Distill every book down to its spine**: SpineDigest feeds long-form books into an LLM pipeline and distills them into their essential content. The output isn't just a text summary — it also builds a chapter topology and a knowledge graph so the structure of the whole book is visible at a glance.
 
-[![npm version](https://img.shields.io/npm/v/spinedigest)](https://www.npmjs.com/package/spinedigest)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Node >=22.12.0](https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen)](https://nodejs.org/)
+![Inkora screenshot](./docs/images/app-screenshot-en.png)
 
----
-
-![SpineDigest Terminal Demo](./docs/images/terminal-demo.png)
-
-SpineDigest feeds long-form books into an LLM pipeline and distills them into their essential content. The output isn't just a text summary — it also builds a chapter topology and a knowledge graph so the structure of the whole book is visible at a glance.
-
-![Inkora screenshot](./docs/images/inkora-screenshot.png)
-<sub><a href="http://inkora.oomol.com/download/sdpub">Inkora</a> opening a .sdpub file</sub>
+<div align=center>
+  <sub><a href="http://inkora.oomol.com/download/sdpub">Inkora</a> opening a .sdpub file</sub>
+</div>
 
 ## Install
 
