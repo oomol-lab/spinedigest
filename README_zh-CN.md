@@ -12,13 +12,13 @@
 
 <!-- 占位图1：Terminal 截图 — 展示 spinedigest CLI 运行效果 -->
 
-![SpineDigest Terminal 演示](./docs/images/terminal-demo.png)
+![SpineDigest Terminal 演示](./docs/images/terminal-cn.png)
 
 SpineDigest 把长篇书籍喂给 AI，自动提炼核心内容。处理结果不只是文字摘要——它同时生成章节拓扑与知识脉络图，让整本书的结构一眼可见。
 
 <!-- 占位图2：Inkora 界面截图 — 展示打开 .sdpub 后的章节拓扑图与知识关系图 -->
 
-![Inkora 打开效果](./docs/images/inkora-screenshot.png)
+![Inkora 打开效果](./docs/images/app-screenshot-cn.png)
 <sub>[Inkora](http://inkora.oomol.com/download/sdpub) 打开 .sdpub 效果</sub>
 
 ## 安装
