@@ -154,7 +154,13 @@ cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
 
 ## 8. 添加自定义 extraction prompt
 
-你可以在配置中自定义 extraction prompt：
+如果只是临时跑一次，可以直接传 `--prompt`：
+
+```bash
+spinedigest --input ./book.md --output ./digest.md --prompt "Preserve key arguments, named entities, and decisive transitions."
+```
+
+如果希望作为长期默认值，可以写进配置：
 
 ```json
 {
@@ -162,7 +168,9 @@ cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
 }
 ```
 
-这个 prompt 会用于处理源文件或文本流时的 digest 过程。
+对于主 digest 命令，`--prompt` 会覆盖 `SPINEDIGEST_PROMPT`，后者再覆盖 `config.json`。如果都没有设置，则使用内置默认 prompt。
+
+这个 prompt 会用于处理源文件或文本流时的 digest 过程，不会用于重新打开已有 `.sdpub`。
 
 ## 9. 故障排查
 

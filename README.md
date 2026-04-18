@@ -37,7 +37,7 @@ npm install -g spinedigest
 Digest an EPUB into Markdown:
 
 ```bash
-spinedigest --input ./book.epub --output ./digest.md
+spinedigest --input ./book.epub --output ./digest.md --prompt "Preserve emotional shifts for both major and supporting characters."
 ```
 
 Save a reusable archive first, then export later:

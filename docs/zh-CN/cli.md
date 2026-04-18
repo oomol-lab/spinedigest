@@ -9,14 +9,14 @@ SpineDigest 的设计重心是命令行使用。
 已安装 CLI 时：
 
 ```bash
-spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
+spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
 spinedigest sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 ```
 
 在源码仓库中运行时：
 
 ```bash
-pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
+pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
 pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 ```
 
@@ -27,6 +27,7 @@ pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 - `--input-format <format>`：显式指定输入格式
 - `--output-format <format>`：显式指定输出格式
 - `--digest-dir <path>`：保留 digest 中间工作目录；每次运行前会先清空该目录
+- `--prompt <text>`：为当前这次 digest 临时覆盖 extraction prompt
 - `--verbose`：把诊断日志输出到 `stderr`
 - `-h`, `--help`：打印帮助文本
 
@@ -35,6 +36,8 @@ pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 `sdpub` 检查接口本身使用 positional subcommands：`spinedigest sdpub <subcommand>`。
 
 `sdpub` 检查子命令只接受 `--input`，其中 `cat` 还要求提供 `--serial`。
+
+`--prompt` 只影响从源输入生成 digest 的过程，不适用于重新打开 `.sdpub` 或使用 `spinedigest sdpub ...`。
 
 ## 支持的格式
 
@@ -119,6 +122,12 @@ spinedigest sdpub cover --input ./book.sdpub > ./cover.png
 cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
 ```
 
+临时覆盖 extraction prompt：
+
+```bash
+spinedigest --input ./book.md --output ./digest.md --prompt "Preserve named entities and decisive transitions."
+```
+
 ## 配置
 
 默认配置路径：
@@ -159,6 +168,8 @@ SPINEDIGEST_CONFIG
   }
 }
 ```
+
+对于主 digest 命令，`--prompt` 的优先级最高，只影响当前这次运行。否则，`SPINEDIGEST_PROMPT` 会覆盖 `config.json`，再没有时使用内置默认 prompt。
 
 ## 环境变量
 
@@ -207,7 +218,7 @@ SpineDigest 支持通过环境变量覆盖配置值：
 - 在写入 `stdout` 时同时使用了 `--verbose`
 - digest 操作缺少 LLM 配置
 - `spinedigest sdpub cat` 缺少 `--serial`
-- `sdpub` 检查子命令使用了不支持的参数，例如 `--output`、`--output-format` 或 `--verbose`
+- `sdpub` 检查子命令使用了不支持的参数，例如 `--output`、`--output-format`、`--prompt` 或 `--verbose`
 - `spinedigest sdpub cover` 试图向交互式终端输出二进制数据
 - `spinedigest sdpub cover` 针对一个没有封面的归档运行
 - provider 相关配置不合法

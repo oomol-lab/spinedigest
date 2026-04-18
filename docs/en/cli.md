@@ -9,14 +9,14 @@ SpineDigest is designed to be used from the command line first.
 Installed CLI:
 
 ```bash
-spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
+spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
 spinedigest sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 ```
 
 From a source checkout:
 
 ```bash
-pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
+pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
 pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 ```
 
@@ -27,6 +27,7 @@ pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 - `--input-format <format>`: input format override
 - `--output-format <format>`: output format override
 - `--digest-dir <path>`: keep the digest workspace; the directory is cleared before each run
+- `--prompt <text>`: one-off extraction prompt override for the current digest run
 - `--verbose`: write diagnostic logs to `stderr`
 - `-h`, `--help`: print help text
 
@@ -35,6 +36,8 @@ The main conversion command does not support positional arguments.
 The `sdpub` inspection interface uses positional subcommands: `spinedigest sdpub <subcommand>`.
 
 The `sdpub` inspection subcommands only accept `--input`, and `cat` also requires `--serial`.
+
+`--prompt` only affects digest generation from source inputs. It does not apply when reopening `.sdpub` archives or using `spinedigest sdpub ...`.
 
 ## Formats
 
@@ -119,6 +122,12 @@ Use pipes:
 cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
 ```
 
+Use a one-off extraction prompt:
+
+```bash
+spinedigest --input ./book.md --output ./digest.md --prompt "Preserve named entities and decisive transitions."
+```
+
 ## Configuration
 
 Default config path:
@@ -159,6 +168,8 @@ Config fields:
   }
 }
 ```
+
+For the main digest command, `--prompt` has the highest priority for the current run. Otherwise, `SPINEDIGEST_PROMPT` overrides `config.json`, and missing values fall back to the built-in default prompt.
 
 ## Environment Variables
 
@@ -207,7 +218,7 @@ Expect a plain-text error message on `stderr` and a non-zero exit code when:
 - `--verbose` is used while writing output to `stdout`
 - no LLM configuration is available for a digest operation
 - `spinedigest sdpub cat` is used without `--serial`
-- `sdpub` inspection subcommands are used with unsupported flags such as `--output`, `--output-format`, or `--verbose`
+- `sdpub` inspection subcommands are used with unsupported flags such as `--output`, `--output-format`, `--prompt`, or `--verbose`
 - `spinedigest sdpub cover` tries to write binary data to an interactive terminal
 - `spinedigest sdpub cover` is used on an archive without a cover
 - provider-specific configuration is invalid
