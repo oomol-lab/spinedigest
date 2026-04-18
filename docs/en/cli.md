@@ -10,12 +10,14 @@ Installed CLI:
 
 ```bash
 spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
+spinedigest sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 ```
 
 From a source checkout:
 
 ```bash
 pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
+pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 ```
 
 ## Flags
@@ -29,6 +31,8 @@ pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--outp
 - `-h`, `--help`: print help text
 
 Positional arguments are not supported.
+
+The `sdpub` inspection subcommands only accept `--input`, and `cat` also requires `--serial`.
 
 ## Formats
 
@@ -95,6 +99,16 @@ Reuse an existing `.sdpub` archive:
 
 ```bash
 spinedigest --input ./book.sdpub --output ./digest.txt
+```
+
+Inspect an `.sdpub` archive:
+
+```bash
+spinedigest sdpub info --input ./book.sdpub
+spinedigest sdpub toc --input ./book.sdpub
+spinedigest sdpub list --input ./book.sdpub
+spinedigest sdpub cat --input ./book.sdpub --serial 12
+spinedigest sdpub cover --input ./book.sdpub > ./cover.png
 ```
 
 Use pipes:
@@ -175,6 +189,7 @@ When the input is `.sdpub`:
 - SpineDigest opens the saved digest state
 - no LLM configuration is required
 - you can export to `.txt`, `.md`, or `.epub`
+- you can inspect metadata, TOC, serials, serial text, and cover data through `spinedigest sdpub ...`
 
 When the output is `.sdpub`:
 

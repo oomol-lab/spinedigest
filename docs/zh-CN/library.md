@@ -87,6 +87,8 @@ digest session 的 option 现在可以传入可选的 `onProgress` 回调。
 - `readMeta()`
 - `readCover()`
 - `readToc()`
+- `listSerials()`
+- `readSerialSummary(serialId)`
 - `exportText(path)`
 - `exportEpub(path)`
 - `saveAs(path)`

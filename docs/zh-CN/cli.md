@@ -10,12 +10,14 @@ SpineDigest 的设计重心是命令行使用。
 
 ```bash
 spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
+spinedigest sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 ```
 
 在源码仓库中运行时：
 
 ```bash
 pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--verbose]
+pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 ```
 
 ## 参数
@@ -29,6 +31,8 @@ pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--outp
 - `-h`, `--help`：打印帮助文本
 
 不支持 positional arguments。
+
+`sdpub` 检查子命令只接受 `--input`，其中 `cat` 还要求提供 `--serial`。
 
 ## 支持的格式
 
@@ -95,6 +99,16 @@ spinedigest --input ./book.md --output ./book.sdpub
 
 ```bash
 spinedigest --input ./book.sdpub --output ./digest.txt
+```
+
+检查 `.sdpub` 归档：
+
+```bash
+spinedigest sdpub info --input ./book.sdpub
+spinedigest sdpub toc --input ./book.sdpub
+spinedigest sdpub list --input ./book.sdpub
+spinedigest sdpub cat --input ./book.sdpub --serial 12
+spinedigest sdpub cover --input ./book.sdpub > ./cover.png
 ```
 
 通过管道处理：
@@ -175,6 +189,7 @@ SpineDigest 支持通过环境变量覆盖配置值：
 - SpineDigest 会直接打开已经保存的 digest 状态
 - 不需要 LLM 配置
 - 可以导出为 `.txt`、`.md` 或 `.epub`
+- 也可以通过 `spinedigest sdpub ...` 检查元信息、TOC、serial、serial 文本和封面数据
 
 当输出是 `.sdpub` 时：
 

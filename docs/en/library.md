@@ -87,6 +87,8 @@ The callback reports three event shapes during digest generation:
 - `readMeta()`
 - `readCover()`
 - `readToc()`
+- `listSerials()`
+- `readSerialSummary(serialId)`
 - `exportText(path)`
 - `exportEpub(path)`
 - `saveAs(path)`
