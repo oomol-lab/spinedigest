@@ -169,6 +169,8 @@ Config fields:
 }
 ```
 
+`request.timeout` is in milliseconds.
+
 For the main digest command, `--prompt` has the highest priority for the current run. Otherwise, `SPINEDIGEST_PROMPT` overrides `config.json`, and missing values fall back to the built-in default prompt.
 
 ## Environment Variables

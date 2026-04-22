@@ -68,7 +68,7 @@ describe("cli/config", () => {
               retryTimes: 3,
               stream: false,
               temperature: [0.2, 0.4],
-              timeout: 12,
+              timeout: 12000,
               topP: 0.8,
             },
           },
@@ -89,7 +89,7 @@ describe("cli/config", () => {
       process.env.SPINEDIGEST_REQUEST_RETRY_TIMES = "4";
       process.env.SPINEDIGEST_REQUEST_STREAM = "true";
       process.env.SPINEDIGEST_REQUEST_TEMPERATURE = "[0.3,0.6]";
-      process.env.SPINEDIGEST_REQUEST_TIMEOUT = "30";
+      process.env.SPINEDIGEST_REQUEST_TIMEOUT = "30000";
       process.env.SPINEDIGEST_REQUEST_TOP_P = "0.9";
 
       await expect(loadCLIConfig()).resolves.toStrictEqual({
@@ -111,7 +111,7 @@ describe("cli/config", () => {
           retryTimes: 4,
           stream: true,
           temperature: [0.3, 0.6],
-          timeout: 30,
+          timeout: 30000,
           topP: 0.9,
         },
       });

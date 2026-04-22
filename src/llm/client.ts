@@ -30,6 +30,7 @@ import type {
 } from "./types.js";
 
 const RETRYABLE_STATUS_CODES = new Set([502, 503, 504, 524, 529]);
+const DEFAULT_TIMEOUT_MS = 360_000;
 const ABORT_ERROR_NAMES = new Set([
   "AbortError",
   "ResponseAborted",
@@ -89,8 +90,7 @@ export class LLM<S extends string> {
 
   public constructor(options: LLMOptions<S>) {
     const concurrent = options.concurrent ?? 1;
-    const timeout = options.timeout ?? 360;
-    const timeoutMs = timeout * 1000;
+    const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
     const temperature = options.temperature ?? 0.6;
     const topP = options.topP ?? 0.6;
     const sampling = options.sampling;
@@ -121,7 +121,7 @@ export class LLM<S extends string> {
     this.#stream = stream;
     this.#templateEnvironment = createEnv(options.dataDirPath);
     this.#temperature = temperature;
-    this.#timeoutMs = timeoutMs;
+    this.#timeoutMs = timeout;
     this.#topP = topP;
   }
 

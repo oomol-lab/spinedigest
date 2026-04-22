@@ -109,7 +109,15 @@ describe("llm/client", () => {
     ).resolves.toBe("generated response");
 
     expect(llm.config.stream).toBe(false);
+    expect(llm.config.timeout).toBe(360000);
     expect(aiMockState.generateTextCalls).toHaveLength(1);
+    expect(
+      aiMockState.generateTextCalls[0] as {
+        readonly timeout: number;
+      },
+    ).toMatchObject({
+      timeout: 360000,
+    });
     expect(aiMockState.streamTextCalls).toHaveLength(0);
   });
 
@@ -173,6 +181,33 @@ describe("llm/client", () => {
     ).toMatchObject({
       temperature: 0.7,
       topP: 0.9,
+    });
+  });
+
+  it("passes explicit timeout values through as milliseconds", async () => {
+    const llm = new LLM({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+      timeout: 45000,
+    });
+
+    await llm.request([
+      {
+        content: "hello",
+        role: "user",
+      },
+    ]);
+
+    expect(llm.config.timeout).toBe(45000);
+    expect(
+      aiMockState.generateTextCalls[0] as {
+        readonly timeout: number;
+      },
+    ).toMatchObject({
+      timeout: 45000,
     });
   });
 
