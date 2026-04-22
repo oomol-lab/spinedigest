@@ -30,6 +30,25 @@ import type {
 } from "./types.js";
 
 const RETRYABLE_STATUS_CODES = new Set([502, 503, 504, 524, 529]);
+const ABORT_ERROR_NAMES = new Set([
+  "AbortError",
+  "ResponseAborted",
+  "TimeoutError",
+]);
+const RETRYABLE_ERROR_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "EPIPE",
+  "UND_ERR_SOCKET",
+]);
+const RETRYABLE_ERROR_KEYWORDS = [
+  "connection",
+  "terminated",
+  "timeout",
+  "network",
+  "rate limit",
+];
 
 let contextIdCounter = 0;
 
@@ -446,15 +465,52 @@ function isRetryableError(error: unknown): boolean {
     );
   }
 
-  if (!(error instanceof Error)) {
-    return false;
+  return !isAbortLikeError(error) && isRetryableTransportError(error);
+}
+
+function isAbortLikeError(error: unknown): boolean {
+  return someErrorInChain(error, (currentError) =>
+    ABORT_ERROR_NAMES.has(currentError.name),
+  );
+}
+
+function isRetryableTransportError(error: unknown): boolean {
+  return someErrorInChain(error, (currentError) => {
+    const nodeError = currentError as NodeJS.ErrnoException;
+    const errorCode =
+      typeof nodeError.code === "string"
+        ? nodeError.code.toUpperCase()
+        : undefined;
+
+    if (errorCode !== undefined && RETRYABLE_ERROR_CODES.has(errorCode)) {
+      return true;
+    }
+
+    const errorMessage = currentError.message.toLowerCase();
+
+    return RETRYABLE_ERROR_KEYWORDS.some((keyword) =>
+      errorMessage.includes(keyword),
+    );
+  });
+}
+
+function someErrorInChain(
+  error: unknown,
+  matcher: (error: Error) => boolean,
+): boolean {
+  const visited = new Set<unknown>();
+  let current: unknown = error;
+
+  while (current instanceof Error && !visited.has(current)) {
+    if (matcher(current)) {
+      return true;
+    }
+
+    visited.add(current);
+    current = current.cause;
   }
 
-  const errorMessage = error.message.toLowerCase();
-
-  return ["connection", "timeout", "network", "rate limit"].some((keyword) =>
-    errorMessage.includes(keyword),
-  );
+  return false;
 }
 
 function resolveModelInfo(model: LLMModel): {

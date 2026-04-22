@@ -5,6 +5,7 @@ const aiMockState = vi.hoisted(() => ({
   generateTextCalls: [] as unknown[],
   generateTextError: undefined as Error | undefined,
   streamTextCalls: [] as unknown[],
+  streamTextError: undefined as Error | undefined,
 }));
 
 vi.mock("ai", () => ({
@@ -50,6 +51,10 @@ vi.mock("ai", () => ({
 
           return {
             next() {
+              if (aiMockState.streamTextError !== undefined) {
+                return Promise.reject(aiMockState.streamTextError);
+              }
+
               if (index >= chunks.length) {
                 return Promise.resolve({
                   done: true as const,
@@ -82,6 +87,7 @@ describe("llm/client", () => {
     aiMockState.generateTextCalls.length = 0;
     aiMockState.generateTextError = undefined;
     aiMockState.streamTextCalls.length = 0;
+    aiMockState.streamTextError = undefined;
   });
 
   it("uses generateText by default", async () => {
@@ -243,5 +249,83 @@ describe("llm/client", () => {
         "LLM request failed after 6 attempts: Cannot connect to API: Client network socket disconnected before secure TLS connection was established (ECONNRESET)",
     });
     expect(aiMockState.generateTextCalls).toHaveLength(6);
+  });
+
+  it("retries terminated transport errors for generateText", async () => {
+    aiMockState.generateTextError = new TypeError("terminated");
+
+    const llm = new LLM({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+      retryIntervalSeconds: 0,
+    });
+
+    await expect(
+      llm.request([
+        {
+          content: "hello",
+          role: "user",
+        },
+      ]),
+    ).rejects.toMatchObject({
+      cause: aiMockState.generateTextError,
+      message: "LLM request failed after 6 attempts: terminated",
+    });
+    expect(aiMockState.generateTextCalls).toHaveLength(6);
+  });
+
+  it("does not retry abort-like errors", async () => {
+    const abortError = new Error("The operation was aborted.");
+    abortError.name = "AbortError";
+    aiMockState.generateTextError = abortError;
+
+    const llm = new LLM({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+      retryIntervalSeconds: 0,
+    });
+
+    await expect(
+      llm.request([
+        {
+          content: "hello",
+          role: "user",
+        },
+      ]),
+    ).rejects.toBe(abortError);
+    expect(aiMockState.generateTextCalls).toHaveLength(1);
+  });
+
+  it("retries terminated transport errors for streamText", async () => {
+    aiMockState.streamTextError = new TypeError("terminated");
+
+    const llm = new LLM({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+      retryIntervalSeconds: 0,
+      stream: true,
+    });
+
+    await expect(
+      llm.request([
+        {
+          content: "hello",
+          role: "user",
+        },
+      ]),
+    ).rejects.toMatchObject({
+      cause: aiMockState.streamTextError,
+      message: "LLM request failed after 6 attempts: terminated",
+    });
+    expect(aiMockState.streamTextCalls).toHaveLength(6);
   });
 });
