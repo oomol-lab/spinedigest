@@ -269,13 +269,13 @@ export class SerialGeneration {
         allChunks,
         fragment: {
           sentences: fragment.sentences,
-          wordsCount,
         },
         reader,
         serialId,
         successorIdsByChunkId,
         topology,
       });
+      // Progress only advances after the fragment is fully persisted and indexed.
       await progressTracker?.advance(wordsCount);
     }
 
@@ -292,7 +292,6 @@ export class SerialGeneration {
         readonly text: string;
         readonly wordsCount: number;
       }>;
-      readonly wordsCount: number;
     };
     readonly reader: Reader<ReaderProgressScope>;
     readonly serialId: number;

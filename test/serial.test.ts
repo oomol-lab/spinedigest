@@ -1,8 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  ReaderChunk,
+  ReaderGraphDelta,
+  ReaderSegment,
+  ReaderSentence,
+  ReaderTextStream,
+} from "../src/reader/index.js";
+
+const EMPTY_DELTA: ReaderGraphDelta = {
+  chunks: [],
+  edges: [],
+};
 
 const { compressTextMock, readerSegmentMock } = vi.hoisted(() => ({
   compressTextMock: vi.fn(),
-  readerSegmentMock: vi.fn<(stream: unknown) => AsyncIterable<unknown>>(),
+  readerSegmentMock:
+    vi.fn<(stream: ReaderTextStream) => AsyncIterable<ReaderSegment>>(),
 }));
 
 vi.mock("../src/editor/index.js", () => ({
@@ -11,30 +24,37 @@ vi.mock("../src/editor/index.js", () => ({
 
 vi.mock("../src/reader/index.js", () => ({
   Reader: class {
-    public segment(stream: unknown): AsyncIterable<unknown> {
+    public segment(stream: ReaderTextStream): AsyncIterable<ReaderSegment> {
       return readerSegmentMock(stream);
     }
 
-    public extractUserFocused() {
+    public extractUserFocused(_input: {
+      readonly sentences: readonly ReaderSentence[];
+      readonly text: string;
+    }): Promise<{
+      readonly delta: ReaderGraphDelta;
+      readonly fragmentSummary: string;
+    }> {
       return Promise.resolve({
-        delta: {
-          chunks: [],
-          edges: [],
-        },
+        delta: EMPTY_DELTA,
         fragmentSummary: "",
       });
     }
 
-    public extractBookCoherence() {
-      return Promise.resolve({
-        chunks: [],
-        edges: [],
-      });
+    public extractBookCoherence(_input: {
+      readonly sentences: readonly ReaderSentence[];
+      readonly text: string;
+      readonly userFocusedChunks: readonly ReaderChunk[];
+    }): Promise<ReaderGraphDelta> {
+      return Promise.resolve(EMPTY_DELTA);
     }
 
-    public completeFragment(): void {}
+    public completeFragment(_input: {
+      readonly allChunks: readonly ReaderChunk[];
+      readonly getSuccessorChunkIds: (chunkId: number) => readonly number[];
+    }): void {}
   },
-  segmentTextStream: (stream: unknown) => stream,
+  segmentTextStream: (stream: ReaderTextStream): ReaderTextStream => stream,
 }));
 
 vi.mock("../src/topology/index.js", () => ({
@@ -69,6 +89,7 @@ describe("serial", () => {
       readerSegmentMock.mockReturnValueOnce(
         createSentenceStream([
           {
+            offset: 0,
             text: "Alpha beta.",
             wordsCount: 2,
           },
@@ -109,10 +130,12 @@ describe("serial", () => {
       readerSegmentMock.mockReturnValueOnce(
         createSentenceStream([
           {
+            offset: 0,
             text: "Alpha beta.",
             wordsCount: 200,
           },
           {
+            offset: 11,
             text: "Gamma delta epsilon.",
             wordsCount: 160,
           },
@@ -144,19 +167,10 @@ describe("serial", () => {
 });
 
 function createSentenceStream(
-  sentences: ReadonlyArray<{
-    readonly text: string;
-    readonly wordsCount: number;
-  }>,
-): AsyncIterable<{
-  readonly text: string;
-  readonly wordsCount: number;
-}> {
+  sentences: ReadonlyArray<ReaderSegment>,
+): AsyncIterable<ReaderSegment> {
   return {
-    [Symbol.asyncIterator](): AsyncIterator<{
-      readonly text: string;
-      readonly wordsCount: number;
-    }> {
+    [Symbol.asyncIterator](): AsyncIterator<ReaderSegment> {
       const iterator = sentences[Symbol.iterator]();
 
       return {
