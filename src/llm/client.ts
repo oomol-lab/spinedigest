@@ -29,18 +29,34 @@ import type {
   TemperatureSetting,
 } from "./types.js";
 
-const RETRYABLE_STATUS_CODES = new Set([502, 503, 504, 524, 529]);
 const DEFAULT_TIMEOUT_MS = 360_000;
 const ABORT_ERROR_NAMES = new Set([
   "AbortError",
   "ResponseAborted",
   "TimeoutError",
 ]);
+const RETRYABLE_HTTP_STATUS_CODES = new Set([
+  408, 409, 425, 429, 500, 502, 503, 504, 520, 522, 524, 529,
+]);
+// undici commonly reports transient transport failures through low-level error
+// codes and generic `terminated` fetch errors instead of retryable HTTP
+// responses. The issues below are representative cases we want to treat as
+// retryable at our LLM boundary:
+// https://github.com/nodejs/undici/issues/1490
+// https://github.com/nodejs/undici/issues/1414
+// https://github.com/nodejs/undici/issues/1531
+// https://github.com/nodejs/undici/issues/1864
+// https://github.com/nodejs/undici/issues/2362
+// https://github.com/nodejs/undici/issues/3410
+// https://github.com/nodejs/undici/issues/4215
 const RETRYABLE_ERROR_CODES = new Set([
   "ECONNRESET",
   "ECONNREFUSED",
+  "EAI_AGAIN",
   "ETIMEDOUT",
   "EPIPE",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
   "UND_ERR_SOCKET",
 ]);
 const RETRYABLE_ERROR_KEYWORDS = [
@@ -459,13 +475,17 @@ function isRetryableError(error: unknown): boolean {
       return true;
     }
 
-    return (
-      typeof error.statusCode === "number" &&
-      RETRYABLE_STATUS_CODES.has(error.statusCode)
-    );
+    return isRetryableStatusCode(error.statusCode);
   }
 
   return !isAbortLikeError(error) && isRetryableTransportError(error);
+}
+
+function isRetryableStatusCode(statusCode: number | undefined): boolean {
+  return (
+    typeof statusCode === "number" &&
+    RETRYABLE_HTTP_STATUS_CODES.has(statusCode)
+  );
 }
 
 function isAbortLikeError(error: unknown): boolean {
