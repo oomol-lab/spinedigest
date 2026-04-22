@@ -29,7 +29,43 @@ import type {
   TemperatureSetting,
 } from "./types.js";
 
-const RETRYABLE_STATUS_CODES = new Set([502, 503, 504, 524, 529]);
+const DEFAULT_TIMEOUT_MS = 360_000;
+const ABORT_ERROR_NAMES = new Set([
+  "AbortError",
+  "ResponseAborted",
+  "TimeoutError",
+]);
+const RETRYABLE_HTTP_STATUS_CODES = new Set([
+  408, 409, 425, 429, 500, 502, 503, 504, 520, 522, 524, 529,
+]);
+// undici commonly reports transient transport failures through low-level error
+// codes and generic `terminated` fetch errors instead of retryable HTTP
+// responses. The issues below are representative cases we want to treat as
+// retryable at our LLM boundary:
+// https://github.com/nodejs/undici/issues/1490
+// https://github.com/nodejs/undici/issues/1414
+// https://github.com/nodejs/undici/issues/1531
+// https://github.com/nodejs/undici/issues/1864
+// https://github.com/nodejs/undici/issues/2362
+// https://github.com/nodejs/undici/issues/3410
+// https://github.com/nodejs/undici/issues/4215
+const RETRYABLE_ERROR_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "EAI_AGAIN",
+  "ETIMEDOUT",
+  "EPIPE",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_SOCKET",
+]);
+const RETRYABLE_ERROR_KEYWORDS = [
+  "connection",
+  "terminated",
+  "timeout",
+  "network",
+  "rate limit",
+];
 
 let contextIdCounter = 0;
 
@@ -70,8 +106,7 @@ export class LLM<S extends string> {
 
   public constructor(options: LLMOptions<S>) {
     const concurrent = options.concurrent ?? 1;
-    const timeout = options.timeout ?? 360;
-    const timeoutMs = timeout * 1000;
+    const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
     const temperature = options.temperature ?? 0.6;
     const topP = options.topP ?? 0.6;
     const sampling = options.sampling;
@@ -102,7 +137,7 @@ export class LLM<S extends string> {
     this.#stream = stream;
     this.#templateEnvironment = createEnv(options.dataDirPath);
     this.#temperature = temperature;
-    this.#timeoutMs = timeoutMs;
+    this.#timeoutMs = timeout;
     this.#topP = topP;
   }
 
@@ -440,21 +475,62 @@ function isRetryableError(error: unknown): boolean {
       return true;
     }
 
-    return (
-      typeof error.statusCode === "number" &&
-      RETRYABLE_STATUS_CODES.has(error.statusCode)
-    );
+    return isRetryableStatusCode(error.statusCode);
   }
 
-  if (!(error instanceof Error)) {
-    return false;
-  }
+  return !isAbortLikeError(error) && isRetryableTransportError(error);
+}
 
-  const errorMessage = error.message.toLowerCase();
-
-  return ["connection", "timeout", "network", "rate limit"].some((keyword) =>
-    errorMessage.includes(keyword),
+function isRetryableStatusCode(statusCode: number | undefined): boolean {
+  return (
+    typeof statusCode === "number" &&
+    RETRYABLE_HTTP_STATUS_CODES.has(statusCode)
   );
+}
+
+function isAbortLikeError(error: unknown): boolean {
+  return someErrorInChain(error, (currentError) =>
+    ABORT_ERROR_NAMES.has(currentError.name),
+  );
+}
+
+function isRetryableTransportError(error: unknown): boolean {
+  return someErrorInChain(error, (currentError) => {
+    const nodeError = currentError as NodeJS.ErrnoException;
+    const errorCode =
+      typeof nodeError.code === "string"
+        ? nodeError.code.toUpperCase()
+        : undefined;
+
+    if (errorCode !== undefined && RETRYABLE_ERROR_CODES.has(errorCode)) {
+      return true;
+    }
+
+    const errorMessage = currentError.message.toLowerCase();
+
+    return RETRYABLE_ERROR_KEYWORDS.some((keyword) =>
+      errorMessage.includes(keyword),
+    );
+  });
+}
+
+function someErrorInChain(
+  error: unknown,
+  matcher: (error: Error) => boolean,
+): boolean {
+  const visited = new Set<unknown>();
+  let current: unknown = error;
+
+  while (current instanceof Error && !visited.has(current)) {
+    if (matcher(current)) {
+      return true;
+    }
+
+    visited.add(current);
+    current = current.cause;
+  }
+
+  return false;
 }
 
 function resolveModelInfo(model: LLMModel): {

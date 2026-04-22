@@ -169,6 +169,8 @@ SPINEDIGEST_CONFIG
 }
 ```
 
+`request.timeout` 的单位是毫秒。
+
 对于主 digest 命令，`--prompt` 的优先级最高，只影响当前这次运行。否则，`SPINEDIGEST_PROMPT` 会覆盖 `config.json`，再没有时使用内置默认 prompt。
 
 ## 环境变量

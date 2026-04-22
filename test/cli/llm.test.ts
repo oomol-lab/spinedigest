@@ -100,7 +100,7 @@ describe("cli/llm", () => {
           retryTimes: 4,
           stream: true,
           temperature: [0.2, 0.4],
-          timeout: 30,
+          timeout: 30000,
           topP: 0.9,
         },
       }),
@@ -116,7 +116,7 @@ describe("cli/llm", () => {
       retryTimes: 4,
       stream: true,
       temperature: [0.2, 0.4],
-      timeout: 30,
+      timeout: 30000,
       topP: 0.9,
     });
 
