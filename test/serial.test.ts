@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { compressTextMock, readerSegmentMock } = vi.hoisted(() => ({
   compressTextMock: vi.fn(),
-  readerSegmentMock: vi.fn(),
+  readerSegmentMock: vi.fn<(stream: unknown) => AsyncIterable<unknown>>(),
 }));
 
 vi.mock("../src/editor/index.js", () => ({
@@ -62,8 +62,8 @@ describe("serial", () => {
     await withTempDir("spinedigest-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);
       const progressTracker = {
-        advance: vi.fn(async (_wordsCount: number) => undefined),
-        complete: vi.fn(async (_finalWordsCount?: number) => undefined),
+        advance: vi.fn((_wordsCount: number) => Promise.resolve()),
+        complete: vi.fn((_finalWordsCount?: number) => Promise.resolve()),
       };
 
       readerSegmentMock.mockReturnValueOnce(
@@ -102,8 +102,8 @@ describe("serial", () => {
     await withTempDir("spinedigest-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);
       const progressTracker = {
-        advance: vi.fn(async (_wordsCount: number) => undefined),
-        complete: vi.fn(async (_finalWordsCount?: number) => undefined),
+        advance: vi.fn((_wordsCount: number) => Promise.resolve()),
+        complete: vi.fn((_finalWordsCount?: number) => Promise.resolve()),
       };
 
       readerSegmentMock.mockReturnValueOnce(
@@ -143,7 +143,7 @@ describe("serial", () => {
   });
 });
 
-async function* createSentenceStream(
+function createSentenceStream(
   sentences: ReadonlyArray<{
     readonly text: string;
     readonly wordsCount: number;
@@ -152,7 +152,18 @@ async function* createSentenceStream(
   readonly text: string;
   readonly wordsCount: number;
 }> {
-  for (const sentence of sentences) {
-    yield sentence;
-  }
+  return {
+    [Symbol.asyncIterator](): AsyncIterator<{
+      readonly text: string;
+      readonly wordsCount: number;
+    }> {
+      const iterator = sentences[Symbol.iterator]();
+
+      return {
+        next() {
+          return Promise.resolve(iterator.next());
+        },
+      };
+    },
+  };
 }
