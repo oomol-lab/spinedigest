@@ -119,7 +119,7 @@ export class SerialProgressTracker {
 
   public async complete(finalWordsCount = 0): Promise<void> {
     this.#completedWords += finalWordsCount;
-    if (this.#completedWords > 0) {
+    if (finalWordsCount > 0) {
       this.#completedFragments += 1;
     }
 
