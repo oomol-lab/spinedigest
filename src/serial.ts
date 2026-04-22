@@ -162,21 +162,16 @@ export class SerialGeneration {
     options: GenerateSerialOptions,
     progressTracker?: SerialProgressTracker,
   ): Promise<Serial> {
-    let finalWordsCount = 0;
-
     await this.#buildTopology(
       serialId,
       stream,
       options.extractionPrompt,
       options.userLanguage,
       progressTracker,
-      (wordsCount) => {
-        finalWordsCount = wordsCount;
-      },
     );
 
     const summary = await this.#buildSummary(serialId, options.userLanguage);
-    await progressTracker?.complete(finalWordsCount);
+    await progressTracker?.complete();
 
     return new Serial(this.#document, serialId, summary);
   }
@@ -235,7 +230,6 @@ export class SerialGeneration {
     extractionPrompt: string,
     userLanguage: Language | undefined,
     progressTracker?: SerialProgressTracker,
-    setFinalWordsCount?: (wordsCount: number) => void,
   ): Promise<void> {
     const reader = new Reader({
       attention: {
@@ -265,48 +259,24 @@ export class SerialGeneration {
     );
     const allChunks: ReaderChunk[] = [];
     const successorIdsByChunkId = createNumberListRecord();
-    let finalFragment:
-      | {
-          readonly sentences: ReadonlyArray<{
-            readonly text: string;
-            readonly wordsCount: number;
-          }>;
-          readonly wordsCount: number;
-        }
-      | undefined;
-
     for await (const fragment of streamFragments({
       maxWordsCount: this.#fragmentWordsCount,
       stream: reader.segment(stream),
     })) {
-      if (finalFragment !== undefined) {
-        await this.#processFragment({
-          allChunks,
-          fragment: finalFragment,
-          reader,
-          serialId,
-          successorIdsByChunkId,
-          topology,
-        });
-        await progressTracker?.advance(finalFragment.wordsCount);
-      }
+      const wordsCount = countFragmentWords(fragment.sentences);
 
-      finalFragment = {
-        sentences: fragment.sentences,
-        wordsCount: countFragmentWords(fragment.sentences),
-      };
-    }
-
-    if (finalFragment !== undefined) {
       await this.#processFragment({
         allChunks,
-        fragment: finalFragment,
+        fragment: {
+          sentences: fragment.sentences,
+          wordsCount,
+        },
         reader,
         serialId,
         successorIdsByChunkId,
         topology,
       });
-      setFinalWordsCount?.(finalFragment.wordsCount);
+      await progressTracker?.advance(wordsCount);
     }
 
     await this.#writeSemaphore.use(async () => {
