@@ -96,6 +96,7 @@ export {
   resolveWikiGraphCoreDatabasePath,
   resolveWikiGraphHomeDirectoryPath,
   withWikiGraphRuntimeEnvironment,
+  withWikiGraphRuntimeStateDirectoryPath,
 } from "./runtime/common/wiki-graph/dir.js";
 export {
   createWikiGraphTempDirectory,

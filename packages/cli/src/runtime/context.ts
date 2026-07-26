@@ -3,8 +3,12 @@ import { AsyncLocalStorage } from "async_hooks";
 export interface WikiGraphCLIRuntimeContext {
   readonly argv: readonly string[];
   readonly cwd: string;
+  readonly devProjectRoot?: string | undefined;
   readonly env: NodeJS.ProcessEnv;
+  readonly envPolicy: "development" | "production";
+  readonly queueAutostart: boolean;
   readonly signal?: AbortSignal | undefined;
+  readonly stateDir?: string | undefined;
   readonly stderr: NodeJS.WritableStream;
   readonly stderrIsTTY?: boolean | undefined;
   readonly stdin: NodeJS.ReadableStream & { isTTY?: boolean | undefined };
@@ -15,6 +19,7 @@ export interface WikiGraphCLIRuntimeContext {
 }
 
 const cliRuntimeContext = new AsyncLocalStorage<WikiGraphCLIRuntimeContext>();
+let queueAutostartForTesting: boolean | undefined;
 
 export async function withWikiGraphCLIRuntimeContext<T>(
   context: WikiGraphCLIRuntimeContext,
@@ -37,6 +42,28 @@ export function getCLIEnv(): NodeJS.ProcessEnv {
 
 export function getCLIEnvValue(name: string): string | undefined {
   return getCLIEnv()[name];
+}
+
+export function getCLIDevProjectRoot(): string | undefined {
+  return cliRuntimeContext.getStore()?.devProjectRoot;
+}
+
+export function getCLIStateDir(): string | undefined {
+  return cliRuntimeContext.getStore()?.stateDir;
+}
+
+export function isCLIQueueAutostartEnabled(): boolean {
+  return (
+    queueAutostartForTesting ??
+    cliRuntimeContext.getStore()?.queueAutostart ??
+    true
+  );
+}
+
+export function setCLIQueueAutostartForTesting(
+  enabled: boolean | undefined,
+): void {
+  queueAutostartForTesting = enabled;
 }
 
 export function getCLISignal(): AbortSignal | undefined {

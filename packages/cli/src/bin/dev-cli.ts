@@ -1,6 +1,9 @@
-import { enableDevStateDirectory } from "../runtime/dev-state.js";
+import { main } from "../app/index.js";
+import { resolveDevStateDirectoryPath } from "../runtime/dev-state.js";
 
-enableDevStateDirectory();
-const { main } = await import("../app/index.js");
-
-void main();
+void main(
+  {
+    stateDir: resolveDevStateDirectoryPath(),
+  },
+  "development",
+);

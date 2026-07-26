@@ -2,7 +2,12 @@ import { spawn } from "child_process";
 import { existsSync } from "fs";
 import { join, resolve } from "path";
 
-import { getCLICwd, getCLIEnv, getCLIEnvValue } from "./context.js";
+import {
+  getCLICwd,
+  getCLIDevProjectRoot,
+  getCLIEnv,
+  getCLIStateDir,
+} from "./context.js";
 
 export type InternalChildKind = "gc-worker" | "queue-worker";
 
@@ -10,8 +15,6 @@ export interface InternalChildSpawnOptions {
   readonly args?: readonly string[];
   readonly detached?: boolean;
 }
-
-const INTERNAL_CHILD_ENV_KEY = "WIKIGRAPH_INTERNAL_CHILD";
 
 declare global {
   var __WIKIGRAPH_CLI_DIST_DIR__: string | undefined;
@@ -26,10 +29,7 @@ export function spawnInternalChild(
   return spawn(command.command, command.args, {
     cwd: getCLICwd(),
     detached: options.detached === true,
-    env: {
-      ...getCLIEnv(),
-      [INTERNAL_CHILD_ENV_KEY]: kind,
-    },
+    env: getCLIEnv(),
     stdio: options.detached === true ? "ignore" : ["ignore", "pipe", "pipe"],
   });
 }
@@ -80,22 +80,18 @@ function createInternalChildCommand(
   kind: InternalChildKind,
   args: readonly string[],
 ): { readonly args: readonly string[]; readonly command: string } {
-  const devStateDirPath = getCLIEnvValue("WIKIGRAPH_DEV");
+  const devProjectRoot = getCLIDevProjectRoot();
+  const stateDir = getCLIStateDir();
 
-  if (devStateDirPath !== undefined) {
-    const projectRoot = resolveDevProjectRoot(devStateDirPath);
-
+  if (devProjectRoot !== undefined && stateDir !== undefined) {
     return {
       args: [
-        join(projectRoot, "node_modules", "tsx", "dist", "cli.mjs"),
-        join(
-          projectRoot,
-          "packages",
-          "cli",
-          "src",
-          "bin",
-          createDevEntryName(kind),
-        ),
+        join(devProjectRoot, "node_modules", "tsx", "dist", "cli.mjs"),
+        join(devProjectRoot, "packages", "cli", "src", "bin", `${kind}.ts`),
+        "--wikigraph-internal-child",
+        kind,
+        "--wikigraph-state-dir",
+        stateDir,
         ...args,
       ],
       command: process.execPath,
@@ -103,26 +99,15 @@ function createInternalChildCommand(
   }
 
   return {
-    args: [resolveProductionEntryPath(kind), ...args],
+    args: [
+      resolveProductionEntryPath(kind),
+      "--wikigraph-internal-child",
+      kind,
+      ...(stateDir === undefined ? [] : ["--wikigraph-state-dir", stateDir]),
+      ...args,
+    ],
     command: process.execPath,
   };
-}
-
-function createDevEntryName(kind: InternalChildKind): string {
-  switch (kind) {
-    case "gc-worker":
-      return "dev-gc-worker.ts";
-    case "queue-worker":
-      return "dev-queue-worker.ts";
-  }
-}
-
-function resolveDevProjectRoot(devStateDirPath: string | undefined): string {
-  if (devStateDirPath === undefined || devStateDirPath.trim() === "") {
-    throw new Error("WIKIGRAPH_DEV must contain the development state path.");
-  }
-
-  return resolve(devStateDirPath, "..", "..");
 }
 
 function resolveProductionEntryPath(kind: InternalChildKind): string {

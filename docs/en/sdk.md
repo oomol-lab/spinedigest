@@ -60,7 +60,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { WikiGraph } from "wiki-graph-core";
 
 const openai = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: "<your-openai-api-key>",
 });
 
 const wikiGraph = new WikiGraph({
@@ -72,6 +72,10 @@ const wikiGraph = new WikiGraph({
   },
 });
 ```
+
+Wiki Graph does not automatically read `OPENAI_API_KEY` or any CLI provider
+configuration. Your application owns credential loading and must pass a fully
+configured AI SDK `LanguageModel` into `WikiGraph`.
 
 ## Queue Control
 

@@ -325,11 +325,9 @@ import {
   runQueueCommand,
   runQueueWorker,
 } from "../../packages/cli/src/commands/index.js";
+import { setCLIQueueAutostartForTesting } from "../../packages/cli/src/runtime/context.js";
 
 describe("cli/queue", () => {
-  const originalDisableAutostart =
-    process.env.WIKIGRAPH_QUEUE_DISABLE_AUTOSTART;
-
   beforeEach(() => {
     queueMockState.activeError = undefined;
     queueMockState.activeJobChecks.length = 0;
@@ -384,16 +382,11 @@ describe("cli/queue", () => {
         words: 800,
       },
     ];
-    process.env.WIKIGRAPH_QUEUE_DISABLE_AUTOSTART = "1";
+    setCLIQueueAutostartForTesting(false);
   });
 
   afterEach(() => {
-    if (originalDisableAutostart === undefined) {
-      delete process.env.WIKIGRAPH_QUEUE_DISABLE_AUTOSTART;
-      return;
-    }
-
-    process.env.WIKIGRAPH_QUEUE_DISABLE_AUTOSTART = originalDisableAutostart;
+    setCLIQueueAutostartForTesting(undefined);
   });
 
   it("checks archive source before the cost gate", async () => {

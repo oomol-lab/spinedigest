@@ -39,6 +39,7 @@ import { withStateDatabase } from "../../../../packages/core/src/storage/wikg/wi
 import {
   resolveWikiGraphHomeDirectoryPath,
   setWikiGraphStateDirectoryPathForTesting,
+  withWikiGraphRuntimeStateDirectoryPath,
 } from "../../../../packages/core/src/runtime/common/wiki-graph/dir.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
@@ -49,7 +50,6 @@ describe("schema-upgrade", () => {
 
   afterEach(() => {
     setWikiGraphStateDirectoryPathForTesting(undefined);
-    delete process.env.WIKIGRAPH_STATE_DIR;
   });
 
   it("upgrades a legacy archive in place", async () => {
@@ -529,12 +529,13 @@ describe("schema-upgrade", () => {
     });
   });
 
-  it("resolves the legacy home env fallback", async () => {
+  it("resolves an explicit runtime home override", async () => {
     await withTempDir("wikigraph-schema-home-env-", async (home) => {
-      process.env.WIKIGRAPH_STATE_DIR = home;
-      setWikiGraphStateDirectoryPathForTesting(undefined);
-      expect(resolveWikiGraphHomeDirectoryPath()).toBe(home);
-      await Promise.resolve();
+      await withWikiGraphRuntimeStateDirectoryPath(home, async () => {
+        setWikiGraphStateDirectoryPathForTesting(undefined);
+        expect(resolveWikiGraphHomeDirectoryPath()).toBe(home);
+        await Promise.resolve();
+      });
     });
   });
 });

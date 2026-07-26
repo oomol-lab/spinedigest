@@ -10,7 +10,7 @@ import {
 } from "../../packages/cli/src/index.js";
 import {
   resolveWikiGraphHomeDirectoryPath,
-  withWikiGraphRuntimeEnvironment,
+  withWikiGraphRuntimeStateDirectoryPath,
 } from "wiki-graph-core";
 
 describe("cli/sdk-runner", () => {
@@ -69,6 +69,23 @@ describe("cli/sdk-runner", () => {
     ).rejects.toThrow(reason);
   });
 
+  it("rejects dangerous runtime env overrides in production policy", async () => {
+    const result = await runWikiGraphCLICaptured({
+      argv: ["--version"],
+      env: {
+        WIKIGRAPH_DEV: "/tmp/dev-state",
+        WIKIGRAPH_ENV_POLICY: "development",
+        WIKIGRAPH_QUEUE_DISABLE_AUTOSTART: "1",
+        WIKIGRAPH_STATE_DIR: "/tmp/state",
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("production entries do not support");
+    expect(result.stderr).toContain("WIKIGRAPH_ENV_POLICY");
+  });
+
   it("uses runner cwd, env, stdio, TTY flags, and exit code without changing process globals", async () => {
     const originalCwd = process.cwd();
     const outerCwd = await mkdtemp(join(tmpdir(), "wikigraph-runner-outer-"));
@@ -79,9 +96,7 @@ describe("cli/sdk-runner", () => {
       const result = await runWikiGraphCLICaptured({
         argv: ["--version"],
         cwd: originalCwd,
-        env: {
-          WIKIGRAPH_STATE_DIR: stateDir,
-        },
+        stateDir,
         stdin: "ignored",
         stdinIsTTY: false,
         stdoutIsTTY: true,
@@ -92,7 +107,6 @@ describe("cli/sdk-runner", () => {
       expect(result.stdout).toMatch(/^\d+\.\d+\.\d+\n$/u);
       expect(result.stderr).toBe("");
       expect(await realpath(process.cwd())).toBe(await realpath(outerCwd));
-      expect(process.env.WIKIGRAPH_STATE_DIR).not.toBe(stateDir);
     } finally {
       process.chdir(originalCwd);
       await rm(outerCwd, { force: true, recursive: true });
@@ -104,18 +118,13 @@ describe("cli/sdk-runner", () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wikigraph-shared-state-"));
 
     try {
-      const coreStateDir = await withWikiGraphRuntimeEnvironment(
-        {
-          ...process.env,
-          WIKIGRAPH_STATE_DIR: stateDir,
-        },
+      const coreStateDir = await withWikiGraphRuntimeStateDirectoryPath(
+        stateDir,
         () => resolveWikiGraphHomeDirectoryPath(),
       );
       const result = await runWikiGraphCLICaptured({
         argv: ["wikg://local/config/concurrent", "put", "job", "4"],
-        env: {
-          WIKIGRAPH_STATE_DIR: stateDir,
-        },
+        stateDir,
       });
 
       expect(coreStateDir).toBe(stateDir);
@@ -137,15 +146,11 @@ describe("cli/sdk-runner", () => {
       const [left, right] = await Promise.all([
         runWikiGraphCLICaptured({
           argv: ["wikg://local/config/concurrent", "put", "job", "2"],
-          env: {
-            WIKIGRAPH_STATE_DIR: leftStateDir,
-          },
+          stateDir: leftStateDir,
         }),
         runWikiGraphCLICaptured({
           argv: ["wikg://local/config/concurrent", "put", "request", "3"],
-          env: {
-            WIKIGRAPH_STATE_DIR: rightStateDir,
-          },
+          stateDir: rightStateDir,
         }),
       ]);
 

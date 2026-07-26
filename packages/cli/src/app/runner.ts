@@ -1,12 +1,16 @@
 import { Readable, Writable } from "stream";
 
-import { withWikiGraphRuntimeEnvironment } from "wiki-graph-core";
+import { withWikiGraphRuntimeStateDirectoryPath } from "wiki-graph-core";
 import { dispatchWikiGraphCLI } from "./dispatch.js";
 import {
   getCLIExitCode,
   withWikiGraphCLIRuntimeContext,
   type WikiGraphCLIRuntimeContext,
 } from "../runtime/context.js";
+import {
+  createEntryRuntimeContext,
+  type WikiGraphEntryEnvPolicy,
+} from "../runtime/entry-context.js";
 
 export interface RunWikiGraphCLIInput {
   /**
@@ -17,6 +21,7 @@ export interface RunWikiGraphCLIInput {
   readonly cwd?: string | undefined;
   readonly env?: NodeJS.ProcessEnv | undefined;
   readonly signal?: AbortSignal | undefined;
+  readonly stateDir?: string | undefined;
   readonly stderr?: NodeJS.WritableStream | undefined;
   readonly stderrIsTTY?: boolean | undefined;
   readonly stdin?: NodeJS.ReadableStream | Uint8Array | string | undefined;
@@ -48,25 +53,44 @@ export interface WikiGraphCLI {
 export async function runWikiGraphCLI(
   input: RunWikiGraphCLIInput = {},
 ): Promise<RunWikiGraphCLIResult> {
+  return await runWikiGraphCLIWithEntryPolicy(input, "production");
+}
+
+export async function runWikiGraphCLIWithEntryPolicy(
+  input: RunWikiGraphCLIInput = {},
+  envPolicy: WikiGraphEntryEnvPolicy,
+): Promise<RunWikiGraphCLIResult> {
   throwIfAborted(input.signal);
 
   const stdin = createInputStream(input.stdin ?? process.stdin);
   const stdout = input.stdout ?? process.stdout;
   const stderr = input.stderr ?? process.stderr;
   const argv = input.argv ?? process.argv.slice(2);
-  const environment =
-    input.env === undefined
-      ? process.env
-      : {
-          ...process.env,
-          ...input.env,
-        };
+  let entryContext: ReturnType<typeof createEntryRuntimeContext>;
+
+  try {
+    entryContext = createEntryRuntimeContext({
+      argv,
+      cwd: input.cwd ?? process.cwd(),
+      env: input.env,
+      envPolicy,
+      stateDir: input.stateDir,
+    });
+  } catch (error) {
+    stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return { exitCode: 1 };
+  }
+
   const context: WikiGraphCLIRuntimeContext = {
     argv,
     cwd: input.cwd ?? process.cwd(),
-    env: environment,
+    devProjectRoot: entryContext.devProjectRoot,
+    env: entryContext.env,
+    envPolicy: entryContext.envPolicy,
     exitCode: 0,
+    queueAutostart: true,
     signal: input.signal,
+    stateDir: entryContext.stateDir,
     stderr,
     stderrIsTTY: input.stderrIsTTY,
     stdin,
@@ -75,19 +99,21 @@ export async function runWikiGraphCLI(
     stdoutIsTTY: input.stdoutIsTTY,
   };
 
-  return await withWikiGraphRuntimeEnvironment(environment, async () =>
-    withWikiGraphCLIRuntimeContext(context, async () => {
-      const result = await dispatchWikiGraphCLI({
-        argv,
-        stderr,
-        stdinIsTTY: context.stdinIsTTY ?? stdin.isTTY,
-        stdout,
-      });
-      throwIfAborted(input.signal);
-      const exitCode = normalizeExitCode(getCLIExitCode(), result.exitCode);
+  return await withWikiGraphRuntimeStateDirectoryPath(
+    entryContext.stateDir,
+    async () =>
+      withWikiGraphCLIRuntimeContext(context, async () => {
+        const result = await dispatchWikiGraphCLI({
+          argv,
+          stderr,
+          stdinIsTTY: context.stdinIsTTY ?? stdin.isTTY,
+          stdout,
+        });
+        throwIfAborted(input.signal);
+        const exitCode = normalizeExitCode(getCLIExitCode(), result.exitCode);
 
-      return { exitCode };
-    }),
+        return { exitCode };
+      }),
   );
 }
 

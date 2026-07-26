@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 
 import { runQueueWorker } from "../commands/index.js";
+import { withWorkerEntryRuntime } from "../runtime/worker-entry.js";
 
 async function main(): Promise<void> {
-  if (process.env.WIKIGRAPH_INTERNAL_CHILD !== "queue-worker") {
-    process.stderr.write("This Wiki Graph worker entry is internal.\n");
-    process.exitCode = 1;
-    return;
-  }
-
-  await runQueueWorker();
+  await withWorkerEntryRuntime(
+    "queue-worker",
+    async () => await runQueueWorker(),
+  );
 }
 
 void main().catch((error: unknown) => {
