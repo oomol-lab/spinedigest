@@ -574,9 +574,7 @@ describe("archive/query/archive-view/graph search", () => {
         const sourceHit = result.items.find(
           (item) => item.type === "source" && item.field === "source",
         );
-        expect(sourceHit?.id).toMatch(
-          /^wikg:\/\/chapter\/introduction\/source#/u,
-        );
+        expect(sourceHit?.id).toMatch(/^wikg:\/\/chapter\/1\/source#/u);
         expect(sourceHit).toMatchObject({
           field: "source",
           missingTerms: [],

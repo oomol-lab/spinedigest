@@ -46,11 +46,16 @@ export async function createMentionEvidencePreview(
   limit = 3,
   context: EvidenceReadContext = createEvidenceReadContext(),
   sourceContext = DEFAULT_SOURCE_CONTEXT,
-  _order: ArchiveFindOrder = "doc-asc",
+  order: ArchiveFindOrder = "doc-asc",
   total?: number,
 ): Promise<ArchiveFindEvidencePreview> {
   return await createSourceEvidenceCandidatePreview(document, {
-    candidates: mentions,
+    candidates: await sortSourceEvidenceCandidates(
+      document,
+      mentions,
+      async (mention) => await createMentionEvidenceRanges(document, [mention]),
+      order,
+    ),
     context,
     createRanges: async (mention) =>
       await createMentionEvidenceRanges(document, [mention]),
@@ -145,11 +150,16 @@ export async function createMentionLinkEvidencePreview(
   limit = 3,
   context: EvidenceReadContext = createEvidenceReadContext(),
   sourceContext = DEFAULT_SOURCE_CONTEXT,
-  _order: ArchiveFindOrder = "doc-asc",
+  order: ArchiveFindOrder = "doc-asc",
   total?: number,
 ): Promise<ArchiveFindEvidencePreview> {
   return await createSourceEvidenceCandidatePreview(document, {
-    candidates: links,
+    candidates: await sortSourceEvidenceCandidates(
+      document,
+      links,
+      (link) => createMentionLinkEvidenceRanges(document, [link]),
+      order,
+    ),
     context,
     createRanges: (link) => createMentionLinkEvidenceRanges(document, [link]),
     limit,
@@ -319,6 +329,41 @@ export async function filterAndSortSourceEvidenceRangesByFtsQuery(
 
 function formatSourceEvidenceRangeKey(range: SourceEvidenceRange): string {
   return `${range.chapterId}:${range.startSentenceIndex}:${range.endSentenceIndex}`;
+}
+
+async function sortSourceEvidenceCandidates<T>(
+  document: ReadonlyDocument,
+  candidates: readonly T[],
+  createRanges: (
+    candidate: T,
+  ) => Promise<readonly SourceEvidenceRange[]> | readonly SourceEvidenceRange[],
+  order: ArchiveFindOrder,
+): Promise<readonly T[]> {
+  const documentOrders = await document.serials.listDocumentOrders();
+  const keyed = await Promise.all(
+    candidates.map(async (candidate) => ({
+      candidate,
+      range: (await createRanges(candidate))[0],
+    })),
+  );
+
+  return keyed
+    .sort((left, right) => {
+      if (left.range === undefined || right.range === undefined) {
+        return left.range === undefined
+          ? right.range === undefined
+            ? 0
+            : 1
+          : -1;
+      }
+      return compareSourceEvidenceRanges(
+        left.range,
+        right.range,
+        documentOrders,
+        order,
+      );
+    })
+    .map((item) => item.candidate);
 }
 
 function compareSourceEvidenceRanges(

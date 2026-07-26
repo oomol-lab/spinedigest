@@ -242,7 +242,6 @@ export async function findChapters(
       ...(await findTextStreamSentences(
         document,
         chapter.chapterId,
-        chapter.path,
         "summary",
         title,
         search,
@@ -253,7 +252,6 @@ export async function findChapters(
       ...(await findTextStreamSentences(
         document,
         chapter.chapterId,
-        chapter.path,
         "source",
         title,
         search,
@@ -267,7 +265,6 @@ export async function findChapters(
 async function findTextStreamSentences(
   document: ReadonlyDocument,
   chapterId: number,
-  chapterPath: string,
   stream: ArchiveTextStreamKind,
   title: string,
   search: ArchiveTextSearch,
@@ -286,7 +283,7 @@ async function findTextStreamSentences(
         chapter: chapterId,
         field: stream,
         id: formatTextStreamRangeUri(
-          chapterPath,
+          chapterId,
           stream,
           sentence.globalIndex,
           sentence.globalIndex,

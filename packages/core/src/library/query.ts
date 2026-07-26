@@ -163,16 +163,12 @@ export async function readWikiGraphLibraryPage(
   );
 
   const page = createMultiArchivePage(pages);
-  if (
-    (page.type === "entity" || page.type === "triple") &&
-    pages.length > 1 &&
-    options.evidenceLimit !== undefined
-  ) {
+  if ((page.type === "entity" || page.type === "triple") && pages.length > 1) {
     return {
       ...page,
       evidence: combinePageEvidencePreviews(
         pages,
-        options.evidenceLimit,
+        options.evidenceLimit ?? 3,
         options.order ?? "doc-asc",
       ),
     };

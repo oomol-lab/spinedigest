@@ -159,6 +159,12 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
     readonly subjectQid: string;
   }): Promise<MentionLinkRecord[]> {
     const direction = input.order === "desc" ? "DESC" : "ASC";
+    const limitClause =
+      input.limit === undefined
+        ? input.offset === undefined
+          ? ""
+          : "LIMIT -1"
+        : "LIMIT ?";
     const rows = await this.#database.queryAll(
       `
         SELECT
@@ -188,7 +194,7 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
           source_mentions.chapter_id ${direction},
           source_mentions.sentence_index ${direction},
           mention_links.id ${direction}
-        ${input.limit === undefined ? "" : "LIMIT ?"}
+        ${limitClause}
         ${input.offset === undefined ? "" : "OFFSET ?"}
       `,
       [

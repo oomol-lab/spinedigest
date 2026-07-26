@@ -116,6 +116,75 @@ describe("document/stores", () => {
     });
   });
 
+  it("supports offset-only mention and mention-link pagination", async () => {
+    await withDocument(async (document) => {
+      await document.openSession(async (openedDocument) => {
+        await openedDocument.serials.createWithId(1);
+        await openedDocument.mentions.saveMany([
+          {
+            chapterId: 1,
+            id: "m1",
+            qid: "Q1",
+            rangeEnd: 2,
+            rangeStart: 0,
+            sentenceIndex: 0,
+            surface: "Alpha",
+          },
+          {
+            chapterId: 1,
+            id: "m2",
+            qid: "Q1",
+            rangeEnd: 5,
+            rangeStart: 3,
+            sentenceIndex: 1,
+            surface: "Beta",
+          },
+          {
+            chapterId: 1,
+            id: "m3",
+            qid: "Q2",
+            rangeEnd: 8,
+            rangeStart: 6,
+            sentenceIndex: 2,
+            surface: "Target",
+          },
+        ]);
+        await openedDocument.mentionLinks.saveMany([
+          {
+            evidenceSentenceIds: [[1, 0]],
+            id: "l1",
+            predicate: "mentions",
+            sourceMentionId: "m1",
+            targetMentionId: "m3",
+          },
+          {
+            evidenceSentenceIds: [[1, 1]],
+            id: "l2",
+            predicate: "mentions",
+            sourceMentionId: "m2",
+            targetMentionId: "m3",
+          },
+        ]);
+
+        expect(
+          (await openedDocument.mentions.listByQid("Q1", { offset: 1 })).map(
+            (mention) => mention.id,
+          ),
+        ).toStrictEqual(["m2"]);
+        expect(
+          (
+            await openedDocument.mentionLinks.listByTriple({
+              objectQid: "Q2",
+              offset: 1,
+              predicate: "mentions",
+              subjectQid: "Q1",
+            })
+          ).map((link) => link.id),
+        ).toStrictEqual(["l2"]);
+      });
+    });
+  });
+
   it("saves and clears mention evidence by chapter", async () => {
     await withDocument(async (document) => {
       await document.openSession(async (openedDocument) => {

@@ -296,7 +296,7 @@ export async function hydrateSearchTextHit(
     ...createArchiveScopeFields(hit.archiveId),
     field: stream,
     id: formatTextStreamRangeUri(
-      chapter.path,
+      hit.chapterId,
       stream,
       range.startSentenceIndex,
       range.endSentenceIndex,

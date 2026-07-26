@@ -227,7 +227,7 @@ describe("archive/query/archive-view/pages", () => {
 
         expect(result.items).toContainEqual(
           expect.objectContaining({
-            id: "wikg://chapter/introduction/summary#1",
+            id: "wikg://chapter/1/summary#1",
             type: "summary",
           }),
         );

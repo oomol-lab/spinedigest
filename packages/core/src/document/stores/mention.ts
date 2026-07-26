@@ -119,6 +119,12 @@ export class MentionStore implements ReadonlyMentionStore {
     } = {},
   ): Promise<MentionRecord[]> {
     const direction = options.order === "desc" ? "DESC" : "ASC";
+    const limitClause =
+      options.limit === undefined
+        ? options.offset === undefined
+          ? ""
+          : "LIMIT -1"
+        : "LIMIT ?";
 
     return await this.#database.queryAll(
       `
@@ -144,7 +150,7 @@ export class MentionStore implements ReadonlyMentionStore {
           mentions.range_start ${direction},
           mentions.range_end ${direction},
           mentions.id ${direction}
-        ${options.limit === undefined ? "" : "LIMIT ?"}
+        ${limitClause}
         ${options.offset === undefined ? "" : "OFFSET ?"}
       `,
       [
