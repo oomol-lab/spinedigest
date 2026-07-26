@@ -194,7 +194,7 @@ describe("archive/query/archive-view/collection", () => {
         expect(entityWithEvidence?.type).toBe("entity");
         expect(entityWithEvidence?.evidence?.shown).toBe(1);
         expect(entityWithEvidence?.evidence?.sources[0]?.id).toBe(
-          "wikg://chapter/second/source#1",
+          "wikg://chapter/2/source#1",
         );
       } finally {
         await document.release();

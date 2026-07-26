@@ -57,7 +57,7 @@ describe("archive/query/archive-view/graph search", () => {
               shown: 1,
               sources: [
                 expect.objectContaining({
-                  id: "wikg://chapter/introduction/source#1..3",
+                  id: "wikg://chapter/1/source#1..3",
                   source:
                     "An LLM Wiki exposes pages, links, and source fragments to agents.朱元璋知道了这个消息，随后亲自来到洪都。Source-only archives should be searchable.",
                 }),
@@ -351,7 +351,7 @@ describe("archive/query/archive-view/graph search", () => {
         expect(result.items[0]).toMatchObject({
           evidence: {
             nextCursor: null,
-            total: 1,
+            total: 2,
           },
           id: "wikg://entity/Q1",
           title: "战舰",
@@ -472,7 +472,7 @@ describe("archive/query/archive-view/graph search", () => {
         expect(triple?.evidence?.total).toBe(1);
         expect(triple?.evidence?.sources).toStrictEqual([
           expect.objectContaining({
-            id: "wikg://chapter/introduction/source#1..3",
+            id: "wikg://chapter/1/source#1..3",
             source:
               "An LLM Wiki exposes pages, links, and source fragments to agents.朱元璋知道了这个消息，随后亲自来到洪都。Source-only archives should be searchable.",
           }),

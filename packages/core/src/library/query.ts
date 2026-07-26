@@ -439,20 +439,6 @@ function combinePageEvidencePreviews(
   };
 }
 
-function createPageEvidenceOptions(
-  options: Parameters<typeof readArchivePage>[2] = {},
-): ArchiveEvidenceOptions {
-  return {
-    ...(options.evidenceLimit === undefined
-      ? {}
-      : { limit: options.evidenceLimit }),
-    ...(options.order === undefined ? {} : { order: options.order }),
-    ...(options.sourceContext === undefined
-      ? {}
-      : { sourceContext: options.sourceContext }),
-  };
-}
-
 function createEvidenceResult(
   items: readonly ArchiveEvidenceItem[],
   options: ArchiveEvidenceOptions,
@@ -488,18 +474,6 @@ function createRelatedResult(
     items: pageItems,
     limit,
     nextCursor: nextOffset < sorted.length ? String(nextOffset) : null,
-  };
-}
-
-function createEvidencePreview(evidence: ArchiveEvidence, limit: number) {
-  const sources = evidence.items.slice(0, limit);
-
-  return {
-    nextCursor:
-      sources.length < evidence.items.length ? String(sources.length) : null,
-    shown: sources.length,
-    sources,
-    total: evidence.items.length,
   };
 }
 

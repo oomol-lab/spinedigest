@@ -46,7 +46,7 @@ export async function createMentionEvidencePreview(
   limit = 3,
   context: EvidenceReadContext = createEvidenceReadContext(),
   sourceContext = DEFAULT_SOURCE_CONTEXT,
-  order: ArchiveFindOrder = "doc-asc",
+  _order: ArchiveFindOrder = "doc-asc",
   total?: number,
 ): Promise<ArchiveFindEvidencePreview> {
   return await createSourceEvidenceCandidatePreview(document, {
@@ -145,7 +145,7 @@ export async function createMentionLinkEvidencePreview(
   limit = 3,
   context: EvidenceReadContext = createEvidenceReadContext(),
   sourceContext = DEFAULT_SOURCE_CONTEXT,
-  order: ArchiveFindOrder = "doc-asc",
+  _order: ArchiveFindOrder = "doc-asc",
   total?: number,
 ): Promise<ArchiveFindEvidencePreview> {
   return await createSourceEvidenceCandidatePreview(document, {
