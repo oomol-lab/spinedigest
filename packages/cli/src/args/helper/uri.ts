@@ -131,8 +131,18 @@ export function validateEvidenceTargetUri(
 }
 
 export function isEvidenceObjectUri(objectUri: string): boolean {
-  return /^(?:chapter\/[1-9][0-9]*\/)?(?:chunk\/.+|entity\/.+|triple\/.+)$/u.test(
-    stripObjectUriPrefix(objectUri),
+  const path = stripObjectUriPrefix(objectUri);
+  const normalized = path.startsWith("chapter/")
+    ? /^chapter\/[1-9][0-9]*\/(.+)$/u.exec(path)?.[1]
+    : path;
+  if (normalized === undefined) {
+    return false;
+  }
+  const parts = normalized.split("/");
+  return (
+    (parts[0] === "chunk" && parts.length === 2) ||
+    (parts[0] === "entity" && parts.length === 2) ||
+    (parts[0] === "triple" && parts.length === 4)
   );
 }
 

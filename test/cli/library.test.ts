@@ -252,7 +252,7 @@ describe("cli/library args", () => {
         action: "rebind",
         jsonl: true,
         path: "/tmp/library",
-        target: { kind: "path" },
+        target: { kind: "scope" },
       },
       kind: "library",
     });
@@ -383,7 +383,7 @@ describe("cli/library args", () => {
     });
   });
 
-  it("renders archive tree depth relative to parent and streams scan JSONL archives", async () => {
+  it("renders archive tree parent filters from the scope root and streams scan JSONL archives", async () => {
     libraryMockState.archives = [
       {
         uri: "wikg://lib/arc/root",
@@ -423,14 +423,7 @@ describe("cli/library args", () => {
     });
 
     expect(JSON.parse(libraryMockState.textWrites[0] ?? "{}")).toStrictEqual({
-      items: [
-        {
-          name: "book.wikg",
-          path: "nested/book.wikg",
-          uri: "wikg://lib/arc/book",
-        },
-        { name: "deeper", path: "nested/deeper" },
-      ],
+      items: [{ name: "nested", path: "nested" }],
     });
 
     libraryMockState.textWrites.length = 0;

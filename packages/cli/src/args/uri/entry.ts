@@ -188,6 +188,7 @@ function classifyArchiveUriHelpTarget(uri: string): UriHelpTargetName {
   }
 
   const path = stripObjectUriPrefix(objectUri);
+  rejectPredicateLikeObjectSuffix(uri, path);
 
   if (parseMetadataTarget(objectUri) !== undefined) {
     return "metadata-object";
@@ -271,6 +272,40 @@ function classifyArchiveUriHelpTarget(uri: string): UriHelpTargetName {
       CLI_HELP_ROUTES.uri,
     ),
   );
+}
+
+function rejectPredicateLikeObjectSuffix(uri: string, path: string): void {
+  const suggestion = getPredicateLikeObjectSuffixSuggestion(uri, path);
+  if (suggestion === undefined) {
+    return;
+  }
+  throw new Error(
+    withHelpRoute(
+      `Predicate-like URI suffixes are not object URIs: ${uri}. Use predicate form: ${suggestion}`,
+      CLI_HELP_ROUTES.uri,
+    ),
+  );
+}
+
+function getPredicateLikeObjectSuffixSuggestion(
+  uri: string,
+  path: string,
+): string | undefined {
+  const parts = path.split("/");
+  const suffix = parts.at(-1);
+  if (suffix !== "evidence" && suffix !== "related" && suffix !== "pack") {
+    return undefined;
+  }
+  if (parts[0] === "entity" && parts.length === 3) {
+    return `${uri.slice(0, -suffix.length - 1)} ${suffix}`;
+  }
+  if (parts[0] === "chunk" && parts.length === 3) {
+    return `${uri.slice(0, -suffix.length - 1)} ${suffix}`;
+  }
+  if (parts[0] === "triple" && parts.length >= 5) {
+    return `${uri.slice(0, -suffix.length - 1)} ${suffix}`;
+  }
+  return undefined;
 }
 
 function hasUriFragment(uri: string): boolean {

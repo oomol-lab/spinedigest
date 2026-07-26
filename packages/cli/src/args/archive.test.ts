@@ -133,6 +133,57 @@ describe("cli/args/archive", () => {
     });
 
     expect(
+      parseCLIArguments([
+        "wikg://lib/arc/archive123/chapter/part/summary",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "get",
+        archivePath: "wikg://lib/arc/archive123/chapter/part/summary",
+        format: "json",
+        objectId: "wikg://lib/arc/archive123/chapter/part/summary",
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://lib/arc/archive123/chapter/part/summary#1..5",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "get",
+        archivePath: "wikg://lib/arc/archive123/chapter/part/summary#1..5",
+        format: "json",
+        objectId: "wikg://lib/arc/archive123/chapter/part/summary#1..5",
+      },
+      help: false,
+      kind: "archive",
+    });
+    for (const lens of ["chunk", "entity", "triple"] as const) {
+      expect(
+        parseCLIArguments([
+          `wikg://lib/arc/archive123/chapter/part/${lens}`,
+          "--limit",
+          "3",
+          "--json",
+        ]),
+      ).toStrictEqual({
+        args: {
+          action: "list",
+          archivePath: "wikg://lib/arc/archive123/chapter/part",
+          format: "json",
+          kinds: [lens],
+          limit: 3,
+        },
+        help: false,
+        kind: "archive",
+      });
+    }
+
+    expect(
       parseCLIArguments(["wikg://lib/entity", "--query", "memory"]),
     ).toStrictEqual({
       args: {

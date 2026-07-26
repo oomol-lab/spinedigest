@@ -313,7 +313,7 @@ function parseChapterLensUriArguments(
 
   return parseArchiveArguments(
     action,
-    [formatLocatedChapterUri(archivePath, chapterPath), ...tail],
+    [formatChapterScopedArchiveUri(archivePath, chapterPath), ...tail],
     values,
     helpRoute,
     { defaultKinds: [lens] },
@@ -340,7 +340,7 @@ function parseChapterTriplePatternLensUriArguments(
 
   return parseArchiveArguments(
     action,
-    [formatLocatedChapterUri(archivePath, chapterPath), ...tail],
+    [formatChapterScopedArchiveUri(archivePath, chapterPath), ...tail],
     values,
     helpRoute,
     { defaultKinds: ["triple"], triplePattern: pattern },
@@ -426,9 +426,15 @@ function parseChapterResourceUriArguments(
     const objectUri =
       uri.includes("#") && (resource === "source" || resource === "summary")
         ? uri
-        : resource === "source"
-          ? formatLocatedChapterSourceCollectionUri(archivePath, chapterPath)
-          : formatLocatedChapterResourceUri(archivePath, chapterPath, resource);
+        : isLibraryArchiveLocator(archivePath)
+          ? uri
+          : resource === "source"
+            ? formatLocatedChapterSourceCollectionUri(archivePath, chapterPath)
+            : formatLocatedChapterResourceUri(
+                archivePath,
+                chapterPath,
+                resource,
+              );
 
     return parseArchiveArguments(
       "get",
@@ -455,6 +461,22 @@ function parseChapterResourceUriArguments(
       ...(action === "clear" ? { clear: true } : {}),
     },
     helpRoute,
+  );
+}
+
+function formatChapterScopedArchiveUri(
+  archivePath: string,
+  chapterPath: string,
+): string {
+  return isLibraryArchiveLocator(archivePath)
+    ? `${archivePath}/chapter/${chapterPath}`
+    : formatLocatedChapterUri(archivePath, chapterPath);
+}
+
+function isLibraryArchiveLocator(archivePath: string): boolean {
+  return (
+    archivePath.startsWith("wikg://lib/arc/") ||
+    /^wikg:\/\/lib\/[^/]+\/arc\//u.test(archivePath)
   );
 }
 

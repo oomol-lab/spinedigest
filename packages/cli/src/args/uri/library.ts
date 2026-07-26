@@ -640,10 +640,23 @@ function parseLibraryPathArguments(
       json: values.json,
       jsonl: values.jsonl,
       path: tail[0],
-      target,
+      target: getLibraryScopeForPathTarget(target),
     },
     help: false,
     kind: "library",
+  };
+}
+
+function getLibraryScopeForPathTarget(
+  target: ParsedWikiGraphLibraryUri,
+): ParsedWikiGraphLibraryUri {
+  if (target.kind !== "path") {
+    throw new Error("Internal error: expected library path target.");
+  }
+  return {
+    isDefault: target.isDefault,
+    kind: "scope",
+    ...(target.publicId === undefined ? {} : { publicId: target.publicId }),
   };
 }
 

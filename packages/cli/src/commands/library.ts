@@ -493,19 +493,15 @@ async function writeLibraryArchiveTree(
     }
     insertArchiveTreeNode(root, archive);
   }
-  const renderRoot =
-    parent === undefined
-      ? root
-      : (resolveArchiveTreeNode(root, parent) ?? root);
-  pruneArchiveTreeDepth(renderRoot, options.depth, 0);
+  pruneArchiveTreeDepth(root, options.depth, 0);
 
   if (options.json) {
     await writeTextToStdout(
-      formatCLIJSON({ items: serializeArchiveTreeNodes(renderRoot.children) }),
+      formatCLIJSON({ items: serializeArchiveTreeNodes(root.children) }),
     );
     return;
   }
-  await writeTextToStdout(formatArchiveTreeText(renderRoot.children));
+  await writeTextToStdout(formatArchiveTreeText(root.children));
 }
 
 function isArchiveTreePathSelected(path: string, parent: string): boolean {
@@ -529,20 +525,6 @@ function insertArchiveTreeNode(
     current = child;
   }
   current.archive = archive;
-}
-
-function resolveArchiveTreeNode(
-  root: ArchiveTreeNode,
-  path: string,
-): ArchiveTreeNode | undefined {
-  let current: ArchiveTreeNode | undefined = root;
-  for (const part of path.split("/")) {
-    current = current?.children.get(part);
-    if (current === undefined) {
-      return undefined;
-    }
-  }
-  return current;
 }
 
 function pruneArchiveTreeDepth(
