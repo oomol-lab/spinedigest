@@ -207,7 +207,7 @@ describe("cli/args/help", () => {
         "add",
         "wikg://lib/archive123/chapter",
       ),
-    ).toContain("wikg://lib/<archive-id>/chapter/part");
+    ).toContain("wikg://lib/arc/<archive-id>/chapter/part");
     expect(
       renderUriPredicateHelpText(
         "chapter-title-object",
@@ -416,7 +416,7 @@ describe("cli/args/help", () => {
       "wg wikg://local/job add --input <archive-uri|chapter-uri>",
     );
     expect(uriHelpText).toContain("Library locators:");
-    expect(uriHelpText).toContain("wikg://lib/<archive-id>/");
+    expect(uriHelpText).toContain("wikg://lib/arc/<archive-id>/");
     expect(uriHelpText).toContain("wg next <uri> <cursor>");
     expect(uriHelpText).toContain("wg help format");
     expect(uriHelpText).not.toContain("JSONL contains object records");
@@ -560,7 +560,7 @@ describe("cli/args/help", () => {
         "evidence",
         "wikg://lib/triple/Q8018/discusses/Q123",
       ),
-    ).toContain("wikg://lib/<archive-id>/triple/Q8018/discusses/Q123");
+    ).toContain("wikg://lib/arc/<archive-id>/triple/Q8018/discusses/Q123");
     expect(renderHelpTopicText("format")).toContain(
       "Avoid `--all | head` as a preview pattern.",
     );
@@ -715,19 +715,23 @@ describe("cli/args/help", () => {
       kind: "metadata",
     });
     const createHelpText = renderLibraryPredicateHelpText(
-      "wikg://lib",
-      { isDefault: true, kind: "scope" },
-      "create",
+      "wikg://lib/registry",
+      { isDefault: true, kind: "registry" },
+      "add",
     );
 
     expect(scopeHelpText).toContain("Library scope");
-    expect(scopeHelpText).toContain("wg wikg://lib create --path <folder>");
-    expect(scopeHelpText).toContain("wg wikg://lib scan [--json]");
-    expect(scopeHelpText).toContain("wg wikg://lib/index [--json]");
-    expect(scopeHelpText).toContain(".lib` suffix");
-    expect(scopeHelpText).not.toContain("future `wikg://lib/<archive-id>/`");
     expect(scopeHelpText).toContain(
-      "This is not a list of all library registries.",
+      "wg wikg://lib/registry add --path <folder>",
+    );
+    expect(scopeHelpText).toContain("wg wikg://lib/arc scan [--json|--jsonl]");
+    expect(scopeHelpText).toContain("wg wikg://lib/index [--json]");
+    expect(scopeHelpText).toContain("wikg://lib/<lib-id>");
+    expect(scopeHelpText).not.toContain(
+      "future `wikg://lib/arc/<archive-id>/`",
+    );
+    expect(scopeHelpText).toContain(
+      "Use `wg wikg://lib/registry` to list all library registries.",
     );
     expect(scopeHelpText).toContain("broad library index search");
     expect(scopeHelpText).toContain("wg wikg://lib --query <query>");
@@ -746,16 +750,14 @@ describe("cli/args/help", () => {
     expect(metadataHelpText).toContain("Metadata keys are free-form");
     expect(createHelpText).toContain("Library Predicate Command");
     expect(createHelpText).toContain("Create a non-default library registry");
-    expect(createHelpText).toContain(
-      "does not expose a list-all-library-registries command",
-    );
+    expect(createHelpText).toContain("wikg://lib/registry add --path <folder>");
     expect(
       renderLibraryPredicateHelpText(
-        "wikg://lib",
-        { isDefault: true, kind: "scope" },
+        "wikg://lib/registry",
+        { isDefault: true, kind: "registry" },
         "list",
       ),
-    ).toContain("not all library registries");
+    ).toContain("List all library registries");
     expect(
       renderLibraryPredicateHelpText(
         "wikg://lib/index",
@@ -782,7 +784,7 @@ describe("cli/args/help", () => {
       "Library archive shortcuts:",
     );
     expect(renderHelpTopicText("library")).toContain(
-      "wikg://lib/<archive-id> inspect",
+      "wikg://lib/arc/<archive-id> inspect",
     );
     expect(renderHelpTopicText("library")).toContain(
       "not a library-level health report",
@@ -803,11 +805,11 @@ describe("cli/args/help", () => {
       ),
     ).toContain("Read this library metadata map");
     const archiveMemberHelp = parseCLIArguments([
-      "wikg://lib/archive123",
+      "wikg://lib/arc/archive123",
       "--help",
     ]);
     const archiveMemberInspectHelp = parseCLIArguments([
-      "wikg://lib/archive123",
+      "wikg://lib/arc/archive123",
       "inspect",
       "--help",
     ]);
@@ -828,7 +830,7 @@ describe("cli/args/help", () => {
       "URI Predicate Command",
     );
     expect(archiveMemberInspectHelp.helpText).toContain(
-      "wikg://lib/archive123 inspect [--json]",
+      "wikg://lib/arc/archive123 inspect [--json]",
     );
     expect(archiveMemberInspectHelp.helpText).toContain(
       "not a library-level health report",

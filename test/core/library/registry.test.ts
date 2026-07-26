@@ -62,14 +62,14 @@ describe("wiki graph library registry", () => {
     expect((await stat(libraries[0]!.folderPath)).isDirectory()).toBe(true);
   });
 
-  it("creates non-default libraries with public .lib URIs and refuses existing folders", async () => {
+  it("creates non-default libraries with public library URIs and refuses existing folders", async () => {
     const folderPath = join(stateDir, "research");
     const library = await createWikiGraphLibrary({ folderPath });
 
     expect(library.id).toEqual(expect.any(Number));
     expect(Number.isInteger(library.id)).toBe(true);
     expect(library.publicId).toMatch(/^[0-9a-f]{12}$/u);
-    expect(library.uri).toBe(`wikg://lib/${library.publicId}.lib`);
+    expect(library.uri).toBe(`wikg://lib/${library.publicId}`);
     expect(formatWikiGraphLibraryUri(library.publicId)).toBe(library.uri);
     expect((await stat(folderPath)).isDirectory()).toBe(true);
     await expect(createWikiGraphLibrary({ folderPath })).rejects.toThrow(
@@ -83,14 +83,14 @@ describe("wiki graph library registry", () => {
       kind: "scope",
     });
     expect(
-      parseWikiGraphLibraryUri("wikg://lib/abc123abc123.lib/meta"),
+      parseWikiGraphLibraryUri("wikg://lib/abc123abc123/meta"),
     ).toStrictEqual({
       isDefault: false,
       kind: "metadata",
       publicId: "abc123abc123",
     });
     expect(
-      parseWikiGraphLibraryUri("wikg://lib/archive123/chapter"),
+      parseWikiGraphLibraryUri("wikg://lib/arc/archive123/chapter"),
     ).toStrictEqual({
       archivePublicId: "archive123",
       isDefault: true,

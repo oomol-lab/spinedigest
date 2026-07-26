@@ -308,13 +308,13 @@ Library context:
 {% if libraryContext.isLibraryWide %}
   - Library-wide chapter URIs are read-only aggregate views over present archive members.
 {% endif %}
-  - Library archive shortcuts such as `wikg://lib/<archive-id>/chapter` query or maintain one managed archive through its membership id.
+  - Library archive shortcuts such as `wikg://lib/arc/<archive-id>/chapter` query or maintain one managed archive through its membership id.
   - Use a standalone archive URI or library archive shortcut for chapter maintenance writes.
 {% elif target.name == "triple-scope" or target.name == "triple-object" %}
 {% if libraryContext.isLibraryWide %}
   - Library-wide scopes such as `wikg://lib/triple` use the aggregate library index.
 {% endif %}
-  - Library archive shortcuts such as `wikg://lib/<archive-id>/triple` query one managed archive through its membership id.
+  - Library archive shortcuts such as `wikg://lib/arc/<archive-id>/triple` query one managed archive through its membership id.
 {% if target.name == "triple-object" and libraryContext.isLibraryWide %}
   - Library-wide triple object URIs are aggregate views over matching triples from present archive members.
   - Interpret evidence with the returned archive/member provenance; use a library archive shortcut when you need one member only.
@@ -323,7 +323,7 @@ Library context:
 {% if libraryContext.isLibraryWide %}
   - Library-wide scopes such as `wikg://lib/chunk` use the aggregate library index.
 {% endif %}
-  - Library archive shortcuts such as `wikg://lib/<archive-id>/chunk` query one managed archive through its membership id.
+  - Library archive shortcuts such as `wikg://lib/arc/<archive-id>/chunk` query one managed archive through its membership id.
 {% if target.name == "chunk-object" and libraryContext.isLibraryWide %}
   - Library-wide chunk object URIs are aggregate views over matching chunks from present archive members.
   - Interpret related and pack output with the returned archive/member provenance; use a library archive shortcut when you need one member only.
@@ -332,7 +332,7 @@ Library context:
 {% if libraryContext.isLibraryWide %}
   - Library-wide scopes such as `wikg://lib/entity` use the aggregate library index.
 {% endif %}
-  - Library archive shortcuts such as `wikg://lib/<archive-id>/entity` query one managed archive through its membership id.
+  - Library archive shortcuts such as `wikg://lib/arc/<archive-id>/entity` query one managed archive through its membership id.
 {% if target.name == "entity-object" and libraryContext.isLibraryWide %}
   - Library-wide entity object URIs are aggregate views over matching entities from present archive members.
   - Interpret evidence, related, and pack output with the returned archive/member provenance; use a library archive shortcut when you need one member only.
@@ -343,7 +343,7 @@ Library context:
 
 Predicate commands:
 {% if libraryContext.isLibraryWide and (target.name == "chapter-collection-scope" or target.name == "chapter-scope" or target.name == "chapter-source-object" or target.name == "chapter-source-range-object" or target.name == "chapter-summary-object" or target.name == "chapter-summary-range-object" or target.name == "chapter-title-object" or target.name == "chapter-tree-object") %}
-  This library-wide chapter target is read-only. Use a standalone archive URI or a library archive shortcut such as `wikg://lib/<archive-id>/chapter/...` for chapter maintenance.
+  This library-wide chapter target is read-only. Use a standalone archive URI or a library archive shortcut such as `wikg://lib/arc/<archive-id>/chapter/...` for chapter maintenance.
 {% else %}
 {% if target.predicates.length %}
 {% for predicate in target.predicates %}

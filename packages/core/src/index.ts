@@ -49,6 +49,7 @@ export {
   getWikiGraphLibraryArchive,
   getWikiGraphLibraryArchiveById,
   getWikiGraphLibraryMetadata,
+  listWikiGraphLibraries,
   isWikiGraphLibraryUri,
   findWikiGraphLibraryObjects,
   listRelatedWikiGraphLibraryObjects,

@@ -22,13 +22,13 @@ Archive locator:
 
 Library locators:
   - `wikg://lib` addresses the default library.
-  - `wikg://lib/<lib-id>.lib` addresses a non-default library.
-  - `wikg://lib/<archive-id>/` addresses one archive membership in the default library.
-  - `wikg://lib/<lib-id>.lib/<archive-id>/` addresses one archive membership in a non-default library.
+  - `wikg://lib/<lib-id>` addresses a non-default library.
+  - `wikg://lib/arc/<archive-id>/` addresses one archive membership in the default library.
+  - `wikg://lib/<lib-id>/arc/<archive-id>/` addresses one archive membership in a non-default library.
   - Add ordinary archive object suffixes after the trailing slash to query a managed archive:
-    wikg://lib/<archive-id>/chapter
-    wikg://lib/<archive-id>/entity
-    wikg://lib/<archive-id>/triple
+    wikg://lib/arc/<archive-id>/chapter
+    wikg://lib/arc/<archive-id>/entity
+    wikg://lib/arc/<archive-id>/triple
   - Library-wide scopes such as `wikg://lib/entity` query the aggregate library index.
   - Read `{{ commandName }} help library` before managing registry, membership, rebind, or library index lifecycle.
 
@@ -65,7 +65,7 @@ Common command shapes:
   {{ commandName }} transform [options]
   {{ commandName }} wikg://lib --help
   {{ commandName }} wikg://lib/entity --query <query>
-  {{ commandName }} wikg://lib/<archive-id>/entity --query <query>
+  {{ commandName }} wikg://lib/arc/<archive-id>/entity --query <query>
   {{ commandName }} wikg://local/job
   {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
   {{ commandName }} wikg://local/job/<job-id>
@@ -181,7 +181,7 @@ Recovery hints:
     {{ commandName }} help readiness
     {{ commandName }} help runtime
   - URI rejected: convert bare filesystem paths to Wiki Graph URIs, and prepend the archive locator to short object URIs.
-  - Library URI rejected: check whether you meant a non-default library id with `.lib` or an archive member shortcut with a trailing slash.
+  - Library URI rejected: check whether you meant a non-default library id with `/arc/<arc-id>` or a concrete archive object suffix.
   - Help did not appear: append `--help` to the URI or URI-bound predicate you are trying to inspect.
 
 Job URIs:

@@ -50,8 +50,8 @@ describe("cli/library args", () => {
   it("parses library create, scope, remove, and metadata commands", () => {
     expect(
       parseCLIArguments([
-        "wikg://lib",
-        "create",
+        "wikg://lib/registry",
+        "add",
         "--path",
         "/tmp/research",
         "--json",
@@ -61,13 +61,13 @@ describe("cli/library args", () => {
         action: "create",
         json: true,
         path: "/tmp/research",
-        target: { isDefault: true, kind: "scope" },
+        target: { isDefault: true, kind: "registry" },
       },
       help: false,
       kind: "library",
     });
 
-    expect(parseCLIArguments(["wikg://lib/abc123abc123.lib"])).toStrictEqual({
+    expect(parseCLIArguments(["wikg://lib/abc123abc123"])).toStrictEqual({
       args: {
         action: "list",
         json: undefined,
@@ -78,12 +78,12 @@ describe("cli/library args", () => {
     });
 
     expect(() =>
-      parseCLIArguments(["wikg://lib/abc123abc123.lib", "remove", "--json"]),
+      parseCLIArguments(["wikg://lib/abc123abc123", "remove", "--json"]),
     ).toThrow("Missing --confirm");
 
     expect(
       parseCLIArguments([
-        "wikg://lib/abc123abc123.lib",
+        "wikg://lib/abc123abc123",
         "remove",
         "--confirm",
         "--json",
@@ -114,7 +114,7 @@ describe("cli/library args", () => {
 
   it("parses library archive member commands and routes inspect to archive readiness", () => {
     expect(
-      parseCLIArguments(["wikg://lib/archive123", "--json"]),
+      parseCLIArguments(["wikg://lib/arc/archive123", "--json"]),
     ).toMatchObject({
       args: {
         action: "get",
@@ -128,7 +128,7 @@ describe("cli/library args", () => {
       kind: "library",
     });
     expect(
-      parseCLIArguments(["wikg://lib/archive123", "remove", "--confirm"]),
+      parseCLIArguments(["wikg://lib/arc/archive123", "remove", "--confirm"]),
     ).toMatchObject({
       args: {
         action: "remove",
@@ -143,63 +143,66 @@ describe("cli/library args", () => {
     });
     expect(
       parseCLIArguments([
-        "wikg://lib/archive123",
-        "move",
-        "--to",
+        "wikg://lib/arc/archive123/path",
+        "set",
         "nested/book.wikg",
       ]),
     ).toMatchObject({
       args: {
         action: "move",
-        target: { archivePublicId: "archive123", kind: "archive" },
+        target: { archivePublicId: "archive123", kind: "archive-path" },
         to: "nested/book.wikg",
       },
       kind: "library",
     });
     expect(() =>
-      parseCLIArguments(["wikg://lib/archive123", "remove"]),
+      parseCLIArguments(["wikg://lib/arc/archive123", "remove"]),
     ).toThrow("Missing --confirm");
     expect(() => parseCLIArguments(["wikg://lib/meta", "move"])).toThrow(
       "does not support `move`",
     );
     expect(
-      parseCLIArguments(["wikg://lib/archive123", "inspect"]),
+      parseCLIArguments(["wikg://lib/arc/archive123", "inspect"]),
     ).toMatchObject({
       args: {
         action: "inspect",
-        archivePath: "wikg://lib/archive123",
+        archivePath: "wikg://lib/arc/archive123",
       },
       kind: "archive",
     });
     expect(
       parseCLIArguments([
-        "wikg://lib/team.lib/archive123",
+        "wikg://lib/team/arc/archive123",
         "inspect",
         "--json",
       ]),
     ).toMatchObject({
       args: {
         action: "inspect",
-        archivePath: "wikg://lib/team.lib/archive123",
+        archivePath: "wikg://lib/team/arc/archive123",
         json: true,
       },
       kind: "archive",
     });
     expect(() =>
-      parseCLIArguments(["wikg://lib/abc123abc123.lib", "inspect"]),
+      parseCLIArguments(["wikg://lib/abc123abc123", "inspect"]),
     ).toThrow(
-      "Library-level inspection is not supported. Inspect one managed archive with `wg wikg://lib/<archive-id> inspect`.",
+      "Library-level inspection is not supported. Inspect one managed archive with `wg wikg://lib/arc/<archive-id> inspect`.",
     );
     expect(() =>
       parseCLIArguments(["wikg://lib", "inspect", "--help"]),
     ).toThrow(
-      "Library-level inspection is not supported. Inspect one managed archive with `wg wikg://lib/<archive-id> inspect`.",
+      "Library-level inspection is not supported. Inspect one managed archive with `wg wikg://lib/arc/<archive-id> inspect`.",
     );
   });
 
   it("routes library URI and predicate help through command pages", () => {
     const scopeHelp = parseCLIArguments(["wikg://lib", "--help"]);
-    const createHelp = parseCLIArguments(["wikg://lib", "create", "--help"]);
+    const createHelp = parseCLIArguments([
+      "wikg://lib/registry",
+      "add",
+      "--help",
+    ]);
     const putHelp = parseCLIArguments(["wikg://lib/meta", "put", "--help"]);
 
     expect(scopeHelp).toMatchObject({
@@ -210,13 +213,84 @@ describe("cli/library args", () => {
       throw new Error("Expected help output.");
     }
     expect(scopeHelp.helpText).toContain("Library scope");
-    expect(createHelp.helpText).toContain(
-      "Create a non-default library registry",
-    );
+    expect(createHelp.helpText).toContain("Library Predicate Command");
     expect(putHelp.helpText).toContain("Write one library metadata key");
+    expect(() => parseCLIArguments(["wikg://lib", "create", "--help"])).toThrow(
+      "does not support `create`",
+    );
+  });
+
+  it("parses redesigned registry, path, archive collection, and tree commands", () => {
+    expect(parseCLIArguments(["wikg://lib/registry", "--json"])).toMatchObject({
+      args: { action: "list", json: true, target: { kind: "registry" } },
+      kind: "library",
+    });
+    expect(parseCLIArguments(["wikg://lib/path"])).toMatchObject({
+      args: { action: "get", target: { kind: "path" } },
+      kind: "library",
+    });
+    expect(
+      parseCLIArguments(["wikg://lib/path", "set", "/tmp/library", "--jsonl"]),
+    ).toMatchObject({
+      args: {
+        action: "rebind",
+        jsonl: true,
+        path: "/tmp/library",
+        target: { kind: "path" },
+      },
+      kind: "library",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://lib/arc",
+        "add",
+        "--input",
+        "book.wikg",
+        "--to",
+        "nested/book.wikg",
+      ]),
+    ).toMatchObject({
+      args: {
+        action: "add",
+        inputPath: "book.wikg",
+        target: { kind: "archive-collection" },
+        to: "nested/book.wikg",
+      },
+      kind: "library",
+    });
+    expect(
+      parseCLIArguments(["wikg://lib/arc", "scan", "--jsonl"]),
+    ).toMatchObject({
+      args: {
+        action: "scan",
+        jsonl: true,
+        target: { kind: "archive-collection" },
+      },
+      kind: "library",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://lib/arc/tree",
+        "--parent",
+        "nested/book.wikg",
+        "--depth",
+        "2",
+        "--json",
+      ]),
+    ).toMatchObject({
+      args: {
+        action: "archive-tree",
+        depth: 2,
+        json: true,
+        parent: "nested/book.wikg",
+        target: { kind: "archive-tree" },
+      },
+      kind: "library",
+    });
     expect(() =>
-      parseCLIArguments(["wikg://lib/abc123abc123.lib", "create", "--help"]),
-    ).toThrow("Create libraries from wikg://lib.");
+      parseCLIArguments(["wikg://lib", "add", "--input", "book.wikg"]),
+    ).toThrow("does not support `add`");
+    expect(() => parseCLIArguments(["wikg://lib/team.lib"])).toThrow();
   });
 
   it("does not steal archive URIs below a lib path segment", () => {

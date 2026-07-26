@@ -746,7 +746,7 @@ function mapLibraryArchiveRecord(
     relativePath,
     status: exists ? databaseStatus : "missing",
     updatedAt: getString(row, "updated_at"),
-    uri: `${library.uri}/${publicId}`,
+    uri: `${library.uri}/arc/${publicId}`,
   };
 }
 

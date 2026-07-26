@@ -97,10 +97,12 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
 
-    expect(parseCLIArguments(["wikg://lib/archive123/chapter"])).toStrictEqual({
+    expect(
+      parseCLIArguments(["wikg://lib/arc/archive123/chapter"]),
+    ).toStrictEqual({
       args: {
         action: "list",
-        archivePath: "wikg://lib/archive123/chapter",
+        archivePath: "wikg://lib/arc/archive123/chapter",
         format: "text",
         kinds: ["chapter"],
       },
@@ -108,13 +110,13 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
     expect(
-      parseCLIArguments(["wikg://lib/team.lib/archive123/entity/Q23"]),
+      parseCLIArguments(["wikg://lib/team/arc/archive123/entity/Q23"]),
     ).toStrictEqual({
       args: {
         action: "get",
-        archivePath: "wikg://lib/team.lib/archive123/entity/Q23",
+        archivePath: "wikg://lib/team/arc/archive123/entity/Q23",
         format: "text",
-        objectId: "wikg://lib/team.lib/archive123/entity/Q23",
+        objectId: "wikg://lib/team/arc/archive123/entity/Q23",
       },
       help: false,
       kind: "archive",
@@ -144,10 +146,10 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
 
-    expect(parseCLIArguments(["wikg://lib/team.lib/entity"])).toStrictEqual({
+    expect(parseCLIArguments(["wikg://lib/team/entity"])).toStrictEqual({
       args: {
         action: "list",
-        archivePath: "wikg://lib/team.lib/entity",
+        archivePath: "wikg://lib/team/entity",
         format: "text",
         kinds: ["entity"],
       },
@@ -523,25 +525,25 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
     expect(
-      parseCLIArguments(["wikg://lib/archive123", "inspect"]),
+      parseCLIArguments(["wikg://lib/arc/archive123", "inspect"]),
     ).toStrictEqual({
       args: {
         action: "inspect",
-        archivePath: "wikg://lib/archive123",
+        archivePath: "wikg://lib/arc/archive123",
       },
       help: false,
       kind: "archive",
     });
     expect(
       parseCLIArguments([
-        "wikg://lib/team.lib/archive123",
+        "wikg://lib/team/arc/archive123",
         "inspect",
         "--json",
       ]),
     ).toStrictEqual({
       args: {
         action: "inspect",
-        archivePath: "wikg://lib/team.lib/archive123",
+        archivePath: "wikg://lib/team/arc/archive123",
         json: true,
       },
       help: false,
@@ -549,17 +551,17 @@ describe("cli/args/archive", () => {
     });
     expect(() =>
       parseCLIArguments([
-        "wikg://lib/archive123",
+        "wikg://lib/arc/archive123",
         "inspect",
         "--query",
         "agent",
       ]),
     ).toThrow("The `inspect` command does not support --query.");
     expect(() =>
-      parseCLIArguments(["wikg://lib/archive123", "inspect", "--jsonl"]),
+      parseCLIArguments(["wikg://lib/arc/archive123", "inspect", "--jsonl"]),
     ).toThrow("The `inspect` command does not support --jsonl.");
     expect(() =>
-      parseCLIArguments(["wikg://lib/archive123", "inspect", "--evidence"]),
+      parseCLIArguments(["wikg://lib/arc/archive123", "inspect", "--evidence"]),
     ).toThrow("The `inspect` command does not support --evidence.");
     expect(() =>
       parseCLIArguments(["wikg://book.wikg/chapter/part", "inspect"]),

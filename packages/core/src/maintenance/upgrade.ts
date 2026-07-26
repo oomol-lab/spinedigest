@@ -281,7 +281,7 @@ function formatLibraryScopeUpgradeTarget(
 ): string {
   return target.isDefault
     ? "wikg://lib"
-    : `wikg://lib/${target.publicId ?? "<lib-id>"}.lib`;
+    : `wikg://lib/${target.publicId ?? "<lib-id>"}`;
 }
 
 function formatLibraryResult(library: WikiGraphLibraryRecord): {

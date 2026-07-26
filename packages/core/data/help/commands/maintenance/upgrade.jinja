@@ -12,14 +12,14 @@ Targets:
   - Home state: ~/.wikigraph
   - Standalone archive: ./book.wikg, /path/to/book.wikg, wikg://book.wikg, wikg:///path/to/book.wikg
   - Legacy sdpub: ./book.sdpub, optionally with --output
-  - Library: wikg://lib or wikg://lib/<lib-id>.lib
+  - Library: wikg://lib or wikg://lib/<lib-id>
 
 Notes:
   - This maintenance command accepts filesystem paths. URI-targeted archive/object commands still require Wiki Graph URIs; see `{{ commandName }} help uri`.
   - Home state may be schema-gated automatically before real commands, but this command is the explicit recovery and batch-upgrade entry point.
   - Internal SQLite files are part of the home target and are not user-facing upgrade targets.
   - Standalone .wikg, home, and library targets are upgraded in place and do not support --output.
-  - Library archive member URIs such as wikg://lib/<archive-id>/ are not standalone upgrade targets; upgrade the whole library.
+  - Library archive member URIs such as wikg://lib/arc/<archive-id>/ are not standalone upgrade targets; upgrade the whole library.
   - Library upgrade covers the registry and managed archive members for that library.
 
 Examples:

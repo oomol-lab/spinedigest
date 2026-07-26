@@ -26,7 +26,7 @@ Choose your starting point:
 
   - User gave you a folder of `.wikg` archives:
     Bind or create a library, scan memberships, then inspect the library index before library-wide query.
-      {{ commandName }} wikg://lib rebind --path ./library-folder
+      {{ commandName }} wikg://lib/path set ./library-folder
       {{ commandName }} wikg://lib scan
       {{ commandName }} wikg://lib/index --help
       {{ commandName }} help library
@@ -89,7 +89,7 @@ Finding material:
       {{ commandName }} wikg://lib/triple --query "attention memory" --evidence 2
       {{ commandName }} wikg://lib/chunk --query "attention memory" --evidence 2
     Use a library archive shortcut when one member archive is the right scope.
-      {{ commandName }} wikg://lib/<archive-id>/entity --query "attention"
+      {{ commandName }} wikg://lib/arc/<archive-id>/entity --query "attention"
 
   - Need to understand a concept, person, place, term, or object:
     Use `--query` on entity scopes with source evidence, then ground, expand, or pack from the entity URI.

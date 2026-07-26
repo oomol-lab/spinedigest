@@ -268,20 +268,20 @@ describe("cli/archive/object", () => {
   it("inspects a library archive shortcut without leaking the resolved path", async () => {
     await runArchiveCommand({
       action: "inspect",
-      archivePath: "wikg://lib/archive123",
+      archivePath: "wikg://lib/arc/archive123",
     });
 
     expect(archiveMockState.readCalls).toStrictEqual([
       "/tmp/library/archive123.wikg",
     ]);
     expect(archiveMockState.textWrites[0]).toContain(
-      "URI: wikg://lib/archive123",
+      "URI: wikg://lib/arc/archive123",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Command: wg wikg://lib/archive123/index enable",
+      "Command: wg wikg://lib/arc/archive123/index enable",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "--input wikg://lib/archive123 --task reading-graph",
+      "--input wikg://lib/arc/archive123 --task reading-graph",
     );
     expect(archiveMockState.textWrites[0]).not.toContain(
       "/tmp/library/archive123.wikg",
@@ -291,7 +291,7 @@ describe("cli/archive/object", () => {
   it("prints library archive shortcut inspect JSON with the shortcut URI", async () => {
     await runArchiveCommand({
       action: "inspect",
-      archivePath: "wikg://lib/archive123",
+      archivePath: "wikg://lib/arc/archive123",
       json: true,
     });
 
@@ -304,16 +304,16 @@ describe("cli/archive/object", () => {
     expect(archiveMockState.readCalls).toStrictEqual([
       "/tmp/library/archive123.wikg",
     ]);
-    expect(output.uri).toBe("wikg://lib/archive123");
+    expect(output.uri).toBe("wikg://lib/arc/archive123");
     expect(output.index?.fixCommand).toBe(
-      "wg wikg://lib/archive123/index enable",
+      "wg wikg://lib/arc/archive123/index enable",
     );
     expect(archiveMockState.textWrites[0]).not.toContain(
       "/tmp/library/archive123.wikg",
     );
     expect(
       output.improvements?.map((item) => item.command).join("\n"),
-    ).toContain("--input wikg://lib/archive123 --task reading-graph");
+    ).toContain("--input wikg://lib/arc/archive123 --task reading-graph");
   });
 
   it("prints request and job performance hints for multi-chapter generation", async () => {

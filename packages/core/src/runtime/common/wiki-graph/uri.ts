@@ -66,7 +66,7 @@ function parseLibraryArchiveLocatorBody(
   body: string,
 ): LocatedWikiGraphUri | undefined {
   const match =
-    /^lib\/(?:(?<library>[^/]+\.lib)\/)?(?<archive>[^/.][^/]*)(?:\/(?<object>.*))?$/u.exec(
+    /^lib(?:\/(?<library>[^/.][^/]*))?\/arc\/(?<archive>[^/.][^/]*)(?:\/(?<object>.*))?$/u.exec(
       body,
     );
   const groups = match?.groups;
@@ -81,7 +81,7 @@ function parseLibraryArchiveLocatorBody(
   const library = groups?.library;
   const archivePath = `${WIKI_GRAPH_URI_PREFIX}lib/${
     library === undefined ? "" : `${library}/`
-  }${archive}`;
+  }arc/${archive}`;
   const objectPath = groups?.object;
 
   return {
@@ -95,6 +95,11 @@ function parseLibraryArchiveLocatorBody(
 function isLibraryScopeSegment(segment: string): boolean {
   return (
     segment === "meta" ||
+    segment === "registry" ||
+    segment === "arc" ||
+    segment === "path" ||
+    segment === "tree" ||
+    segment === "index" ||
     segment === "chapter" ||
     segment === "chunk" ||
     segment === "entity" ||

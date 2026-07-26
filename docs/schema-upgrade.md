@@ -111,7 +111,7 @@ home or library target and must not become CLI targets.
   reports `wg maintenance upgrade <archive>` when old data is found; it must not
   silently rewrite user archives.
 - `wg maintenance upgrade wikg://lib` and
-  `wg maintenance upgrade wikg://lib/<lib-id>.lib` upgrade a registered library
+  `wg maintenance upgrade wikg://lib/<lib-id>` upgrade a registered library
   under the library write lock. The command clears rebuildable derived library
   state and only visits archives registered in `library_archives`; it does not
   scan the folder for unmanaged `.wikg` files.

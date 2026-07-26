@@ -9,12 +9,82 @@ Target:
 Predicate:
   {{ predicate }}
 
-{% if target.kind == "scope" and predicate == "create" %}
+{% if target.kind == "registry" and predicate == "add" %}
 Purpose:
   Create a non-default library registry and create its empty library folder.
 
 Usage:
-  {{ commandName }} wikg://lib create --path <folder> [--json]
+  {{ commandName }} wikg://lib/registry add --path <folder> [--json]
+
+Notes:
+  - The folder must not already exist; the command creates it as an empty directory.
+  - Text output is the new public library URI. With `--json`, output includes the public id, URI, folder path, default marker, staging path, and timestamps.
+{% elif target.kind == "registry" and predicate == "list" %}
+Purpose:
+  List all library registries.
+
+Usage:
+  {{ commandName }} wikg://lib/registry [--json]
+{% elif target.kind == "path" and predicate == "get" %}
+Purpose:
+  Read this library folder path.
+
+Usage:
+  {{ commandName }} {{ uri }} [--json]
+{% elif target.kind == "path" and predicate == "set" %}
+Purpose:
+  Rebind this library to an existing directory, then scan/reconcile `.wikg` files in that directory.
+
+Usage:
+  {{ commandName }} {{ uri }} set <folder> [--json|--jsonl]
+
+Notes:
+  - The command updates only this library registry's folder path.
+  - With `--jsonl`, it streams started/progress/completed events.
+{% elif target.kind == "archive-collection" and predicate == "add" %}
+Purpose:
+  Copy a `.wikg` archive into this library folder and register it as a managed archive member.
+
+Usage:
+  {{ commandName }} {{ uri }} add --input <path> [--to <relative-wikg-path>] [--json]
+{% elif target.kind == "archive-collection" and predicate == "scan" %}
+Purpose:
+  Reconcile this library registry with `.wikg` files currently under the library folder.
+
+Usage:
+  {{ commandName }} {{ uri }} scan [--json|--jsonl]
+
+Notes:
+  - With `--jsonl`, it streams started/progress/completed events.
+{% elif target.kind == "archive-tree" and predicate == "archive-tree" %}
+Purpose:
+  Show the archive member file tree.
+
+Usage:
+  {{ commandName }} {{ uri }} [--parent <relative-path>] [--depth <n>] [--json]
+
+Notes:
+  - `--parent` accepts a directory or concrete `.wikg` file and preserves ancestor nodes.
+  - `--depth` is calculated from the library scope root.
+  - This target is read-only and does not support `set` or `apply`.
+{% elif target.kind == "archive-path" and predicate == "get" %}
+Purpose:
+  Read this archive member's relative `.wikg` path.
+
+Usage:
+  {{ commandName }} {{ uri }} [--json]
+{% elif target.kind == "archive-path" and predicate == "set" %}
+Purpose:
+  Move or rename this managed archive inside the same library folder.
+
+Usage:
+  {{ commandName }} {{ uri }} set <relative-wikg-path> [--json]
+{% elif target.kind == "scope" and predicate == "create" %}
+Purpose:
+  Create a non-default library registry and create its empty library folder.
+
+Usage:
+  {{ commandName }} wikg://lib/registry add --path <folder> [--json]
 
 Notes:
   - Libraries are created from the default library scope, `wikg://lib`.
@@ -26,8 +96,8 @@ Notes:
   - The current CLI does not expose a list-all-library-registries command.
 
 Examples:
-  {{ commandName }} wikg://lib create --path ./research-library
-  {{ commandName }} wikg://lib create --path ./research-library --json
+  {{ commandName }} wikg://lib/registry add --path ./research-library
+  {{ commandName }} wikg://lib/registry add --path ./research-library --json
 {% elif target.kind == "scope" and target.objectUri == "wikg://index" and predicate == "get" %}
 Purpose:
   Read this library index status.
@@ -99,7 +169,7 @@ Purpose:
   Bind this library to an existing directory, then scan/reconcile `.wikg` files in that directory.
 
 Usage:
-  {{ commandName }} {{ uri }} rebind --path <existing-directory> [--json]
+  {{ commandName }} {{ uri }} set <existing-directory> [--json|--jsonl]
 
 Notes:
   - Use this after you manually move, sync, or restore a library folder outside Wiki Graph.
@@ -110,8 +180,8 @@ Notes:
   - Rebind holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
 
 Examples:
-  {{ commandName }} {{ uri }} rebind --path ~/Library/Mobile\ Documents/wiki-library
-  {{ commandName }} {{ uri }} rebind --path /Volumes/Archive/wiki-library --json
+  {{ commandName }} {{ uri }} set ~/Library/Mobile\ Documents/wiki-library
+  {{ commandName }} {{ uri }} set /Volumes/Archive/wiki-library --json
 {% elif target.kind == "scope" and predicate == "get" %}
 Purpose:
   Read this library scope.
@@ -122,7 +192,7 @@ Usage:
 Notes:
   - For a bare library URI, this reads the same membership listing as the default command.
   - For concrete library-wide objects such as `{{ uri }}/entity/<qid>`, use the object URI directly or ask that URI for help.
-  - This is not a list of all library registries; use known `wikg://lib/<lib-id>.lib` URIs for non-default libraries.
+  - This is not a list of all library registries; use known `wikg://lib/<lib-id>` URIs for non-default libraries.
 {% elif target.kind == "scope" and predicate == "list" %}
 Purpose:
   List archive memberships in this library scope.
@@ -132,7 +202,7 @@ Usage:
 
 Notes:
   - The output includes registered archive ids, relative paths, and membership status.
-  - Use `scan` when the folder contents changed outside Wiki Graph.
+  - Use `<lib-scope>/arc scan` when the folder contents changed outside Wiki Graph.
   - This lists archive memberships in this library, not all library registries.
 {% elif target.kind == "scope" and predicate == "remove" %}
 Purpose:
@@ -162,7 +232,7 @@ Purpose:
   Move or rename this managed archive inside the same library folder.
 
 Usage:
-  {{ commandName }} {{ uri }} move --to <relative-wikg-path> [--json]
+  {{ commandName }} {{ uri }}/path set <relative-wikg-path> [--json]
 
 Notes:
   - `--to` must be a relative `.wikg` path inside the library folder.

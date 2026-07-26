@@ -8,6 +8,7 @@ import {
   deleteWikiGraphLibraryMetadataKey,
   getWikiGraphLibraryMetadata,
   getWikiGraphLibraryArchive,
+  listWikiGraphLibraries,
   listWikiGraphLibraryArchives,
   moveWikiGraphLibraryArchive,
   disableWikiGraphLibraryIndex,
@@ -40,7 +41,9 @@ export async function runLibraryCommand(
   if (
     args.action !== "add" &&
     args.action !== "create" &&
-    args.action !== "scan"
+    args.action !== "scan" &&
+    args.action !== "rebind" &&
+    args.action !== "archive-tree"
   ) {
     await assertWikiGraphLibrarySchemaCurrent(args.target);
   }
@@ -69,6 +72,13 @@ export async function runLibraryCommand(
       return;
     }
     case "list": {
+      if (args.target.kind === "registry") {
+        await writeLibraries(
+          await listWikiGraphLibraries(),
+          args.json ?? false,
+        );
+        return;
+      }
       await writeLibraryArchives(
         await listWikiGraphLibraryArchives(args.target),
         args.json ?? false,
@@ -76,19 +86,39 @@ export async function runLibraryCommand(
       return;
     }
     case "scan": {
-      const result = await scanWikiGraphLibrary(args.target);
-      await writeLibraryArchives(result.archives, args.json ?? false);
+      await writeScanResult(
+        "scan",
+        async () => await scanWikiGraphLibrary(args.target),
+        args.json ?? false,
+        args.jsonl ?? false,
+      );
       return;
     }
     case "rebind": {
       if (args.path === undefined) {
-        throw new Error("Missing --path <directory> for library rebind.");
+        throw new Error("Missing path value for library path set.");
       }
-      const result = await rebindWikiGraphLibrary({
-        folderPath: args.path,
-        target: args.target,
-      });
-      await writeLibraryArchives(result.archives, args.json ?? false);
+      await writeScanResult(
+        "path set",
+        async () =>
+          await rebindWikiGraphLibrary({
+            folderPath: args.path!,
+            target: args.target,
+          }),
+        args.json ?? false,
+        args.jsonl ?? false,
+      );
+      return;
+    }
+    case "archive-tree": {
+      await writeLibraryArchiveTree(
+        await listWikiGraphLibraryArchives(args.target),
+        {
+          ...(args.depth === undefined ? {} : { depth: args.depth }),
+          json: args.json ?? false,
+          ...(args.parent === undefined ? {} : { parent: args.parent }),
+        },
+      );
       return;
     }
     case "get-index": {
@@ -172,13 +202,30 @@ export async function runLibraryCommand(
         );
       }
       await writeLibraryArchive(
-        await moveWikiGraphLibraryArchive({ target: args.target, to: args.to }),
+        await moveWikiGraphLibraryArchive({
+          target: { ...args.target, kind: "archive" },
+          to: args.to,
+        }),
         args.json ?? false,
         "Moved library archive",
       );
       return;
     }
     case "get": {
+      if (args.target.kind === "path") {
+        await writeLibraryPath(
+          await resolveWikiGraphLibrary(args.target),
+          args.json ?? false,
+        );
+        return;
+      }
+      if (args.target.kind === "archive-path") {
+        await writeLibraryArchivePath(
+          await getWikiGraphLibraryArchive({ ...args.target, kind: "archive" }),
+          args.json ?? false,
+        );
+        return;
+      }
       if (args.target.kind === "metadata") {
         await writeMetadataMap(
           await getWikiGraphLibraryMetadata(args.target),
@@ -264,6 +311,102 @@ async function writeLibrary(
   await writeTextToStdout(`${library.uri}\n`);
 }
 
+async function writeLibraries(
+  libraries: Awaited<ReturnType<typeof listWikiGraphLibraries>>,
+  json: boolean,
+): Promise<void> {
+  if (json) {
+    await writeTextToStdout(
+      formatCLIJSON({
+        items: libraries.map((library) => ({
+          uri: library.uri,
+          id: library.publicId,
+          path: library.folderPath,
+          isDefault: library.isDefault,
+        })),
+      }),
+    );
+    return;
+  }
+  await writeTextToStdout(
+    libraries
+      .map((library) =>
+        [
+          library.uri,
+          library.publicId,
+          library.folderPath,
+          library.isDefault ? "default" : "",
+        ].join("\t"),
+      )
+      .join("\n") + (libraries.length === 0 ? "" : "\n"),
+  );
+}
+
+async function writeLibraryPath(
+  library: Awaited<ReturnType<typeof resolveWikiGraphLibrary>>,
+  json: boolean,
+): Promise<void> {
+  if (json) {
+    await writeTextToStdout(
+      formatCLIJSON({ uri: `${library.uri}/path`, path: library.folderPath }),
+    );
+    return;
+  }
+  await writeTextToStdout(`${library.folderPath}\n`);
+}
+
+async function writeLibraryArchivePath(
+  archive: Awaited<ReturnType<typeof getWikiGraphLibraryArchive>>,
+  json: boolean,
+): Promise<void> {
+  if (json) {
+    await writeTextToStdout(
+      formatCLIJSON({ uri: `${archive.uri}/path`, path: archive.relativePath }),
+    );
+    return;
+  }
+  await writeTextToStdout(`${archive.relativePath}\n`);
+}
+
+async function writeScanResult(
+  label: string,
+  operation: () => Promise<Awaited<ReturnType<typeof scanWikiGraphLibrary>>>,
+  json: boolean,
+  jsonl: boolean,
+): Promise<void> {
+  if (jsonl) {
+    const writer = new ProgressOutputWriter({ jsonl: true, throttleMs: 0 });
+    await writer.write({
+      json: { type: "started", action: label },
+      kind: "lifecycle",
+      text: `${label} started`,
+    });
+    const result = await operation();
+    await writer.write({
+      json: {
+        type: "progress",
+        action: label,
+        archives: result.archives.length,
+      },
+      kind: "status",
+      phase: label,
+    });
+    await writer.write({
+      json: {
+        type: "completed",
+        action: label,
+        archives: result.archives.length,
+      },
+      kind: "lifecycle",
+      text: `${label} completed`,
+    });
+    return;
+  }
+
+  const result = await operation();
+  await writeLibraryArchives(result.archives, json);
+}
+
 async function writeLibraryArchives(
   archives: Awaited<ReturnType<typeof listWikiGraphLibraryArchives>>,
   json: boolean,
@@ -315,6 +458,119 @@ function formatLibraryArchiveJSON(
     createdAt: archive.createdAt,
     updatedAt: archive.updatedAt,
   };
+}
+
+interface ArchiveTreeNode {
+  readonly children: Map<string, ArchiveTreeNode>;
+  readonly name: string;
+  readonly path: string;
+  archive?: Awaited<ReturnType<typeof getWikiGraphLibraryArchive>>;
+}
+
+async function writeLibraryArchiveTree(
+  archives: Awaited<ReturnType<typeof listWikiGraphLibraryArchives>>,
+  options: {
+    readonly depth?: number;
+    readonly json: boolean;
+    readonly parent?: string;
+  },
+): Promise<void> {
+  const parent = options.parent
+    ?.replace(/\\/gu, "/")
+    .replace(/^\/+|\/+$/gu, "");
+  const root: ArchiveTreeNode = { children: new Map(), name: "", path: "" };
+  for (const archive of archives) {
+    if (
+      parent !== undefined &&
+      !isArchiveTreePathSelected(archive.relativePath, parent)
+    ) {
+      continue;
+    }
+    insertArchiveTreeNode(root, archive);
+  }
+  pruneArchiveTreeDepth(root, options.depth, 0);
+
+  if (options.json) {
+    await writeTextToStdout(
+      formatCLIJSON({ items: serializeArchiveTreeNodes(root.children) }),
+    );
+    return;
+  }
+  await writeTextToStdout(formatArchiveTreeText(root.children));
+}
+
+function isArchiveTreePathSelected(path: string, parent: string): boolean {
+  return path === parent || path.startsWith(`${parent.replace(/\/$/u, "")}/`);
+}
+
+function insertArchiveTreeNode(
+  root: ArchiveTreeNode,
+  archive: Awaited<ReturnType<typeof getWikiGraphLibraryArchive>>,
+): void {
+  let current = root;
+  const parts = archive.relativePath.split("/");
+  for (let index = 0; index < parts.length; index += 1) {
+    const name = parts[index]!;
+    const path = parts.slice(0, index + 1).join("/");
+    let child = current.children.get(name);
+    if (child === undefined) {
+      child = { children: new Map(), name, path };
+      current.children.set(name, child);
+    }
+    current = child;
+  }
+  current.archive = archive;
+}
+
+function pruneArchiveTreeDepth(
+  node: ArchiveTreeNode,
+  depth: number | undefined,
+  level: number,
+): void {
+  if (depth === undefined) {
+    for (const child of node.children.values()) {
+      pruneArchiveTreeDepth(child, depth, level + 1);
+    }
+    return;
+  }
+  if (level >= depth) {
+    node.children.clear();
+    return;
+  }
+  for (const child of node.children.values()) {
+    pruneArchiveTreeDepth(child, depth, level + 1);
+  }
+}
+
+function serializeArchiveTreeNodes(
+  nodes: Map<string, ArchiveTreeNode>,
+): object[] {
+  return [...nodes.values()].map((node) => ({
+    name: node.name,
+    path: node.path,
+    ...(node.archive === undefined ? {} : { uri: node.archive.uri }),
+    ...(node.children.size === 0
+      ? {}
+      : { children: serializeArchiveTreeNodes(node.children) }),
+  }));
+}
+
+function formatArchiveTreeText(
+  nodes: Map<string, ArchiveTreeNode>,
+  indent = "",
+): string {
+  const lines: string[] = [];
+  for (const node of nodes.values()) {
+    lines.push(
+      `${indent}${node.name}${node.archive === undefined ? "/" : `\t${node.archive.uri}`}`,
+    );
+    if (node.children.size > 0) {
+      lines.push(
+        formatArchiveTreeText(node.children, `${indent}  `).replace(/\n$/u, ""),
+      );
+    }
+  }
+  return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
 }
 
 async function writeLibraryIndexState(

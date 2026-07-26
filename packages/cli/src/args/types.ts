@@ -104,6 +104,7 @@ export interface CLIObjectMetadataArguments {
 
 export type CLILibraryAction =
   | "add"
+  | "archive-tree"
   | "clear"
   | "create"
   | "delete"
@@ -122,6 +123,7 @@ export type CLILibraryAction =
 export interface CLILibraryArguments {
   readonly action: CLILibraryAction;
   readonly confirm?: boolean | undefined;
+  readonly depth?: number | undefined;
   readonly inputPath?: string | undefined;
   readonly inputValue?: string | undefined;
   readonly json?: boolean | undefined;
@@ -129,6 +131,7 @@ export interface CLILibraryArguments {
   readonly jsonInputValue?: string | undefined;
   readonly key?: string | undefined;
   readonly path?: string | undefined;
+  readonly parent?: string | undefined;
   readonly target: ParsedWikiGraphLibraryUri;
   readonly to?: string | undefined;
 }

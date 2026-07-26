@@ -89,7 +89,7 @@ describe("cli/args/archive index", () => {
       kind: "library",
     });
     expect(
-      parseCLIArguments(["wikg://lib/team.lib/index", "enable", "--jsonl"]),
+      parseCLIArguments(["wikg://lib/team/index", "enable", "--jsonl"]),
     ).toStrictEqual({
       args: {
         action: "enable-index",
@@ -170,43 +170,45 @@ describe("cli/args/archive index", () => {
     expect(() => parseCLIArguments(["wikg://lib/index", "external"])).toThrow(
       "The library index wikg://lib/index does not support `external`.\nSee: wg wikg://lib/index external --help",
     );
-    expect(() =>
-      parseCLIArguments(["wikg://lib/team.lib/index", "embed"]),
-    ).toThrow(
-      "The library index wikg://lib/team.lib/index does not support `embed`.\nSee: wg wikg://lib/team.lib/index embed --help",
+    expect(() => parseCLIArguments(["wikg://lib/team/index", "embed"])).toThrow(
+      "The library index wikg://lib/team/index does not support `embed`.\nSee: wg wikg://lib/team/index embed --help",
     );
     expect(() =>
-      parseCLIArguments(["wikg://lib/team.lib/index", "external"]),
+      parseCLIArguments(["wikg://lib/team/index", "external"]),
     ).toThrow(
-      "The library index wikg://lib/team.lib/index does not support `external`.\nSee: wg wikg://lib/team.lib/index external --help",
+      "The library index wikg://lib/team/index does not support `external`.\nSee: wg wikg://lib/team/index external --help",
     );
   });
 
   it("renders library v1 management help without routing to execution", () => {
-    expect(parseCLIArguments(["wikg://lib", "scan", "--help"])).toStrictEqual({
+    expect(
+      parseCLIArguments(["wikg://lib/arc", "scan", "--help"]),
+    ).toStrictEqual({
       help: true,
       helpText: renderLibraryPredicateHelpText(
-        "wikg://lib",
-        { isDefault: true, kind: "scope" },
+        "wikg://lib/arc",
+        { isDefault: true, kind: "archive-collection" },
         "scan",
       ),
       kind: "help",
     });
-    expect(parseCLIArguments(["wikg://lib", "add", "--help"])).toStrictEqual({
+    expect(
+      parseCLIArguments(["wikg://lib/arc", "add", "--help"]),
+    ).toStrictEqual({
       help: true,
       helpText: renderLibraryPredicateHelpText(
-        "wikg://lib",
-        { isDefault: true, kind: "scope" },
+        "wikg://lib/arc",
+        { isDefault: true, kind: "archive-collection" },
         "add",
       ),
       kind: "help",
     });
     expect(
-      parseCLIArguments(["wikg://lib/archive123", "remove", "--help"]),
+      parseCLIArguments(["wikg://lib/arc/archive123", "remove", "--help"]),
     ).toStrictEqual({
       help: true,
       helpText: renderLibraryPredicateHelpText(
-        "wikg://lib/archive123",
+        "wikg://lib/arc/archive123",
         {
           archivePublicId: "archive123",
           isDefault: true,
@@ -241,57 +243,61 @@ describe("cli/args/archive index", () => {
 
   it("parses library rebind only on library scope URIs", () => {
     expect(
-      parseCLIArguments(["wikg://lib", "rebind", "--path", "/tmp/library"]),
+      parseCLIArguments(["wikg://lib/path", "set", "/tmp/library"]),
     ).toStrictEqual({
       args: {
         action: "rebind",
         json: undefined,
+        jsonl: undefined,
         path: "/tmp/library",
-        target: { isDefault: true, kind: "scope" },
+        target: { isDefault: true, kind: "path" },
       },
       help: false,
       kind: "library",
     });
     expect(
-      parseCLIArguments([
-        "wikg://lib/team.lib",
-        "rebind",
-        "--path",
-        "/tmp/team",
-        "--json",
-      ]),
+      parseCLIArguments(["wikg://lib/team/path", "set", "/tmp/team", "--json"]),
     ).toStrictEqual({
       args: {
         action: "rebind",
         json: true,
+        jsonl: undefined,
         path: "/tmp/team",
-        target: { isDefault: false, kind: "scope", publicId: "team" },
+        target: { isDefault: false, kind: "path", publicId: "team" },
       },
       help: false,
       kind: "library",
     });
-    expect(() => parseCLIArguments(["wikg://lib", "rebind"])).toThrow(
-      "Missing --path <directory>.",
+    expect(() => parseCLIArguments(["wikg://lib/path", "set"])).toThrow(
+      "Missing path value.",
     );
-    expect(() =>
+    expect(
+      parseCLIArguments(["wikg://lib/arc/archive123/path", "set", "x.wikg"]),
+    ).toMatchObject({
+      args: {
+        action: "move",
+        target: { archivePublicId: "archive123", kind: "archive-path" },
+        to: "x.wikg",
+      },
+      kind: "library",
+    });
+    expect(
       parseCLIArguments([
-        "wikg://lib/archive123",
-        "rebind",
-        "--path",
-        "/tmp/x",
+        "wikg://lib/team/arc/archive123/path",
+        "set",
+        "x.wikg",
       ]),
-    ).toThrow(
-      "The library archive wikg://lib/archive123 does not support `rebind`.",
-    );
-    expect(() =>
-      parseCLIArguments([
-        "wikg://lib/team.lib/archive123",
-        "rebind",
-        "--path",
-        "/tmp/x",
-      ]),
-    ).toThrow(
-      "The library archive wikg://lib/team.lib/archive123 does not support `rebind`.",
-    );
+    ).toMatchObject({
+      args: {
+        action: "move",
+        target: {
+          archivePublicId: "archive123",
+          kind: "archive-path",
+          publicId: "team",
+        },
+        to: "x.wikg",
+      },
+      kind: "library",
+    });
   });
 });

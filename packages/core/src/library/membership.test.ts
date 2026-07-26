@@ -839,17 +839,19 @@ async function getDefaultMetadata(
 describe("library URI locators", () => {
   it("separates library archives from library scopes", () => {
     expect(isWikiGraphLibraryUri("wikg://lib")).toBe(true);
-    expect(isWikiGraphLibraryUri("wikg://lib/team.lib")).toBe(true);
+    expect(isWikiGraphLibraryUri("wikg://lib/team")).toBe(true);
     expect(isWikiGraphLibraryUri("wikg://lib/entity/Q23")).toBe(true);
-    expect(isWikiGraphLibraryUri("wikg://lib/archive123/chapter")).toBe(false);
+    expect(isWikiGraphLibraryUri("wikg://lib/arc/archive123/chapter")).toBe(
+      false,
+    );
     expect(
-      isWikiGraphLibraryUri("wikg://lib/team.lib/archive123/chapter"),
+      isWikiGraphLibraryUri("wikg://lib/team/arc/archive123/chapter"),
     ).toBe(false);
 
     expect(
-      parseLocatedWikiGraphUri("wikg://lib/archive123/chapter"),
+      parseLocatedWikiGraphUri("wikg://lib/arc/archive123/chapter"),
     ).toStrictEqual({
-      archivePath: "wikg://lib/archive123",
+      archivePath: "wikg://lib/arc/archive123",
       objectUri: "wikg://chapter",
     });
     expect(parseWikiGraphLibraryUri("wikg://lib/entity/Q23")).toMatchObject({
@@ -862,16 +864,14 @@ describe("library URI locators", () => {
       kind: "scope",
       objectUri: "wikg://index",
     });
-    expect(parseWikiGraphLibraryUri("wikg://lib/team.lib/index")).toMatchObject(
-      {
-        isDefault: false,
-        kind: "scope",
-        objectUri: "wikg://index",
-        publicId: "team",
-      },
-    );
+    expect(parseWikiGraphLibraryUri("wikg://lib/team/index")).toMatchObject({
+      isDefault: false,
+      kind: "scope",
+      objectUri: "wikg://index",
+      publicId: "team",
+    });
     expect(
-      parseWikiGraphLibraryUri("wikg://lib/team.lib/archive123/entity"),
+      parseWikiGraphLibraryUri("wikg://lib/team/arc/archive123/entity"),
     ).toMatchObject({
       archivePublicId: "archive123",
       kind: "archive",

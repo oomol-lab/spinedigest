@@ -602,17 +602,17 @@ Library context:
   - Interpret results with the returned archive/member provenance; cite the specific returned evidence or member.
 {% endif %}
 {% if target.name == "chapter-collection-scope" or target.name == "chapter-scope" or target.name == "chapter-source-object" or target.name == "chapter-summary-object" or target.name == "chapter-title-object" or target.name == "chapter-tree-object" or target.name == "chapter-state-object" %}
-  - Library archive shortcuts such as `wikg://lib/<archive-id>/chapter/part` apply the predicate to one managed archive.
+  - Library archive shortcuts such as `wikg://lib/arc/<archive-id>/chapter/part` apply the predicate to one managed archive.
 {% elif target.name == "triple-object" or target.name == "triple-scope" %}
-  - Library archive shortcuts such as `wikg://lib/<archive-id>/triple/Q8018/discusses/Q123` apply the predicate to one managed archive.
+  - Library archive shortcuts such as `wikg://lib/arc/<archive-id>/triple/Q8018/discusses/Q123` apply the predicate to one managed archive.
 {% elif target.name == "chunk-object" or target.name == "chunk-scope" %}
-  - Library archive shortcuts such as `wikg://lib/<archive-id>/chunk/12` apply the predicate to one managed archive.
+  - Library archive shortcuts such as `wikg://lib/arc/<archive-id>/chunk/12` apply the predicate to one managed archive.
 {% elif target.name == "index-object" and libraryContext.isLibraryWide %}
   - Library index shortcuts such as `wikg://lib/index` apply the predicate to the aggregate library index.
 {% elif target.name == "index-object" %}
-  - Library archive shortcuts such as `wikg://lib/<archive-id>/index` apply the predicate to one managed archive.
+  - Library archive shortcuts such as `wikg://lib/arc/<archive-id>/index` apply the predicate to one managed archive.
 {% else %}
-  - Library archive shortcuts such as `wikg://lib/<archive-id>/entity/Q8018` apply the predicate to one managed archive.
+  - Library archive shortcuts such as `wikg://lib/arc/<archive-id>/entity/Q8018` apply the predicate to one managed archive.
 {% endif %}
 {% endif %}
 

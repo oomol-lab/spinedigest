@@ -1,7 +1,60 @@
 Help Type: command
 Command: {{ commandName }} {{ uri }}
 
-{% if target.kind == "metadata" %}
+{% if target.kind == "registry" %}
+Library registry collection
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` lists all library registries.
+  - `{{ commandName }} {{ uri }} add --path <folder>` creates a non-default library registry.
+
+Usage:
+  {{ commandName }} wikg://lib/registry [--json]
+  {{ commandName }} wikg://lib/registry add --path <folder> [--json]
+{% elif target.kind == "path" %}
+Library path object
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` reads the library folder path.
+  - `{{ commandName }} {{ uri }} set <folder>` rebinds the library folder path and scans archive membership.
+
+Usage:
+  {{ commandName }} {{ uri }} [--json]
+  {{ commandName }} {{ uri }} set <folder> [--json|--jsonl]
+{% elif target.kind == "archive-collection" %}
+Archive member collection
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` lists archive members.
+  - `scan` reconciles `.wikg` files; `add` copies and registers one archive.
+
+Usage:
+  {{ commandName }} {{ uri }} [--json]
+  {{ commandName }} {{ uri }} add --input <path> [--to <relative-wikg-path>] [--json]
+  {{ commandName }} {{ uri }} scan [--json|--jsonl]
+  {{ commandName }} {{ uri }}/tree [--parent <relative-path>] [--depth <n>] [--json]
+{% elif target.kind == "archive-tree" %}
+Archive member tree object
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` shows the archive member file tree.
+  - `--parent` filters to a directory or `.wikg` file while preserving ancestors.
+  - `--depth` is calculated from the library scope root.
+  - This object is read-only and does not support `set` or `apply`.
+
+Usage:
+  {{ commandName }} {{ uri }} [--parent <relative-path>] [--depth <n>] [--json]
+{% elif target.kind == "archive-path" %}
+Archive member path object
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` reads this archive member's relative `.wikg` path.
+  - `{{ commandName }} {{ uri }} set <relative-wikg-path>` moves or renames the member.
+
+Usage:
+  {{ commandName }} {{ uri }} [--json]
+  {{ commandName }} {{ uri }} set <relative-wikg-path> [--json]
+{% elif target.kind == "metadata" %}
 Library metadata object
 
 Default behavior:
@@ -47,7 +100,7 @@ Use when:
 Usage:
   {{ commandName }} {{ uri }} [--json]
   {{ commandName }} {{ uri }} inspect [--json]
-  {{ commandName }} {{ uri }} move --to <relative-wikg-path> [--json]
+  {{ commandName }} {{ uri }}/path set <relative-wikg-path> [--json]
   {{ commandName }} {{ uri }} remove --confirm [--json]
 
 Predicate commands:
@@ -80,10 +133,10 @@ Related help:
 Library scope
 
 Default behavior:
-  - `{{ commandName }} {{ uri }}` lists archive memberships registered in this library.
-  - This is not a list of all library registries.
+  - `{{ commandName }} {{ uri }}` reads this library scope.
+  - Use `{{ commandName }} wikg://lib/registry` to list all library registries.
   - `{{ commandName }} {{ uri }} --query <query>` runs a broad library index search across indexed object types.
-  - `{{ commandName }} {{ uri }} scan` reconciles membership with `.wikg` files currently under the library folder.
+  - `{{ commandName }} {{ uri }}/arc scan` reconciles membership with `.wikg` files currently under the library folder.
   - Library-wide object scopes such as `/entity` and `/triple` query one object type through the library index after it is enabled.
 
 Use when:
@@ -97,9 +150,9 @@ Use when:
 
 URI forms:
   - `{{ commandName }} wikg://lib` addresses the default library.
-  - `{{ commandName }} wikg://lib/<lib-id>.lib` addresses a non-default library.
-  - `{{ commandName }} wikg://lib/<archive-id>/` addresses one archive membership in the default library.
-  - Non-default library URIs require the `.lib` suffix so `wikg://lib/<archive-id>/` archive shortcuts remain unambiguous.
+  - `{{ commandName }} wikg://lib/<lib-id>` addresses a non-default library.
+  - `{{ commandName }} wikg://lib/arc/<archive-id>/` addresses one archive membership in the default library.
+  - `{{ commandName }} wikg://lib/<lib-id>/arc/<archive-id>/` addresses one archive membership in a non-default library.
 
 Usage:
 {% if target.isDefault %}
@@ -107,10 +160,11 @@ Usage:
   {{ commandName }} wikg://lib --query <query>
   {{ commandName }} wikg://lib/chapter --query <query>
   {{ commandName }} wikg://lib/chunk --query <query>
-  {{ commandName }} wikg://lib create --path <folder> [--json]
-  {{ commandName }} wikg://lib scan [--json]
-  {{ commandName }} wikg://lib add --input <path> [--to <relative-wikg-path>] [--json]
-  {{ commandName }} wikg://lib rebind --path <existing-directory> [--json]
+  {{ commandName }} wikg://lib/registry add --path <folder> [--json]
+  {{ commandName }} wikg://lib/arc scan [--json|--jsonl]
+  {{ commandName }} wikg://lib/arc add --input <path> [--to <relative-wikg-path>] [--json]
+  {{ commandName }} wikg://lib/path set <existing-directory> [--json|--jsonl]
+  {{ commandName }} wikg://lib/arc/tree [--parent <relative-path>] [--depth <n>] [--json]
   {{ commandName }} wikg://lib/index [--json]
   {{ commandName }} wikg://lib/entity --query <query>
   {{ commandName }} wikg://lib/triple --query <query>
@@ -120,9 +174,10 @@ Usage:
   {{ commandName }} {{ uri }} --query <query>
   {{ commandName }} {{ uri }}/chapter --query <query>
   {{ commandName }} {{ uri }}/chunk --query <query>
-  {{ commandName }} {{ uri }} scan [--json]
-  {{ commandName }} {{ uri }} add --input <path> [--to <relative-wikg-path>] [--json]
-  {{ commandName }} {{ uri }} rebind --path <existing-directory> [--json]
+  {{ commandName }} {{ uri }}/arc scan [--json|--jsonl]
+  {{ commandName }} {{ uri }}/arc add --input <path> [--to <relative-wikg-path>] [--json]
+  {{ commandName }} {{ uri }}/path set <existing-directory> [--json|--jsonl]
+  {{ commandName }} {{ uri }}/arc/tree [--parent <relative-path>] [--depth <n>] [--json]
   {{ commandName }} {{ uri }} remove --confirm [--json]
   {{ commandName }} {{ uri }}/index [--json]
   {{ commandName }} {{ uri }}/entity --query <query>
@@ -132,14 +187,14 @@ Usage:
 
 Predicate commands:
 {% if target.isDefault %}
-  - create: create a non-default library registry and an empty folder. Help: {{ commandName }} wikg://lib create --help
-  - scan: reconcile registered archive memberships with `.wikg` files under the library folder. Help: {{ commandName }} wikg://lib scan --help
-  - add: copy a `.wikg` file into the library folder and register it. Help: {{ commandName }} wikg://lib add --help
-  - rebind: bind the default library to an existing directory, then scan/reconcile its `.wikg` files. Help: {{ commandName }} wikg://lib rebind --help
+  - registry add: create a non-default library registry and an empty folder. Help: {{ commandName }} wikg://lib/registry add --help
+  - arc scan: reconcile registered archive memberships with `.wikg` files under the library folder. Help: {{ commandName }} wikg://lib/arc scan --help
+  - arc add: copy a `.wikg` file into the library folder and register it. Help: {{ commandName }} wikg://lib/arc add --help
+  - path set: bind the default library to an existing directory, then scan/reconcile its `.wikg` files. Help: {{ commandName }} wikg://lib/path set --help
 {% else %}
-  - scan: reconcile registered archive memberships with `.wikg` files under the library folder. Help: {{ commandName }} {{ uri }} scan --help
-  - add: copy a `.wikg` file into the library folder and register it. Help: {{ commandName }} {{ uri }} add --help
-  - rebind: bind this library to an existing directory, then scan/reconcile its `.wikg` files. Help: {{ commandName }} {{ uri }} rebind --help
+  - arc scan: reconcile registered archive memberships with `.wikg` files under the library folder. Help: {{ commandName }} {{ uri }}/arc scan --help
+  - arc add: copy a `.wikg` file into the library folder and register it. Help: {{ commandName }} {{ uri }}/arc add --help
+  - path set: bind this library to an existing directory, then scan/reconcile its `.wikg` files. Help: {{ commandName }} {{ uri }}/path set --help
   - remove: remove this library registry without deleting its folder. Help: {{ commandName }} {{ uri }} remove --help
 {% endif %}
 
