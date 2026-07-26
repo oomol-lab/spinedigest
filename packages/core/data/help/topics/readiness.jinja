@@ -43,7 +43,7 @@ Library index readiness:
     The index is local derived state under Wiki Graph staging, not a file inside the library folder.
 
   Dirty behavior:
-    `scan`, `add`, archive `move`, archive `remove`, archive writes, and membership changes can mark the aggregate index dirty.
+    `scan`, `add`, archive `path set`, archive `remove`, archive writes, and membership changes can mark the aggregate index dirty.
     Re-enable the library index when library-wide query reports that it is missing, dirty, or stale.
     Library indexes do not support archive-style `embed` or `external` modes.
 

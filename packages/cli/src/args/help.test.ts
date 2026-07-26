@@ -821,6 +821,8 @@ describe("cli/args/help", () => {
       "wg wikg://lib rebind",
     );
     expect(renderHelpTopicText("library")).not.toContain("move --to");
+    expect(renderHelpTopicText("library")).not.toContain("`move`");
+    expect(renderHelpTopicText("readiness")).not.toContain("archive `move`");
     expect(renderHelpTopicText("library")).not.toContain(
       "wikg://lib/<archive-id>/",
     );
