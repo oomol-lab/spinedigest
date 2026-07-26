@@ -24,6 +24,7 @@ export function spawnInternalChild(
   const command = createInternalChildCommand(kind, options.args ?? []);
 
   return spawn(command.command, command.args, {
+    cwd: getCLICwd(),
     detached: options.detached === true,
     env: {
       ...getCLIEnv(),

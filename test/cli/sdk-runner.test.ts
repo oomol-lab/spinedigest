@@ -55,6 +55,20 @@ describe("cli/sdk-runner", () => {
     });
   });
 
+  it("honors an aborted runner signal", async () => {
+    const controller = new AbortController();
+    const reason = new Error("stop runner");
+
+    controller.abort(reason);
+
+    await expect(
+      runWikiGraphCLICaptured({
+        argv: ["--version"],
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow(reason);
+  });
+
   it("uses runner cwd, env, stdio, TTY flags, and exit code without changing process globals", async () => {
     const originalCwd = process.cwd();
     const outerCwd = await mkdtemp(join(tmpdir(), "wikigraph-runner-outer-"));

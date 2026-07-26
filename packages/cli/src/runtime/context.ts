@@ -4,6 +4,7 @@ export interface WikiGraphCLIRuntimeContext {
   readonly argv: readonly string[];
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
+  readonly signal?: AbortSignal | undefined;
   readonly stderr: NodeJS.WritableStream;
   readonly stderrIsTTY?: boolean | undefined;
   readonly stdin: NodeJS.ReadableStream & { isTTY?: boolean | undefined };
@@ -36,6 +37,10 @@ export function getCLIEnv(): NodeJS.ProcessEnv {
 
 export function getCLIEnvValue(name: string): string | undefined {
   return getCLIEnv()[name];
+}
+
+export function getCLISignal(): AbortSignal | undefined {
+  return cliRuntimeContext.getStore()?.signal;
 }
 
 export function getCLIStdin(): NodeJS.ReadableStream & {

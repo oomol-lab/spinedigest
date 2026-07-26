@@ -66,6 +66,7 @@ export async function runWikiGraphCLI(
     cwd: input.cwd ?? process.cwd(),
     env: environment,
     exitCode: 0,
+    signal: input.signal,
     stderr,
     stderrIsTTY: input.stderrIsTTY,
     stdin,
@@ -82,6 +83,7 @@ export async function runWikiGraphCLI(
         stdinIsTTY: context.stdinIsTTY ?? stdin.isTTY,
         stdout,
       });
+      throwIfAborted(input.signal);
       const exitCode = normalizeExitCode(getCLIExitCode(), result.exitCode);
 
       return { exitCode };
