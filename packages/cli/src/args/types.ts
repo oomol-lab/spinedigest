@@ -113,7 +113,6 @@ export type CLILibraryAction =
   | "get"
   | "get-index"
   | "list"
-  | "move"
   | "put"
   | "rebind"
   | "remove"

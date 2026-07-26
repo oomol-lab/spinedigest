@@ -195,22 +195,6 @@ export async function runLibraryCommand(
       );
       return;
     }
-    case "move": {
-      if (args.to === undefined) {
-        throw new Error(
-          "Missing --to <relative-wikg-path> for library archive move.",
-        );
-      }
-      await writeLibraryArchive(
-        await moveWikiGraphLibraryArchive({
-          target: { ...args.target, kind: "archive" },
-          to: args.to,
-        }),
-        args.json ?? false,
-        "Moved library archive",
-      );
-      return;
-    }
     case "get": {
       if (args.target.kind === "path") {
         await writeLibraryPath(
@@ -249,6 +233,20 @@ export async function runLibraryCommand(
       return;
     }
     case "set": {
+      if (args.target.kind === "archive-path") {
+        if (args.to === undefined) {
+          throw new Error("Missing path value for library archive path set.");
+        }
+        await writeLibraryArchive(
+          await moveWikiGraphLibraryArchive({
+            target: { ...args.target, kind: "archive" },
+            to: args.to,
+          }),
+          args.json ?? false,
+          "Moved library archive",
+        );
+        return;
+      }
       const value = await readMetadataInput(args, { jsonRequired: true });
       await writeMetadataMap(
         await replaceWikiGraphLibraryMetadata(

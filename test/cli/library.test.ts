@@ -157,7 +157,7 @@ describe("cli/library args", () => {
       ]),
     ).toMatchObject({
       args: {
-        action: "move",
+        action: "set",
         target: { archivePublicId: "archive123", kind: "archive-path" },
         to: "nested/book.wikg",
       },
@@ -169,6 +169,14 @@ describe("cli/library args", () => {
     expect(() => parseCLIArguments(["wikg://lib/meta", "move"])).toThrow(
       "does not support `move`",
     );
+    expect(() =>
+      parseCLIArguments([
+        "wikg://lib/arc/archive123",
+        "move",
+        "--to",
+        "nested/book.wikg",
+      ]),
+    ).toThrow("does not support `move`");
     expect(
       parseCLIArguments(["wikg://lib/arc/archive123", "inspect"]),
     ).toMatchObject({

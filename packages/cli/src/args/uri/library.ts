@@ -30,7 +30,7 @@ import { parseArchiveArguments } from "../archive.js";
 import { parseChapterTarget } from "./chapter/target.js";
 import { isTripleScopePath } from "./triple-pattern.js";
 
-const LIBRARY_ARCHIVE_ACTIONS = new Set(["get", "move", "remove"]);
+const LIBRARY_ARCHIVE_ACTIONS = new Set(["get", "remove"]);
 const LIBRARY_ARCHIVE_COLLECTION_ACTIONS = new Set(["add", "list", "scan"]);
 const LIBRARY_ARCHIVE_PATH_ACTIONS = new Set(["get", "set"]);
 const LIBRARY_ARCHIVE_TREE_ACTIONS = new Set(["archive-tree"]);
@@ -629,7 +629,7 @@ function parseLibraryPathArguments(
   if (target.kind === "archive-path") {
     rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
     return {
-      args: { action: "move", json: values.json, target, to: tail[0] },
+      args: { action: "set", json: values.json, target, to: tail[0] },
       help: false,
       kind: "library",
     };
@@ -844,17 +844,9 @@ function parseLibraryArchiveArguments(
     };
   }
 
-  if (values.to === undefined) {
-    throw new Error(
-      withHelpRoute("Missing --to <relative-wikg-path>.", helpRoute),
-    );
-  }
-  rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
-  return {
-    args: { action, json: values.json, target, to: values.to },
-    help: false,
-    kind: "library",
-  };
+  throw new Error(
+    "Internal error: unsupported action routed to library archive.",
+  );
 }
 
 function parseLibraryArchiveInspectArguments(
@@ -929,7 +921,6 @@ function parseLibraryScopeArguments(
     case "enable-index":
     case "get-index":
     case "clear":
-    case "move":
     case "archive-tree":
     case "add":
     case "create":
@@ -1010,7 +1001,6 @@ function parseLibraryMetadataArguments(
     case "list":
     case "remove":
     case "add":
-    case "move":
     case "rebind":
     case "disable-index":
     case "enable-index":
@@ -1078,7 +1068,6 @@ function isLibraryAction(action: string): action is CLILibraryAction {
     action === "get" ||
     action === "get-index" ||
     action === "list" ||
-    action === "move" ||
     action === "put" ||
     action === "rebind" ||
     action === "remove" ||

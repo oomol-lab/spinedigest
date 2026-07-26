@@ -275,7 +275,7 @@ describe("cli/args/archive index", () => {
       parseCLIArguments(["wikg://lib/arc/archive123/path", "set", "x.wikg"]),
     ).toMatchObject({
       args: {
-        action: "move",
+        action: "set",
         target: { archivePublicId: "archive123", kind: "archive-path" },
         to: "x.wikg",
       },
@@ -289,7 +289,7 @@ describe("cli/args/archive index", () => {
       ]),
     ).toMatchObject({
       args: {
-        action: "move",
+        action: "set",
         target: {
           archivePublicId: "archive123",
           kind: "archive-path",

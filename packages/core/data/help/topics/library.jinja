@@ -43,7 +43,7 @@ Library archive shortcuts:
     {{ commandName }} wikg://lib/arc/<archive-id>/entity --query "term"
     {{ commandName }} wikg://lib/arc/<archive-id>/triple --query "term"
   - Run `{{ commandName }} wikg://lib/arc/<archive-id> inspect` to inspect that one managed archive's readiness; this is not a library-level health report.
-  - `{{ commandName }} <library-archive-uri> --help` explains membership actions such as `move` and `remove`.
+  - `{{ commandName }} <library-archive-uri> --help` explains membership actions such as `path set` and `remove`.
   - `{{ commandName }} <library-archive-uri>/entity --help` explains the archive object scope reached through that library shortcut.
 
 Library-wide query:
@@ -60,7 +60,7 @@ Library index lifecycle:
   - `{{ commandName }} <library-uri>/index enable` rebuilds the aggregate index from registered present archives.
   - `{{ commandName }} <library-uri>/index disable` removes the local library index materialization.
   - Library indexes are local derived state under Wiki Graph staging, not files inside the library folder.
-  - `scan`, `add`, archive `move`, archive `remove`, and archive writes can make the aggregate index dirty.
+  - `scan`, `add`, archive `path set`, archive `remove`, and archive writes can make the aggregate index dirty.
   - Enable the library index again when library-wide query reports that the index is missing, dirty, or stale.
   - Library indexes do not support archive-style `embed` or `external` modes.
 
