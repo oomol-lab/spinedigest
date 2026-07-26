@@ -3,15 +3,19 @@ import type { ReadonlyDocument } from "../../../document/index.js";
 import { parseWikiGraphReference } from "./references.js";
 import type { ArchiveEvidence, ArchiveEvidenceOptions } from "./types.js";
 import { requireNode } from "./core.js";
+import { DEFAULT_FIND_LIMIT, decodeFindCursor } from "./helpers.js";
 import {
   filterMentionLinksByChapter,
   filterMentionsByChapter,
 } from "./knowledge.js";
 import {
   createMentionEvidenceRanges,
+  createMentionEvidencePage,
   createMentionLinkEvidenceRanges,
+  createMentionLinkEvidencePage,
   createNodeEvidenceRanges,
   createSourceEvidencePage,
+  createEvidenceReadContext,
 } from "./source.js";
 
 export async function listArchiveEvidence(
@@ -58,7 +62,33 @@ export async function listArchiveEvidence(
         options,
       );
     }
-    case "entity":
+    case "entity": {
+      if (options.query === undefined) {
+        const limit = options.limit ?? DEFAULT_FIND_LIMIT;
+        const offset = decodeFindCursor(options.cursor);
+        const chapterFilter =
+          reference.chapterId === undefined
+            ? {}
+            : { chapterId: reference.chapterId };
+        const [total, mentions] = await Promise.all([
+          document.mentions.countByQid(reference.qid, chapterFilter),
+          document.mentions.listByQid(reference.qid, {
+            ...chapterFilter,
+            limit,
+            offset,
+            order: options.order === "doc-desc" ? "desc" : "asc",
+          }),
+        ]);
+
+        return await createMentionEvidencePage(document, mentions, {
+          context: createEvidenceReadContext(),
+          limit,
+          offset,
+          sourceContext: options.sourceContext,
+          total,
+        });
+      }
+
       return await createSourceEvidencePage(
         document,
         await createMentionEvidenceRanges(
@@ -70,7 +100,38 @@ export async function listArchiveEvidence(
         ),
         options,
       );
-    case "triple":
+    }
+    case "triple": {
+      if (options.query === undefined) {
+        const limit = options.limit ?? DEFAULT_FIND_LIMIT;
+        const offset = decodeFindCursor(options.cursor);
+        const tripleQuery = {
+          ...(reference.chapterId === undefined
+            ? {}
+            : { chapterId: reference.chapterId }),
+          objectQid: reference.objectQid,
+          predicate: reference.predicate,
+          subjectQid: reference.subjectQid,
+        };
+        const [total, links] = await Promise.all([
+          document.mentionLinks.countByTriple(tripleQuery),
+          document.mentionLinks.listByTriple({
+            ...tripleQuery,
+            limit,
+            offset,
+            order: options.order === "doc-desc" ? "desc" : "asc",
+          }),
+        ]);
+
+        return await createMentionLinkEvidencePage(document, links, {
+          context: createEvidenceReadContext(),
+          limit,
+          offset,
+          sourceContext: options.sourceContext,
+          total,
+        });
+      }
+
       return await createSourceEvidencePage(
         document,
         createMentionLinkEvidenceRanges(
@@ -87,6 +148,7 @@ export async function listArchiveEvidence(
         ),
         options,
       );
+    }
   }
 }
 

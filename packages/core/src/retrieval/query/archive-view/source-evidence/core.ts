@@ -22,12 +22,15 @@ import type {
 } from "../types.js";
 import { DEFAULT_SOURCE_CONTEXT } from "../core.js";
 import {
-  createExpandedSourceEvidenceRanges,
   createMentionEvidenceRanges,
   createMentionLinkEvidenceRanges,
-  mergeSourceEvidenceRanges,
 } from "./ranges.js";
-import { createEvidenceReadContext, createSourceEvidenceItem } from "./read.js";
+import {
+  createSourceEvidenceCandidatePage,
+  createSourceEvidenceCandidatePreview,
+  createSourceEvidenceDisplayItems,
+} from "./pagination.js";
+import { createEvidenceReadContext } from "./read.js";
 
 export { createEvidenceReadContext, createSourceEvidenceItem } from "./read.js";
 export {
@@ -44,14 +47,95 @@ export async function createMentionEvidencePreview(
   context: EvidenceReadContext = createEvidenceReadContext(),
   sourceContext = DEFAULT_SOURCE_CONTEXT,
   order: ArchiveFindOrder = "doc-asc",
+  total?: number,
 ): Promise<ArchiveFindEvidencePreview> {
-  return await createSourceEvidencePreview(
+  return await createSourceEvidenceCandidatePreview(document, {
+    candidates: mentions,
+    context,
+    createRanges: async (mention) =>
+      await createMentionEvidenceRanges(document, [mention]),
+    limit,
+    sourceContext,
+    total,
+  });
+}
+
+export async function createMentionEvidencePagePreview(
+  document: ReadonlyDocument,
+  mentions: readonly MentionRecord[],
+  limit = 3,
+  context: EvidenceReadContext = createEvidenceReadContext(),
+  sourceContext = DEFAULT_SOURCE_CONTEXT,
+  total?: number,
+): Promise<ArchiveFindEvidencePreview> {
+  return await createSourceEvidenceCandidatePreview(document, {
+    candidates: mentions,
+    context,
+    createRanges: async (mention) =>
+      await createMentionEvidenceRanges(document, [mention]),
+    limit,
+    sourceContext,
+    total,
+  });
+}
+
+export async function createMentionEvidencePage(
+  document: ReadonlyDocument,
+  mentions: readonly MentionRecord[],
+  options: {
+    readonly context: EvidenceReadContext;
+    readonly limit: number;
+    readonly offset: number;
+    readonly sourceContext?: number | undefined;
+    readonly total: number;
+  },
+): Promise<ArchiveEvidence> {
+  return await createSourceEvidenceCandidatePage(document, {
+    candidates: mentions,
+    context: options.context,
+    createRanges: async (mention) =>
+      await createMentionEvidenceRanges(document, [mention]),
+    limit: options.limit,
+    offset: options.offset,
+    sourceContext: options.sourceContext,
+    total: options.total,
+  });
+}
+
+export async function createRangeEvidencePreview(
+  document: ReadonlyDocument,
+  ranges: readonly SourceEvidenceRange[],
+  limit = 3,
+  context: EvidenceReadContext = createEvidenceReadContext(),
+  sourceContext = DEFAULT_SOURCE_CONTEXT,
+  total?: number,
+): Promise<ArchiveFindEvidencePreview> {
+  return await createSourceEvidenceCandidatePreview(document, {
+    candidates: ranges,
+    context,
+    createRanges: (range) => [range],
+    limit,
+    sourceContext,
+    total,
+  });
+}
+
+export async function createSortedRangeEvidencePreview(
+  document: ReadonlyDocument,
+  ranges: readonly SourceEvidenceRange[],
+  limit = 3,
+  context: EvidenceReadContext = createEvidenceReadContext(),
+  sourceContext = DEFAULT_SOURCE_CONTEXT,
+  order: ArchiveFindOrder = "doc-asc",
+  total?: number,
+): Promise<ArchiveFindEvidencePreview> {
+  return await createRangeEvidencePreview(
     document,
-    await createMentionEvidenceRanges(document, mentions),
+    await sortSourceEvidenceRanges(document, ranges, order),
     limit,
     context,
     sourceContext,
-    order,
+    total,
   );
 }
 
@@ -62,14 +146,78 @@ export async function createMentionLinkEvidencePreview(
   context: EvidenceReadContext = createEvidenceReadContext(),
   sourceContext = DEFAULT_SOURCE_CONTEXT,
   order: ArchiveFindOrder = "doc-asc",
+  total?: number,
 ): Promise<ArchiveFindEvidencePreview> {
-  return await createSourceEvidencePreview(
+  return await createSourceEvidenceCandidatePreview(document, {
+    candidates: links,
+    context,
+    createRanges: (link) => createMentionLinkEvidenceRanges(document, [link]),
+    limit,
+    sourceContext,
+    total,
+  });
+}
+
+export async function createMentionLinkEvidencePagePreview(
+  document: ReadonlyDocument,
+  links: readonly MentionLinkRecord[],
+  limit = 3,
+  context: EvidenceReadContext = createEvidenceReadContext(),
+  sourceContext = DEFAULT_SOURCE_CONTEXT,
+  total?: number,
+): Promise<ArchiveFindEvidencePreview> {
+  return await createSourceEvidenceCandidatePreview(document, {
+    candidates: links,
+    context,
+    createRanges: (link) => createMentionLinkEvidenceRanges(document, [link]),
+    limit,
+    sourceContext,
+    total,
+  });
+}
+
+export async function createMentionLinkEvidencePage(
+  document: ReadonlyDocument,
+  links: readonly MentionLinkRecord[],
+  options: {
+    readonly context: EvidenceReadContext;
+    readonly limit: number;
+    readonly offset: number;
+    readonly sourceContext?: number | undefined;
+    readonly total: number;
+  },
+): Promise<ArchiveEvidence> {
+  return await createSourceEvidenceCandidatePage(document, {
+    candidates: links,
+    context: options.context,
+    createRanges: (link) => createMentionLinkEvidenceRanges(document, [link]),
+    limit: options.limit,
+    offset: options.offset,
+    sourceContext: options.sourceContext,
+    total: options.total,
+  });
+}
+
+export async function createSortedMentionLinkEvidencePreview(
+  document: ReadonlyDocument,
+  links: readonly MentionLinkRecord[],
+  limit = 3,
+  context: EvidenceReadContext = createEvidenceReadContext(),
+  sourceContext = DEFAULT_SOURCE_CONTEXT,
+  order: ArchiveFindOrder = "doc-asc",
+  total?: number,
+): Promise<ArchiveFindEvidencePreview> {
+  return await createRangeEvidencePreview(
     document,
-    createMentionLinkEvidenceRanges(document, links),
+    await sortSourceEvidenceRanges(
+      document,
+      createMentionLinkEvidenceRanges(document, links),
+      order,
+    ),
     limit,
     context,
     sourceContext,
-    order,
+    total,
   );
 }
 
@@ -87,33 +235,18 @@ export async function createSourceEvidencePage(
     options.query,
     options.order ?? "doc-asc",
   );
-  const displayRanges = await createExpandedSourceEvidenceRanges(
-    document,
-    evidenceRanges,
-    options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
-    context,
-  );
-  const pageRanges = displayRanges.slice(start, start + limit);
+  const pageRanges = evidenceRanges.slice(start, start + limit);
   const nextOffset = start + pageRanges.length;
-  const items = await Promise.all(
-    pageRanges.map(
-      async (range) =>
-        await createSourceEvidenceItem(
-          document,
-          range.chapterId,
-          range.startSentenceIndex,
-          range.endSentenceIndex,
-          context,
-          range.score,
-        ),
-    ),
-  );
+  const items = await createSourceEvidenceDisplayItems(document, pageRanges, {
+    context,
+    sourceContext: options.sourceContext,
+  });
 
   return {
     items,
     limit,
     nextCursor:
-      nextOffset < displayRanges.length ? encodeFindCursor(nextOffset) : null,
+      nextOffset < evidenceRanges.length ? encodeFindCursor(nextOffset) : null,
   };
 }
 
@@ -126,7 +259,7 @@ export async function filterAndSortSourceEvidenceRangesByFtsQuery(
   const documentOrders = await document.serials.listDocumentOrders();
 
   if (queryText === undefined) {
-    return mergeSourceEvidenceRanges(ranges).sort((left, right) =>
+    return [...ranges].sort((left, right) =>
       compareSourceEvidenceRanges(left, right, documentOrders, order),
     );
   }
@@ -214,37 +347,27 @@ export async function createSourceEvidencePreview(
   context: EvidenceReadContext = createEvidenceReadContext(),
   sourceContext = DEFAULT_SOURCE_CONTEXT,
   order: ArchiveFindOrder = "doc-asc",
+  total?: number,
 ): Promise<ArchiveFindEvidencePreview> {
+  return await createSortedRangeEvidencePreview(
+    document,
+    ranges,
+    limit,
+    context,
+    sourceContext,
+    order,
+    total,
+  );
+}
+
+async function sortSourceEvidenceRanges(
+  document: ReadonlyDocument,
+  ranges: readonly SourceEvidenceRange[],
+  order: ArchiveFindOrder,
+): Promise<readonly SourceEvidenceRange[]> {
   const documentOrders = await document.serials.listDocumentOrders();
-  const mergedRanges = mergeSourceEvidenceRanges(ranges).sort((left, right) =>
+
+  return [...ranges].sort((left, right) =>
     compareSourceEvidenceRanges(left, right, documentOrders, order),
   );
-  const displayRanges = await createExpandedSourceEvidenceRanges(
-    document,
-    mergedRanges.slice(0, limit),
-    sourceContext,
-    context,
-  );
-  const sources = await Promise.all(
-    displayRanges.map(
-      async (range) =>
-        await createSourceEvidenceItem(
-          document,
-          range.chapterId,
-          range.startSentenceIndex,
-          range.endSentenceIndex,
-          context,
-        ),
-    ),
-  );
-
-  return {
-    nextCursor:
-      Math.min(limit, mergedRanges.length) < mergedRanges.length
-        ? encodeFindCursor(Math.min(limit, mergedRanges.length))
-        : null,
-    shown: sources.length,
-    sources,
-    total: mergedRanges.length,
-  };
 }

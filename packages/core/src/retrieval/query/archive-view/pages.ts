@@ -24,17 +24,11 @@ import {
 } from "./core.js";
 import {
   createEvidenceReadContext,
-  createMentionEvidencePreview,
-  createMentionLinkEvidencePreview,
+  createMentionEvidencePagePreview,
+  createMentionLinkEvidencePagePreview,
 } from "./source.js";
 import { createTextStreamBacklinks } from "./backlinks.js";
-import {
-  createTriplePageLabel,
-  filterMentionLinksByChapter,
-  filterMentionsByChapter,
-  selectEntityLabel,
-  selectEntityLabels,
-} from "./knowledge.js";
+import { createTriplePageLabel } from "./knowledge.js";
 import { resolveEntityWikipage } from "./related/index.js";
 import {
   formatChapterId,
@@ -295,28 +289,38 @@ async function readWikiGraphPage(
         type: "chapter-tree",
       };
     case "entity": {
-      const mentions = filterMentionsByChapter(
-        await document.mentions.listByQid(reference.qid),
-        reference.chapterId,
-      );
+      const evidenceLimit = options.evidenceLimit ?? 3;
+      const chapterFilter =
+        reference.chapterId === undefined
+          ? {}
+          : { chapterId: reference.chapterId };
+      const [mentionCount, mentions, labels] = await Promise.all([
+        document.mentions.countByQid(reference.qid, chapterFilter),
+        document.mentions.listByQid(reference.qid, {
+          ...chapterFilter,
+          limit: evidenceLimit,
+          order: options.order === "doc-desc" ? "desc" : "asc",
+        }),
+        document.mentions.listLabelsByQid(reference.qid, chapterFilter),
+      ]);
 
-      if (mentions.length === 0) {
+      if (mentionCount === 0) {
         throw new Error(`Entity ${uri} was not found in this archive.`);
       }
 
       return {
-        evidence: await createMentionEvidencePreview(
+        evidence: await createMentionEvidencePagePreview(
           document,
           mentions,
-          options.evidenceLimit,
+          evidenceLimit,
           createEvidenceReadContext(),
           options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
-          options.order ?? "doc-asc",
+          mentionCount,
         ),
         id: displayUri,
-        label: selectEntityLabel(mentions),
-        labels: selectEntityLabels(mentions),
-        mentionCount: mentions.length,
+        label: labels[0] ?? reference.qid,
+        labels,
+        mentionCount,
         qid: reference.qid,
         type: "entity",
       };
@@ -328,31 +332,40 @@ async function readWikiGraphPage(
         type: "entity-wikipage",
       };
     case "triple": {
-      const links = await filterMentionLinksByChapter(
-        document,
-        await document.mentionLinks.listByTriple({
-          objectQid: reference.objectQid,
-          predicate: reference.predicate,
-          subjectQid: reference.subjectQid,
+      const evidenceLimit = options.evidenceLimit ?? 3;
+      const tripleQuery = {
+        ...(reference.chapterId === undefined
+          ? {}
+          : { chapterId: reference.chapterId }),
+        objectQid: reference.objectQid,
+        predicate: reference.predicate,
+        subjectQid: reference.subjectQid,
+      };
+      const [linkCount, links, label] = await Promise.all([
+        document.mentionLinks.countByTriple(tripleQuery),
+        document.mentionLinks.listByTriple({
+          ...tripleQuery,
+          limit: evidenceLimit,
+          order: options.order === "doc-desc" ? "desc" : "asc",
         }),
-        reference.chapterId,
-      );
+        createTriplePageLabel(document, reference),
+      ]);
 
-      if (links.length === 0) {
+      if (linkCount === 0) {
         throw new Error(`Triple ${uri} was not found in this archive.`);
       }
 
       return {
-        evidence: await createMentionLinkEvidencePreview(
+        evidence: await createMentionLinkEvidencePagePreview(
           document,
           links,
-          options.evidenceLimit,
+          evidenceLimit,
           createEvidenceReadContext(),
           options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
-          options.order ?? "doc-asc",
+          linkCount,
         ),
         id: displayUri,
-        label: await createTriplePageLabel(document, reference),
+        label,
         objectQid: reference.objectQid,
         predicate: reference.predicate,
         subjectQid: reference.subjectQid,

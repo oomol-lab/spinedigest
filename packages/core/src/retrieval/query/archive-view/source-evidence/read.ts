@@ -29,7 +29,7 @@ export async function createSourceEvidenceItem(
     endSentenceIndex: range.endSentenceIndex,
     fragmentId: range.startSentenceIndex,
     id: formatTextStreamRangeUri(
-      chapter.path,
+      chapterId,
       "source",
       range.startSentenceIndex,
       range.endSentenceIndex,

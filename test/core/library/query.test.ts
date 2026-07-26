@@ -232,6 +232,70 @@ describe("wiki graph library object query aggregation", () => {
     });
   });
 
+  it("merges page evidence previews for multi-archive get without rescanning evidence", async () => {
+    const [{ readWikiGraphLibraryPage }, archiveView] = await Promise.all([
+      import("../../../packages/core/src/library/query.js"),
+      import("../../../packages/core/src/retrieval/query/archive-view/index.js"),
+    ]);
+    vi.mocked(archiveView.listArchiveEvidence).mockClear();
+
+    mocks.objectArchiveIds.set("wikg://entity/Q1", [1, 2]);
+    mocks.pages.set("archive-1.wikg:wikg://entity/Q1", {
+      evidence: {
+        nextCursor: "2",
+        shown: 2,
+        sources: [createEvidence("a", 1), createEvidence("b", 2)],
+        total: 4,
+      },
+      id: "wikg://entity/Q1",
+      label: "Shared",
+      labels: ["Shared"],
+      mentionCount: 4,
+      qid: "Q1",
+      type: "entity",
+    });
+    mocks.pages.set("archive-2.wikg:wikg://entity/Q1", {
+      evidence: {
+        nextCursor: "2",
+        shown: 2,
+        sources: [createEvidence("c", 1), createEvidence("d", 2)],
+        total: 3,
+      },
+      id: "wikg://entity/Q1",
+      label: "Shared",
+      labels: ["Shared"],
+      mentionCount: 3,
+      qid: "Q1",
+      type: "entity",
+    });
+
+    const page = await readWikiGraphLibraryPage(target, "wikg://entity/Q1", {
+      evidenceLimit: 2,
+    });
+
+    expect(archiveView.listArchiveEvidence).not.toHaveBeenCalled();
+    expect(page).toMatchObject({
+      evidence: {
+        nextCursor: "2",
+        shown: 2,
+        total: 7,
+      },
+      type: "entity",
+    });
+    expect(page.type === "entity" ? page.evidence.sources : []).toStrictEqual([
+      {
+        ...createEvidence("a", 1),
+        archiveId: 1,
+        libraryArchiveUri: "wikg://lib/archive-1",
+      },
+      {
+        ...createEvidence("b", 2),
+        archiveId: 1,
+        libraryArchiveUri: "wikg://lib/archive-1",
+      },
+    ]);
+  });
+
   it("aggregates evidence with stable cursor pagination and source fields", async () => {
     const { listWikiGraphLibraryEvidence } =
       await import("../../../packages/core/src/library/query.js");

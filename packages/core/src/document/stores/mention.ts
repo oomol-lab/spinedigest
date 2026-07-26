@@ -1,4 +1,5 @@
 import type { Database } from "../database.js";
+import { getNumber, getString } from "../database.js";
 import type { MentionRecord } from "../types.js";
 import { escapeLikePattern, mapMentionRow } from "./helpers.js";
 import type { ReadonlyMentionStore } from "./types.js";
@@ -90,25 +91,87 @@ export class MentionStore implements ReadonlyMentionStore {
     );
   }
 
-  public async listByQid(qid: string): Promise<MentionRecord[]> {
+  public async countByQid(
+    qid: string,
+    options: { readonly chapterId?: number } = {},
+  ): Promise<number> {
+    return (
+      (await this.#database.queryOne(
+        `
+          SELECT count(*) AS count
+          FROM mentions
+          WHERE qid = ?
+          ${options.chapterId === undefined ? "" : "AND chapter_id = ?"}
+        `,
+        options.chapterId === undefined ? [qid] : [qid, options.chapterId],
+        (row) => getNumber(row, "count"),
+      )) ?? 0
+    );
+  }
+
+  public async listByQid(
+    qid: string,
+    options: {
+      readonly chapterId?: number;
+      readonly limit?: number;
+      readonly offset?: number;
+      readonly order?: "asc" | "desc";
+    } = {},
+  ): Promise<MentionRecord[]> {
+    const direction = options.order === "desc" ? "DESC" : "ASC";
+
     return await this.#database.queryAll(
       `
         SELECT
-          id,
-          chapter_id,
-          sentence_index,
-          range_start,
-          range_end,
-          surface,
-          qid,
-          confidence,
-          note
+          mentions.id AS id,
+          mentions.chapter_id AS chapter_id,
+          mentions.sentence_index AS sentence_index,
+          mentions.range_start AS range_start,
+          mentions.range_end AS range_end,
+          mentions.surface AS surface,
+          mentions.qid AS qid,
+          mentions.confidence AS confidence,
+          mentions.note AS note
+        FROM mentions
+        INNER JOIN serials
+          ON serials.id = mentions.chapter_id
+        WHERE mentions.qid = ?
+        ${options.chapterId === undefined ? "" : "AND mentions.chapter_id = ?"}
+        ORDER BY
+          serials.document_order ${direction},
+          mentions.chapter_id ${direction},
+          mentions.sentence_index ${direction},
+          mentions.range_start ${direction},
+          mentions.range_end ${direction},
+          mentions.id ${direction}
+        ${options.limit === undefined ? "" : "LIMIT ?"}
+        ${options.offset === undefined ? "" : "OFFSET ?"}
+      `,
+      [
+        qid,
+        ...(options.chapterId === undefined ? [] : [options.chapterId]),
+        ...(options.limit === undefined ? [] : [options.limit]),
+        ...(options.offset === undefined ? [] : [options.offset]),
+      ],
+      mapMentionRow,
+    );
+  }
+
+  public async listLabelsByQid(
+    qid: string,
+    options: { readonly chapterId?: number } = {},
+  ): Promise<string[]> {
+    return await this.#database.queryAll(
+      `
+        SELECT surface
         FROM mentions
         WHERE qid = ?
-        ORDER BY chapter_id, sentence_index, range_start, range_end, id
+        ${options.chapterId === undefined ? "" : "AND chapter_id = ?"}
+        GROUP BY surface
+        ORDER BY count(*) DESC, surface
       `,
-      [qid],
-      mapMentionRow,
+      options.chapterId === undefined ? [qid] : [qid, options.chapterId],
+      (row) => getString(row, "surface"),
     );
   }
 

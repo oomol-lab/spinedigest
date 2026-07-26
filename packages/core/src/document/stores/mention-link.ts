@@ -114,11 +114,51 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
     return await this.#hydrateEvidenceMany(rows);
   }
 
+  public async countByTriple(input: {
+    readonly chapterId?: number;
+    readonly objectQid: string;
+    readonly predicate: string;
+    readonly subjectQid: string;
+  }): Promise<number> {
+    return (
+      (await this.#database.queryOne(
+        `
+          SELECT count(*) AS count
+          FROM mention_links
+          INNER JOIN mentions AS source_mentions
+            ON source_mentions.id = mention_links.source_mention_id
+          INNER JOIN mentions AS target_mentions
+            ON target_mentions.id = mention_links.target_mention_id
+          WHERE source_mentions.qid = ?
+            AND mention_links.predicate = ?
+            AND target_mentions.qid = ?
+            ${
+              input.chapterId === undefined
+                ? ""
+                : "AND source_mentions.chapter_id = ?"
+            }
+        `,
+        [
+          input.subjectQid,
+          input.predicate,
+          input.objectQid,
+          ...(input.chapterId === undefined ? [] : [input.chapterId]),
+        ],
+        (row) => getNumber(row, "count"),
+      )) ?? 0
+    );
+  }
+
   public async listByTriple(input: {
+    readonly chapterId?: number;
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly order?: "asc" | "desc";
     readonly objectQid: string;
     readonly predicate: string;
     readonly subjectQid: string;
   }): Promise<MentionLinkRecord[]> {
+    const direction = input.order === "desc" ? "DESC" : "ASC";
     const rows = await this.#database.queryAll(
       `
         SELECT
@@ -133,15 +173,32 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
           ON source_mentions.id = mention_links.source_mention_id
         INNER JOIN mentions AS target_mentions
           ON target_mentions.id = mention_links.target_mention_id
+        INNER JOIN serials AS source_serials
+          ON source_serials.id = source_mentions.chapter_id
         WHERE source_mentions.qid = ?
           AND mention_links.predicate = ?
           AND target_mentions.qid = ?
+          ${
+            input.chapterId === undefined
+              ? ""
+              : "AND source_mentions.chapter_id = ?"
+          }
         ORDER BY
-          source_mentions.chapter_id,
-          source_mentions.sentence_index,
-          mention_links.id
+          source_serials.document_order ${direction},
+          source_mentions.chapter_id ${direction},
+          source_mentions.sentence_index ${direction},
+          mention_links.id ${direction}
+        ${input.limit === undefined ? "" : "LIMIT ?"}
+        ${input.offset === undefined ? "" : "OFFSET ?"}
       `,
-      [input.subjectQid, input.predicate, input.objectQid],
+      [
+        input.subjectQid,
+        input.predicate,
+        input.objectQid,
+        ...(input.chapterId === undefined ? [] : [input.chapterId]),
+        ...(input.limit === undefined ? [] : [input.limit]),
+        ...(input.offset === undefined ? [] : [input.offset]),
+      ],
       mapMentionLinkRow,
     );
 

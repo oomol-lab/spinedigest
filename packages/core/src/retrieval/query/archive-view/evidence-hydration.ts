@@ -2,7 +2,6 @@ import type { ReadonlyDocument } from "../../../document/index.js";
 
 import { readEntitySearchEvidenceMentions } from "../search-cache/index.js";
 import {
-  encodeFindCursor,
   isWikiGraphObjectUri,
   mergeStringLists,
   normalizeWikiGraphObjectUri,
@@ -25,11 +24,9 @@ import {
 } from "./knowledge.js";
 import {
   createEvidenceReadContext,
-  createExpandedSourceEvidenceRanges,
+  createMentionEvidencePagePreview,
   createMentionEvidencePreview,
-  createMentionEvidenceRanges,
   createMentionLinkEvidencePreview,
-  createSourceEvidenceItem,
 } from "./source.js";
 
 export async function hydrateFindHitEvidence(
@@ -413,26 +410,13 @@ async function hydrateEntitySessionHitEvidence(
 
     return mention === undefined ? [] : [mention];
   });
-  const ranges = await createMentionEvidenceRanges(document, allMentions);
-  const mergedRanges = await createExpandedSourceEvidenceRanges(
+  const evidence = await createMentionEvidencePagePreview(
     document,
-    ranges,
-    sourceContext,
+    allMentions,
+    evidenceLimit,
     context,
-  );
-  const sources = await Promise.all(
-    mergedRanges
-      .slice(0, evidenceLimit)
-      .map(
-        async (range) =>
-          await createSourceEvidenceItem(
-            document,
-            range.chapterId,
-            range.startSentenceIndex,
-            range.endSentenceIndex,
-            context,
-          ),
-      ),
+    sourceContext,
+    allMentions.length,
   );
 
   return {
@@ -448,14 +432,6 @@ async function hydrateEntitySessionHitEvidence(
           snippet: allMentions[0].note ?? allMentions[0].surface,
           title: allMentions[0].surface,
         }),
-    evidence: {
-      nextCursor:
-        sources.length < mergedRanges.length
-          ? encodeFindCursor(sources.length)
-          : null,
-      shown: sources.length,
-      sources,
-      total: mergedRanges.length,
-    },
+    evidence,
   };
 }

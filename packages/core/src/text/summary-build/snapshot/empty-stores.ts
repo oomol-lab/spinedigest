@@ -8,6 +8,13 @@ import type {
 } from "../../../document/index.js";
 
 export class EmptySnapshotMentionStore implements ReadonlyMentionStore {
+  public countByQid(
+    _qid: string,
+    _options?: { readonly chapterId?: number },
+  ): Promise<number> {
+    return Promise.resolve(0);
+  }
+
   public getById(_mentionId: string): Promise<undefined> {
     return Promise.resolve(undefined);
   }
@@ -16,7 +23,22 @@ export class EmptySnapshotMentionStore implements ReadonlyMentionStore {
     return Promise.resolve([]);
   }
 
-  public listByQid(_qid: string): Promise<MentionRecord[]> {
+  public listByQid(
+    _qid: string,
+    _options?: {
+      readonly chapterId?: number;
+      readonly limit?: number;
+      readonly offset?: number;
+      readonly order?: "asc" | "desc";
+    },
+  ): Promise<MentionRecord[]> {
+    return Promise.resolve([]);
+  }
+
+  public listLabelsByQid(
+    _qid: string,
+    _options?: { readonly chapterId?: number },
+  ): Promise<string[]> {
     return Promise.resolve([]);
   }
 
@@ -38,6 +60,15 @@ export class EmptySnapshotMentionStore implements ReadonlyMentionStore {
 }
 
 export class EmptySnapshotMentionLinkStore implements ReadonlyMentionLinkStore {
+  public countByTriple(_input: {
+    readonly chapterId?: number;
+    readonly objectQid: string;
+    readonly predicate: string;
+    readonly subjectQid: string;
+  }): Promise<number> {
+    return Promise.resolve(0);
+  }
+
   public getById(_linkId: string): Promise<undefined> {
     return Promise.resolve(undefined);
   }
@@ -47,6 +78,10 @@ export class EmptySnapshotMentionLinkStore implements ReadonlyMentionLinkStore {
   }
 
   public listByTriple(_input: {
+    readonly chapterId?: number;
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly order?: "asc" | "desc";
     readonly objectQid: string;
     readonly predicate: string;
     readonly subjectQid: string;

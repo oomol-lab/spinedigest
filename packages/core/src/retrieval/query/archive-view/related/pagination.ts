@@ -3,7 +3,7 @@ import type { ReadonlyDocument } from "../../../../document/index.js";
 import { DEFAULT_SOURCE_CONTEXT, requireNode } from "../core.js";
 import {
   createEvidenceReadContext,
-  createMentionLinkEvidencePreview,
+  createMentionLinkEvidencePagePreview,
   createNodeEvidenceRanges,
   createSourceEvidencePreview,
 } from "../source.js";
@@ -45,13 +45,12 @@ export async function hydrateRelatedItemsEvidence(
           return item;
         }
         if (item.type === "triple") {
-          const evidence = await createMentionLinkEvidencePreview(
+          const evidence = await createMentionLinkEvidencePagePreview(
             document,
             item.evidenceLinks ?? [],
             evidenceLimit,
             context,
             options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
-            options.order ?? "doc-asc",
           );
           const { evidenceLinks: _evidenceLinks, ...publicItem } = item;
 

@@ -109,26 +109,14 @@ export async function createTriplePageLabel(
   document: ReadonlyDocument,
   reference: Extract<WikiGraphReference, { readonly type: "triple" }>,
 ): Promise<string> {
-  const [subjectMentions, objectMentions] = await Promise.all([
-    document.mentions.listByQid(reference.subjectQid),
-    document.mentions.listByQid(reference.objectQid),
+  const chapterFilter =
+    reference.chapterId === undefined ? {} : { chapterId: reference.chapterId };
+  const [subjectLabels, objectLabels] = await Promise.all([
+    document.mentions.listLabelsByQid(reference.subjectQid, chapterFilter),
+    document.mentions.listLabelsByQid(reference.objectQid, chapterFilter),
   ]);
-  const scopedSubjectMentions = filterMentionsByChapter(
-    subjectMentions,
-    reference.chapterId,
-  );
-  const scopedObjectMentions = filterMentionsByChapter(
-    objectMentions,
-    reference.chapterId,
-  );
-  const subjectLabel =
-    scopedSubjectMentions.length === 0
-      ? reference.subjectQid
-      : selectEntityLabel(scopedSubjectMentions);
-  const objectLabel =
-    scopedObjectMentions.length === 0
-      ? reference.objectQid
-      : selectEntityLabel(scopedObjectMentions);
+  const subjectLabel = subjectLabels[0] ?? reference.subjectQid;
+  const objectLabel = objectLabels[0] ?? reference.objectQid;
 
   return `${subjectLabel}(${reference.subjectQid}) ${reference.predicate} ${objectLabel}(${reference.objectQid})`;
 }

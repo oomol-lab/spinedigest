@@ -20,8 +20,10 @@ import type {
   ArchiveEvidence,
   ArchiveEvidenceItem,
   ArchiveEvidenceOptions,
+  ArchiveFindEvidencePreview,
   ArchiveFindHit,
   ArchiveFindOptions,
+  ArchiveFindOrder,
   ArchiveFindResult,
   ArchiveLibrarySource,
   ArchiveListItem,
@@ -161,15 +163,18 @@ export async function readWikiGraphLibraryPage(
   );
 
   const page = createMultiArchivePage(pages);
-  if ((page.type === "entity" || page.type === "triple") && pages.length > 1) {
-    const evidence = await listWikiGraphLibraryEvidence(target, objectUri, {
-      ...createPageEvidenceOptions(options),
-      limit: Number.MAX_SAFE_INTEGER,
-    });
-
+  if (
+    (page.type === "entity" || page.type === "triple") &&
+    pages.length > 1 &&
+    options.evidenceLimit !== undefined
+  ) {
     return {
       ...page,
-      evidence: createEvidencePreview(evidence, options.evidenceLimit ?? 3),
+      evidence: combinePageEvidencePreviews(
+        pages,
+        options.evidenceLimit,
+        options.order ?? "doc-asc",
+      ),
     };
   }
 
@@ -315,7 +320,6 @@ async function readIndexedArchiveResults<T>(
   }
 
   const results: T[] = [];
-
   for (const archiveId of archiveIds) {
     const archive = await getWikiGraphLibraryArchiveById(library, archiveId);
     if (!isReadableLibraryArchive(archive)) {
@@ -400,6 +404,39 @@ function createMultiArchivePage(pages: readonly ArchivePage[]): ArchivePage {
   } = first;
 
   return { ...page, sources };
+}
+
+function combinePageEvidencePreviews(
+  pages: readonly ArchivePage[],
+  limit: number,
+  order: ArchiveFindOrder,
+): ArchiveFindEvidencePreview {
+  const evidencePages = pages.flatMap((page) =>
+    page.type === "entity" || page.type === "triple" ? [page] : [],
+  );
+  const orderedPages =
+    order === "doc-desc" ? evidencePages.slice().reverse() : evidencePages;
+  const sources = orderedPages.flatMap((page) =>
+    page.evidence.sources.map((source) => ({
+      ...source,
+      ...(page.archiveId === undefined ? {} : { archiveId: page.archiveId }),
+      ...(page.libraryArchiveUri === undefined
+        ? {}
+        : { libraryArchiveUri: page.libraryArchiveUri }),
+    })),
+  );
+  const total = evidencePages.reduce(
+    (sum, page) => sum + page.evidence.total,
+    0,
+  );
+  const shown = Math.min(limit, sources.length);
+
+  return {
+    nextCursor: shown < total ? String(shown) : null,
+    shown,
+    sources: sources.slice(0, shown),
+    total,
+  };
 }
 
 function createPageEvidenceOptions(

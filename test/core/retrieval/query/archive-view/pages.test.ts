@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DirectoryDocument,
   createEntityWikipageMockFetch,
@@ -85,6 +85,48 @@ describe("archive/query/archive-view/pages", () => {
           publisher: "Example Press",
           title: "Root Metadata",
           type: "meta",
+        });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("limits entity page evidence candidates at the store boundary", async () => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.mentions.saveMany(
+            [0, 1, 2, 3].map((sentenceIndex) => ({
+              chapterId: 1,
+              id: `limited-${sentenceIndex}`,
+              qid: "Q999",
+              rangeEnd: sentenceIndex + 1,
+              rangeStart: sentenceIndex,
+              sentenceIndex,
+              surface: "Limited Entity",
+            })),
+          );
+        });
+        const listByQid = vi.spyOn(document.mentions, "listByQid");
+
+        const page = await readArchivePage(document, "wikg://entity/Q999", {
+          evidenceLimit: 2,
+        });
+
+        expect(listByQid).toHaveBeenCalledWith("Q999", {
+          limit: 2,
+          order: "asc",
+        });
+        expect(page).toMatchObject({
+          evidence: {
+            total: 4,
+          },
+          mentionCount: 4,
+          type: "entity",
         });
       } finally {
         await document.release();
@@ -511,12 +553,12 @@ describe("archive/query/archive-view/pages", () => {
           "wikg://chapter/second-in-id-first-in-document/title",
         ]);
         expect(evidence.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/second-in-id-first-in-document/source#1",
-          "wikg://chapter/first-in-id-second-in-document/source#1",
+          "wikg://chapter/2/source#1",
+          "wikg://chapter/1/source#1",
         ]);
         expect(evidenceReverse.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/first-in-id-second-in-document/source#1",
-          "wikg://chapter/second-in-id-first-in-document/source#1",
+          "wikg://chapter/1/source#1",
+          "wikg://chapter/2/source#1",
         ]);
       } finally {
         await document.release();

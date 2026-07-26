@@ -54,18 +54,44 @@ export interface ReadonlyReadingEdgeStore {
 }
 
 export interface ReadonlyMentionStore {
+  countByQid(
+    qid: string,
+    options?: { readonly chapterId?: number },
+  ): Promise<number>;
   getById(mentionId: string): Promise<MentionRecord | undefined>;
   listAll(): Promise<MentionRecord[]>;
   listBySurfaceTerms(terms: readonly string[]): Promise<MentionRecord[]>;
   listBySurfaces(surfaces: readonly string[]): Promise<MentionRecord[]>;
-  listByQid(qid: string): Promise<MentionRecord[]>;
+  listByQid(
+    qid: string,
+    options?: {
+      readonly chapterId?: number;
+      readonly limit?: number;
+      readonly offset?: number;
+      readonly order?: "asc" | "desc";
+    },
+  ): Promise<MentionRecord[]>;
+  listLabelsByQid(
+    qid: string,
+    options?: { readonly chapterId?: number },
+  ): Promise<string[]>;
   listByChapter(chapterId: number): Promise<MentionRecord[]>;
 }
 
 export interface ReadonlyMentionLinkStore {
+  countByTriple(input: {
+    readonly chapterId?: number;
+    readonly objectQid: string;
+    readonly predicate: string;
+    readonly subjectQid: string;
+  }): Promise<number>;
   getById(linkId: string): Promise<MentionLinkRecord | undefined>;
   listAll(): Promise<MentionLinkRecord[]>;
   listByTriple(input: {
+    readonly chapterId?: number;
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly order?: "asc" | "desc";
     readonly objectQid: string;
     readonly predicate: string;
     readonly subjectQid: string;
