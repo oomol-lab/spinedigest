@@ -351,7 +351,7 @@ Notes:
   - Progress is emitted as text by default, or line-delimited events with `--jsonl`.
   - `--json` is not supported for enable because progress is streamed.
   - Library indexes are local derived state under Wiki Graph staging, not files inside the library folder.
-  - Rebuild holds the library write lock; concurrent `scan`, `add`, `rebind`, `disable`, archive `move`, or archive `remove` commands for the same library cannot run at the same time.
+  - Rebuild holds the library write lock; concurrent `arc scan`, `arc add`, `path set`, `disable`, archive `path set`, or archive `remove` commands for the same library cannot run at the same time.
   - Archive writes can mark the aggregate index dirty; rebuild again before relying on library-wide query when status reports dirty or stale.
 {% else %}
 Purpose:

@@ -33,7 +33,7 @@ Usage:
   {{ commandName }} {{ uri }} [--json]
 {% elif target.kind == "path" and predicate == "set" %}
 Purpose:
-  Rebind this library to an existing directory, then scan/reconcile `.wikg` files in that directory.
+  Bind this library to an existing directory, then scan/reconcile `.wikg` files in that directory.
 
 Usage:
   {{ commandName }} {{ uri }} set <folder> [--json|--jsonl]
@@ -122,7 +122,7 @@ Notes:
   - Progress is emitted as text by default, or line-delimited events with `--jsonl`.
   - `--json` is not supported for enable because progress is streamed.
   - Library indexes are local derived state under Wiki Graph staging, not files inside the library folder.
-  - Rebuild holds the library write lock; concurrent `scan`, `add`, `rebind`, `disable`, archive `move`, or archive `remove` commands for the same library cannot run at the same time.
+  - Rebuild holds the library write lock; concurrent `arc scan`, `arc add`, `path set`, `disable`, archive `path set`, or archive `remove` commands for the same library cannot run at the same time.
   - Archive writes can mark the aggregate index dirty; rebuild again before relying on library-wide query when status reports dirty or stale.
 {% elif target.kind == "scope" and target.objectUri == "wikg://index" and predicate == "disable" %}
 Purpose:
@@ -150,7 +150,7 @@ Notes:
   - Parent directories for `--to` are created as needed.
   - Existing target files are not overwritten.
   - Adding an archive marks the library index dirty.
-  - The command holds the library write lock and cannot run concurrently with `scan`, `rebind`, archive moves/removes, or index rebuild for the same library.
+  - The command holds the library write lock and cannot run concurrently with `arc scan`, library `path set`, archive path changes/removes, or index rebuild for the same library.
 {% elif target.kind == "scope" and predicate == "scan" %}
 Purpose:
   Reconcile this library registry with `.wikg` files currently under the library folder.
@@ -164,24 +164,6 @@ Notes:
   - When a moved archive can be matched by its stable mutation token, scan preserves its archive id and updates the relative path.
   - Scan marks the library index dirty when membership changes.
   - Scan holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
-{% elif target.kind == "scope" and predicate == "rebind" %}
-Purpose:
-  Bind this library to an existing directory, then scan/reconcile `.wikg` files in that directory.
-
-Usage:
-  {{ commandName }} {{ uri }} set <existing-directory> [--json|--jsonl]
-
-Notes:
-  - Use this after you manually move, sync, or restore a library folder outside Wiki Graph.
-  - `<existing-directory>` must already exist, be accessible, and not be bound to another library.
-  - The command updates only this library registry's folder path, preserving the library id, public id, default marker, and metadata.
-  - The command does not copy, move, or delete files from the old or new folder.
-  - After updating the folder path, it runs the same scan/reconcile lifecycle used by `scan`.
-  - Rebind holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
-
-Examples:
-  {{ commandName }} {{ uri }} set ~/Library/Mobile\ Documents/wiki-library
-  {{ commandName }} {{ uri }} set /Volumes/Archive/wiki-library --json
 {% elif target.kind == "scope" and predicate == "get" %}
 Purpose:
   Read this library scope.
@@ -239,7 +221,7 @@ Notes:
   - If the registered file is already missing, the command can still clean the registry entry.
   - This does not delete empty parent directories.
   - Removing an archive marks the library index dirty.
-  - Remove holds the library write lock and cannot run concurrently with library scan, add, rebind, move, or index rebuild for the same library.
+  - Remove holds the library write lock and cannot run concurrently with library scan, add, path binding, archive path changes, or index rebuild for the same library.
 {% elif target.kind == "metadata" and predicate == "set" %}
 Purpose:
   Replace the whole library metadata map.

@@ -329,6 +329,10 @@ describe("cli/args/help", () => {
     expect(rootHelpText).toContain("wg <archive-uri> inspect");
     expect(rootHelpText).toContain("wg transform");
     expect(rootHelpText).toContain("wg wikg://lib --help");
+    expect(rootHelpText).toContain(
+      "Library registries, managed archive folders, path binding, and aggregate indexes",
+    );
+    expect(rootHelpText).not.toContain("aggregate indexes, and rebind");
     expect(rootHelpText).not.toContain("wg import");
     expect(rootHelpText).not.toContain("wg wikg://local/job add");
     expect(rootHelpText).not.toContain("wg <archive-uri>/index build");
@@ -781,6 +785,9 @@ describe("cli/args/help", () => {
     ).toContain("aggregate index");
     expect(renderHelpTopicText("library")).toContain("Library Management");
     expect(renderHelpTopicText("library")).toContain(
+      "folder path binding, archive memberships",
+    );
+    expect(renderHelpTopicText("library")).toContain(
       "Library archive shortcuts:",
     );
     expect(renderHelpTopicText("library")).toContain(
@@ -796,6 +803,26 @@ describe("cli/args/help", () => {
     expect(renderHelpTopicText("library")).toContain("Concurrency:");
     expect(renderHelpTopicText("library")).toContain(
       "aggregate views over matching objects",
+    );
+    expect(renderHelpTopicText("library")).toContain(
+      "wg wikg://lib/registry add --path <folder>",
+    );
+    expect(renderHelpTopicText("library")).toContain("wg wikg://lib/arc scan");
+    expect(renderHelpTopicText("library")).toContain(
+      "wg wikg://lib/path set <existing-directory>",
+    );
+    expect(renderHelpTopicText("library")).not.toContain(".lib");
+    expect(renderHelpTopicText("library")).not.toContain(
+      "wg wikg://lib create",
+    );
+    expect(renderHelpTopicText("library")).not.toContain("wg wikg://lib add");
+    expect(renderHelpTopicText("library")).not.toContain("wg wikg://lib scan");
+    expect(renderHelpTopicText("library")).not.toContain(
+      "wg wikg://lib rebind",
+    );
+    expect(renderHelpTopicText("library")).not.toContain("move --to");
+    expect(renderHelpTopicText("library")).not.toContain(
+      "wikg://lib/<archive-id>/",
     );
     expect(
       renderLibraryPredicateHelpText(
@@ -835,6 +862,43 @@ describe("cli/args/help", () => {
     expect(archiveMemberInspectHelp.helpText).toContain(
       "not a library-level health report",
     );
+    const registryHelpText = renderLibraryUriHelpText("wikg://lib/registry", {
+      isDefault: true,
+      kind: "registry",
+    });
+    const pathHelpText = renderLibraryUriHelpText("wikg://lib/path", {
+      isDefault: true,
+      kind: "path",
+    });
+    const arcHelpText = renderLibraryUriHelpText("wikg://lib/arc", {
+      isDefault: true,
+      kind: "archive-collection",
+    });
+    const arcTreeHelpText = renderLibraryUriHelpText("wikg://lib/arc/tree", {
+      isDefault: true,
+      kind: "archive-tree",
+    });
+    expect(registryHelpText).toContain("Predicate commands:");
+    expect(registryHelpText).toContain("wikg://lib/registry add --help");
+    expect(pathHelpText).toContain("wikg://lib/path set --help");
+    expect(pathHelpText).toContain("binds the library folder path");
+    expect(arcHelpText).toContain("wikg://lib/arc add --help");
+    expect(arcHelpText).toContain("wikg://lib/arc scan --help");
+    expect(arcHelpText).toContain("wikg://lib/arc/tree --help");
+    expect(arcTreeHelpText).toContain("This object is read-only");
+    for (const text of [
+      scopeHelpText,
+      registryHelpText,
+      pathHelpText,
+      arcHelpText,
+    ]) {
+      expect(text).not.toContain("wikg://lib create");
+      expect(text).not.toContain("wikg://lib add");
+      expect(text).not.toContain("wikg://lib scan");
+      expect(text).not.toContain("wikg://lib rebind");
+      expect(text).not.toContain(".lib");
+      expect(text).not.toContain("move --to");
+    }
   });
 
   it("supports a first-contact recovery chain from root help to parse failures", () => {

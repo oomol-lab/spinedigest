@@ -5,7 +5,7 @@ Library Management
 
 Purpose:
   Libraries let Wiki Graph manage a folder of `.wikg` archives and query them through one aggregate index.
-  Use this page to distinguish library registries, archive memberships, library archive shortcuts, and library index lifecycle.
+  Use this page to distinguish library registries, folder path binding, archive memberships, library archive shortcuts, and library index lifecycle.
 
 Core model:
   - A library registry records one managed folder, its public id, metadata, default marker, and local staging identity.
@@ -24,15 +24,16 @@ Registry discovery:
 Library folders:
   - `{{ commandName }} wikg://lib/registry add --path <folder>` creates a non-default library registry and an empty folder.
   - `{{ commandName }} wikg://lib/path set <existing-directory>` binds the default library to an existing folder without copying or deleting files.
-  - `{{ commandName }} wikg://lib/<lib-id>/path set <existing-directory>` rebinds that non-default library.
-  - Use rebind after a manual move, sync restore, or mount path change.
+  - `{{ commandName }} wikg://lib/<lib-id>/path set <existing-directory>` binds that non-default library to an existing folder.
+  - Use `path set` after a manual move, sync restore, or mount path change.
 
 Archive memberships:
-  - `{{ commandName }} <lib-scope>/arc scan` recursively discovers `.wikg` files under the bound folder and reconciles registry state.
-  - `{{ commandName }} <lib-scope>/arc add --input <path> [--to <relative-wikg-path>]` copies one `.wikg` file into the folder and registers it.
+  - `{{ commandName }} wikg://lib/arc scan` recursively discovers `.wikg` files under the default library folder and reconciles registry state.
+  - `{{ commandName }} wikg://lib/arc add --input <path> [--to <relative-wikg-path>]` copies one `.wikg` file into the default library folder and registers it.
+  - For a non-default library, replace `wikg://lib` with `wikg://lib/<lib-id>` in those `arc` commands.
   - `{{ commandName }} <library-archive-uri>/path set <relative-wikg-path>` moves or renames one managed archive inside the same folder.
   - `{{ commandName }} <library-archive-uri> remove --confirm` deletes one managed archive file and unregisters it.
-  - Missing registered files remain visible as missing or stale until scan, move, remove, or rebind resolves them.
+  - Missing registered files remain visible as missing or stale until `arc scan`, archive `path set`, archive `remove`, or library `path set` resolves them.
 
 Library archive shortcuts:
   - `wikg://lib/arc/<archive-id>/` addresses one archive membership in the default library.
@@ -65,7 +66,7 @@ Library index lifecycle:
 
 Concurrency:
   - Library registry and membership writes hold the library write lock.
-  - `scan`, `add`, `rebind`, library archive `move`, library archive `remove`, and library index `enable` or `disable` cannot run concurrently for the same library.
+  - `arc scan`, `arc add`, library `path set`, library archive `path set`, library archive `remove`, and library index `enable` or `disable` cannot run concurrently for the same library.
   - Library-wide `--query`, naked scope enumeration, evidence, related, and pack commands read the current aggregate index.
   - If a write marks the aggregate index dirty, rebuild it with `{{ commandName }} <library-uri>/index enable` before relying on library-wide query results.
 

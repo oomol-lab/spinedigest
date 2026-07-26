@@ -11,16 +11,30 @@ Default behavior:
 Usage:
   {{ commandName }} wikg://lib/registry [--json]
   {{ commandName }} wikg://lib/registry add --path <folder> [--json]
+
+Predicate commands:
+  - add: create a non-default library registry and an empty folder. Help: {{ commandName }} wikg://lib/registry add --help
+
+Related help:
+  - {{ commandName }} wikg://lib --help
+  - {{ commandName }} help library
 {% elif target.kind == "path" %}
 Library path object
 
 Default behavior:
   - `{{ commandName }} {{ uri }}` reads the library folder path.
-  - `{{ commandName }} {{ uri }} set <folder>` rebinds the library folder path and scans archive membership.
+  - `{{ commandName }} {{ uri }} set <folder>` binds the library folder path and scans archive membership.
 
 Usage:
   {{ commandName }} {{ uri }} [--json]
   {{ commandName }} {{ uri }} set <folder> [--json|--jsonl]
+
+Predicate commands:
+  - set: bind this library to an existing folder and reconcile `.wikg` files. Help: {{ commandName }} {{ uri }} set --help
+
+Related help:
+  - {{ commandName }} wikg://lib --help
+  - {{ commandName }} help library
 {% elif target.kind == "archive-collection" %}
 Archive member collection
 
@@ -33,6 +47,15 @@ Usage:
   {{ commandName }} {{ uri }} add --input <path> [--to <relative-wikg-path>] [--json]
   {{ commandName }} {{ uri }} scan [--json|--jsonl]
   {{ commandName }} {{ uri }}/tree [--parent <relative-path>] [--depth <n>] [--json]
+
+Predicate commands:
+  - add: copy one `.wikg` file into the library folder. Help: {{ commandName }} {{ uri }} add --help
+  - scan: reconcile registered archive memberships with files under the folder. Help: {{ commandName }} {{ uri }} scan --help
+  - tree: inspect the managed archive file tree. Help: {{ commandName }} {{ uri }}/tree --help
+
+Related help:
+  - {{ commandName }} wikg://lib --help
+  - {{ commandName }} help library
 {% elif target.kind == "archive-tree" %}
 Archive member tree object
 
@@ -44,6 +67,9 @@ Default behavior:
 
 Usage:
   {{ commandName }} {{ uri }} [--parent <relative-path>] [--depth <n>] [--json]
+
+Related help:
+  - {{ commandName }} help library
 {% elif target.kind == "archive-path" %}
 Archive member path object
 
@@ -54,6 +80,12 @@ Default behavior:
 Usage:
   {{ commandName }} {{ uri }} [--json]
   {{ commandName }} {{ uri }} set <relative-wikg-path> [--json]
+
+Predicate commands:
+  - set: move or rename this archive inside the same library folder. Help: {{ commandName }} {{ uri }} set --help
+
+Related help:
+  - {{ commandName }} help library
 {% elif target.kind == "metadata" %}
 Library metadata object
 
@@ -128,7 +160,7 @@ Predicate commands:
   - disable: remove this library index materialization. Help: {{ commandName }} {{ uri }} disable --help
 
 Related help:
-  - Library registry, membership, aggregate index, and rebind concepts: {{ commandName }} help library
+  - Library registry, membership, path binding, and aggregate index concepts: {{ commandName }} help library
 {% else %}
 Library scope
 
@@ -199,5 +231,5 @@ Predicate commands:
 {% endif %}
 
 Related help:
-  - Library registry, membership, aggregate index, and rebind concepts: {{ commandName }} help library
+  - Library registry, membership, path binding, and aggregate index concepts: {{ commandName }} help library
 {% endif %}
