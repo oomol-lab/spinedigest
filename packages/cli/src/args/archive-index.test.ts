@@ -29,6 +29,32 @@ describe("cli/args/archive index", () => {
       kind: "archive-index",
     });
     expect(
+      parseCLIArguments(["wikg://lib/arc/archive123/index", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "get",
+        archivePath: "wikg://lib/arc/archive123",
+        json: true,
+      },
+      help: false,
+      kind: "archive-index",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://lib/arc/archive123/index",
+        "enable",
+        "--jsonl",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "enable",
+        archivePath: "wikg://lib/arc/archive123",
+        jsonl: true,
+      },
+      help: false,
+      kind: "archive-index",
+    });
+    expect(
       parseCLIArguments(["wikg:///tmp/book.wikg/index", "external"]),
     ).toStrictEqual({
       args: {

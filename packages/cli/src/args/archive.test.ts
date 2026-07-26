@@ -110,6 +110,26 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
     expect(
+      parseCLIArguments([
+        "wikg://lib/arc/archive123",
+        "--query",
+        "孙悟空",
+        "--limit",
+        "3",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: "wikg://lib/arc/archive123",
+        format: "json",
+        limit: 3,
+        query: "孙悟空",
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
       parseCLIArguments(["wikg://lib/team/arc/archive123/entity/Q23"]),
     ).toStrictEqual({
       args: {
@@ -939,6 +959,27 @@ describe("cli/args/archive", () => {
     expect(parseCLIArguments(["wikg://book.wikg/cover"])).toStrictEqual({
       args: {
         inputPath: archivePath,
+      },
+      help: false,
+      kind: "cover",
+    });
+    expect(
+      parseCLIArguments(["wikg://lib/arc/archive123/meta", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "get",
+        archivePath: "wikg://lib/arc/archive123",
+        json: true,
+        objectPath: "",
+      },
+      help: false,
+      kind: "object-metadata",
+    });
+    expect(
+      parseCLIArguments(["wikg://lib/arc/archive123/cover"]),
+    ).toStrictEqual({
+      args: {
+        inputPath: "wikg://lib/arc/archive123",
       },
       help: false,
       kind: "cover",

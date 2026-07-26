@@ -4,6 +4,7 @@ import { runArchiveCommand } from "../../../packages/cli/src/commands/index.js";
 import { formatFindObject } from "../../../packages/cli/src/commands/archive-output/text/object.js";
 import {
   createContinuationCursor,
+  findArchiveObjects,
   readArchivePage,
 } from "../../../packages/core/src/api/index.js";
 
@@ -286,6 +287,25 @@ describe("cli/archive/object", () => {
     expect(archiveMockState.textWrites[0]).not.toContain(
       "/tmp/library/archive123.wikg",
     );
+  });
+
+  it("runs a library archive shortcut root query against the resolved archive", async () => {
+    await runArchiveCommand({
+      action: "search",
+      archivePath: "wikg://lib/arc/archive123",
+      format: "json",
+      limit: 3,
+      query: "孙悟空",
+    });
+
+    expect(archiveMockState.readCalls).toStrictEqual([
+      "/tmp/library/archive123.wikg",
+    ]);
+    expect(findArchiveObjects).toHaveBeenCalledWith({}, "孙悟空", {
+      archiveKey: "/tmp/library/archive123.wikg",
+      limit: 3,
+    });
+    expect(archiveMockState.textWrites[0]).toContain("wikg://chunk/9");
   });
 
   it("prints library archive shortcut inspect JSON with the shortcut URI", async () => {

@@ -107,6 +107,18 @@ export function parseLibraryUriFirstArguments(
     );
   }
 
+  if (
+    target.kind === "archive" &&
+    target.objectUri === undefined &&
+    (action === "search" || values.query !== undefined)
+  ) {
+    return parseLibraryArchiveRootQueryArguments(
+      uri,
+      explicitAction === undefined ? [] : positionals.slice(2),
+      values,
+    );
+  }
+
   if (target.kind === "registry") {
     return parseLibraryRegistryArguments(
       uri,
@@ -872,6 +884,19 @@ function parseLibraryArchiveInspectArguments(
     [uri, ...tail],
     values,
     formatWikiGraphHelpCommand(uri, "inspect"),
+  );
+}
+
+function parseLibraryArchiveRootQueryArguments(
+  uri: string,
+  tail: readonly string[],
+  values: ArchiveArgumentValues,
+): ParsedCLIArguments {
+  return parseArchiveArguments(
+    "search",
+    [uri, ...tail],
+    values,
+    formatWikiGraphHelpCommand(uri, "search"),
   );
 }
 

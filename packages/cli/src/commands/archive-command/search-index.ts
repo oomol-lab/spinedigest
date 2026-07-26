@@ -14,6 +14,7 @@ import {
   type ProgressCounter,
 } from "../../runtime/index.js";
 import { writeArchiveDocument } from "./run/document.js";
+import { resolveArchiveRuntimeLocation } from "./run/uri.js";
 
 const INDEX_PROGRESS_OUTPUT_INTERVAL_MS = 6_000;
 
@@ -42,7 +43,8 @@ export async function runArchiveIndexCommand(
 async function readIndexSettings(
   args: CLIArchiveIndexArguments,
 ): Promise<void> {
-  await new WikiGraphArchiveFile(args.archivePath).readDocument(
+  const location = await resolveArchiveRuntimeLocation(args.archivePath);
+  await new WikiGraphArchiveFile(location.archivePath).readDocument(
     async (document) => {
       const settings = await readArchiveIndexSettings(document);
 
@@ -190,10 +192,13 @@ async function readSearchIndexWritebackPolicy(
   archivePath: string,
 ): Promise<"archive" | "cache"> {
   let embedded = false;
+  const location = await resolveArchiveRuntimeLocation(archivePath);
 
-  await new WikiGraphArchiveFile(archivePath).readDocument(async (document) => {
-    embedded = (await readArchiveIndexSettings(document)).ftsEmbedded;
-  });
+  await new WikiGraphArchiveFile(location.archivePath).readDocument(
+    async (document) => {
+      embedded = (await readArchiveIndexSettings(document)).ftsEmbedded;
+    },
+  );
 
   return embedded ? "archive" : "cache";
 }

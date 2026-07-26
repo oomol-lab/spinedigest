@@ -5,6 +5,7 @@ import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIObjectMetadataArguments } from "../args/index.js";
 import { writeArchiveDocument } from "./archive-command/run/document.js";
+import { resolveArchiveRuntimeLocation } from "./archive-command/run/uri.js";
 import {
   readTextStreamFromStdin,
   writeTextToStdout,
@@ -17,8 +18,9 @@ export async function runObjectMetadataCommand(
   const target = parseObjectMetadataTarget(args.objectPath);
 
   switch (args.action) {
-    case "get":
-      await new WikiGraphArchiveFile(args.archivePath).readDocument(
+    case "get": {
+      const location = await resolveArchiveRuntimeLocation(args.archivePath);
+      await new WikiGraphArchiveFile(location.archivePath).readDocument(
         async (document) => {
           await writeMetadataMap(
             await document.metadata.getMap(args.objectPath),
@@ -27,6 +29,7 @@ export async function runObjectMetadataCommand(
         },
       );
       return;
+    }
     case "set": {
       const value = await readMetadataInput(args, { jsonRequired: true });
       const map = parseMetadataMap(value);

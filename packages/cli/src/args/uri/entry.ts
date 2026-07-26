@@ -1,4 +1,8 @@
-import { parseLocatedWikiGraphUri } from "wiki-graph-core";
+import {
+  type ParsedWikiGraphLibraryUri,
+  parseWikiGraphLibraryUri,
+  parseLocatedWikiGraphUri,
+} from "wiki-graph-core";
 
 import {
   isUriHelpPredicate,
@@ -329,8 +333,12 @@ function parseArchiveUriTargetArguments(
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
   const parsed = parseLocatedWikiGraphUri(uri);
-  const archivePath = parsed.archivePath;
-  const objectUri = parsed.objectUri;
+  const libraryArchiveObjectTarget = parseLibraryArchiveObjectTarget(uri);
+  const archivePath =
+    libraryArchiveObjectTarget === undefined
+      ? parsed.archivePath
+      : formatLibraryArchiveLocator(libraryArchiveObjectTarget);
+  const objectUri = libraryArchiveObjectTarget?.objectUri ?? parsed.objectUri;
   const helpRoute = isImplicitArchiveReadAction(action)
     ? formatWikiGraphHelpCommand(uri)
     : formatWikiGraphHelpCommand(uri, action);
@@ -428,6 +436,30 @@ function parseArchiveUriTargetArguments(
   }
 
   return parseArchiveArguments(action, [uri, ...tail], values, helpRoute);
+}
+
+function parseLibraryArchiveObjectTarget(
+  uri: string,
+): ParsedWikiGraphLibraryUri | undefined {
+  const target = parseWikiGraphLibraryUri(uri);
+
+  if (target?.kind === "archive" && target.objectUri !== undefined) {
+    return target;
+  }
+
+  return undefined;
+}
+
+function formatLibraryArchiveLocator(
+  target: ParsedWikiGraphLibraryUri,
+): string {
+  if (target.kind !== "archive" || target.archivePublicId === undefined) {
+    throw new Error("Internal error: expected library archive object target.");
+  }
+
+  return target.publicId === undefined
+    ? `wikg://lib/arc/${target.archivePublicId}`
+    : `wikg://lib/${target.publicId}/arc/${target.archivePublicId}`;
 }
 
 function rejectUnsupportedArchiveReverse(
