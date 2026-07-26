@@ -11,6 +11,7 @@ import {
   type WikispineProvider,
 } from "wiki-graph-core";
 import { buildLLMOptions } from "../runtime/llm.js";
+import { setCLIExitCode } from "../runtime/context.js";
 import { writeTextToStderr, writeTextToStdout } from "../support/index.js";
 import { formatCLIJSON } from "../support/index.js";
 import {
@@ -159,7 +160,7 @@ async function runLLMConfigTest(args: CLILocalConfigArguments): Promise<void> {
 
     if (args.json === true) {
       await writeTextToStdout(formatCLIJSON(output));
-      process.exitCode = 1;
+      setCLIExitCode(1);
       return;
     }
 
@@ -225,7 +226,7 @@ async function runWikispineConfigTest(
 
     if (args.json === true) {
       await writeTextToStdout(formatCLIJSON(output));
-      process.exitCode = 1;
+      setCLIExitCode(1);
       return;
     }
 

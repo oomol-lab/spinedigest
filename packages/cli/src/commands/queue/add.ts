@@ -8,6 +8,7 @@ import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIQueueArguments } from "../../args/index.js";
 import type { CLIConfig } from "../../runtime/config.js";
+import { getCLIEnvValue } from "../../runtime/context.js";
 import { spawnInternalChild } from "../../runtime/internal-child.js";
 import { createQueueAddEstimate } from "./estimate.js";
 import { writeArchiveAddSummary } from "./output.js";
@@ -149,7 +150,7 @@ export function assertBuildCostAccepted(args: CLIQueueArguments): void {
 }
 
 export function tryStartQueueWorker(): void {
-  if (process.env.WIKIGRAPH_QUEUE_DISABLE_AUTOSTART === "1") {
+  if (getCLIEnvValue("WIKIGRAPH_QUEUE_DISABLE_AUTOSTART") === "1") {
     return;
   }
 

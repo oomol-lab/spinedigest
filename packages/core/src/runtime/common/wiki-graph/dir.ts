@@ -5,6 +5,7 @@ import { join, resolve } from "path";
 const testingStateDirectoryPath = new AsyncLocalStorage<{
   readonly path: string | undefined;
 }>();
+const runtimeEnvironment = new AsyncLocalStorage<NodeJS.ProcessEnv>();
 
 export function resolveWikiGraphHomeDirectoryPath(): string {
   const testingStateDirPath = testingStateDirectoryPath.getStore()?.path;
@@ -13,13 +14,14 @@ export function resolveWikiGraphHomeDirectoryPath(): string {
     return resolve(testingStateDirPath);
   }
 
-  const devStateDirPath = process.env.WIKIGRAPH_DEV;
+  const environment = runtimeEnvironment.getStore() ?? process.env;
+  const devStateDirPath = environment.WIKIGRAPH_DEV;
 
   if (devStateDirPath !== undefined && devStateDirPath.trim() !== "") {
     return resolve(devStateDirPath);
   }
 
-  const legacyStateDirPath = process.env.WIKIGRAPH_STATE_DIR;
+  const legacyStateDirPath = environment.WIKIGRAPH_STATE_DIR;
 
   if (legacyStateDirPath !== undefined && legacyStateDirPath.trim() !== "") {
     return resolve(legacyStateDirPath);
@@ -46,6 +48,13 @@ export async function withWikiGraphStateDirectoryPathForTesting<T>(
   operation: () => Promise<T> | T,
 ): Promise<T> {
   return await testingStateDirectoryPath.run({ path }, operation);
+}
+
+export async function withWikiGraphRuntimeEnvironment<T>(
+  environment: NodeJS.ProcessEnv,
+  operation: () => Promise<T> | T,
+): Promise<T> {
+  return await runtimeEnvironment.run(environment, operation);
 }
 
 export function getWikiGraphStateDirectoryPathForTesting(): string | undefined {

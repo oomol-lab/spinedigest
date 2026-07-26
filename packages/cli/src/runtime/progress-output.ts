@@ -1,5 +1,6 @@
 import { writeTextToStdout } from "../support/index.js";
 import { formatCLIJSONLine } from "../support/index.js";
+import { getCLIStdoutIsTTY } from "./context.js";
 
 export interface ProgressCounter {
   readonly done: number;
@@ -47,7 +48,7 @@ export class ProgressOutputWriter {
   }) {
     this.#jsonl = input.jsonl;
     this.#throttleMs = input.throttleMs;
-    this.#tty = input.tty ?? process.stdout.isTTY === true;
+    this.#tty = input.tty ?? getCLIStdoutIsTTY() === true;
   }
 
   public async write(event: ProgressOutputEvent): Promise<void> {

@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from "fs";
 import { dirname, join, parse, resolve } from "path";
 
+import { getCLICwd } from "../runtime/context.js";
+
 function isCLIPackageJSON(path: string): boolean {
   const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
 
@@ -13,7 +15,7 @@ function isCLIPackageJSON(path: string): boolean {
 }
 
 function findPackageJSONPathFromWorkingDirectory(): string | undefined {
-  let currentDirectoryPath = process.cwd();
+  let currentDirectoryPath = getCLICwd();
   const rootDirectoryPath = parse(currentDirectoryPath).root;
 
   while (true) {

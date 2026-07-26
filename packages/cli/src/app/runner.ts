@@ -1,6 +1,12 @@
 import { Readable, Writable } from "stream";
 
+import { withWikiGraphRuntimeEnvironment } from "wiki-graph-core";
 import { dispatchWikiGraphCLI } from "./dispatch.js";
+import {
+  getCLIExitCode,
+  withWikiGraphCLIRuntimeContext,
+  type WikiGraphCLIRuntimeContext,
+} from "../runtime/context.js";
 
 export interface RunWikiGraphCLIInput {
   /**
@@ -39,61 +45,48 @@ export interface WikiGraphCLI {
   ): Promise<RunWikiGraphCLICapturedResult>;
 }
 
-let activeRunner = false;
-
 export async function runWikiGraphCLI(
   input: RunWikiGraphCLIInput = {},
 ): Promise<RunWikiGraphCLIResult> {
   throwIfAborted(input.signal);
 
-  if (activeRunner) {
-    throw new Error(
-      "runWikiGraphCLI cannot run concurrently because it adapts process-global CLI state.",
-    );
-  }
-
-  activeRunner = true;
-
-  const originalCwd = process.cwd();
-  const originalExitCode = process.exitCode;
   const stdin = createInputStream(input.stdin ?? process.stdin);
   const stdout = input.stdout ?? process.stdout;
   const stderr = input.stderr ?? process.stderr;
-  const restore = installProcessAdapters({
-    argv: input.argv ?? process.argv.slice(2),
-    env: input.env,
+  const argv = input.argv ?? process.argv.slice(2);
+  const environment =
+    input.env === undefined
+      ? process.env
+      : {
+          ...process.env,
+          ...input.env,
+        };
+  const context: WikiGraphCLIRuntimeContext = {
+    argv,
+    cwd: input.cwd ?? process.cwd(),
+    env: environment,
+    exitCode: 0,
     stderr,
     stderrIsTTY: input.stderrIsTTY,
     stdin,
     stdinIsTTY: input.stdinIsTTY,
     stdout,
     stdoutIsTTY: input.stdoutIsTTY,
-  });
+  };
 
-  try {
-    if (input.cwd !== undefined && input.cwd !== originalCwd) {
-      process.chdir(input.cwd);
-    }
+  return await withWikiGraphRuntimeEnvironment(environment, async () =>
+    withWikiGraphCLIRuntimeContext(context, async () => {
+      const result = await dispatchWikiGraphCLI({
+        argv,
+        stderr,
+        stdinIsTTY: context.stdinIsTTY ?? stdin.isTTY,
+        stdout,
+      });
+      const exitCode = normalizeExitCode(getCLIExitCode(), result.exitCode);
 
-    process.exitCode = 0;
-
-    const result = await dispatchWikiGraphCLI({
-      argv: input.argv ?? process.argv.slice(2),
-      stderr,
-      stdinIsTTY: stdin.isTTY,
-      stdout,
-    });
-    const exitCode = normalizeExitCode(process.exitCode, result.exitCode);
-
-    return { exitCode };
-  } finally {
-    if (process.cwd() !== originalCwd) {
-      process.chdir(originalCwd);
-    }
-    process.exitCode = originalExitCode;
-    restore();
-    activeRunner = false;
-  }
+      return { exitCode };
+    }),
+  );
 }
 
 export async function runWikiGraphCLICaptured(
@@ -151,93 +144,6 @@ function createInputStream(
   return input as NodeJS.ReadableStream & { isTTY?: boolean | undefined };
 }
 
-function installProcessAdapters(input: {
-  readonly argv: readonly string[];
-  readonly env?: NodeJS.ProcessEnv | undefined;
-  readonly stderr: NodeJS.WritableStream;
-  readonly stderrIsTTY?: boolean | undefined;
-  readonly stdin: NodeJS.ReadableStream & { isTTY?: boolean | undefined };
-  readonly stdinIsTTY?: boolean | undefined;
-  readonly stdout: NodeJS.WritableStream;
-  readonly stdoutIsTTY?: boolean | undefined;
-}): () => void {
-  const processDescriptors = {
-    argv: Object.getOwnPropertyDescriptor(process, "argv"),
-    env: Object.getOwnPropertyDescriptor(process, "env"),
-    stderr: Object.getOwnPropertyDescriptor(process, "stderr"),
-    stdin: Object.getOwnPropertyDescriptor(process, "stdin"),
-    stdout: Object.getOwnPropertyDescriptor(process, "stdout"),
-  };
-  const streamDescriptors = {
-    stderrIsTTY: Object.getOwnPropertyDescriptor(input.stderr, "isTTY"),
-    stdinIsTTY: Object.getOwnPropertyDescriptor(input.stdin, "isTTY"),
-    stdoutIsTTY: Object.getOwnPropertyDescriptor(input.stdout, "isTTY"),
-  };
-
-  Object.defineProperty(input.stdin, "isTTY", {
-    configurable: true,
-    value: input.stdinIsTTY ?? input.stdin.isTTY,
-  });
-  Object.defineProperty(input.stdout, "isTTY", {
-    configurable: true,
-    value: input.stdoutIsTTY ?? getWritableIsTTY(input.stdout),
-  });
-  Object.defineProperty(input.stderr, "isTTY", {
-    configurable: true,
-    value: input.stderrIsTTY ?? getWritableIsTTY(input.stderr),
-  });
-  Object.defineProperty(process, "argv", {
-    configurable: true,
-    value: ["node", "wg", ...input.argv],
-  });
-  Object.defineProperty(process, "env", {
-    configurable: true,
-    value:
-      input.env === undefined
-        ? process.env
-        : {
-            ...process.env,
-            ...input.env,
-          },
-  });
-  Object.defineProperty(process, "stdin", {
-    configurable: true,
-    value: input.stdin,
-  });
-  Object.defineProperty(process, "stdout", {
-    configurable: true,
-    value: input.stdout,
-  });
-  Object.defineProperty(process, "stderr", {
-    configurable: true,
-    value: input.stderr,
-  });
-
-  return () => {
-    restoreDescriptor(process, "stderr", processDescriptors.stderr);
-    restoreDescriptor(process, "stdout", processDescriptors.stdout);
-    restoreDescriptor(process, "stdin", processDescriptors.stdin);
-    restoreDescriptor(process, "env", processDescriptors.env);
-    restoreDescriptor(process, "argv", processDescriptors.argv);
-    restoreDescriptor(input.stderr, "isTTY", streamDescriptors.stderrIsTTY);
-    restoreDescriptor(input.stdout, "isTTY", streamDescriptors.stdoutIsTTY);
-    restoreDescriptor(input.stdin, "isTTY", streamDescriptors.stdinIsTTY);
-  };
-}
-
-function restoreDescriptor(
-  target: object,
-  property: string,
-  descriptor: PropertyDescriptor | undefined,
-): void {
-  if (descriptor === undefined) {
-    Reflect.deleteProperty(target, property);
-    return;
-  }
-
-  Object.defineProperty(target, property, descriptor);
-}
-
 function normalizeExitCode(
   currentExitCode: NodeJS.Process["exitCode"],
   fallbackExitCode: number,
@@ -249,11 +155,6 @@ function normalizeExitCode(
   const numericExitCode = Number(currentExitCode);
 
   return Number.isFinite(numericExitCode) ? numericExitCode : 1;
-}
-
-function getWritableIsTTY(stream: NodeJS.WritableStream): boolean | undefined {
-  return (stream as NodeJS.WritableStream & { isTTY?: boolean | undefined })
-    .isTTY;
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {

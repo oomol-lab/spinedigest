@@ -3,10 +3,18 @@ import { rm } from "fs/promises";
 import { join } from "path";
 
 import { createWikiGraphTempDirectory } from "wiki-graph-core";
+import {
+  getCLIStderr,
+  getCLIStdin,
+  getCLIStdout,
+  setCLIExitCode,
+} from "../runtime/context.js";
 
 export function readTextStreamFromStdin(): AsyncIterable<string> {
-  process.stdin.setEncoding("utf8");
-  return process.stdin;
+  const stdin = getCLIStdin();
+
+  stdin.setEncoding("utf8");
+  return stdin as AsyncIterable<string>;
 }
 
 export async function writeTextFileToStdout(path: string): Promise<void> {
@@ -21,7 +29,7 @@ export async function writeTextToStdout(text: string): Promise<void> {
 
 export async function writeTextToStderr(text: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    process.stderr.write(text, (error) => {
+    getCLIStderr().write(text, (error) => {
       if (error === undefined || error === null) {
         resolve();
         return;
@@ -38,13 +46,15 @@ export async function writeBinaryToStdout(data: Uint8Array): Promise<void> {
 
 async function writeChunkToStdout(chunk: string | Uint8Array): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    process.stdout.write(chunk, (error) => {
+    getCLIStdout().write(chunk, (error) => {
       if (error === undefined || error === null) {
         resolve();
         return;
       }
       if (isBrokenPipeError(error)) {
-        process.exit(0);
+        setCLIExitCode(0);
+        resolve();
+        return;
       }
 
       reject(error);
