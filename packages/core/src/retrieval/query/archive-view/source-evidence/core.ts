@@ -327,6 +327,114 @@ export async function filterAndSortSourceEvidenceRangesByFtsQuery(
   });
 }
 
+export async function filterAndSortSourceEvidenceCandidatesByFtsQuery<T>(
+  document: ReadonlyDocument,
+  candidates: readonly T[],
+  createRanges: (
+    candidate: T,
+  ) => Promise<readonly SourceEvidenceRange[]> | readonly SourceEvidenceRange[],
+  stableIdentity: (candidate: T) => string,
+  queryText: string,
+): Promise<readonly SourceEvidenceCandidateQueryMatch<T>[]> {
+  const keyed = await Promise.all(
+    candidates.map(async (candidate) => ({
+      candidate,
+      ranges: await createRanges(candidate),
+      score: 0,
+      stableIdentity: stableIdentity(candidate),
+    })),
+  );
+  const indexResult = await queryRequiredSearchIndex(document, queryText, {
+    chapters: [
+      ...new Set(
+        keyed.flatMap((item) => item.ranges.map((range) => range.chapterId)),
+      ),
+    ],
+    types: ["source"],
+  });
+
+  if (indexResult === undefined) {
+    return [];
+  }
+
+  const matched = new Map<
+    string,
+    {
+      readonly candidate: T;
+      readonly ranges: readonly SourceEvidenceRange[];
+      readonly stableIdentity: string;
+      score: number;
+    }
+  >();
+
+  for (const hit of indexResult.textHits) {
+    if (hit.kind !== TEXT_SENTENCE_KIND.source) {
+      continue;
+    }
+
+    for (const item of keyed) {
+      if (
+        !item.ranges.some(
+          (range) =>
+            range.chapterId === hit.chapterId &&
+            hit.sentenceIndex >= range.startSentenceIndex &&
+            hit.sentenceIndex <= range.endSentenceIndex,
+        )
+      ) {
+        continue;
+      }
+
+      const current = matched.get(item.stableIdentity) ?? item;
+      current.score = Math.max(current.score, hit.score);
+      matched.set(item.stableIdentity, current);
+    }
+  }
+
+  const documentOrders = await document.serials.listDocumentOrders();
+
+  return [...matched.values()]
+    .sort((left, right) => {
+      const scoreComparison = right.score - left.score;
+
+      if (scoreComparison !== 0) {
+        return scoreComparison;
+      }
+
+      const rangeComparison = compareSourceEvidenceRanges(
+        firstSourceEvidenceRange(left.ranges),
+        firstSourceEvidenceRange(right.ranges),
+        documentOrders,
+        "doc-asc",
+      );
+
+      if (rangeComparison !== 0) {
+        return rangeComparison;
+      }
+
+      return left.stableIdentity.localeCompare(right.stableIdentity);
+    })
+    .map((item) => ({ candidate: item.candidate, score: item.score }));
+}
+
+export interface SourceEvidenceCandidateQueryMatch<T> {
+  readonly candidate: T;
+  readonly score: number;
+}
+
+function firstSourceEvidenceRange(
+  ranges: readonly SourceEvidenceRange[],
+): SourceEvidenceRange {
+  const [first] = ranges;
+
+  return (
+    first ?? {
+      chapterId: Number.MAX_SAFE_INTEGER,
+      endSentenceIndex: Number.MAX_SAFE_INTEGER,
+      startSentenceIndex: Number.MAX_SAFE_INTEGER,
+    }
+  );
+}
+
 function formatSourceEvidenceRangeKey(range: SourceEvidenceRange): string {
   return `${range.chapterId}:${range.startSentenceIndex}:${range.endSentenceIndex}`;
 }

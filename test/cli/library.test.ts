@@ -219,6 +219,36 @@ describe("cli/library args", () => {
     ).toThrow("Create libraries from wikg://lib.");
   });
 
+  it("rejects reverse query combinations for library query predicates", () => {
+    expect(() =>
+      parseCLIArguments([
+        "wikg://lib/entity/Q1",
+        "evidence",
+        "--query",
+        "RAG",
+        "--reverse",
+      ]),
+    ).toThrow("`--reverse` cannot be combined with --query.");
+    expect(() =>
+      parseCLIArguments([
+        "wikg://lib/entity/Q1",
+        "related",
+        "--query",
+        "RAG",
+        "--reverse",
+      ]),
+    ).toThrow("`--reverse` cannot be combined with --query.");
+    expect(() =>
+      parseCLIArguments([
+        "wikg://lib",
+        "search",
+        "--query",
+        "RAG",
+        "--reverse",
+      ]),
+    ).toThrow("The `search` command does not support --reverse.");
+  });
+
   it("does not steal archive URIs below a lib path segment", () => {
     expect(parseCLIArguments(["wikg://lib/book.wikg"])).toMatchObject({
       args: {

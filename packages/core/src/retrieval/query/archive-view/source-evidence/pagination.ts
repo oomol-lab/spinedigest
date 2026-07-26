@@ -61,12 +61,10 @@ export async function createSourceEvidenceCandidatePreview<T>(
     candidates: pageCandidates,
   });
   const total = options.total ?? options.candidates.length;
+  const nextOffset = (options.offset ?? 0) + pageCandidates.length;
 
   return {
-    nextCursor:
-      pageCandidates.length < total
-        ? encodeFindCursor(pageCandidates.length)
-        : null,
+    nextCursor: nextOffset < total ? encodeFindCursor(nextOffset) : null,
     shown: sources.length,
     sources,
     total,

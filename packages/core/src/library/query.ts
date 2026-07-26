@@ -182,6 +182,9 @@ export async function listWikiGraphLibraryEvidence(
   objectUri: string,
   options: ArchiveEvidenceOptions = {},
 ): Promise<ArchiveEvidence> {
+  const limit = options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT;
+  const offset = parseLibraryObjectCursor(options.cursor, "evidence");
+  const archiveWindowLimit = offset + limit;
   const results = await readIndexedArchiveResults(
     target,
     objectUri,
@@ -189,7 +192,7 @@ export async function listWikiGraphLibraryEvidence(
       const { cursor: _cursor, ...archiveOptions } = options;
       const result = await listArchiveEvidence(document, objectUri, {
         ...archiveOptions,
-        limit: Number.MAX_SAFE_INTEGER,
+        limit: archiveWindowLimit,
       });
       const source = createLibrarySource(archive);
 
@@ -216,6 +219,9 @@ export async function listRelatedWikiGraphLibraryObjects(
   objectUri: string,
   options: ArchiveRelatedOptions = {},
 ): Promise<ArchiveRelatedResult> {
+  const limit = options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT;
+  const offset = parseLibraryObjectCursor(options.cursor, "related");
+  const archiveWindowLimit = offset + limit;
   const results = await readIndexedArchiveResults(
     target,
     objectUri,
@@ -223,7 +229,7 @@ export async function listRelatedWikiGraphLibraryObjects(
       const { cursor: _cursor, ...archiveOptions } = options;
       const result = await listRelatedArchiveObjects(document, objectUri, {
         ...archiveOptions,
-        limit: Number.MAX_SAFE_INTEGER,
+        limit: archiveWindowLimit,
       });
       const source = createLibrarySource(archive);
 
@@ -425,12 +431,13 @@ function combinePageEvidencePreviews(
     (sum, page) => sum + page.evidence.total,
     0,
   );
-  const shown = Math.min(limit, sources.length);
+  const pageSources = sources.slice(0, limit);
+  const shown = pageSources.length;
 
   return {
-    nextCursor: shown < total ? String(shown) : null,
+    nextCursor: limit < total ? String(limit) : null,
     shown,
-    sources: sources.slice(0, shown),
+    sources: pageSources,
     total,
   };
 }

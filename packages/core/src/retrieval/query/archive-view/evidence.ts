@@ -14,8 +14,10 @@ import {
   createMentionLinkEvidenceRanges,
   createMentionLinkEvidencePage,
   createNodeEvidenceRanges,
+  createSourceEvidenceCandidatePage,
   createSourceEvidencePage,
   createEvidenceReadContext,
+  filterAndSortSourceEvidenceCandidatesByFtsQuery,
 } from "./source.js";
 
 export async function listArchiveEvidence(
@@ -89,17 +91,33 @@ export async function listArchiveEvidence(
         });
       }
 
-      return await createSourceEvidencePage(
-        document,
-        await createMentionEvidenceRanges(
-          document,
-          filterMentionsByChapter(
-            await document.mentions.listByQid(reference.qid),
-            reference.chapterId,
-          ),
-        ),
-        options,
+      const limit = options.limit ?? DEFAULT_FIND_LIMIT;
+      const offset = decodeFindCursor(options.cursor);
+      const mentions = filterMentionsByChapter(
+        await document.mentions.listByQid(reference.qid),
+        reference.chapterId,
       );
+      const candidates = await filterAndSortSourceEvidenceCandidatesByFtsQuery(
+        document,
+        mentions,
+        async (mention) =>
+          await createMentionEvidenceRanges(document, [mention]),
+        (mention) => mention.id,
+        options.query,
+      );
+
+      return await createSourceEvidenceCandidatePage(document, {
+        candidates: candidates.slice(offset, offset + limit),
+        context: createEvidenceReadContext(),
+        createRanges: async (match) =>
+          (await createMentionEvidenceRanges(document, [match.candidate])).map(
+            (range) => ({ ...range, score: match.score }),
+          ),
+        limit,
+        offset,
+        sourceContext: options.sourceContext,
+        total: candidates.length,
+      });
     }
     case "triple": {
       if (options.query === undefined) {
@@ -132,22 +150,37 @@ export async function listArchiveEvidence(
         });
       }
 
-      return await createSourceEvidencePage(
+      const limit = options.limit ?? DEFAULT_FIND_LIMIT;
+      const offset = decodeFindCursor(options.cursor);
+      const links = await filterMentionLinksByChapter(
         document,
-        createMentionLinkEvidenceRanges(
-          document,
-          await filterMentionLinksByChapter(
-            document,
-            await document.mentionLinks.listByTriple({
-              objectQid: reference.objectQid,
-              predicate: reference.predicate,
-              subjectQid: reference.subjectQid,
-            }),
-            reference.chapterId,
-          ),
-        ),
-        options,
+        await document.mentionLinks.listByTriple({
+          objectQid: reference.objectQid,
+          predicate: reference.predicate,
+          subjectQid: reference.subjectQid,
+        }),
+        reference.chapterId,
       );
+      const candidates = await filterAndSortSourceEvidenceCandidatesByFtsQuery(
+        document,
+        links,
+        (link) => createMentionLinkEvidenceRanges(document, [link]),
+        (link) => link.id,
+        options.query,
+      );
+
+      return await createSourceEvidenceCandidatePage(document, {
+        candidates: candidates.slice(offset, offset + limit),
+        context: createEvidenceReadContext(),
+        createRanges: (match) =>
+          createMentionLinkEvidenceRanges(document, [match.candidate]).map(
+            (range) => ({ ...range, score: match.score }),
+          ),
+        limit,
+        offset,
+        sourceContext: options.sourceContext,
+        total: candidates.length,
+      });
     }
   }
 }

@@ -395,28 +395,35 @@ async function hydrateEntitySessionHitEvidence(
     return hit;
   }
 
-  const mentionsByQid = await document.mentions.listByQid(qid);
-  const mentionsById = new Map(
-    mentionsByQid.map((mention) => [mention.id, mention]),
+  const mentionIds = (await document.mentions.listByQid(qid)).map(
+    (mention) => mention.id,
   );
+  const evidenceHits = await readEntitySearchEvidenceMentions(
+    sessionId,
+    mentionIds,
+    evidenceLimit + 1,
+  );
+  const previewHits = evidenceHits.slice(0, evidenceLimit);
   const allMentions = (
-    await readEntitySearchEvidenceMentions(
-      sessionId,
-      mentionsByQid.map((mention) => mention.id),
-      10_000,
-    )
-  ).flatMap((hit) => {
-    const mention = mentionsById.get(hit.mentionId);
+    await Promise.all(
+      previewHits.map(async (evidenceHit) => {
+        const mention = await document.mentions.getById(evidenceHit.mentionId);
 
-    return mention === undefined ? [] : [mention];
-  });
+        return mention === undefined ? [] : [mention];
+      }),
+    )
+  ).flat();
+  const total =
+    evidenceHits.length > previewHits.length
+      ? previewHits.length + 1
+      : previewHits.length;
   const evidence = await createMentionEvidencePagePreview(
     document,
     allMentions,
     evidenceLimit,
     context,
     sourceContext,
-    allMentions.length,
+    total,
   );
 
   return {

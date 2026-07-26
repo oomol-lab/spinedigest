@@ -297,8 +297,11 @@ describe("wiki graph library object query aggregation", () => {
   });
 
   it("aggregates evidence with stable cursor pagination and source fields", async () => {
-    const { listWikiGraphLibraryEvidence } =
-      await import("../../../packages/core/src/library/query.js");
+    const [{ listWikiGraphLibraryEvidence }, archiveView] = await Promise.all([
+      import("../../../packages/core/src/library/query.js"),
+      import("../../../packages/core/src/retrieval/query/archive-view/index.js"),
+    ]);
+    vi.mocked(archiveView.listArchiveEvidence).mockClear();
 
     mocks.objectArchiveIds.set("wikg://entity/Q1", [1, 2]);
     mocks.evidence.set("archive-1.wikg:wikg://entity/Q1", [
@@ -334,6 +337,23 @@ describe("wiki graph library object query aggregation", () => {
       [["c", 2]],
     );
     expect(second.nextCursor).toBeNull();
+    expect(archiveView.listArchiveEvidence).toHaveBeenCalledWith(
+      expect.anything(),
+      "wikg://entity/Q1",
+      expect.objectContaining({ limit: 2 }),
+    );
+    expect(archiveView.listArchiveEvidence).toHaveBeenCalledWith(
+      expect.anything(),
+      "wikg://entity/Q1",
+      expect.objectContaining({ limit: 4 }),
+    );
+    expect(
+      vi.mocked(archiveView.listArchiveEvidence).mock.calls,
+    ).not.toContainEqual([
+      expect.anything(),
+      "wikg://entity/Q1",
+      expect.objectContaining({ limit: Number.MAX_SAFE_INTEGER }),
+    ]);
   });
 
   it("aggregates triple evidence across archives", async () => {
@@ -406,8 +426,12 @@ describe("wiki graph library object query aggregation", () => {
   });
 
   it("aggregates related items instead of returning the first archive", async () => {
-    const { listRelatedWikiGraphLibraryObjects } =
-      await import("../../../packages/core/src/library/query.js");
+    const [{ listRelatedWikiGraphLibraryObjects }, archiveView] =
+      await Promise.all([
+        import("../../../packages/core/src/library/query.js"),
+        import("../../../packages/core/src/retrieval/query/archive-view/index.js"),
+      ]);
+    vi.mocked(archiveView.listRelatedArchiveObjects).mockClear();
 
     mocks.objectArchiveIds.set("wikg://entity/Q1", [1, 2]);
     mocks.related.set("archive-1.wikg:wikg://entity/Q1", [
@@ -428,6 +452,18 @@ describe("wiki graph library object query aggregation", () => {
         ["wikg://entity/Q3", 2],
       ],
     );
+    expect(archiveView.listRelatedArchiveObjects).toHaveBeenCalledWith(
+      expect.anything(),
+      "wikg://entity/Q1",
+      expect.objectContaining({ limit: 20 }),
+    );
+    expect(
+      vi.mocked(archiveView.listRelatedArchiveObjects).mock.calls,
+    ).not.toContainEqual([
+      expect.anything(),
+      "wikg://entity/Q1",
+      expect.objectContaining({ limit: Number.MAX_SAFE_INTEGER }),
+    ]);
   });
 
   it("merges pack anchors and related items by archive id order", async () => {
