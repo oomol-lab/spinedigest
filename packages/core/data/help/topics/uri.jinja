@@ -181,7 +181,7 @@ Recovery hints:
     {{ commandName }} help readiness
     {{ commandName }} help runtime
   - URI rejected: convert bare filesystem paths to Wiki Graph URIs, and prepend the archive locator to short object URIs.
-  - Library URI rejected: check whether you meant a non-default library id with `/arc/<arc-id>` or a concrete archive object suffix.
+  - Library URI rejected: non-default libraries use wikg://lib/<lib-id>; archive members use <lib-scope>/arc/<archive-id>.
   - Help did not appear: append `--help` to the URI or URI-bound predicate you are trying to inspect.
 
 Job URIs:

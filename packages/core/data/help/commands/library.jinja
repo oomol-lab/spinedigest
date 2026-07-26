@@ -105,7 +105,7 @@ Usage:
 
 Predicate commands:
   - inspect: inspect this managed archive's archive readiness. Help: {{ commandName }} {{ uri }} inspect --help
-  - move: move or rename this archive inside the same library folder without changing its archive id. Help: {{ commandName }} {{ uri }} move --help
+  - path set: move or rename this archive inside the same library folder without changing its archive id. Help: {{ commandName }} {{ uri }}/path set --help
   - remove: delete this archive file from the library folder and unregister it. Help: {{ commandName }} {{ uri }} remove --help
 {% elif target.kind == "scope" and target.objectUri == "wikg://index" %}
 Library index object

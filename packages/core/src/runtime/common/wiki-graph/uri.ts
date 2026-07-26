@@ -1,6 +1,8 @@
 import { isAbsolute, relative, resolve } from "path";
 import { homedir } from "os";
 
+import { RESERVED_LIBRARY_URI_SEGMENTS } from "../../../library/segments.js";
+
 export const WIKI_GRAPH_URI_PREFIX = "wikg://";
 export const WIKI_GRAPH_JOB_URI_PREFIX = "wikg://local/job";
 export const WIKI_GRAPH_ARCHIVE_EXTENSION = ".wikg";
@@ -93,18 +95,7 @@ function parseLibraryArchiveLocatorBody(
 }
 
 function isLibraryScopeSegment(segment: string): boolean {
-  return (
-    segment === "meta" ||
-    segment === "registry" ||
-    segment === "arc" ||
-    segment === "path" ||
-    segment === "tree" ||
-    segment === "index" ||
-    segment === "chapter" ||
-    segment === "chunk" ||
-    segment === "entity" ||
-    segment === "triple"
-  );
+  return RESERVED_LIBRARY_URI_SEGMENTS.has(segment);
 }
 
 function resolveArchivePath(archivePath: string): string {

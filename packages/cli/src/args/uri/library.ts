@@ -31,6 +31,9 @@ import { parseChapterTarget } from "./chapter/target.js";
 import { isTripleScopePath } from "./triple-pattern.js";
 
 const LIBRARY_ARCHIVE_ACTIONS = new Set(["get", "move", "remove"]);
+const LIBRARY_ARCHIVE_COLLECTION_ACTIONS = new Set(["add", "list", "scan"]);
+const LIBRARY_ARCHIVE_PATH_ACTIONS = new Set(["get", "set"]);
+const LIBRARY_ARCHIVE_TREE_ACTIONS = new Set(["archive-tree"]);
 const LIBRARY_METADATA_ACTIONS = new Set([
   "clear",
   "delete",
@@ -38,6 +41,8 @@ const LIBRARY_METADATA_ACTIONS = new Set([
   "put",
   "set",
 ]);
+const LIBRARY_PATH_ACTIONS = new Set(["get", "set"]);
+const LIBRARY_REGISTRY_ACTIONS = new Set(["add", "list"]);
 const LIBRARY_SCOPE_ACTIONS = new Set(["get", "list", "remove"]);
 const LIBRARY_INDEX_ACTIONS = new Set(["disable", "enable", "get"]);
 const LIBRARY_QUERY_ACTIONS = new Set([
@@ -245,6 +250,9 @@ function parseLibraryHelpArguments(
           formatWikiGraphHelpCommand(uri),
         ),
       );
+    }
+    if (isLibraryAction(action)) {
+      validateLibraryActionForTarget(uri, target, action);
     }
     return {
       help: true,
@@ -552,7 +560,7 @@ function parseLibraryRegistryArguments(
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
   const helpRoute = formatWikiGraphHelpCommand(uri, action);
-  if (action !== "list" && action !== "add") {
+  if (!LIBRARY_REGISTRY_ACTIONS.has(action)) {
     throw new Error(
       withHelpRoute(
         `The library registry ${uri} does not support \`${action}\`.`,
@@ -592,7 +600,7 @@ function parseLibraryPathArguments(
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
   const helpRoute = formatWikiGraphHelpCommand(uri, action);
-  if (action !== "get" && action !== "set") {
+  if (!LIBRARY_PATH_ACTIONS.has(action)) {
     throw new Error(
       withHelpRoute(
         `The library path object ${uri} does not support \`${action}\`.`,
@@ -647,7 +655,7 @@ function parseLibraryArchiveCollectionArguments(
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
   const helpRoute = formatWikiGraphHelpCommand(uri, action);
-  if (action !== "list" && action !== "add" && action !== "scan") {
+  if (!LIBRARY_ARCHIVE_COLLECTION_ACTIONS.has(action)) {
     throw new Error(
       withHelpRoute(
         `The archive member collection ${uri} does not support \`${action}\`.`,
@@ -678,9 +686,12 @@ function parseLibraryArchiveCollectionArguments(
   }
   rejectArchiveFlag(action, "--input", values.input, helpRoute);
   rejectArchiveFlag(action, "--to", values.to, helpRoute);
+  if (action === "list") {
+    rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
+  }
   return {
     args: {
-      action,
+      action: action as "list" | "scan",
       json: values.json,
       jsonl: values.jsonl,
       target,
@@ -698,7 +709,7 @@ function parseLibraryArchiveTreeArguments(
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
   const helpRoute = formatWikiGraphHelpCommand(uri, action);
-  if (action !== "archive-tree") {
+  if (!LIBRARY_ARCHIVE_TREE_ACTIONS.has(action)) {
     throw new Error(
       withHelpRoute(
         `The archive member tree ${uri} is read-only and does not support \`${action}\`.`,
@@ -882,49 +893,12 @@ function parseLibraryScopeArguments(
   rejectArchiveFlag(action, "--json-input", values["json-input"], helpRoute);
 
   switch (action) {
-    case "add":
-      rejectExtraPositionals(action, tail, 0, helpRoute);
-      rejectArchiveFlag(action, "--path", values.path, helpRoute);
-      if (values.input === undefined) {
-        throw new Error(withHelpRoute("Missing --input <path>.", helpRoute));
-      }
-      return {
-        args: {
-          action,
-          inputPath: values.input,
-          json: values.json,
-          target,
-          ...(values.to === undefined ? {} : { to: values.to }),
-        },
-        help: false,
-        kind: "library",
-      };
-    case "create":
-      if (!target.isDefault) {
-        throw new Error(
-          withHelpRoute("Create libraries from wikg://lib.", helpRoute),
-        );
-      }
-      rejectExtraPositionals(action, tail, 0, helpRoute);
-      if (values.path === undefined) {
-        throw new Error(withHelpRoute("Missing --path <folder>.", helpRoute));
-      }
-      rejectArchiveFlag(action, "--input", values.input, helpRoute);
-      rejectArchiveFlag(action, "--to", values.to, helpRoute);
-      return {
-        args: { action, json: values.json, path: values.path, target },
-        help: false,
-        kind: "library",
-      };
     case "remove":
       rejectExtraPositionals(action, tail, 0, helpRoute);
       rejectArchiveFlag(action, "--path", values.path, helpRoute);
       rejectArchiveFlag(action, "--input", values.input, helpRoute);
       rejectArchiveFlag(action, "--to", values.to, helpRoute);
-      if (
-        (target.kind === "archive" || !target.isDefault) &&
-        values.confirm !== true
-      ) {
+      if (!target.isDefault && values.confirm !== true) {
         throw new Error(withHelpRoute("Missing --confirm.", helpRoute));
       }
       return {
@@ -937,23 +911,8 @@ function parseLibraryScopeArguments(
         help: false,
         kind: "library",
       };
-    case "rebind":
-      rejectExtraPositionals(action, tail, 0, helpRoute);
-      if (values.path === undefined) {
-        throw new Error(
-          withHelpRoute("Missing --path <directory>.", helpRoute),
-        );
-      }
-      rejectArchiveFlag(action, "--input", values.input, helpRoute);
-      rejectArchiveFlag(action, "--to", values.to, helpRoute);
-      return {
-        args: { action, json: values.json, path: values.path, target },
-        help: false,
-        kind: "library",
-      };
     case "get":
     case "list":
-    case "scan":
       rejectExtraPositionals(action, tail, 0, helpRoute);
       rejectArchiveFlag(action, "--path", values.path, helpRoute);
       rejectArchiveFlag(action, "--input", values.input, helpRoute);
@@ -972,8 +931,12 @@ function parseLibraryScopeArguments(
     case "clear":
     case "move":
     case "archive-tree":
+    case "add":
+    case "create":
+    case "rebind":
+    case "scan":
       throw new Error(
-        "Internal error: metadata action routed to library scope.",
+        "Internal error: unsupported action routed to library scope.",
       );
   }
 }
@@ -1124,6 +1087,22 @@ function isLibraryAction(action: string): action is CLILibraryAction {
   );
 }
 
+function validateTargetAction(
+  uri: string,
+  label: string,
+  actions: ReadonlySet<string>,
+  action: CLILibraryAction,
+): void {
+  if (!actions.has(action)) {
+    throw new Error(
+      withHelpRoute(
+        `The ${label} ${uri} does not support \`${action}\`.`,
+        formatWikiGraphHelpCommand(uri),
+      ),
+    );
+  }
+}
+
 function validateLibraryActionForTarget(
   uri: string,
   target: ParsedWikiGraphLibraryUri,
@@ -1151,6 +1130,55 @@ function validateLibraryActionForTarget(
         ),
       );
     }
+    return;
+  }
+  if (target.kind === "registry") {
+    validateTargetAction(
+      uri,
+      "library registry",
+      LIBRARY_REGISTRY_ACTIONS,
+      action,
+    );
+    return;
+  }
+
+  if (target.kind === "path") {
+    validateTargetAction(
+      uri,
+      "library path object",
+      LIBRARY_PATH_ACTIONS,
+      action,
+    );
+    return;
+  }
+
+  if (target.kind === "archive-collection") {
+    validateTargetAction(
+      uri,
+      "archive member collection",
+      LIBRARY_ARCHIVE_COLLECTION_ACTIONS,
+      action,
+    );
+    return;
+  }
+
+  if (target.kind === "archive-tree") {
+    validateTargetAction(
+      uri,
+      "archive member tree",
+      LIBRARY_ARCHIVE_TREE_ACTIONS,
+      action,
+    );
+    return;
+  }
+
+  if (target.kind === "archive-path") {
+    validateTargetAction(
+      uri,
+      "archive path object",
+      LIBRARY_ARCHIVE_PATH_ACTIONS,
+      action,
+    );
     return;
   }
 

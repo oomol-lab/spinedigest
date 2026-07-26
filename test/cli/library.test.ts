@@ -4,6 +4,7 @@ import type * as CLISupport from "../../packages/cli/src/support/index.js";
 import type * as WikiGraphCore from "wiki-graph-core";
 
 const libraryMockState = vi.hoisted(() => ({
+  archives: [] as unknown[],
   metadata: {} as Record<string, unknown>,
   putCalls: [] as unknown[],
   textWrites: [] as string[],
@@ -15,6 +16,12 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
   return {
     ...actual,
     assertWikiGraphLibrarySchemaCurrent: vi.fn(() => Promise.resolve()),
+    listWikiGraphLibraryArchives: vi.fn(() =>
+      Promise.resolve(libraryMockState.archives),
+    ),
+    scanWikiGraphLibrary: vi.fn(() =>
+      Promise.resolve({ archives: libraryMockState.archives }),
+    ),
     putWikiGraphLibraryMetadata: vi.fn(
       (_target: unknown, key: string, value: unknown) => {
         libraryMockState.putCalls.push({ key, value });
@@ -42,6 +49,7 @@ import { runLibraryCommand } from "../../packages/cli/src/commands/index.js";
 
 describe("cli/library args", () => {
   beforeEach(() => {
+    libraryMockState.archives = [];
     libraryMockState.metadata = {};
     libraryMockState.putCalls.length = 0;
     libraryMockState.textWrites.length = 0;
@@ -268,6 +276,16 @@ describe("cli/library args", () => {
       },
       kind: "library",
     });
+
+    expect(() =>
+      parseCLIArguments(["wikg://lib/arc", "list", "--jsonl"]),
+    ).toThrow("does not support --jsonl");
+    expect(() =>
+      parseCLIArguments(["wikg://lib/registry", "remove", "--help"]),
+    ).toThrow("does not support `remove`");
+    expect(() =>
+      parseCLIArguments(["wikg://lib/arc/tree", "scan", "--help"]),
+    ).toThrow("does not support `scan`");
     expect(
       parseCLIArguments([
         "wikg://lib/arc/tree",
@@ -290,7 +308,9 @@ describe("cli/library args", () => {
     expect(() =>
       parseCLIArguments(["wikg://lib", "add", "--input", "book.wikg"]),
     ).toThrow("does not support `add`");
-    expect(() => parseCLIArguments(["wikg://lib/team.lib"])).toThrow();
+    expect(() => parseCLIArguments(["wikg://lib/team.lib"])).toThrow(
+      ".lib suffixes are no longer supported",
+    );
   });
 
   it("does not steal archive URIs below a lib path segment", () => {
@@ -323,6 +343,74 @@ describe("cli/library args", () => {
       },
       kind: "archive",
     });
+  });
+
+  it("renders archive tree depth relative to parent and streams scan JSONL archives", async () => {
+    libraryMockState.archives = [
+      {
+        uri: "wikg://lib/arc/root",
+        publicId: "root",
+        libraryUri: "wikg://lib",
+        relativePath: "root.wikg",
+        path: "/tmp/library/root.wikg",
+        exists: true,
+        status: "present",
+      },
+      {
+        uri: "wikg://lib/arc/book",
+        publicId: "book",
+        libraryUri: "wikg://lib",
+        relativePath: "nested/book.wikg",
+        path: "/tmp/library/nested/book.wikg",
+        exists: true,
+        status: "present",
+      },
+      {
+        uri: "wikg://lib/arc/deep",
+        publicId: "deep",
+        libraryUri: "wikg://lib",
+        relativePath: "nested/deeper/deep.wikg",
+        path: "/tmp/library/nested/deeper/deep.wikg",
+        exists: true,
+        status: "present",
+      },
+    ];
+
+    await runLibraryCommand({
+      action: "archive-tree",
+      depth: 1,
+      json: true,
+      parent: "nested",
+      target: { isDefault: true, kind: "archive-tree" },
+    });
+
+    expect(JSON.parse(libraryMockState.textWrites[0] ?? "{}")).toStrictEqual({
+      items: [
+        {
+          name: "book.wikg",
+          path: "nested/book.wikg",
+          uri: "wikg://lib/arc/book",
+        },
+        { name: "deeper", path: "nested/deeper" },
+      ],
+    });
+
+    libraryMockState.textWrites.length = 0;
+    await runLibraryCommand({
+      action: "scan",
+      jsonl: true,
+      target: { isDefault: true, kind: "archive-collection" },
+    });
+
+    const events = libraryMockState.textWrites.map(
+      (line) =>
+        JSON.parse(line) as {
+          readonly action?: string;
+          readonly type?: string;
+        },
+    );
+    expect(events.map((event) => event.type)).toContain("archive");
+    expect(events.at(-1)).toMatchObject({ action: "scan", type: "succeeded" });
   });
 
   it("keeps --json as output formatting for library metadata put", async () => {

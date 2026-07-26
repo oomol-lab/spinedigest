@@ -205,7 +205,7 @@ describe("cli/args/help", () => {
       renderUriPredicateHelpText(
         "chapter-collection-scope",
         "add",
-        "wikg://lib/archive123/chapter",
+        "wikg://lib/arc/archive123/chapter",
       ),
     ).toContain("wikg://lib/arc/<archive-id>/chapter/part");
     expect(

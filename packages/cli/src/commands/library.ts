@@ -42,8 +42,7 @@ export async function runLibraryCommand(
     args.action !== "add" &&
     args.action !== "create" &&
     args.action !== "scan" &&
-    args.action !== "rebind" &&
-    args.action !== "archive-tree"
+    args.action !== "rebind"
   ) {
     await assertWikiGraphLibrarySchemaCurrent(args.target);
   }
@@ -95,14 +94,15 @@ export async function runLibraryCommand(
       return;
     }
     case "rebind": {
-      if (args.path === undefined) {
+      const folderPath = args.path;
+      if (folderPath === undefined) {
         throw new Error("Missing path value for library path set.");
       }
       await writeScanResult(
         "path set",
         async () =>
           await rebindWikiGraphLibrary({
-            folderPath: args.path!,
+            folderPath,
             target: args.target,
           }),
         args.json ?? false,
@@ -382,15 +382,17 @@ async function writeScanResult(
       text: `${label} started`,
     });
     const result = await operation();
-    await writer.write({
-      json: {
-        type: "progress",
-        action: label,
-        archives: result.archives.length,
-      },
-      kind: "status",
-      phase: label,
-    });
+    for (const archive of result.archives) {
+      await writer.write({
+        json: {
+          type: "archive",
+          action: label,
+          archive: formatLibraryArchiveJSON(archive),
+        },
+        kind: "status",
+        phase: label,
+      });
+    }
     await writer.write({
       json: {
         type: "completed",
@@ -399,6 +401,11 @@ async function writeScanResult(
       },
       kind: "lifecycle",
       text: `${label} completed`,
+    });
+    await writer.write({
+      json: { type: "succeeded", action: label },
+      kind: "lifecycle",
+      text: "succeeded",
     });
     return;
   }
@@ -488,15 +495,19 @@ async function writeLibraryArchiveTree(
     }
     insertArchiveTreeNode(root, archive);
   }
-  pruneArchiveTreeDepth(root, options.depth, 0);
+  const renderRoot =
+    parent === undefined
+      ? root
+      : (resolveArchiveTreeNode(root, parent) ?? root);
+  pruneArchiveTreeDepth(renderRoot, options.depth, 0);
 
   if (options.json) {
     await writeTextToStdout(
-      formatCLIJSON({ items: serializeArchiveTreeNodes(root.children) }),
+      formatCLIJSON({ items: serializeArchiveTreeNodes(renderRoot.children) }),
     );
     return;
   }
-  await writeTextToStdout(formatArchiveTreeText(root.children));
+  await writeTextToStdout(formatArchiveTreeText(renderRoot.children));
 }
 
 function isArchiveTreePathSelected(path: string, parent: string): boolean {
@@ -520,6 +531,20 @@ function insertArchiveTreeNode(
     current = child;
   }
   current.archive = archive;
+}
+
+function resolveArchiveTreeNode(
+  root: ArchiveTreeNode,
+  path: string,
+): ArchiveTreeNode | undefined {
+  let current: ArchiveTreeNode | undefined = root;
+  for (const part of path.split("/")) {
+    current = current?.children.get(part);
+    if (current === undefined) {
+      return undefined;
+    }
+  }
+  return current;
 }
 
 function pruneArchiveTreeDepth(

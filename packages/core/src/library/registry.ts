@@ -18,21 +18,10 @@ import {
 import { WIKI_GRAPH_ARCHIVE_EXTENSION } from "../runtime/common/wiki-graph/uri.js";
 import { isNodeError } from "../utils/node-error.js";
 import { withWikiGraphLibraryLock } from "./lock.js";
+import { RESERVED_LIBRARY_URI_SEGMENTS } from "./segments.js";
 
 const DEFAULT_LIBRARY_FOLDER_NAME = "default-library";
 const PUBLIC_ID_BYTES = 6;
-const RESERVED_LIBRARY_URI_SEGMENTS = new Set([
-  "registry",
-  "arc",
-  "path",
-  "tree",
-  "meta",
-  "index",
-  "chapter",
-  "chunk",
-  "entity",
-  "triple",
-]);
 
 const RESERVED_METADATA_KEYS = new Set([
   "id",
@@ -109,6 +98,9 @@ export interface ParsedWikiGraphLibraryUri {
 export function isWikiGraphLibraryUri(uri: string | undefined): uri is string {
   if (uri?.startsWith("wikg://lib") !== true) {
     return false;
+  }
+  if (uri.split("/").some((segment) => segment.endsWith(".lib"))) {
+    return true;
   }
   try {
     const target = parseWikiGraphLibraryUri(uri);
