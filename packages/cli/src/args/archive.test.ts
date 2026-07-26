@@ -182,6 +182,27 @@ describe("cli/args/archive", () => {
         kind: "archive",
       });
     }
+    for (const resource of ["source", "summary"] as const) {
+      expect(
+        parseCLIArguments([
+          `wikg://lib/arc/archive123/chapter/part/${resource}`,
+          "search",
+          "--query",
+          "memory",
+          "--json",
+        ]),
+      ).toStrictEqual({
+        args: {
+          action: "search",
+          archivePath: "wikg://lib/arc/archive123/chapter/part",
+          format: "json",
+          kinds: [resource],
+          query: "memory",
+        },
+        help: false,
+        kind: "archive",
+      });
+    }
 
     expect(
       parseCLIArguments(["wikg://lib/entity", "--query", "memory"]),

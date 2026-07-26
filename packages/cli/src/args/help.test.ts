@@ -269,11 +269,21 @@ describe("cli/args/help", () => {
       ["wikg://lib/arc/archive123/entity/Q42/evidence", "evidence"],
       ["wikg://lib/arc/archive123/chunk/12/related", "related"],
       ["wikg://lib/arc/archive123/triple/Q1/mentions/Q2/pack", "pack"],
+      [
+        "wikg://lib/arc/archive123/chapter/part/entity/Q42/evidence",
+        "evidence",
+      ],
     ] as const) {
       expect(() => parseCLIArguments([uri, "--help"])).toThrow(
         `Use predicate form: ${uri.slice(0, -predicate.length - 1)} ${predicate}`,
       );
     }
+    expect(() =>
+      parseCLIArguments([
+        "wikg://lib/arc/archive123/triple/Q1/mentions/Q2/extra/pack",
+        "--help",
+      ]),
+    ).toThrow("Unknown Wiki Graph URI target");
     expect(() => parseCLIArguments(["help", "verb", "get"])).toThrow(
       "Unexpected positional arguments: get.",
     );

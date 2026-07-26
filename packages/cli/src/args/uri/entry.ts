@@ -262,7 +262,7 @@ function classifyArchiveUriHelpTarget(uri: string): UriHelpTargetName {
   if (isTripleScopePath(path)) {
     return "triple-scope";
   }
-  if (/^(?:chapter\/[1-9][0-9]*\/)?triple(?:\/.*)?$/u.test(path)) {
+  if (/^(?:chapter\/[1-9][0-9]*\/)?triple\/[^/]+\/[^/]+\/[^/]+$/u.test(path)) {
     return "triple-object";
   }
 
@@ -296,16 +296,26 @@ function getPredicateLikeObjectSuffixSuggestion(
   if (suffix !== "evidence" && suffix !== "related" && suffix !== "pack") {
     return undefined;
   }
-  if (parts[0] === "entity" && parts.length === 3) {
+  const objectParts = stripOptionalChapterObjectPrefix(parts.slice(0, -1));
+  if (objectParts[0] === "entity" && objectParts.length === 2) {
     return `${uri.slice(0, -suffix.length - 1)} ${suffix}`;
   }
-  if (parts[0] === "chunk" && parts.length === 3) {
+  if (objectParts[0] === "chunk" && objectParts.length === 2) {
     return `${uri.slice(0, -suffix.length - 1)} ${suffix}`;
   }
-  if (parts[0] === "triple" && parts.length >= 5) {
+  if (objectParts[0] === "triple" && objectParts.length === 4) {
     return `${uri.slice(0, -suffix.length - 1)} ${suffix}`;
   }
   return undefined;
+}
+
+function stripOptionalChapterObjectPrefix(
+  parts: readonly string[],
+): readonly string[] {
+  if (parts[0] === "chapter" && parts[1] !== undefined) {
+    return parts.slice(2);
+  }
+  return parts;
 }
 
 function hasUriFragment(uri: string): boolean {

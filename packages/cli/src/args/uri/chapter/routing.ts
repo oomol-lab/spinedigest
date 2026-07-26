@@ -390,7 +390,12 @@ function parseChapterResourceUriArguments(
 
     return parseArchiveArguments(
       action,
-      [formatLocatedChapterUri(archivePath, chapterPath), ...tail],
+      [
+        resource === "source" || resource === "summary"
+          ? formatChapterScopedArchiveUri(archivePath, chapterPath)
+          : formatLocatedChapterUri(archivePath, chapterPath),
+        ...tail,
+      ],
       values,
       helpRoute,
       { defaultKinds: [resource] },
