@@ -19,6 +19,7 @@ export interface RunWikiGraphCLIInput {
    */
   readonly argv?: readonly string[] | undefined;
   readonly cwd?: string | undefined;
+  readonly devProjectRoot?: string | undefined;
   readonly env?: NodeJS.ProcessEnv | undefined;
   readonly signal?: AbortSignal | undefined;
   readonly stateDir?: string | undefined;
@@ -72,6 +73,7 @@ export async function runWikiGraphCLIWithEntryPolicy(
     entryContext = createEntryRuntimeContext({
       argv,
       cwd: input.cwd ?? process.cwd(),
+      devProjectRoot: input.devProjectRoot,
       env: input.env,
       envPolicy,
       stateDir: input.stateDir,

@@ -1,9 +1,9 @@
 import { resolve } from "path";
 
-export function resolveDevProjectRoot(stateDirPath: string): string {
-  return resolve(stateDirPath, "..", "..");
+export function resolveDevProjectRootPath(): string {
+  return resolve(import.meta.dirname, "../../../..");
 }
 
 export function resolveDevStateDirectoryPath(): string {
-  return resolve(import.meta.dirname, "../../../../.wikigraph/state");
+  return resolve(resolveDevProjectRootPath(), ".wikigraph/state");
 }

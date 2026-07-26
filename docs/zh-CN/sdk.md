@@ -74,7 +74,8 @@ const wikiGraph = new WikiGraph({
 ```
 
 Wiki Graph 不会自动读取 `OPENAI_API_KEY` 或任何 CLI provider 配置。应用负责加载
-凭据，并且必须把已配置好的 AI SDK `LanguageModel` 传给 `WikiGraph`。
+凭据，并且必须通过 `WikiGraph` 的 `llm` option 传入已配置好的 AI SDK
+`LanguageModel`。
 
 ## 队列控制
 

@@ -1,8 +1,12 @@
 import { main } from "../app/index.js";
-import { resolveDevStateDirectoryPath } from "../runtime/dev-state.js";
+import {
+  resolveDevProjectRootPath,
+  resolveDevStateDirectoryPath,
+} from "../runtime/dev-state.js";
 
 void main(
   {
+    devProjectRoot: resolveDevProjectRootPath(),
     stateDir: resolveDevStateDirectoryPath(),
   },
   "development",

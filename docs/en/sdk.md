@@ -74,8 +74,8 @@ const wikiGraph = new WikiGraph({
 ```
 
 Wiki Graph does not automatically read `OPENAI_API_KEY` or any CLI provider
-configuration. Your application owns credential loading and must pass a fully
-configured AI SDK `LanguageModel` into `WikiGraph`.
+configuration. Your application owns credential loading and must pass its fully
+configured AI SDK `LanguageModel` through the `WikiGraph` `llm` option.
 
 ## Queue Control
 

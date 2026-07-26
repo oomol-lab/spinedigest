@@ -1,10 +1,9 @@
-import { resolve } from "path";
-
 export type WikiGraphEntryEnvPolicy = "development" | "production";
 
 export interface WikiGraphEntryRuntimeOptions {
   readonly argv?: readonly string[] | undefined;
   readonly cwd?: string | undefined;
+  readonly devProjectRoot?: string | undefined;
   readonly env?: NodeJS.ProcessEnv | undefined;
   readonly envPolicy: WikiGraphEntryEnvPolicy;
   readonly stateDir?: string | undefined;
@@ -49,7 +48,7 @@ export function createEntryRuntimeContext(
 
   const envStateDir =
     environment.WIKIGRAPH_DEV ?? environment.WIKIGRAPH_STATE_DIR;
-  const stateDir = options.stateDir ?? envStateDir;
+  const stateDir = normalizeOptionalPath(options.stateDir ?? envStateDir);
 
   if (stateDir === undefined) {
     throw new Error(
@@ -57,8 +56,16 @@ export function createEntryRuntimeContext(
     );
   }
 
+  const devProjectRoot = normalizeOptionalPath(options.devProjectRoot);
+
+  if (devProjectRoot === undefined) {
+    throw new Error(
+      "Wiki Graph development entries require an explicit project root.",
+    );
+  }
+
   return {
-    devProjectRoot: resolveDevProjectRoot(stateDir),
+    devProjectRoot,
     env: environment,
     envPolicy: options.envPolicy,
     stateDir,
@@ -78,6 +85,10 @@ function createMergedEnvironment(
   };
 }
 
-function resolveDevProjectRoot(stateDirPath: string): string {
-  return resolve(stateDirPath, "..", "..");
+function normalizeOptionalPath(path: string | undefined): string | undefined {
+  if (path === undefined || path.trim() === "") {
+    return undefined;
+  }
+
+  return path;
 }
