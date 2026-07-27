@@ -5,13 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   addWikiGraphLibraryArchive,
-  DirectoryDocument,
   parseWikiGraphLibraryUri,
-  TOC_FILE_VERSION,
-  writeWikgArchive,
 } from "../../../core/src/index.js";
 import { withWikiGraphStateDirectoryPathForTesting } from "../../../core/src/runtime/common/wiki-graph/dir.js";
 import { runLibraryCommand } from "./library.js";
+import { createEmptyArchive } from "./test-helpers.js";
 
 describe("library command", () => {
   it("filters archive tree by file parent without changing the display root", async () => {
@@ -19,7 +17,7 @@ describe("library command", () => {
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
       const source = join(tempDir, "source.wikg");
-      await createEmptyArchive(tempDir, source);
+      await createEmptyArchive({ path: source, tempDir });
       const archive = await addWikiGraphLibraryArchive({
         inputPath: source,
         target: target!,
@@ -85,26 +83,6 @@ async function withLibraryCommandTestState(
     );
   } finally {
     await rm(tempDir, { force: true, recursive: true });
-  }
-}
-
-async function createEmptyArchive(
-  tempDir: string,
-  path: string,
-): Promise<void> {
-  const sourceDir = await mkdtemp(join(tempDir, "wikg-source-"));
-  const document = await DirectoryDocument.open(sourceDir);
-  try {
-    try {
-      await document.openSession(async (openedDocument) => {
-        await openedDocument.writeToc({ items: [], version: TOC_FILE_VERSION });
-      });
-    } finally {
-      await document.release();
-    }
-    await writeWikgArchive(sourceDir, path);
-  } finally {
-    await rm(sourceDir, { force: true, recursive: true });
   }
 }
 

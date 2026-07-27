@@ -7,16 +7,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   addWikiGraphLibraryArchive,
   createWikiGraphLibrary,
-  DirectoryDocument,
   parseWikiGraphLibraryUri,
   readArchiveIndexSettings,
   readWikiGraphLibraryIndexState,
   rebuildArchiveSearchIndex,
   rebuildWikiGraphLibraryIndex,
   setFtsIndexEmbedded,
-  TOC_FILE_VERSION,
   WikiGraphArchiveFile,
-  writeWikgArchive,
 } from "../../../../../core/src/index.js";
 import {
   getWikiGraphStateDirectoryPathForTesting,
@@ -28,6 +25,7 @@ import {
   resolveArchiveCommandRuntimeArguments,
   resolveArchiveRuntimeLocation,
 } from "./uri.js";
+import { createEmptyArchive } from "../../test-helpers.js";
 
 let previousStateDir: string | undefined;
 let tempDir: string;
@@ -47,7 +45,7 @@ describe("archive-command URI runtime resolution", () => {
   it("resolves library archive object URIs before running archive commands", async () => {
     const target = await createTestLibraryTarget();
     const source = join(tempDir, "book.wikg");
-    await createEmptyArchive(source);
+    await createEmptyArchive({ path: source, tempDir });
     const archive = await addWikiGraphLibraryArchive({
       inputPath: source,
       target,
@@ -219,7 +217,7 @@ async function addTestArchiveToLibrary(
   target: NonNullable<ReturnType<typeof parseWikiGraphLibraryUri>>,
 ): ReturnType<typeof addWikiGraphLibraryArchive> {
   const source = join(tempDir, `${randomUUID()}.wikg`);
-  await createEmptyArchive(source);
+  await createEmptyArchive({ path: source, tempDir });
 
   return await addWikiGraphLibraryArchive({
     inputPath: source,
@@ -241,22 +239,4 @@ async function createTestLibraryTarget(): Promise<
   }
 
   return target;
-}
-
-async function createEmptyArchive(path: string): Promise<void> {
-  const sourceDir = await mkdtemp(join(tempDir, "wikg-source-"));
-  const document = await DirectoryDocument.open(sourceDir);
-
-  try {
-    try {
-      await document.openSession(async (openedDocument) => {
-        await openedDocument.writeToc({ items: [], version: TOC_FILE_VERSION });
-      });
-    } finally {
-      await document.release();
-    }
-    await writeWikgArchive(sourceDir, path);
-  } finally {
-    await rm(sourceDir, { force: true, recursive: true });
-  }
 }
