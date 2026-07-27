@@ -22,7 +22,11 @@ $ npm install -g wiki-graph
 $ pnpm add --global wiki-graph
 ```
 
-The CLI package depends on `wiki-graph-core`. Application code should depend on `wiki-graph-core` directly.
+The installed CLI command is self-contained for normal `wg` usage. Application
+code should depend on `wiki-graph-core` directly when it needs the core SDK. If
+an application uses the `wiki-graph` package's programmatic CLI runner entry, it
+should install both `wiki-graph` and `wiki-graph-core` so the runner can share
+the same core package as the application.
 
 ## Main SDK
 

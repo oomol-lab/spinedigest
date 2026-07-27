@@ -21,15 +21,22 @@ release:
 pnpm cli:install-local
 ```
 
-The script builds and packs the workspace, then installs the generated
-`wiki-graph` package through pnpm as a global package. After it finishes, `wg`
-and `wikigraph` resolve through the machine-level pnpm installation.
+The script builds the workspace, packs the `packages/cli` package, then installs
+the generated `wiki-graph` tarball through `npm install --global --force`. After
+it finishes, `wg` and `wikigraph` resolve through the machine-level global
+installation.
 
 This workflow is useful for:
 
 - previewing an unreleased version outside the repository;
 - checking package contents, `dist` output, shebangs, and `bin` entries;
 - testing how a normal user will experience the CLI after installation.
+
+This workflow previews the CLI package only. It does not create or install a
+`wiki-graph-core` tarball, and it is not the SDK integration workflow. The
+packaged `wg` command is self-contained for normal CLI use, but the
+`wiki-graph` package's programmatic runner entry still expects applications that
+use it as an SDK surface to install `wiki-graph-core` as well.
 
 It is not the default regression workflow for agents or parallel worktrees. A
 global install is shared by all shells and worktrees on the same machine, so one
@@ -130,6 +137,23 @@ text, archive operations, state handling, or bug fixes in the current checkout.
 Use the install workflow only when the question is about the packaged command
 itself: global `wg` resolution, package layout, `dist` artifacts, executable
 metadata, or previewing an unreleased branch outside this repository.
+
+When validating package installation boundaries, use the pack smoke workflow:
+
+```bash
+pnpm smoke:pack-install
+```
+
+That workflow separately packs and installs `wiki-graph-core` and `wiki-graph`
+in temporary projects so it can validate CLI-only, core-only, and combined SDK
+installation scenarios. For manual tarball inspection, build first and pack the
+two packages explicitly:
+
+```bash
+pnpm build
+pnpm --filter wiki-graph-core pack --pack-destination /tmp/wiki-graph-packs
+pnpm --filter wiki-graph pack --pack-destination /tmp/wiki-graph-packs
+```
 
 ## Related Maintainer Docs
 

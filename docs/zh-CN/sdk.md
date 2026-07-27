@@ -22,7 +22,10 @@ $ npm install -g wiki-graph
 $ pnpm add --global wiki-graph
 ```
 
-CLI 包依赖 `wiki-graph-core`。应用代码应直接依赖 `wiki-graph-core`。
+正常使用 `wg` 时，安装后的 CLI 命令是自包含的。应用代码需要 core SDK 时，应直接依赖
+`wiki-graph-core`。如果应用使用 `wiki-graph` 包提供的 programmatic CLI runner
+入口，应同时安装 `wiki-graph` 和 `wiki-graph-core`，让 runner 与应用共享同一份
+core 包。
 
 ## Main SDK
 
