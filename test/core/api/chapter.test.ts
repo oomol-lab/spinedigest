@@ -541,6 +541,7 @@ describe("facade/chapter", () => {
 
         expect(dryRun.changed).toBe(true);
         expect(dryRun.moved.map((move) => move.oldUri)).toContain(second.uri);
+        expect(dryRun.renamed).toHaveLength(2);
         expect(dryRun.renamed).toStrictEqual(
           expect.arrayContaining([
             {

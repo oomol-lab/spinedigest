@@ -1,8 +1,6 @@
 import type { Document, ReadonlyDocument } from "../../document/index.js";
-import {
-  createChapterKey,
-  formatChapterUri,
-} from "../../document/chapter/path.js";
+import { formatChapterUri } from "../../document/chapter/path.js";
+import { ensureChapterKeys } from "../../document/chapter/toc.js";
 import { TOC_FILE_VERSION, type TocItem } from "../../text/source/index.js";
 
 import {
@@ -62,35 +60,6 @@ export async function readChapterToc(
         items,
         version: toc.version,
       };
-}
-
-function ensureChapterKeys(items: MutableTocItem[]): boolean {
-  const existingKeys = new Set<string>();
-  let changed = false;
-  const collectExistingKeys = (nodes: MutableTocItem[]): void => {
-    for (const item of nodes) {
-      if (item.key !== undefined) {
-        if (existingKeys.has(item.key)) {
-          throw new Error(`Duplicate chapter key: ${item.key}.`);
-        }
-        existingKeys.add(item.key);
-      }
-      collectExistingKeys(item.children);
-    }
-  };
-  const visit = (nodes: MutableTocItem[]): void => {
-    for (const item of nodes) {
-      if (item.key === undefined) {
-        item.key = createChapterKey(existingKeys);
-        existingKeys.add(item.key);
-        changed = true;
-      }
-      visit(item.children);
-    }
-  };
-  collectExistingKeys(items);
-  visit(items);
-  return changed;
 }
 
 function assertChapterKeys(items: MutableTocItem[]): void {

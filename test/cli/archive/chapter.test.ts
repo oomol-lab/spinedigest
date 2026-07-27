@@ -112,9 +112,9 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
       ...chapterDetails,
       chapterId: 3,
       stage: "planned",
-      path: "new-chapter",
+      path: "a1b2c3d4e5f6",
       title: "New Chapter",
-      uri: "wikg://chapter/new-chapter",
+      uri: "wikg://chapter/a1b2c3d4e5f6",
     });
   }),
   assertNoActiveBuildJobs: vi.fn((input: unknown) => {
@@ -182,7 +182,7 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
     const chapterIds = new Map<string, number>([
       ["part-i", 1],
       ["part-i/chapter-1", 2],
-      ["new-chapter", 3],
+      ["a1b2c3d4e5f6", 3],
     ]);
 
     return Promise.resolve(chapterIds.get(chapterPath));
@@ -360,7 +360,7 @@ describe("cli/archive-chapter", () => {
       },
     ]);
     expect(chapterMockState.textWrites[0]).toContain(
-      "Chapter: wikg://chapter/new-chapter\n",
+      "Chapter: wikg://chapter/a1b2c3d4e5f6\n",
     );
   });
 
@@ -379,7 +379,7 @@ describe("cli/archive-chapter", () => {
       sourceUnits: 2,
       stage: "planned",
       title: "New Chapter",
-      uri: "wikg://chapter/new-chapter",
+      uri: "wikg://chapter/a1b2c3d4e5f6",
     });
   });
 
