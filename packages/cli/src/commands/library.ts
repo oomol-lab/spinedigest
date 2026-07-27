@@ -224,10 +224,9 @@ export async function runLibraryCommand(
         return;
       }
       if (args.target.kind === "archive") {
-        await writeLibraryArchive(
+        await writeLibraryArchivePage(
           await getWikiGraphLibraryArchive(args.target),
           args.json ?? false,
-          "Library archive",
         );
         return;
       }
@@ -454,6 +453,32 @@ async function writeLibraryArchive(
   );
 }
 
+async function writeLibraryArchivePage(
+  archive: Awaited<ReturnType<typeof getWikiGraphLibraryArchive>>,
+  json: boolean,
+): Promise<void> {
+  if (json) {
+    await writeTextToStdout(
+      formatCLIJSON(formatLibraryArchivePageJSON(archive)),
+    );
+    return;
+  }
+
+  await writeTextToStdout(
+    [
+      `Library archive: ${archive.uri}`,
+      `Label: ${archive.relativePath}`,
+      `Status: ${archive.status}${archive.exists ? "" : " (missing file)"}`,
+      `Chapter: ${archive.uri}/chapter`,
+      `Entity: ${archive.uri}/entity`,
+      `Triple: ${archive.uri}/triple`,
+      `Inspect: ${archive.uri} inspect`,
+      `Metadata path: ${archive.path}`,
+      "",
+    ].join("\n"),
+  );
+}
+
 function formatLibraryArchiveJSON(
   archive: Awaited<ReturnType<typeof addWikiGraphLibraryArchive>>,
 ): object {
@@ -471,6 +496,35 @@ function formatLibraryArchiveJSON(
     lastScannedAt: archive.lastScannedAt,
     createdAt: archive.createdAt,
     updatedAt: archive.updatedAt,
+  };
+}
+
+function formatLibraryArchivePageJSON(
+  archive: Awaited<ReturnType<typeof getWikiGraphLibraryArchive>>,
+): object {
+  return {
+    uri: archive.uri,
+    id: archive.publicId,
+    libraryUri: archive.libraryUri,
+    label: archive.relativePath,
+    relativePath: archive.relativePath,
+    status: archive.status,
+    entries: {
+      chapter: `${archive.uri}/chapter`,
+      entity: `${archive.uri}/entity`,
+      triple: `${archive.uri}/triple`,
+      inspect: `${archive.uri} inspect`,
+    },
+    metadata: {
+      path: archive.path,
+      exists: archive.exists,
+      lastSeenMutationToken: archive.lastSeenMutationToken,
+      lastSeenSize: archive.lastSeenSize,
+      lastSeenMtimeMs: archive.lastSeenMtimeMs,
+      lastScannedAt: archive.lastScannedAt,
+      createdAt: archive.createdAt,
+      updatedAt: archive.updatedAt,
+    },
   };
 }
 

@@ -123,6 +123,6 @@ export function getSearchBucket(type: ArchiveFindObjectType): number {
     case "chapter-tree":
     case "meta":
     case "fragment":
-      throw new Error(`Unsupported search result bucket type: ${type}`);
+      return 4;
   }
 }

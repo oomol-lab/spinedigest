@@ -112,7 +112,9 @@ export async function createFindObject(
   if (hit.type === "meta") {
     return {
       ...librarySource,
+      text: hit.snippet,
       title: hit.title,
+      type: "meta",
       uri,
     };
   }

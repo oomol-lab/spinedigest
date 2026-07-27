@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  findWikiGraphLibraryArchiveMembers,
+  findWikiGraphLibraryObjects,
+  listWikiGraphLibraryArchiveMembers,
   listWikiGraphLibraryObjects,
+  parseWikiGraphLibraryUri,
   readContinuationCursor,
   resolveWikiGraphLibraryQueryTargetById,
 } from "wiki-graph-core";
@@ -10,13 +14,18 @@ import { runNextArchivePage } from "./next.js";
 
 vi.mock("wiki-graph-core", () => ({
   findArchiveObjects: vi.fn(),
+  findWikiGraphLibraryArchiveMembers: vi.fn(),
   findWikiGraphLibraryObjects: vi.fn(),
   listArchiveCollection: vi.fn(),
   listArchiveEvidence: vi.fn(),
+  listWikiGraphLibraryArchiveMembers: vi.fn(),
   listRelatedArchiveObjects: vi.fn(),
   listRelatedWikiGraphLibraryObjects: vi.fn(),
   listWikiGraphLibraryEvidence: vi.fn(),
   listWikiGraphLibraryObjects: vi.fn(),
+  parseWikiGraphLibraryUri: vi.fn((uri: string) =>
+    uri === "wikg://lib" ? { isDefault: true, kind: "scope" } : undefined,
+  ),
   readContinuationCursor: vi.fn(),
   resolveWikiGraphLibraryQueryTargetById: vi.fn(),
 }));
@@ -54,6 +63,11 @@ beforeEach(() => {
 
 describe("runNextArchivePage library cursors", () => {
   it("re-enters the library index path for collection cursors", async () => {
+    vi.mocked(parseWikiGraphLibraryUri).mockReturnValue({
+      isDefault: true,
+      kind: "scope",
+      objectUri: "wikg://entity",
+    });
     vi.mocked(listWikiGraphLibraryObjects).mockResolvedValue({
       chapters: null,
       ids: null,
@@ -101,6 +115,11 @@ describe("runNextArchivePage library cursors", () => {
   });
 
   it("surfaces dirty library index failures from next", async () => {
+    vi.mocked(parseWikiGraphLibraryUri).mockReturnValue({
+      isDefault: true,
+      kind: "scope",
+      objectUri: "wikg://entity",
+    });
     vi.mocked(listWikiGraphLibraryObjects).mockRejectedValue(
       new Error("Wiki Graph library index is dirty."),
     );
@@ -112,5 +131,78 @@ describe("runNextArchivePage library cursors", () => {
       libraryTarget,
       expect.objectContaining({ cursor: "raw-collection-cursor" }),
     );
+  });
+
+  it("continues library archive member collection cursors", async () => {
+    vi.mocked(parseWikiGraphLibraryUri).mockReturnValue({
+      isDefault: true,
+      kind: "scope",
+    });
+    vi.mocked(listWikiGraphLibraryArchiveMembers).mockResolvedValue({
+      chapters: null,
+      ids: null,
+      items: [
+        {
+          archiveId: 8,
+          field: "metadata",
+          id: "wikg://lib/arc/book",
+          libraryArchiveUri: "wikg://lib/arc/book",
+          snippet: "books/book.wikg  present  exists",
+          title: "books/book.wikg",
+          type: "meta",
+        },
+      ],
+      limit: 20,
+      nextCursor: null,
+      order: "doc-asc",
+      types: null,
+    });
+
+    await runNextArchivePage({ action: "next", archivePath: "c_next" });
+
+    expect(listWikiGraphLibraryArchiveMembers).toHaveBeenCalledWith(
+      libraryTarget,
+      expect.objectContaining({ cursor: "raw-collection-cursor" }),
+    );
+    expect(listWikiGraphLibraryObjects).not.toHaveBeenCalled();
+  });
+
+  it("continues library archive member search cursors", async () => {
+    vi.mocked(parseWikiGraphLibraryUri).mockReturnValue({
+      isDefault: true,
+      kind: "scope",
+    });
+    vi.mocked(readContinuationCursor).mockResolvedValue({
+      archiveKey: "wikg://lib",
+      archivePath: "wikg://lib",
+      cursor: "raw-search-cursor",
+      format: "json",
+      indexScope: { kind: "library-index", libraryId: 42 },
+      kind: "search",
+      query: "book",
+      types: null,
+    });
+    vi.mocked(findWikiGraphLibraryArchiveMembers).mockResolvedValue({
+      chapters: null,
+      items: [],
+      lens: "typed",
+      lensHint: null,
+      limit: 20,
+      match: "any",
+      nextCursor: null,
+      order: "doc-asc",
+      query: "book",
+      terms: ["book"],
+      types: null,
+    });
+
+    await runNextArchivePage({ action: "next", archivePath: "c_next" });
+
+    expect(findWikiGraphLibraryArchiveMembers).toHaveBeenCalledWith(
+      libraryTarget,
+      "book",
+      expect.objectContaining({ cursor: "raw-search-cursor" }),
+    );
+    expect(findWikiGraphLibraryObjects).not.toHaveBeenCalled();
   });
 });

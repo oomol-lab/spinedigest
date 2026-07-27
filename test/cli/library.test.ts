@@ -16,6 +16,9 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
   return {
     ...actual,
     assertWikiGraphLibrarySchemaCurrent: vi.fn(() => Promise.resolve()),
+    getWikiGraphLibraryArchive: vi.fn(() =>
+      Promise.resolve(libraryMockState.archives[0]),
+    ),
     listWikiGraphLibraryArchives: vi.fn(() =>
       Promise.resolve(libraryMockState.archives),
     ),
@@ -408,6 +411,33 @@ describe("cli/library args", () => {
       },
       kind: "archive",
     });
+    expect(
+      parseCLIArguments(["wikg://lib", "--limit", "1", "--json"]),
+    ).toMatchObject({
+      args: {
+        action: "list",
+        archivePath: "wikg://lib",
+        format: "json",
+        limit: 1,
+      },
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://lib/abc123abc123",
+        "--cursor",
+        "c_next",
+        "--json",
+      ]),
+    ).toMatchObject({
+      args: {
+        action: "list",
+        archivePath: "wikg://lib/abc123abc123",
+        cursor: "c_next",
+        format: "json",
+      },
+      kind: "archive",
+    });
   });
 
   it("lists archive members from the library scope root", async () => {
@@ -438,6 +468,49 @@ describe("cli/library args", () => {
           status: "present",
         },
       ],
+    });
+  });
+
+  it("renders archive member pages with business entry links and diagnostic metadata", async () => {
+    libraryMockState.archives = [
+      {
+        uri: "wikg://lib/arc/book",
+        publicId: "book",
+        libraryUri: "wikg://lib",
+        relativePath: "books/book.wikg",
+        path: "/tmp/library/books/book.wikg",
+        exists: true,
+        status: "present",
+        lastSeenMutationToken: "mtime:1:size:2",
+        lastSeenSize: 2,
+        lastSeenMtimeMs: 1,
+        lastScannedAt: "2026-01-01T00:00:00.000Z",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+
+    await runLibraryCommand({
+      action: "get",
+      json: true,
+      target: { archivePublicId: "book", isDefault: true, kind: "archive" },
+    });
+
+    expect(JSON.parse(libraryMockState.textWrites[0] ?? "{}")).toMatchObject({
+      uri: "wikg://lib/arc/book",
+      label: "books/book.wikg",
+      relativePath: "books/book.wikg",
+      status: "present",
+      entries: {
+        chapter: "wikg://lib/arc/book/chapter",
+        entity: "wikg://lib/arc/book/entity",
+        triple: "wikg://lib/arc/book/triple",
+        inspect: "wikg://lib/arc/book inspect",
+      },
+      metadata: {
+        path: "/tmp/library/books/book.wikg",
+        exists: true,
+      },
     });
   });
 

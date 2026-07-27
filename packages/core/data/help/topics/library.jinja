@@ -38,8 +38,9 @@ Archive memberships:
   - Missing registered files remain visible as missing or stale until `arc scan`, archive `path set`, archive `remove`, or library `path set` resolves them.
 
 Library archive shortcuts:
-  - `wikg://lib/arc/<archive-id>/` addresses one archive membership in the default library.
-  - `wikg://lib/<lib-id>/arc/<archive-id>/` addresses one archive membership in a non-default library.
+  - `wikg://lib/arc/<archive-id>/` addresses one archive member page in the default library.
+  - `wikg://lib/<lib-id>/arc/<archive-id>/` addresses one archive member page in a non-default library.
+  - The archive member page exposes the managed archive's business entry URIs (`/chapter`, `/entity`, `/triple`, and `inspect`) and keeps registry fields as diagnostic metadata.
   - Add normal archive object suffixes after the trailing slash to query that archive's contents:
     {{ commandName }} wikg://lib/arc/<archive-id>/chapter
     {{ commandName }} wikg://lib/arc/<archive-id>/entity --query "term"

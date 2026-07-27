@@ -121,8 +121,9 @@ Predicate commands:
 Library archive membership
 
 Default behavior:
-  - `{{ commandName }} {{ uri }}` reads the registry entry for this library archive member.
-  - The membership entry identifies the archive id, relative path, status, and containing library.
+  - `{{ commandName }} {{ uri }}` reads the archive member page for this managed archive.
+  - The member page shows the member URI, readable label or relative path, status, and business entry URIs for `/chapter`, `/entity`, `/triple`, and `inspect`.
+  - Registry fields such as physical path, size, mtime, and mutation token are diagnostic metadata.
   - `{{ commandName }} {{ uri }} inspect` checks readiness for this managed archive's contents, not the library registry.
   - Add archive object suffixes such as `/chapter`, `/entity`, or `/triple` when you want to query the archive contents.
 
@@ -189,8 +190,8 @@ URI forms:
 
 Usage:
 {% if target.isDefault %}
-  {{ commandName }} wikg://lib
-  {{ commandName }} wikg://lib --query <query>
+  {{ commandName }} wikg://lib [--limit <n>] [--cursor <cursor>] [--json]
+  {{ commandName }} wikg://lib --query <query> [--limit <n>] [--cursor <cursor>] [--json]
   {{ commandName }} wikg://lib/chapter --query <query>
   {{ commandName }} wikg://lib/chunk --query <query>
   {{ commandName }} wikg://lib/registry add --path <folder> [--json]
@@ -203,8 +204,8 @@ Usage:
   {{ commandName }} wikg://lib/triple --query <query>
   {{ commandName }} wikg://lib/meta [--json]
 {% else %}
-  {{ commandName }} {{ uri }}
-  {{ commandName }} {{ uri }} --query <query>
+  {{ commandName }} {{ uri }} [--limit <n>] [--cursor <cursor>] [--json]
+  {{ commandName }} {{ uri }} --query <query> [--limit <n>] [--cursor <cursor>] [--json]
   {{ commandName }} {{ uri }}/chapter --query <query>
   {{ commandName }} {{ uri }}/chunk --query <query>
   {{ commandName }} {{ uri }}/arc scan [--json|--jsonl]

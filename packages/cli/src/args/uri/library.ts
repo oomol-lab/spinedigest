@@ -74,7 +74,9 @@ export function parseLibraryUriFirstArguments(
     explicitAction ??
     (target.kind === "scope" &&
     ((target.objectUri !== undefined && target.objectUri !== "wikg://index") ||
-      values.query !== undefined)
+      values.query !== undefined ||
+      values.limit !== undefined ||
+      values.cursor !== undefined)
       ? resolveImplicitLibraryQueryAction(target.objectUri, values.query)
       : target.kind === "scope" ||
           target.kind === "archive-collection" ||
@@ -173,7 +175,9 @@ export function parseLibraryUriFirstArguments(
 
   if (
     target.kind === "scope" &&
-    (target.objectUri !== undefined || action === "search")
+    (target.objectUri !== undefined ||
+      action === "search" ||
+      (action === "list" && explicitAction === undefined))
   ) {
     return parseLibraryQueryArguments(
       uri,

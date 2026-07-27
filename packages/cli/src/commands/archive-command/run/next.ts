@@ -1,12 +1,15 @@
 import {
   findArchiveObjects,
+  findWikiGraphLibraryArchiveMembers,
   findWikiGraphLibraryObjects,
   listArchiveCollection,
   listArchiveEvidence,
+  listWikiGraphLibraryArchiveMembers,
   listRelatedWikiGraphLibraryObjects,
   listWikiGraphLibraryEvidence,
   listWikiGraphLibraryObjects,
   listRelatedArchiveObjects,
+  parseWikiGraphLibraryUri,
   readContinuationCursor,
   resolveWikiGraphLibraryQueryTargetById,
   type ArchiveCollectionOptions,
@@ -278,6 +281,20 @@ async function runNextLibraryIndexPage(
         });
       }
 
+      if (isLibraryArchiveMemberCursor(cursor)) {
+        await writeFindHits(
+          createCollectionFindResult(
+            await listWikiGraphLibraryArchiveMembers(target, collectionOptions),
+          ),
+          {
+            ...createCursorOutputContext(cursor, format, limit),
+            continuationKind: "collection",
+          },
+          format,
+        );
+        return;
+      }
+
       await writeFindHits(
         createCollectionFindResult(
           await listWikiGraphLibraryObjects(target, collectionOptions),
@@ -314,6 +331,19 @@ async function runNextLibraryIndexPage(
         Object.assign(findOptions, {
           types: cursor.types as ArchiveFindOptions["types"],
         });
+      }
+
+      if (isLibraryArchiveMemberCursor(cursor)) {
+        await writeFindHits(
+          await findWikiGraphLibraryArchiveMembers(
+            target,
+            cursor.query ?? "",
+            findOptions,
+          ),
+          createCursorOutputContext(cursor, format, limit),
+          format,
+        );
+        return;
       }
 
       await writeFindHits(
@@ -378,6 +408,13 @@ async function runNextLibraryIndexPage(
       );
       return;
   }
+}
+
+function isLibraryArchiveMemberCursor(
+  cursor: Awaited<ReturnType<typeof readContinuationCursor>>,
+): boolean {
+  const target = parseWikiGraphLibraryUri(cursor.archivePath);
+  return target?.kind === "scope" && target.objectUri === undefined;
 }
 
 function createCursorOutputContext(

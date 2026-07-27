@@ -18,6 +18,7 @@ import {
   disableWikiGraphLibraryIndex,
   ensureDefaultWikiGraphLibrary,
   finalizeWikiGraphLibraryArchiveWrite,
+  findWikiGraphLibraryArchiveMembers,
   getWikiGraphLibraryMetadata,
   isWikiGraphLibraryUri,
   moveWikiGraphLibraryArchive,
@@ -29,6 +30,7 @@ import {
   rebuildArchiveSearchIndex,
   rebindWikiGraphLibrary,
   setFtsIndexEmbedded,
+  listWikiGraphLibraryArchiveMembers,
   rebuildWikiGraphLibraryIndex,
   removeWikiGraphLibrary,
   removeWikiGraphLibraryArchive,
@@ -72,6 +74,51 @@ describe("library archive membership", () => {
           status: archive.status,
         })),
       ).toContainEqual({ relativePath: "a.wikg", status: "missing" });
+    });
+  });
+
+  it("searches and paginates archive member collection results", async () => {
+    await withLibraryTestState(async () => {
+      const library = await ensureDefaultWikiGraphLibrary();
+      await mkdir(join(library.folderPath, "books"), { recursive: true });
+      await writeFile(join(library.folderPath, "books", "alpha.wikg"), "alpha");
+      await writeFile(join(library.folderPath, "books", "beta.wikg"), "beta");
+
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      await scanWikiGraphLibrary(target!);
+
+      const matched = await findWikiGraphLibraryArchiveMembers(
+        target!,
+        "alpha",
+        { limit: 5 },
+      );
+      expect(matched.items).toHaveLength(1);
+      expect(matched.items[0]).toMatchObject({
+        title: "books/alpha.wikg",
+        type: "meta",
+      });
+
+      const missing = await findWikiGraphLibraryArchiveMembers(
+        target!,
+        "missing-term",
+        { limit: 5 },
+      );
+      expect(missing.items).toStrictEqual([]);
+
+      const firstPage = await listWikiGraphLibraryArchiveMembers(target!, {
+        limit: 1,
+      });
+      expect(firstPage.items).toHaveLength(1);
+      expect(firstPage.nextCursor).not.toBeNull();
+      const nextCursor = firstPage.nextCursor;
+      expect(nextCursor).toBeDefined();
+      const secondPage = await listWikiGraphLibraryArchiveMembers(target!, {
+        cursor: nextCursor!,
+        limit: 1,
+      });
+      expect(secondPage.items).toHaveLength(1);
+      expect(secondPage.items[0]?.id).not.toBe(firstPage.items[0]?.id);
     });
   });
 

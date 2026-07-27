@@ -888,7 +888,10 @@ describe("cli/args/help", () => {
       throw new Error("Expected library archive help output.");
     }
     expect(archiveMemberHelp.helpText).toContain(
-      "reads the registry entry for this library archive member",
+      "reads the archive member page for this managed archive",
+    );
+    expect(archiveMemberHelp.helpText).toContain(
+      "Registry fields such as physical path, size, mtime, and mutation token are diagnostic metadata.",
     );
     expect(archiveMemberHelp.helpText).toContain("inspect [--json]");
     expect(archiveMemberHelp.helpText).toContain("not the library registry");
