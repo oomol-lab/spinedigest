@@ -77,7 +77,7 @@ describe("facade/chapter", () => {
     });
   });
 
-  it("does not randomize missing chapter keys on read-only chapter paths", async () => {
+  it("rejects missing chapter keys on read-only chapter paths", async () => {
     await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
@@ -101,25 +101,12 @@ describe("facade/chapter", () => {
           });
         });
 
-        expect(await listChapters(document)).toMatchObject([
-          {
-            chapterId: 1,
-            depth: 1,
-            path: "chapter-group/chapter-1",
-            stage: "planned",
-            title: "Chapter 1",
-            tocPath: ["Part I", "Chapter 1"],
-          },
-        ]);
-        expect(await getChapterTree(document)).toStrictEqual({
-          chapters: [
-            {
-              children: [],
-              title: "Chapter 1",
-              uri: "wikg://chapter/chapter-group/chapter-1",
-            },
-          ],
-        });
+        await expect(listChapters(document)).rejects.toThrow(
+          "Missing chapter key in TOC.",
+        );
+        await expect(getChapterTree(document)).rejects.toThrow(
+          "Missing chapter key in TOC.",
+        );
         expect(await document.readToc()).toStrictEqual({
           items: [
             {
@@ -135,6 +122,45 @@ describe("facade/chapter", () => {
           ],
           version: 1,
         });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("rejects duplicate chapter keys on read-only chapter paths", async () => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          await openedDocument.createSerial();
+          await openedDocument.writeToc({
+            items: [
+              {
+                children: [],
+                key: "a1b2c3d4e5f6",
+                serialId: 1,
+                title: "First",
+              },
+              {
+                children: [],
+                key: "a1b2c3d4e5f6",
+                serialId: 2,
+                title: "Second",
+              },
+            ],
+            version: 1,
+          });
+        });
+
+        await expect(listChapters(document)).rejects.toThrow(
+          "Duplicate chapter key: a1b2c3d4e5f6.",
+        );
+        await expect(getChapterTree(document)).rejects.toThrow(
+          "Duplicate chapter key: a1b2c3d4e5f6.",
+        );
       } finally {
         await document.release();
       }

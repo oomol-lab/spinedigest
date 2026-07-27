@@ -10,6 +10,7 @@ export async function readChapterToc(
 ): Promise<MutableTocFile> {
   const toc = await document.readToc();
   const items = toc?.items.map(cloneTocItem) ?? [];
+  assertChapterKeys(items);
 
   return toc === undefined
     ? { items: [], version: TOC_FILE_VERSION }
@@ -17,6 +18,26 @@ export async function readChapterToc(
         items,
         version: toc.version,
       };
+}
+
+function assertChapterKeys(items: MutableTocFile["items"]): void {
+  const existingKeys = new Set<string>();
+  const visit = (nodes: MutableTocFile["items"]): void => {
+    for (const item of nodes) {
+      if (item.key === undefined) {
+        throw new Error(
+          "Missing chapter key in TOC. Run a writable chapter operation or `wg maintenance upgrade` before using read-only chapter paths.",
+        );
+      }
+      if (existingKeys.has(item.key)) {
+        throw new Error(`Duplicate chapter key: ${item.key}.`);
+      }
+      existingKeys.add(item.key);
+      visit(item.children);
+    }
+  };
+
+  visit(items);
 }
 
 export function ensureChapterKeys(items: MutableTocFile["items"]): boolean {

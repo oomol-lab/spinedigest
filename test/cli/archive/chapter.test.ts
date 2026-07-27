@@ -17,11 +17,11 @@ const chapterMockState = vi.hoisted(() => ({
           {
             children: [],
             title: "Chapter 1",
-            uri: "wikg://chapter/part-i/chapter-1",
+            uri: "wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
           },
         ],
         title: "Part I",
-        uri: "wikg://chapter/part-i",
+        uri: "wikg://chapter/a1b2c3d4e5f6",
       },
     ],
   },
@@ -31,23 +31,23 @@ const chapterMockState = vi.hoisted(() => ({
       childCount: 1,
       depth: 0,
       fragmentCount: 0,
-      key: "part-i",
-      path: "part-i",
+      key: "a1b2c3d4e5f6",
+      path: "a1b2c3d4e5f6",
       stage: "planned",
       title: "Part I",
       tocPath: ["Part I"],
-      uri: "wikg://chapter/part-i",
+      uri: "wikg://chapter/a1b2c3d4e5f6",
     },
     {
       childCount: 0,
       depth: 1,
       fragmentCount: 2,
-      key: "chapter-1",
-      path: "part-i/chapter-1",
+      key: "b2c3d4e5f6a1",
+      path: "a1b2c3d4e5f6/b2c3d4e5f6a1",
       stage: "sourced",
       title: "Chapter 1",
       tocPath: ["Part I", "Chapter 1"],
-      uri: "wikg://chapter/part-i/chapter-1",
+      uri: "wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
     },
   ],
   removeCalls: [] as unknown[],
@@ -70,12 +70,12 @@ const chapterDetails = {
   fragmentCount: 2,
   graphReady: false,
   hasSummary: false,
-  key: "chapter-1",
-  path: "part-i/chapter-1",
+  key: "b2c3d4e5f6a1",
+  path: "a1b2c3d4e5f6/b2c3d4e5f6a1",
   stage: "sourced",
   title: "Chapter 1",
   tocPath: ["Part I", "Chapter 1"],
-  uri: "wikg://chapter/part-i/chapter-1",
+  uri: "wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
 };
 
 vi.mock(
@@ -112,9 +112,9 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
       ...chapterDetails,
       chapterId: 3,
       stage: "planned",
-      path: "a1b2c3d4e5f6",
+      path: "c3d4e5f6a1b2",
       title: "New Chapter",
-      uri: "wikg://chapter/a1b2c3d4e5f6",
+      uri: "wikg://chapter/c3d4e5f6a1b2",
     });
   }),
   assertNoActiveBuildJobs: vi.fn((input: unknown) => {
@@ -150,17 +150,17 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
           {
             newIndex: 0,
             newParentUri: null,
-            newPath: ["chapter-1"],
-            newUri: "wikg://chapter/chapter-1",
+            newPath: ["b2c3d4e5f6a1"],
+            newUri: "wikg://chapter/b2c3d4e5f6a1",
             oldIndex: 0,
-            oldParentUri: "wikg://chapter/part-i",
-            oldPath: ["part-i", "chapter-1"],
-            oldUri: "wikg://chapter/part-i/chapter-1",
+            oldParentUri: "wikg://chapter/a1b2c3d4e5f6",
+            oldPath: ["a1b2c3d4e5f6", "b2c3d4e5f6a1"],
+            oldUri: "wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
           },
         ],
         renamed: [
           {
-            uri: "wikg://chapter/part-i/chapter-1",
+            uri: "wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
             newTitle: null,
             oldTitle: "Chapter 1",
           },
@@ -180,9 +180,9 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
   ),
   resolveChapterPath: vi.fn((_document: unknown, chapterPath: string) => {
     const chapterIds = new Map<string, number>([
-      ["part-i", 1],
-      ["part-i/chapter-1", 2],
-      ["a1b2c3d4e5f6", 3],
+      ["a1b2c3d4e5f6", 1],
+      ["a1b2c3d4e5f6/b2c3d4e5f6a1", 2],
+      ["c3d4e5f6a1b2", 3],
     ]);
 
     return Promise.resolve(chapterIds.get(chapterPath));
@@ -318,7 +318,7 @@ describe("cli/archive-chapter", () => {
     expect(chapterMockState.readCalls).toStrictEqual(["/tmp/book.wikg"]);
     expect(chapterMockState.writeCalls).toStrictEqual([]);
     expect(chapterMockState.textWrites).toStrictEqual([
-      "[planned] Part I (wikg://chapter/part-i)\n  [source] Chapter 1 (wikg://chapter/part-i/chapter-1)\n",
+      "[planned] Part I (wikg://chapter/a1b2c3d4e5f6)\n  [source] Chapter 1 (wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1)\n",
     ]);
   });
 
@@ -334,12 +334,12 @@ describe("cli/archive-chapter", () => {
         {
           stage: "planned",
           title: "Part I",
-          uri: "wikg://chapter/part-i",
+          uri: "wikg://chapter/a1b2c3d4e5f6",
         },
         {
           stage: "source",
           title: "Chapter 1",
-          uri: "wikg://chapter/part-i/chapter-1",
+          uri: "wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
         },
       ],
     });
@@ -348,7 +348,7 @@ describe("cli/archive-chapter", () => {
   it("adds a chapter and prints the new chapter id", async () => {
     await runArchiveChapterCommand({
       action: "add",
-      parentChapterPath: "part-i",
+      parentChapterPath: "a1b2c3d4e5f6",
       path: "/tmp/book.wikg",
       title: "New Chapter",
     });
@@ -360,7 +360,7 @@ describe("cli/archive-chapter", () => {
       },
     ]);
     expect(chapterMockState.textWrites[0]).toContain(
-      "Chapter: wikg://chapter/a1b2c3d4e5f6\n",
+      "Chapter: wikg://chapter/c3d4e5f6a1b2\n",
     );
   });
 
@@ -379,7 +379,7 @@ describe("cli/archive-chapter", () => {
       sourceUnits: 2,
       stage: "planned",
       title: "New Chapter",
-      uri: "wikg://chapter/a1b2c3d4e5f6",
+      uri: "wikg://chapter/c3d4e5f6a1b2",
     });
   });
 
@@ -425,7 +425,7 @@ describe("cli/archive-chapter", () => {
   it("reads source content from --input", async () => {
     await runArchiveChapterCommand({
       action: "set-source",
-      chapterPath: "part-i/chapter-1",
+      chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
       inputPath: "/tmp/chapter.md",
       path: "/tmp/book.wikg",
     });
@@ -441,7 +441,7 @@ describe("cli/archive-chapter", () => {
   it("reads source content from stdin when --input is dash", async () => {
     await runArchiveChapterCommand({
       action: "set-source",
-      chapterPath: "part-i/chapter-1",
+      chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
       inputPath: "-",
       path: "/tmp/book.wikg",
     });
@@ -457,7 +457,7 @@ describe("cli/archive-chapter", () => {
   it("reads source content from a positional value", async () => {
     await runArchiveChapterCommand({
       action: "set-source",
-      chapterPath: "part-i/chapter-1",
+      chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
       inputValue: "inline source",
       path: "/tmp/book.wikg",
     });
@@ -474,7 +474,7 @@ describe("cli/archive-chapter", () => {
     await expect(
       runArchiveChapterCommand({
         action: "set-source",
-        chapterPath: "part-i/chapter-1",
+        chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
         path: "/tmp/book.wikg",
       }),
     ).rejects.toThrow(
@@ -487,7 +487,7 @@ describe("cli/archive-chapter", () => {
   it("reads summary content from --input", async () => {
     await runArchiveChapterCommand({
       action: "set-summary",
-      chapterPath: "part-i/chapter-1",
+      chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
       inputPath: "/tmp/summary.txt",
       path: "/tmp/book.wikg",
     });
@@ -503,7 +503,7 @@ describe("cli/archive-chapter", () => {
   it("reads summary content from stdin when --input is dash", async () => {
     await runArchiveChapterCommand({
       action: "set-summary",
-      chapterPath: "part-i/chapter-1",
+      chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
       inputPath: "-",
       path: "/tmp/book.wikg",
     });
@@ -519,7 +519,7 @@ describe("cli/archive-chapter", () => {
   it("reads summary content from a positional value", async () => {
     await runArchiveChapterCommand({
       action: "set-summary",
-      chapterPath: "part-i/chapter-1",
+      chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
       inputValue: "inline summary",
       path: "/tmp/book.wikg",
     });
@@ -536,7 +536,7 @@ describe("cli/archive-chapter", () => {
     await expect(
       runArchiveChapterCommand({
         action: "set-summary",
-        chapterPath: "part-i/chapter-1",
+        chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
         path: "/tmp/book.wikg",
       }),
     ).rejects.toThrow(
@@ -549,7 +549,7 @@ describe("cli/archive-chapter", () => {
   it("prints summary set result as JSON when requested", async () => {
     await runArchiveChapterCommand({
       action: "set-summary",
-      chapterPath: "part-i/chapter-1",
+      chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
       inputValue: "inline summary",
       json: true,
       path: "/tmp/book.wikg",
@@ -562,14 +562,14 @@ describe("cli/archive-chapter", () => {
       sourceUnits: 2,
       stage: "reading-summary",
       title: "Chapter 1",
-      uri: "wikg://chapter/part-i/chapter-1",
+      uri: "wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
     });
   });
 
   it("sets a chapter title", async () => {
     await runArchiveChapterCommand({
       action: "set-title",
-      chapterPath: "part-i/chapter-1",
+      chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
       path: "/tmp/book.wikg",
       title: "Renamed Chapter",
     });
@@ -586,7 +586,7 @@ describe("cli/archive-chapter", () => {
   it("clears a chapter title", async () => {
     await runArchiveChapterCommand({
       action: "set-title",
-      chapterPath: "part-i/chapter-1",
+      chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
       clearTitle: true,
       path: "/tmp/book.wikg",
     });
@@ -609,9 +609,9 @@ describe("cli/archive-chapter", () => {
   it("moves a chapter", async () => {
     await runArchiveChapterCommand({
       action: "move",
-      chapterPath: "part-i/chapter-1",
+      chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
       first: true,
-      parentChapterPath: "part-i",
+      parentChapterPath: "a1b2c3d4e5f6",
       path: "/tmp/book.wikg",
     });
 
@@ -632,7 +632,7 @@ describe("cli/archive-chapter", () => {
       },
     ]);
     expect(chapterMockState.textWrites[0]).toContain(
-      "Chapter: wikg://chapter/part-i/chapter-1\n",
+      "Chapter: wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1\n",
     );
   });
 
@@ -644,7 +644,9 @@ describe("cli/archive-chapter", () => {
     });
 
     expect(chapterMockState.textWrites[0]).toBe(
-      ["└─ Part I (part-i)", "   └─ Chapter 1 (chapter-1)", ""].join("\n"),
+      ["└─ Part I (a1b2c3d4e5f6)", "   └─ Chapter 1 (b2c3d4e5f6a1)", ""].join(
+        "\n",
+      ),
     );
 
     await runArchiveChapterCommand({
@@ -660,12 +662,12 @@ describe("cli/archive-chapter", () => {
       chapters: [
         {
           children: [],
-          uri: "wikg://chapter/part-i/chapter-1",
+          uri: "wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
           title: null,
         },
         {
           children: [],
-          uri: "wikg://chapter/part-i",
+          uri: "wikg://chapter/a1b2c3d4e5f6",
         },
       ],
     });
@@ -686,12 +688,12 @@ describe("cli/archive-chapter", () => {
           chapters: [
             {
               children: [],
-              uri: "wikg://chapter/part-i/chapter-1",
+              uri: "wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
               title: null,
             },
             {
               children: [],
-              uri: "wikg://chapter/part-i",
+              uri: "wikg://chapter/a1b2c3d4e5f6",
             },
           ],
         },
@@ -710,7 +712,7 @@ describe("cli/archive-chapter", () => {
           {
             children: [],
             title: "Chapter 1",
-            uri: "wikg://chapter/part-i/chapter-1",
+            uri: "wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
           },
         ],
       }),
@@ -732,7 +734,7 @@ describe("cli/archive-chapter", () => {
           chapters: [
             {
               children: [],
-              uri: "wikg://chapter/part-i/chapter-1",
+              uri: "wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
               title: "Chapter 1",
             },
           ],
@@ -758,7 +760,7 @@ describe("cli/archive-chapter", () => {
   it("removes chapters recursively when requested", async () => {
     await runArchiveChapterCommand({
       action: "remove",
-      chapterPath: "part-i",
+      chapterPath: "a1b2c3d4e5f6",
       path: "/tmp/book.wikg",
       recursive: true,
     });
@@ -779,7 +781,7 @@ describe("cli/archive-chapter", () => {
       },
     ]);
     expect(chapterMockState.textWrites).toStrictEqual([
-      "Removed chapter wikg://chapter/part-i.\n",
+      "Removed chapter wikg://chapter/a1b2c3d4e5f6.\n",
     ]);
   });
 });
