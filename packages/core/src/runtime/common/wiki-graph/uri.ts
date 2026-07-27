@@ -7,6 +7,12 @@ export const WIKI_GRAPH_URI_PREFIX = "wikg://";
 export const WIKI_GRAPH_JOB_URI_PREFIX = "wikg://local/job";
 export const WIKI_GRAPH_ARCHIVE_EXTENSION = ".wikg";
 
+export interface ParsedWikiGraphUri {
+  readonly protocol: string;
+  readonly path: readonly string[];
+  readonly fragment?: number | { readonly begin: number; readonly end: number };
+}
+
 export interface LocatedWikiGraphUri {
   readonly archivePath?: string;
   readonly objectUri?: string;
@@ -21,30 +27,36 @@ export function isWikiGraphJobUri(value: string | undefined): value is string {
 }
 
 export function parseLocatedWikiGraphUri(uri: string): LocatedWikiGraphUri {
-  const prefix = getWikiGraphUriPrefix(uri);
+  const parsed = parseWikiGraphUriSyntax(uri);
 
-  if (prefix === undefined) {
+  if (parsed.protocol !== "wikg") {
     throw new Error(formatWikiGraphUriExpectedError(uri));
   }
 
-  const body = uri.slice(prefix.length);
-  const libraryArchive = parseLibraryArchiveLocatorBody(body);
+  const libraryArchive = parseLibraryArchiveLocatorPath(
+    parsed.path,
+    parsed.fragment,
+  );
   if (libraryArchive !== undefined) {
     return libraryArchive;
   }
-  const split = body.split("#", 2);
-  const path = split[0] ?? "";
-  const hash = split[1] ?? "";
-  const parts = path.split("/");
+  const parts = parsed.path;
   const archiveIndex = parts.findIndex((part) =>
     part.endsWith(WIKI_GRAPH_ARCHIVE_EXTENSION),
   );
 
   if (archiveIndex < 0) {
-    return { objectUri: uri };
+    return {
+      objectUri: formatWikiGraphObjectUri(
+        parts.join("/"),
+        formatWikiGraphUriFragment(parsed.fragment),
+      ),
+    };
   }
 
-  const archivePath = parts.slice(0, archiveIndex + 1).join("/");
+  const archivePath = formatArchivePathFromUriSegments(
+    parts.slice(0, archiveIndex + 1),
+  );
   const objectPath = parts.slice(archiveIndex + 1).join("/");
 
   if (archivePath === "") {
@@ -58,21 +70,109 @@ export function parseLocatedWikiGraphUri(uri: string): LocatedWikiGraphUri {
       : {
           objectUri: formatWikiGraphObjectUri(
             objectPath,
-            hash === "" ? undefined : hash,
+            formatWikiGraphUriFragment(parsed.fragment),
           ),
         }),
   };
 }
 
-function parseLibraryArchiveLocatorBody(
-  body: string,
-): LocatedWikiGraphUri | undefined {
-  const match =
-    /^lib(?:\/(?<library>[^/.][^/]*))?\/arc\/(?<archive>[^/.][^/]*)(?:\/(?<object>.*))?$/u.exec(
-      body,
+export function parseWikiGraphUriSyntax(uri: string): ParsedWikiGraphUri {
+  const separatorIndex = uri.indexOf("://");
+  if (separatorIndex <= 0) {
+    throw new Error(formatWikiGraphUriExpectedError(uri));
+  }
+
+  const protocol = uri.slice(0, separatorIndex);
+  const body = uri.slice(separatorIndex + "://".length);
+  const hashIndex = body.indexOf("#");
+  const rawPath = hashIndex < 0 ? body : body.slice(0, hashIndex);
+  const rawFragment = hashIndex < 0 ? undefined : body.slice(hashIndex + 1);
+
+  if (rawFragment?.includes("#") === true) {
+    throw new Error(`Invalid Wiki Graph URI fragment: ${uri}`);
+  }
+
+  return {
+    protocol,
+    path: parseWikiGraphUriPath(rawPath, uri),
+    ...optionalWikiGraphUriFragment(rawFragment, uri),
+  };
+}
+
+function parseWikiGraphUriPath(path: string, uri: string): readonly string[] {
+  const trimmed = path.replace(/\/+$/u, "");
+  if (trimmed === "") {
+    return [];
+  }
+
+  if (trimmed.startsWith("/")) {
+    const absoluteTail = trimmed.slice(1);
+    if (absoluteTail === "") {
+      return ["/"];
+    }
+    const segments = absoluteTail.split("/");
+    rejectEmptyUriSegments(segments, uri);
+    return ["/", ...segments];
+  }
+
+  const segments = trimmed.split("/");
+  rejectEmptyUriSegments(segments, uri);
+  return segments;
+}
+
+function rejectEmptyUriSegments(
+  segments: readonly string[],
+  uri: string,
+): void {
+  if (segments.includes("")) {
+    throw new Error(
+      `Invalid Wiki Graph URI path: empty path segment in ${uri}`,
     );
-  const groups = match?.groups;
-  const archive = groups?.archive;
+  }
+}
+
+function optionalWikiGraphUriFragment(
+  fragment: string | undefined,
+  uri: string,
+): {
+  readonly fragment?: number | { readonly begin: number; readonly end: number };
+} {
+  if (fragment === undefined) {
+    return {};
+  }
+  if (fragment === "") {
+    throw new Error(`Invalid Wiki Graph URI fragment: ${uri}`);
+  }
+
+  const range = /^(?<begin>[0-9]+)\.\.(?<end>[0-9]+)$/u.exec(fragment);
+  if (range?.groups !== undefined) {
+    const begin = Number(range.groups.begin);
+    const end = Number(range.groups.end);
+    return { fragment: { begin, end } };
+  }
+
+  if (/^[0-9]+$/u.test(fragment)) {
+    return { fragment: Number(fragment) };
+  }
+
+  throw new Error(`Invalid Wiki Graph URI fragment: ${uri}`);
+}
+
+function parseLibraryArchiveLocatorPath(
+  path: readonly string[],
+  fragment: ParsedWikiGraphUri["fragment"],
+): LocatedWikiGraphUri | undefined {
+  if (path[0] !== "lib") {
+    return undefined;
+  }
+
+  const arcIndex = path[1] === "arc" ? 1 : path[2] === "arc" ? 2 : -1;
+  if (arcIndex < 0) {
+    return undefined;
+  }
+
+  const library = arcIndex === 2 ? path[1] : undefined;
+  const archive = path[arcIndex + 1];
   if (
     archive === undefined ||
     archive.endsWith(WIKI_GRAPH_ARCHIVE_EXTENSION) ||
@@ -80,18 +180,43 @@ function parseLibraryArchiveLocatorBody(
   ) {
     return undefined;
   }
-  const library = groups?.library;
   const archivePath = `${WIKI_GRAPH_URI_PREFIX}lib/${
     library === undefined ? "" : `${library}/`
   }arc/${archive}`;
-  const objectPath = groups?.object;
+  const objectPath = path.slice(arcIndex + 2).join("/");
 
   return {
     archivePath,
-    ...(objectPath === undefined || objectPath === ""
+    ...(objectPath === ""
       ? {}
-      : { objectUri: formatWikiGraphObjectUri(objectPath) }),
+      : {
+          objectUri: formatWikiGraphObjectUri(
+            objectPath,
+            formatWikiGraphUriFragment(fragment),
+          ),
+        }),
   };
+}
+
+function formatArchivePathFromUriSegments(segments: readonly string[]): string {
+  if (segments[0] === "/") {
+    return `/${segments.slice(1).join("/")}`;
+  }
+
+  return segments.join("/");
+}
+
+function formatWikiGraphUriFragment(
+  fragment: ParsedWikiGraphUri["fragment"],
+): string | undefined {
+  if (fragment === undefined) {
+    return undefined;
+  }
+  if (typeof fragment === "number") {
+    return String(fragment);
+  }
+
+  return `${fragment.begin}..${fragment.end}`;
 }
 
 function isLibraryScopeSegment(segment: string): boolean {

@@ -5,7 +5,7 @@ import {
 } from "../../runtime/local-config.js";
 import {
   parseLocatedWikiGraphUri,
-  WIKI_GRAPH_JOB_URI_PREFIX,
+  parseWikiGraphUriSyntax,
   WIKI_GRAPH_URI_PREFIX,
 } from "wiki-graph-core";
 import type { CLIArchiveAction } from "../types.js";
@@ -276,22 +276,18 @@ export function isWikiGraphJobUri(value: string | undefined): boolean {
 }
 
 export function isWikiGraphLocalConfigUri(value: string | undefined): boolean {
-  return (
-    value === `${WIKI_GRAPH_URI_PREFIX}local/config` ||
-    value?.startsWith(`${WIKI_GRAPH_URI_PREFIX}local/config/`) === true
-  );
+  const path = parseWikiGraphPath(value);
+  return path?.[0] === "local" && path[1] === "config" && path.length >= 2;
 }
 
 export function parseLocalConfigUriSection(
   uri: string,
 ): LocalConfigSection | undefined {
-  const prefix = `${WIKI_GRAPH_URI_PREFIX}local/config/`;
-
-  if (!uri.startsWith(prefix)) {
+  const path = parseWikiGraphPath(uri);
+  if (path?.[0] !== "local" || path[1] !== "config") {
     return undefined;
   }
-
-  const [section] = uri.slice(prefix.length).split("/");
+  const section = path[2];
 
   return parseLocalConfigSection(section);
 }
@@ -353,25 +349,38 @@ export function getWikiGraphUriPrefix(uri: string): string | undefined {
 }
 
 export function isWikiGraphLocalJobUri(value: string | undefined): boolean {
-  return (
-    value === WIKI_GRAPH_JOB_URI_PREFIX ||
-    value?.startsWith(`${WIKI_GRAPH_JOB_URI_PREFIX}/`) === true
-  );
+  const path = parseWikiGraphPath(value);
+  return path?.[0] === "local" && path[1] === "job";
 }
 
 export function parseWikiGraphJobUriBody(uri: string): string | undefined {
-  if (uri === WIKI_GRAPH_JOB_URI_PREFIX) {
+  const path = parseWikiGraphPath(uri);
+  if (path?.[0] !== "local" || path[1] !== "job") {
+    return undefined;
+  }
+  if (path.length === 2) {
     return "";
   }
-  if (uri.startsWith(`${WIKI_GRAPH_JOB_URI_PREFIX}/`)) {
-    return uri.slice(WIKI_GRAPH_JOB_URI_PREFIX.length);
-  }
 
-  return undefined;
+  return `/${path.slice(2).join("/")}`;
 }
 
 export function stripLeadingSlash(value: string): string {
   return value.replace(/^\/+/u, "");
+}
+
+function parseWikiGraphPath(
+  value: string | undefined,
+): readonly string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  try {
+    const parsed = parseWikiGraphUriSyntax(value);
+    return parsed.protocol === "wikg" ? parsed.path : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function requireArchiveUriPath(uri: string, helpRoute: string): string {

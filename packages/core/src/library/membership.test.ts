@@ -839,8 +839,11 @@ async function getDefaultMetadata(
 describe("library URI locators", () => {
   it("separates library archives from library scopes", () => {
     expect(isWikiGraphLibraryUri("wikg://lib")).toBe(true);
+    expect(isWikiGraphLibraryUri("wikg://lib/")).toBe(true);
     expect(isWikiGraphLibraryUri("wikg://lib/team")).toBe(true);
+    expect(isWikiGraphLibraryUri("wikg://lib/team/")).toBe(true);
     expect(isWikiGraphLibraryUri("wikg://lib/entity/Q23")).toBe(true);
+    expect(isWikiGraphLibraryUri("wikg://library")).toBe(false);
     expect(isWikiGraphLibraryUri("wikg://lib/arc/archive123/chapter")).toBe(
       false,
     );
@@ -858,6 +861,18 @@ describe("library URI locators", () => {
       isDefault: true,
       kind: "scope",
       objectUri: "wikg://entity/Q23",
+    });
+    expect(parseWikiGraphLibraryUri("wikg://lib/entity/Q23/")).toMatchObject({
+      isDefault: true,
+      kind: "scope",
+      objectUri: "wikg://entity/Q23",
+    });
+    expect(
+      parseWikiGraphLibraryUri("wikg://lib/chapter/part/source#1..5"),
+    ).toMatchObject({
+      isDefault: true,
+      kind: "scope",
+      objectUri: "wikg://chapter/part/source#1..5",
     });
     expect(parseWikiGraphLibraryUri("wikg://lib/index")).toMatchObject({
       isDefault: true,
@@ -878,6 +893,19 @@ describe("library URI locators", () => {
       objectUri: "wikg://entity",
       publicId: "team",
     });
+    expect(
+      parseWikiGraphLibraryUri(
+        "wikg://lib/team/arc/archive123/chapter/part/source#12",
+      ),
+    ).toMatchObject({
+      archivePublicId: "archive123",
+      kind: "archive",
+      objectUri: "wikg://chapter/part/source#12",
+      publicId: "team",
+    });
+    expect(() => parseWikiGraphLibraryUri("wikg://lib#1")).toThrow(
+      "does not support fragments",
+    );
   });
 
   it("resolves a library archive locator to the managed .wikg file", async () => {

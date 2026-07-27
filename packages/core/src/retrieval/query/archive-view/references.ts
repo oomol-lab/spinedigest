@@ -1,5 +1,9 @@
 import type { ReadingEdgeRecord } from "../../../document/index.js";
-import { WIKI_GRAPH_URI_PREFIX } from "../../../runtime/common/wiki-graph/uri.js";
+import {
+  parseWikiGraphUriSyntax,
+  WIKI_GRAPH_URI_PREFIX,
+  type ParsedWikiGraphUri,
+} from "../../../runtime/common/wiki-graph/uri.js";
 
 import {
   isWikiGraphObjectUri,
@@ -127,10 +131,12 @@ export function parseWikiGraphReference(uri: string): WikiGraphReference {
     return { type: "meta" };
   }
 
-  const [rawPath = "", hash = ""] = uri
-    .slice(WIKI_GRAPH_URI_PREFIX.length)
-    .split("#", 2);
-  const pathParts = rawPath.split("/").filter((part) => part !== "");
+  const parsedUri = parseWikiGraphUriSyntax(uri);
+  if (parsedUri.protocol !== "wikg") {
+    throw new Error(`Invalid Wiki Graph URI: ${uri}`);
+  }
+  const pathParts = parsedUri.path;
+  const hash = formatParsedFragment(parsedUri.fragment);
 
   if (pathParts.length === 0) {
     return { type: "meta" };
@@ -317,6 +323,19 @@ function parseSentenceRange(hash: string): readonly [number, number] {
   }
 
   throw new Error(`Invalid source sentence range: ${hash}`);
+}
+
+function formatParsedFragment(
+  fragment: ParsedWikiGraphUri["fragment"],
+): string {
+  if (fragment === undefined) {
+    return "";
+  }
+  if (typeof fragment === "number") {
+    return String(fragment);
+  }
+
+  return `${fragment.begin}..${fragment.end}`;
 }
 
 export function parseArchiveReference(id: string):

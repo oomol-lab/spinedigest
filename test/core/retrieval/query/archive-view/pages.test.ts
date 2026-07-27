@@ -385,7 +385,7 @@ describe("archive/query/archive-view/pages", () => {
 
         await expect(
           readArchivePage(document, "wikg://chapter/1/source#1..2..3"),
-        ).rejects.toThrow("Invalid source sentence range: 1..2..3");
+        ).rejects.toThrow("Invalid Wiki Graph URI fragment");
         await expect(
           readArchivePage(document, "wikg://chapter/1/source#0"),
         ).rejects.toThrow("Invalid source sentence range: 0");

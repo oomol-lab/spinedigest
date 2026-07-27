@@ -9,6 +9,7 @@ export {
   isWikiGraphJobUri,
   isWikiGraphUri,
   parseLocatedWikiGraphUri,
+  parseWikiGraphUriSyntax,
   requireArchiveUri,
   requireLocatedObjectOrArchiveUri,
   requireLocatedObjectUri,
@@ -16,4 +17,5 @@ export {
   WIKI_GRAPH_JOB_URI_PREFIX,
   WIKI_GRAPH_URI_PREFIX,
   type LocatedWikiGraphUri,
+  type ParsedWikiGraphUri,
 } from "../../runtime/common/wiki-graph/uri.js";

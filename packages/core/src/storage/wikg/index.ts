@@ -23,6 +23,7 @@ export {
   isWikiGraphJobUri,
   isWikiGraphUri,
   parseLocatedWikiGraphUri,
+  parseWikiGraphUriSyntax,
   requireArchiveUri,
   requireLocatedObjectOrArchiveUri,
   requireLocatedObjectUri,
@@ -30,6 +31,6 @@ export {
   WIKI_GRAPH_JOB_URI_PREFIX,
   WIKI_GRAPH_URI_PREFIX,
 } from "./archive-uri.js";
-export type { LocatedWikiGraphUri } from "./archive-uri.js";
+export type { LocatedWikiGraphUri, ParsedWikiGraphUri } from "./archive-uri.js";
 export { WikiGraphArchiveFile } from "./wiki-graph-archive-file.js";
 export { runWikgCoordinatorGc, WikgCoordinator } from "./coordinator.js";

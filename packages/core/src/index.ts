@@ -202,6 +202,7 @@ export {
   formatWikiGraphCommandUri,
   formatLocatedWikiGraphUri,
   parseLocatedWikiGraphUri,
+  parseWikiGraphUriSyntax,
   requireArchiveUri,
   requireLocatedObjectOrArchiveUri,
   requireLocatedObjectUri,
@@ -210,7 +211,10 @@ export {
   WIKI_GRAPH_URI_PREFIX,
   writeWikgArchive,
 } from "./storage/wikg/index.js";
-export type { LocatedWikiGraphUri } from "./storage/wikg/index.js";
+export type {
+  LocatedWikiGraphUri,
+  ParsedWikiGraphUri,
+} from "./storage/wikg/index.js";
 export {
   DirectoryDocument,
   openSharedStateDatabase,

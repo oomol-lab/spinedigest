@@ -15,7 +15,10 @@ import {
   resolveWikiGraphHomeDirectoryPath,
   resolveWikiGraphStagingDirectoryPath,
 } from "../runtime/common/wiki-graph/dir.js";
-import { WIKI_GRAPH_ARCHIVE_EXTENSION } from "../runtime/common/wiki-graph/uri.js";
+import {
+  parseWikiGraphUriSyntax,
+  WIKI_GRAPH_ARCHIVE_EXTENSION,
+} from "../runtime/common/wiki-graph/uri.js";
 import { isNodeError } from "../utils/node-error.js";
 import { withWikiGraphLibraryLock } from "./lock.js";
 import { RESERVED_LIBRARY_URI_SEGMENTS } from "./segments.js";
@@ -96,13 +99,17 @@ export interface ParsedWikiGraphLibraryUri {
 }
 
 export function isWikiGraphLibraryUri(uri: string | undefined): uri is string {
-  if (uri?.startsWith("wikg://lib") !== true) {
+  if (uri === undefined) {
     return false;
   }
-  if (uri.split("/").some((segment) => segment.endsWith(".lib"))) {
-    return true;
-  }
   try {
+    const syntax = parseWikiGraphUriSyntax(uri);
+    if (syntax.protocol !== "wikg" || syntax.path[0] !== "lib") {
+      return false;
+    }
+    if (syntax.path.some((segment) => segment.endsWith(".lib"))) {
+      return true;
+    }
     const target = parseWikiGraphLibraryUri(uri);
     return (
       target !== undefined &&
@@ -116,25 +123,26 @@ export function isWikiGraphLibraryUri(uri: string | undefined): uri is string {
 export function parseWikiGraphLibraryUri(
   uri: string,
 ): ParsedWikiGraphLibraryUri | undefined {
-  if (uri === "wikg://lib") {
+  if (!uri.includes("://")) {
+    return undefined;
+  }
+  const parsed = parseWikiGraphUriSyntax(uri);
+  if (parsed.protocol !== "wikg" || parsed.path[0] !== "lib") {
+    return undefined;
+  }
+
+  const segments = parsed.path.slice(1);
+  const fragment = formatWikiGraphUriFragment(parsed.fragment);
+
+  if (segments.length === 0) {
+    rejectLibraryStructureFragment(uri, fragment);
     return { isDefault: true, kind: "scope" };
   }
-  if (!uri.startsWith("wikg://lib/")) {
+  if (segments.some((part) => part.endsWith(WIKI_GRAPH_ARCHIVE_EXTENSION))) {
     return undefined;
   }
 
-  const path = uri.slice("wikg://lib/".length).replace(/\/+$/u, "");
-  if (
-    path.split("/").some((part) => part.endsWith(WIKI_GRAPH_ARCHIVE_EXTENSION))
-  ) {
-    return undefined;
-  }
-
-  const segments = path.split("/");
-  if (
-    segments.includes("") ||
-    segments.some((segment) => segment.endsWith(".lib"))
-  ) {
+  if (segments.some((segment) => segment.endsWith(".lib"))) {
     throw new Error(
       `Invalid Wiki Graph library URI: ${uri}. Use wikg://lib/<lib-id> and wikg://lib/<lib-id>/arc/<arc-id>; .lib suffixes are no longer supported.`,
     );
@@ -142,31 +150,33 @@ export function parseWikiGraphLibraryUri(
 
   const [first, second, third, ...rest] = segments;
   if (first === "registry" && second === undefined) {
+    rejectLibraryStructureFragment(uri, fragment);
     return { isDefault: true, kind: "registry" };
   }
   if (first === "meta" && second === undefined) {
+    rejectLibraryStructureFragment(uri, fragment);
     return { isDefault: true, kind: "metadata" };
   }
   if (first === "path" && second === undefined) {
+    rejectLibraryStructureFragment(uri, fragment);
     return { isDefault: true, kind: "path" };
   }
 
   const defaultLibraryScopeMatch =
-    /^(index|chapter|chunk|entity|triple)(?:\/(.*))?$/u.exec(path);
+    /^(index|chapter|chunk|entity|triple)$/u.exec(first ?? "");
   if (defaultLibraryScopeMatch?.[1] !== undefined) {
     return {
       isDefault: true,
       kind: "scope",
       objectUri: formatWikiGraphLibraryObjectUri(
-        [defaultLibraryScopeMatch[1], defaultLibraryScopeMatch[2]]
-          .filter(Boolean)
-          .join("/"),
+        [first, second, third, ...rest].filter(Boolean).join("/"),
+        fragment,
       ),
     };
   }
 
   if (first === "arc") {
-    return parseLibraryArcUri(uri, undefined, segments.slice(1));
+    return parseLibraryArcUri(uri, undefined, segments.slice(1), fragment);
   }
 
   if (first === undefined || RESERVED_LIBRARY_URI_SEGMENTS.has(first)) {
@@ -175,12 +185,15 @@ export function parseWikiGraphLibraryUri(
     );
   }
   if (second === undefined) {
+    rejectLibraryStructureFragment(uri, fragment);
     return { isDefault: false, kind: "scope", publicId: first };
   }
   if (second === "meta" && third === undefined) {
+    rejectLibraryStructureFragment(uri, fragment);
     return { isDefault: false, kind: "metadata", publicId: first };
   }
   if (second === "path" && third === undefined) {
+    rejectLibraryStructureFragment(uri, fragment);
     return { isDefault: false, kind: "path", publicId: first };
   }
   if (/^(index|chapter|chunk|entity|triple)$/u.test(second)) {
@@ -189,12 +202,13 @@ export function parseWikiGraphLibraryUri(
       kind: "scope",
       objectUri: formatWikiGraphLibraryObjectUri(
         [second, third, ...rest].filter(Boolean).join("/"),
+        fragment,
       ),
       publicId: first,
     };
   }
   if (second === "arc") {
-    return parseLibraryArcUri(uri, first, segments.slice(2));
+    return parseLibraryArcUri(uri, first, segments.slice(2), fragment);
   }
 
   throw new Error(
@@ -206,11 +220,13 @@ function parseLibraryArcUri(
   uri: string,
   publicId: string | undefined,
   segments: readonly string[],
+  fragment: string | undefined,
 ): ParsedWikiGraphLibraryUri {
   const isDefault = publicId === undefined;
   const [first, second, ...rest] = segments;
   const base = { isDefault, ...(publicId === undefined ? {} : { publicId }) };
   if (first === undefined) {
+    rejectLibraryStructureFragment(uri, fragment);
     return { ...base, kind: "archive-collection" };
   }
   if (/^(chapter|chunk|entity|triple)$/u.test(first)) {
@@ -219,10 +235,12 @@ function parseLibraryArcUri(
       kind: "scope",
       objectUri: formatWikiGraphLibraryObjectUri(
         [first, second, ...rest].filter(Boolean).join("/"),
+        fragment,
       ),
     };
   }
   if (first === "tree" && second === undefined) {
+    rejectLibraryStructureFragment(uri, fragment);
     return { ...base, kind: "archive-tree" };
   }
   if (RESERVED_LIBRARY_URI_SEGMENTS.has(first)) {
@@ -231,20 +249,58 @@ function parseLibraryArcUri(
     );
   }
   if (second === undefined) {
+    rejectLibraryStructureFragment(uri, fragment);
     return { ...base, archivePublicId: first, kind: "archive" };
   }
   if (second === "path" && rest.length === 0) {
+    rejectLibraryStructureFragment(uri, fragment);
     return { ...base, archivePublicId: first, kind: "archive-path" };
   }
   return {
     ...base,
     archivePublicId: first,
     kind: "archive",
-    objectUri: formatWikiGraphLibraryObjectUri([second, ...rest].join("/")),
+    objectUri: formatWikiGraphLibraryObjectUri(
+      [second, ...rest].join("/"),
+      fragment,
+    ),
   };
 }
-function formatWikiGraphLibraryObjectUri(path: string): string {
-  return `wikg://${path.replace(/^\/+|\/+$/gu, "")}`;
+
+function rejectLibraryStructureFragment(
+  uri: string,
+  fragment: string | undefined,
+): void {
+  if (fragment !== undefined) {
+    throw new Error(
+      `Invalid Wiki Graph library URI: ${uri}. This library URI target does not support fragments.`,
+    );
+  }
+}
+
+function formatWikiGraphLibraryObjectUri(
+  path: string,
+  fragment?: string,
+): string {
+  return `wikg://${path.replace(/^\/+|\/+$/gu, "")}${
+    fragment === undefined ? "" : `#${fragment}`
+  }`;
+}
+
+function formatWikiGraphUriFragment(
+  fragment:
+    | number
+    | { readonly begin: number; readonly end: number }
+    | undefined,
+): string | undefined {
+  if (fragment === undefined) {
+    return undefined;
+  }
+  if (typeof fragment === "number") {
+    return String(fragment);
+  }
+
+  return `${fragment.begin}..${fragment.end}`;
 }
 
 export function formatWikiGraphLibraryUri(publicId?: string): string {

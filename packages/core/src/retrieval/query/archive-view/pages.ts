@@ -1,4 +1,5 @@
 import type { ReadonlyDocument } from "../../../document/index.js";
+import { parseWikiGraphUriSyntax } from "../../../runtime/common/wiki-graph/uri.js";
 import {
   getChapterTree,
   listChapters,
@@ -221,8 +222,10 @@ async function resolveChapterPathObjectUri(
   document: ReadonlyDocument,
   uri: string,
 ): Promise<string> {
-  const [base = "", hash] = uri.split("#", 2);
   const prefix = "wikg://chapter/";
+  const parsed = parseWikiGraphUriSyntax(uri);
+  const base = `wikg://${parsed.path.join("/")}`;
+  const hash = formatParsedUriFragment(parsed.fragment);
 
   if (!base.startsWith(prefix) || base === "wikg://chapter/tree") {
     return uri;
@@ -241,6 +244,22 @@ async function resolveChapterPathObjectUri(
   const suffix = path.slice(chapter.path.length);
   const resolved = `${prefix}${chapter.chapterId}${suffix}`;
   return hash === undefined ? resolved : `${resolved}#${hash}`;
+}
+
+function formatParsedUriFragment(
+  fragment:
+    | number
+    | { readonly begin: number; readonly end: number }
+    | undefined,
+): string | undefined {
+  if (fragment === undefined) {
+    return undefined;
+  }
+  if (typeof fragment === "number") {
+    return String(fragment);
+  }
+
+  return `${fragment.begin}..${fragment.end}`;
 }
 
 async function readWikiGraphPage(

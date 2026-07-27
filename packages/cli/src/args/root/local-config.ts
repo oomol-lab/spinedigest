@@ -48,7 +48,7 @@ export function parseLocalConfigUriFirstArguments(
     if (
       values.help === true &&
       explicitAction === undefined &&
-      uri === "wikg://local/config"
+      parseLocalConfigUriSection(uri) === undefined
     ) {
       return {
         help: true,
