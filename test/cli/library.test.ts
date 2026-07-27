@@ -77,19 +77,19 @@ describe("cli/library args", () => {
 
     expect(parseCLIArguments(["wikg://lib"])).toMatchObject({
       args: {
-        action: "list",
-        archivePath: "wikg://lib",
+        action: "get",
+        target: { isDefault: true, kind: "scope" },
       },
       help: false,
-      kind: "archive",
+      kind: "library",
     });
     expect(parseCLIArguments(["wikg://lib/abc123abc123"])).toMatchObject({
       args: {
-        action: "list",
-        archivePath: "wikg://lib/abc123abc123",
+        action: "get",
+        target: { isDefault: false, kind: "scope", publicId: "abc123abc123" },
       },
       help: false,
-      kind: "archive",
+      kind: "library",
     });
 
     expect(() =>
@@ -292,12 +292,12 @@ describe("cli/library args", () => {
       kind: "library",
     });
     expect(parseCLIArguments(["wikg://lib/arc"])).toMatchObject({
-      args: { action: "list", target: { kind: "archive-collection" } },
+      args: { action: "get", target: { kind: "archive-collection" } },
       kind: "library",
     });
     expect(parseCLIArguments(["wikg://lib/team/arc"])).toMatchObject({
       args: {
-        action: "list",
+        action: "get",
         target: { kind: "archive-collection", publicId: "team" },
       },
       kind: "library",
@@ -305,7 +305,16 @@ describe("cli/library args", () => {
 
     expect(() =>
       parseCLIArguments(["wikg://lib/arc", "list", "--jsonl"]),
-    ).toThrow("does not support --jsonl");
+    ).toThrow("does not support `list`");
+    expect(() => parseCLIArguments(["wikg://lib", "list"])).toThrow(
+      "does not support `list`",
+    );
+    expect(() => parseCLIArguments(["wikg://lib/team", "list"])).toThrow(
+      "does not support `list`",
+    );
+    expect(() => parseCLIArguments(["wikg://lib/team/arc", "list"])).toThrow(
+      "does not support `list`",
+    );
     expect(() =>
       parseCLIArguments(["wikg://lib/registry", "remove", "--help"]),
     ).toThrow("does not support `remove`");

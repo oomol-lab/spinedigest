@@ -733,6 +733,10 @@ describe("cli/args/help", () => {
       isDefault: true,
       kind: "scope",
     });
+    const scopeTrailingSlashHelp = renderLibraryUriHelpText("wikg://lib/", {
+      isDefault: true,
+      kind: "scope",
+    });
     const metadataHelpText = renderLibraryUriHelpText("wikg://lib/meta", {
       isDefault: true,
       kind: "metadata",
@@ -757,6 +761,20 @@ describe("cli/args/help", () => {
       "Use `wg wikg://lib/registry` to list all library registries.",
     );
     expect(scopeHelpText).not.toContain("lists archive memberships");
+    expect(scopeHelpText).not.toContain("List archive memberships");
+    expect(scopeTrailingSlashHelp).not.toContain("wikg://lib//");
+    expect(scopeTrailingSlashHelp).not.toContain("List archive memberships");
+    expect(parseCLIArguments(["wikg://lib/", "--help"])).toStrictEqual({
+      help: true,
+      helpText: scopeTrailingSlashHelp,
+      kind: "help",
+    });
+    expect(() => parseCLIArguments(["wikg://lib", "list", "--help"])).toThrow(
+      "does not support `list`",
+    );
+    expect(() =>
+      parseCLIArguments(["wikg://lib/team", "list", "--help"]),
+    ).toThrow("does not support `list`");
     expect(scopeHelpText).toContain("broad library index search");
     expect(scopeHelpText).toContain("wg wikg://lib --query <query>");
     expect(
@@ -894,6 +912,10 @@ describe("cli/args/help", () => {
       isDefault: true,
       kind: "archive-collection",
     });
+    const arcTrailingSlashHelp = renderLibraryUriHelpText("wikg://lib/arc/", {
+      isDefault: true,
+      kind: "archive-collection",
+    });
     const arcTreeHelpText = renderLibraryUriHelpText("wikg://lib/arc/tree", {
       isDefault: true,
       kind: "archive-tree",
@@ -907,6 +929,19 @@ describe("cli/args/help", () => {
     expect(arcHelpText).toContain("wikg://lib/arc/tree --help");
     expect(arcHelpText).not.toContain("lists archive members");
     expect(arcHelpText).toContain("use `/tree` for member file visualization");
+    expect(arcTrailingSlashHelp).not.toContain("wikg://lib/arc//");
+    expect(arcTrailingSlashHelp).toContain("wikg://lib/arc/tree --help");
+    expect(parseCLIArguments(["wikg://lib/arc/", "--help"])).toStrictEqual({
+      help: true,
+      helpText: arcTrailingSlashHelp,
+      kind: "help",
+    });
+    expect(() =>
+      parseCLIArguments(["wikg://lib/arc", "list", "--help"]),
+    ).toThrow("does not support `list`");
+    expect(() =>
+      parseCLIArguments(["wikg://lib/team/arc", "list", "--help"]),
+    ).toThrow("does not support `list`");
     expect(arcTreeHelpText).toContain("This object is read-only");
     for (const text of [
       scopeHelpText,

@@ -31,7 +31,7 @@ import { parseChapterTarget } from "./chapter/target.js";
 import { isTripleScopePath } from "./triple-pattern.js";
 
 const LIBRARY_ARCHIVE_ACTIONS = new Set(["get", "remove"]);
-const LIBRARY_ARCHIVE_COLLECTION_ACTIONS = new Set(["add", "list", "scan"]);
+const LIBRARY_ARCHIVE_COLLECTION_ACTIONS = new Set(["add", "get", "scan"]);
 const LIBRARY_ARCHIVE_PATH_ACTIONS = new Set(["get", "set"]);
 const LIBRARY_ARCHIVE_TREE_ACTIONS = new Set(["archive-tree"]);
 const LIBRARY_METADATA_ACTIONS = new Set([
@@ -43,7 +43,7 @@ const LIBRARY_METADATA_ACTIONS = new Set([
 ]);
 const LIBRARY_PATH_ACTIONS = new Set(["get", "set"]);
 const LIBRARY_REGISTRY_ACTIONS = new Set(["add", "list"]);
-const LIBRARY_SCOPE_ACTIONS = new Set(["get", "list", "remove"]);
+const LIBRARY_SCOPE_ACTIONS = new Set(["get", "remove"]);
 const LIBRARY_INDEX_ACTIONS = new Set(["disable", "enable", "get"]);
 const LIBRARY_QUERY_ACTIONS = new Set([
   "evidence",
@@ -76,7 +76,9 @@ export function parseLibraryUriFirstArguments(
     ((target.objectUri !== undefined && target.objectUri !== "wikg://index") ||
       values.query !== undefined)
       ? resolveImplicitLibraryQueryAction(target.objectUri, values.query)
-      : target.kind === "metadata" ||
+      : target.kind === "scope" ||
+          target.kind === "archive-collection" ||
+          target.kind === "metadata" ||
           target.kind === "path" ||
           target.kind === "archive" ||
           target.kind === "archive-path" ||
@@ -171,7 +173,7 @@ export function parseLibraryUriFirstArguments(
 
   if (
     target.kind === "scope" &&
-    (target.objectUri !== undefined || action === "search" || action === "list")
+    (target.objectUri !== undefined || action === "search")
   ) {
     return parseLibraryQueryArguments(
       uri,
@@ -715,12 +717,9 @@ function parseLibraryArchiveCollectionArguments(
   }
   rejectArchiveFlag(action, "--input", values.input, helpRoute);
   rejectArchiveFlag(action, "--to", values.to, helpRoute);
-  if (action === "list") {
-    rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
-  }
   return {
     args: {
-      action: action as "list" | "scan",
+      action: action === "get" ? "get" : "scan",
       json: values.json,
       jsonl: values.jsonl,
       target,

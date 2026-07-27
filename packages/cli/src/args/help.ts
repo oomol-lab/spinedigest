@@ -1,4 +1,5 @@
 import {
+  formatWikiGraphLibraryUri,
   parseLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
   resolveDataDirPath,
@@ -314,7 +315,10 @@ export function renderLibraryUriHelpText(
   uri: string,
   target: ParsedWikiGraphLibraryUri,
 ): string {
-  return renderHelpTemplate("help/commands/library", { target, uri });
+  return renderHelpTemplate("help/commands/library", {
+    target,
+    uri: formatLibraryHelpUri(uri, target),
+  });
 }
 
 export function renderLibraryPredicateHelpText(
@@ -325,8 +329,62 @@ export function renderLibraryPredicateHelpText(
   return renderHelpTemplate("help/commands/library-predicate", {
     predicate,
     target,
-    uri,
+    uri: formatLibraryHelpUri(uri, target),
   });
+}
+
+function formatLibraryHelpUri(
+  fallbackUri: string,
+  target: ParsedWikiGraphLibraryUri,
+): string {
+  const scopeUri = formatWikiGraphLibraryUri(target.publicId);
+  switch (target.kind) {
+    case "archive":
+      if (target.archivePublicId === undefined) {
+        return fallbackUri.replace(/\/+$/u, "");
+      }
+      return appendLibraryHelpPath(
+        appendLibraryHelpPath(`${scopeUri}/arc`, target.archivePublicId),
+        stripHelpObjectUriPrefix(target.objectUri),
+      );
+    case "archive-collection":
+      return `${scopeUri}/arc`;
+    case "archive-path":
+      return target.archivePublicId === undefined
+        ? `${scopeUri}/arc/path`
+        : `${scopeUri}/arc/${target.archivePublicId}/path`;
+    case "archive-tree":
+      return `${scopeUri}/arc/tree`;
+    case "metadata":
+      return `${scopeUri}/meta`;
+    case "path":
+      return `${scopeUri}/path`;
+    case "registry":
+      return "wikg://lib/registry";
+    case "scope":
+      return appendLibraryHelpPath(
+        scopeUri,
+        stripHelpObjectUriPrefix(target.objectUri),
+      );
+    default:
+      throw new Error("Internal error: unknown library help target.");
+  }
+}
+
+function appendLibraryHelpPath(
+  baseUri: string,
+  path: string | undefined,
+): string {
+  if (path === undefined || path === "") {
+    return baseUri;
+  }
+  return `${baseUri.replace(/\/+$/u, "")}/${path.replace(/^\/+|\/+$/gu, "")}`;
+}
+
+function stripHelpObjectUriPrefix(
+  objectUri: string | undefined,
+): string | undefined {
+  return objectUri?.replace(/^wikg:\/\//u, "");
 }
 
 export function isUriHelpPredicate(

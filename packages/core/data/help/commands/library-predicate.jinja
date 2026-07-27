@@ -177,15 +177,15 @@ Notes:
   - This is not a list of all library registries; use known `wikg://lib/<lib-id>` URIs for non-default libraries.
 {% elif target.kind == "scope" and predicate == "list" %}
 Purpose:
-  List archive memberships in this library scope.
+  This library scope does not expose an archive membership flat list.
 
 Usage:
-  {{ commandName }} {{ uri }} list [--json]
+  {{ commandName }} {{ uri }} [--json]
 
 Notes:
-  - The output includes registered archive ids, relative paths, and membership status.
-  - Use `{{ commandName }} <lib-scope>/arc scan` when the folder contents changed outside Wiki Graph.
-  - This lists archive memberships in this library, not all library registries.
+  - Use `{{ commandName }} {{ uri }}/arc/tree` to inspect the managed archive file tree.
+  - Use `{{ commandName }} {{ uri }}/arc scan` when the folder contents changed outside Wiki Graph.
+  - Use `{{ commandName }} wikg://lib/registry` to list all library registries.
 {% elif target.kind == "scope" and predicate == "remove" %}
 Purpose:
   Remove this non-default library registry.
