@@ -2,6 +2,7 @@ import { rm } from "fs/promises";
 import { join, resolve } from "path";
 
 import { createWikiGraphTempDirectory } from "../../../../runtime/common/wiki-graph/temp.js";
+import { DirectoryDocument } from "../../../../document/index.js";
 import { writeWikgArchive } from "../../../wikg/index.js";
 import { extractLegacySdpubArchive } from "./extract.js";
 import { migrateLegacyDatabase } from "./schema.js";
@@ -28,11 +29,26 @@ export async function migrateLegacySdpubToWikg(
     await extractLegacySdpubArchive(inputPath, workspacePath);
     await migrateLegacyDatabase(join(workspacePath, "database.db"));
     await migrateLegacyTextStorage(workspacePath);
+    await normalizeLegacyToc(workspacePath);
     await writeWikgArchive(workspacePath, outputPath);
 
     return { inputPath, outputPath };
   } finally {
     await rm(workspacePath, { force: true, recursive: true });
+  }
+}
+
+async function normalizeLegacyToc(workspacePath: string): Promise<void> {
+  const document = await DirectoryDocument.open(workspacePath);
+
+  try {
+    const toc = await document.readToc();
+
+    if (toc !== undefined) {
+      await document.replaceToc(toc);
+    }
+  } finally {
+    await document.release();
   }
 }
 

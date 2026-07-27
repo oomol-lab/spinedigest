@@ -1,4 +1,4 @@
-import { rm } from "fs/promises";
+import { rm, writeFile } from "fs/promises";
 
 import { describe, expect, it } from "vitest";
 
@@ -84,7 +84,10 @@ describe("facade/chapter", () => {
       try {
         await document.openSession(async (openedDocument) => {
           await openedDocument.createSerial();
-          await openedDocument.writeToc({
+        });
+        await writeFile(
+          `${path}/toc.json`,
+          `${JSON.stringify({
             items: [
               {
                 children: [
@@ -98,8 +101,9 @@ describe("facade/chapter", () => {
               },
             ],
             version: 1,
-          });
-        });
+          })}\n`,
+          "utf8",
+        );
 
         await expect(listChapters(document)).rejects.toThrow(
           "Missing chapter key in TOC.",
@@ -136,7 +140,10 @@ describe("facade/chapter", () => {
         await document.openSession(async (openedDocument) => {
           await openedDocument.createSerial();
           await openedDocument.createSerial();
-          await openedDocument.writeToc({
+        });
+        await writeFile(
+          `${path}/toc.json`,
+          `${JSON.stringify({
             items: [
               {
                 children: [],
@@ -152,8 +159,9 @@ describe("facade/chapter", () => {
               },
             ],
             version: 1,
-          });
-        });
+          })}\n`,
+          "utf8",
+        );
 
         await expect(listChapters(document)).rejects.toThrow(
           "Duplicate chapter key: a1b2c3d4e5f6.",

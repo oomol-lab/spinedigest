@@ -76,14 +76,16 @@ describe("archive/query/archive-view/text search", () => {
             version: 1,
           });
         });
+        const toc = await document.readToc();
+        const chapterUri = `wikg://chapter/${toc?.items[0]?.key}`;
 
         const fullPage = await readArchivePage(
           document,
-          "wikg://chapter/chapter-1/source",
+          `${chapterUri}/source`,
         );
         const rangePage = await readArchivePage(
           document,
-          "wikg://chapter/chapter-1/source#1..2",
+          `${chapterUri}/source#1..2`,
         );
 
         expect(fullPage.type).toBe("fragment");

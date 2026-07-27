@@ -509,7 +509,14 @@ async function createArchiveWithExternalSearchIndex(path: string): Promise<{
       draft.addSentence("Indexed source sentence.", 3);
       await draft.commit();
       await openedDocument.writeToc({
-        items: [{ children: [], serialId: 1, title: "Indexed" }],
+        items: [
+          {
+            children: [],
+            key: "a1b2c3d4e5f6",
+            serialId: 1,
+            title: "Indexed",
+          },
+        ],
         version: 1,
       });
     });

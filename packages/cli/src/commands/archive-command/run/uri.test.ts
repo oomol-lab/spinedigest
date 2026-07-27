@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { mkdtemp, rm, writeFile } from "fs/promises";
+import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -17,7 +17,7 @@ import {
   TOC_FILE_VERSION,
   WikiGraphArchiveFile,
   writeWikgArchive,
-} from "wiki-graph-core";
+} from "../../../../../core/src/index.js";
 import {
   getWikiGraphStateDirectoryPathForTesting,
   setWikiGraphStateDirectoryPathForTesting,
@@ -45,13 +45,12 @@ afterEach(async () => {
 
 describe("archive-command URI runtime resolution", () => {
   it("resolves library archive object URIs before running archive commands", async () => {
-    const target = parseWikiGraphLibraryUri("wikg://lib");
-    expect(target).toBeDefined();
+    const target = await createTestLibraryTarget();
     const source = join(tempDir, "book.wikg");
-    await writeFile(source, "content");
+    await createEmptyArchive(source);
     const archive = await addWikiGraphLibraryArchive({
       inputPath: source,
-      target: target!,
+      target,
       to: "books/book.wikg",
     });
 
@@ -93,25 +92,24 @@ describe("archive-command URI runtime resolution", () => {
     });
   });
 
-  it("marks the default library index dirty after successful archive writes through a library locator", async () => {
-    const target = parseWikiGraphLibraryUri("wikg://lib");
-    expect(target).toBeDefined();
-    const archive = await addTestArchiveToLibrary(target!);
+  it("marks a library index dirty after successful archive writes through a library locator", async () => {
+    const target = await createTestLibraryTarget();
+    const archive = await addTestArchiveToLibrary(target);
 
-    await rebuildWikiGraphLibraryIndex(target!);
-    await expect(
-      readWikiGraphLibraryIndexState(target!),
-    ).resolves.toMatchObject({
-      status: "current",
-    });
+    await rebuildWikiGraphLibraryIndex(target);
+    await expect(readWikiGraphLibraryIndexState(target)).resolves.toMatchObject(
+      {
+        status: "current",
+      },
+    );
 
     await runArchiveChapterCommand({ action: "add", path: archive.uri });
 
-    await expect(
-      readWikiGraphLibraryIndexState(target!),
-    ).resolves.toMatchObject({
-      status: "dirty",
-    });
+    await expect(readWikiGraphLibraryIndexState(target)).resolves.toMatchObject(
+      {
+        status: "dirty",
+      },
+    );
   });
 
   it("marks the explicit library index dirty after successful archive writes through a library locator", async () => {
@@ -139,35 +137,33 @@ describe("archive-command URI runtime resolution", () => {
   });
 
   it("does not dirty a library index for filesystem archive URI writes", async () => {
-    const target = parseWikiGraphLibraryUri("wikg://lib");
-    expect(target).toBeDefined();
-    const archive = await addTestArchiveToLibrary(target!);
+    const target = await createTestLibraryTarget();
+    const archive = await addTestArchiveToLibrary(target);
 
-    await rebuildWikiGraphLibraryIndex(target!);
-    await expect(
-      readWikiGraphLibraryIndexState(target!),
-    ).resolves.toMatchObject({
-      status: "current",
-    });
+    await rebuildWikiGraphLibraryIndex(target);
+    await expect(readWikiGraphLibraryIndexState(target)).resolves.toMatchObject(
+      {
+        status: "current",
+      },
+    );
 
     await runArchiveChapterCommand({
       action: "add",
       path: `wikg://${archive.path}`,
     });
 
-    await expect(
-      readWikiGraphLibraryIndexState(target!),
-    ).resolves.toMatchObject({
-      status: "current",
-    });
+    await expect(readWikiGraphLibraryIndexState(target)).resolves.toMatchObject(
+      {
+        status: "current",
+      },
+    );
   });
 
   it("does not dirty a library index when an archive write fails", async () => {
-    const target = parseWikiGraphLibraryUri("wikg://lib");
-    expect(target).toBeDefined();
-    const archive = await addTestArchiveToLibrary(target!);
+    const target = await createTestLibraryTarget();
+    const archive = await addTestArchiveToLibrary(target);
 
-    await rebuildWikiGraphLibraryIndex(target!);
+    await rebuildWikiGraphLibraryIndex(target);
     await expect(
       runArchiveChapterCommand({
         action: "set-title",
@@ -177,11 +173,11 @@ describe("archive-command URI runtime resolution", () => {
       }),
     ).rejects.toThrow();
 
-    await expect(
-      readWikiGraphLibraryIndexState(target!),
-    ).resolves.toMatchObject({
-      status: "current",
-    });
+    await expect(readWikiGraphLibraryIndexState(target)).resolves.toMatchObject(
+      {
+        status: "current",
+      },
+    );
   });
 
   it("removes embedded FTS from library archive URI writes without changing the policy", async () => {
@@ -230,6 +226,21 @@ async function addTestArchiveToLibrary(
     target,
     to: `${randomUUID()}.wikg`,
   });
+}
+
+async function createTestLibraryTarget(): Promise<
+  NonNullable<ReturnType<typeof parseWikiGraphLibraryUri>>
+> {
+  const library = await createWikiGraphLibrary({
+    folderPath: join(tempDir, `library-${randomUUID()}`),
+  });
+  const target = parseWikiGraphLibraryUri(library.uri);
+
+  if (target === undefined) {
+    throw new Error(`Invalid test library URI: ${library.uri}`);
+  }
+
+  return target;
 }
 
 async function createEmptyArchive(path: string): Promise<void> {

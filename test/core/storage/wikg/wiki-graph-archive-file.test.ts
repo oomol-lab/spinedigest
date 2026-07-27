@@ -560,6 +560,7 @@ async function seedDocument(document: DirectoryDocument): Promise<void> {
       items: [
         {
           children: [],
+          key: "a1b2c3d4e5f6",
           serialId: 1,
           title: "Recovered Chapter",
         },

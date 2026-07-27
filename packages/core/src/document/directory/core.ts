@@ -5,6 +5,8 @@ import { z } from "zod";
 import { bookMetaSchema, type BookMeta } from "../../text/source/meta.js";
 import { tocFileSchema, type TocFile } from "../../text/source/toc.js";
 import type { SourceAsset } from "../../text/source/types.js";
+import { ensureChapterKeys } from "../chapter/toc.js";
+import type { MutableTocFile, MutableTocItem } from "../chapter/tree.js";
 import { Database } from "../database.js";
 import { TextStreams, type SerialTextStream } from "../text-streams/index.js";
 import { initializeDocumentSchema, SCHEMA_SQL } from "../schema.js";
@@ -360,25 +362,29 @@ export class DirectoryDocument implements Document {
   }
 
   public async writeToc(toc: TocFile): Promise<void> {
+    const writableToc = createWritableToc(toc);
+
     await writeJsonFile({
       context: this.#contextScope.getStore(),
       fileStore: this.#fileStore,
       path: getTocPath(this.path),
-      value: toc,
+      value: writableToc,
     });
-    await this.#replaceDocumentOrder(toc);
+    await this.#replaceDocumentOrder(writableToc);
     await this.serials.bumpChaptersRevision();
   }
 
   public async replaceToc(toc: TocFile): Promise<void> {
+    const writableToc = createWritableToc(toc);
+
     await writeJsonFile({
       context: this.#contextScope.getStore(),
       fileStore: this.#fileStore,
       options: { overwrite: true },
       path: getTocPath(this.path),
-      value: toc,
+      value: writableToc,
     });
-    await this.#replaceDocumentOrder(toc);
+    await this.#replaceDocumentOrder(writableToc);
     await this.serials.bumpChaptersRevision();
   }
 
@@ -440,4 +446,23 @@ export class DirectoryDocument implements Document {
       textStreams: this.#textStreams,
     });
   }
+}
+
+function createWritableToc(toc: TocFile): TocFile {
+  const writableToc: MutableTocFile = {
+    items: toc.items.map(cloneWritableTocItem),
+    version: toc.version,
+  };
+  ensureChapterKeys(writableToc.items);
+
+  return writableToc;
+}
+
+function cloneWritableTocItem(item: TocFile["items"][number]): MutableTocItem {
+  return {
+    children: item.children.map(cloneWritableTocItem),
+    ...(item.key === undefined ? {} : { key: item.key }),
+    ...(item.serialId === undefined ? {} : { serialId: item.serialId }),
+    ...(item.title === undefined ? {} : { title: item.title }),
+  };
 }
