@@ -106,12 +106,69 @@ export async function findWikiGraphLibraryObjects(
   return createFindResult(query, hits, options, result.terms);
 }
 
+export async function findWikiGraphLibraryArchiveMembers(
+  target: ParsedWikiGraphLibraryUri,
+  query: string,
+  options: ArchiveFindOptions = {},
+): Promise<ArchiveFindResult> {
+  const terms = createLibraryArchiveMemberSearchTerms(query);
+  const archives = await listWikiGraphLibraryArchives(target);
+  const hits = archives
+    .map(formatLibraryArchiveMemberHit)
+    .filter((hit) => matchesLibraryArchiveMemberSearch(hit, terms));
+
+  return createFindResult(query, hits, options, terms, "typed");
+}
+
 function createLibraryQueryIndexHitLimit(options: ArchiveFindOptions): number {
   return Math.max(
     (options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT) *
       LIBRARY_QUERY_INDEX_LIMIT_MULTIPLIER,
     LIBRARY_QUERY_INDEX_MIN_LIMIT,
   );
+}
+
+function createLibraryArchiveMemberSearchTerms(
+  query: string,
+): readonly string[] {
+  return query
+    .trim()
+    .toLocaleLowerCase()
+    .split(/\s+/u)
+    .filter((term) => term !== "");
+}
+
+function matchesLibraryArchiveMemberSearch(
+  hit: ArchiveFindHit,
+  terms: readonly string[],
+): boolean {
+  if (terms.length === 0) {
+    return true;
+  }
+  const haystack =
+    `${hit.id}\n${hit.title}\n${hit.snippet}`.toLocaleLowerCase();
+
+  return terms.every((term) => haystack.includes(term));
+}
+
+function formatLibraryArchiveMemberHit(
+  archive: WikiGraphLibraryArchiveRecord,
+): ArchiveFindHit {
+  const details = [
+    archive.relativePath,
+    archive.status,
+    archive.exists ? "exists" : "missing-file",
+  ].join("  ");
+
+  return {
+    archiveId: archive.id,
+    field: "metadata",
+    id: archive.uri,
+    libraryArchiveUri: archive.uri,
+    snippet: details,
+    title: archive.relativePath,
+    type: "meta",
+  };
 }
 
 export async function listWikiGraphLibraryObjects(
@@ -146,6 +203,18 @@ export async function listWikiGraphLibraryObjects(
   }
 
   return createCollectionResult(hits, options);
+}
+
+export async function listWikiGraphLibraryArchiveMembers(
+  target: ParsedWikiGraphLibraryUri,
+  options: ArchiveCollectionOptions = {},
+): Promise<ArchiveCollectionResult> {
+  return createCollectionResult(
+    (await listWikiGraphLibraryArchives(target)).map(
+      formatLibraryArchiveMemberHit,
+    ),
+    options,
+  );
 }
 
 export async function readWikiGraphLibraryPage(

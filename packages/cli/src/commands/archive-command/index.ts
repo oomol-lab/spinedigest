@@ -2,7 +2,9 @@ import {
   listArchiveCollection,
   listArchiveEvidence,
   listRelatedArchiveObjects,
+  findWikiGraphLibraryArchiveMembers,
   findWikiGraphLibraryObjects,
+  listWikiGraphLibraryArchiveMembers,
   listRelatedWikiGraphLibraryObjects,
   listWikiGraphLibraryEvidence,
   listWikiGraphLibraryObjects,
@@ -342,6 +344,30 @@ async function runLibraryIndexArchiveCommand(
 
   switch (args.action) {
     case "search":
+      if (objectUri === "wikg://") {
+        if (args.all === true) {
+          await writeAllFindHits(
+            async (cursor) =>
+              await findWikiGraphLibraryArchiveMembers(target, args.query!, {
+                ...createFindOptions(args),
+                ...(cursor === undefined ? {} : { cursor }),
+              }),
+            context,
+            args.format ?? "text",
+          );
+          return;
+        }
+        await writeFindHits(
+          await findWikiGraphLibraryArchiveMembers(
+            target,
+            args.query!,
+            createFindOptions(args),
+          ),
+          context,
+          args.format ?? "text",
+        );
+        return;
+      }
       if (args.all === true) {
         await writeAllFindHits(
           async (cursor) =>
@@ -370,6 +396,33 @@ async function runLibraryIndexArchiveCommand(
         ...context,
         continuationKind: "collection" as const,
       };
+      if (objectUri === "wikg://") {
+        if (args.all === true) {
+          await writeAllFindHits(
+            async (cursor) =>
+              createCollectionFindResult(
+                await listWikiGraphLibraryArchiveMembers(target, {
+                  ...createCollectionOptions(args),
+                  ...(cursor === undefined ? {} : { cursor }),
+                }),
+              ),
+            listContext,
+            args.format ?? "text",
+          );
+          return;
+        }
+        await writeFindHits(
+          createCollectionFindResult(
+            await listWikiGraphLibraryArchiveMembers(
+              target,
+              createCollectionOptions(args),
+            ),
+          ),
+          listContext,
+          args.format ?? "text",
+        );
+        return;
+      }
       if (args.all === true) {
         if (args.limit !== undefined) {
           await writeAllFindHits(

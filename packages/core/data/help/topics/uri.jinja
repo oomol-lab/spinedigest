@@ -23,6 +23,8 @@ Archive locator:
 Library locators:
   - `wikg://lib` addresses the default library.
   - `wikg://lib/<lib-id>` addresses a non-default library.
+  - Naked library scopes list archive members; `--query` on a naked library scope searches archive members themselves.
+  - Use explicit object lenses such as `/entity`, `/triple`, `/chapter`, or `/chunk` for archive object search.
   - `wikg://lib/arc/<archive-id>/` addresses one archive membership in the default library.
   - `wikg://lib/<lib-id>/arc/<archive-id>/` addresses one archive membership in a non-default library.
   - Add ordinary archive object suffixes after the trailing slash to query a managed archive:

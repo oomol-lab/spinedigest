@@ -760,7 +760,7 @@ describe("cli/args/help", () => {
     expect(scopeHelpText).toContain(
       "Use `wg wikg://lib/registry` to list all library registries.",
     );
-    expect(scopeHelpText).not.toContain("lists archive memberships");
+    expect(scopeHelpText).toContain("lists archive members");
     expect(scopeHelpText).not.toContain("List archive memberships");
     expect(scopeTrailingSlashHelp).not.toContain("wikg://lib//");
     expect(scopeTrailingSlashHelp).not.toContain("List archive memberships");
@@ -775,7 +775,8 @@ describe("cli/args/help", () => {
     expect(() =>
       parseCLIArguments(["wikg://lib/team", "list", "--help"]),
     ).toThrow("does not support `list`");
-    expect(scopeHelpText).toContain("broad library index search");
+    expect(scopeHelpText).toContain("searches archive members");
+    expect(scopeHelpText).not.toContain("broad library index search");
     expect(scopeHelpText).toContain("wg wikg://lib --query <query>");
     expect(
       parseCLIArguments(["wikg://lib", "--query", "attention", "--help"]),

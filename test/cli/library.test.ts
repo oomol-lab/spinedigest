@@ -410,6 +410,37 @@ describe("cli/library args", () => {
     });
   });
 
+  it("lists archive members from the library scope root", async () => {
+    libraryMockState.archives = [
+      {
+        uri: "wikg://lib/arc/book",
+        publicId: "book",
+        libraryUri: "wikg://lib",
+        relativePath: "books/book.wikg",
+        path: "/tmp/library/books/book.wikg",
+        exists: true,
+        status: "present",
+      },
+    ];
+
+    await runLibraryCommand({
+      action: "get",
+      json: true,
+      target: { isDefault: true, kind: "scope" },
+    });
+
+    expect(JSON.parse(libraryMockState.textWrites[0] ?? "{}")).toMatchObject({
+      items: [
+        {
+          uri: "wikg://lib/arc/book",
+          id: "book",
+          relativePath: "books/book.wikg",
+          status: "present",
+        },
+      ],
+    });
+  });
+
   it("renders archive tree parent filters from the scope root and streams scan JSONL archives", async () => {
     libraryMockState.archives = [
       {

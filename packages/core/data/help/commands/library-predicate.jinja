@@ -107,7 +107,7 @@ Usage:
 
 Notes:
   - The status tells whether the library index is current, dirty, missing, or disabled.
-  - Library-wide `--query` and naked scope enumeration require a current library index.
+  - Library-wide object `--query` and object scope enumeration require a current library index.
   - Run `enable` when the status says the index needs to be built or rebuilt.
 {% elif target.kind == "scope" and target.objectUri == "wikg://index" and predicate == "enable" %}
 Purpose:
@@ -133,7 +133,7 @@ Usage:
 
 Notes:
   - This does not delete the library registry, metadata, folder, or managed `.wikg` archives.
-  - Library-wide `--query` and naked scope enumeration will fail until the index is enabled again.
+  - Library-wide object `--query` and object scope enumeration will fail until the index is enabled again.
   - Library indexes do not support archive-style `embed` or `external` modes.
   - Disable holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
 {% elif target.kind == "scope" and predicate == "add" %}

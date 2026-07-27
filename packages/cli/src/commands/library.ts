@@ -231,8 +231,10 @@ export async function runLibraryCommand(
         );
         return;
       }
-      await resolveWikiGraphLibrary(args.target);
-      await writeEmptyLibraryScope(args.json ?? false);
+      await writeLibraryArchives(
+        await listWikiGraphLibraryArchives(args.target),
+        args.json ?? false,
+      );
       return;
     }
     case "set": {

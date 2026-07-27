@@ -12,7 +12,8 @@ Core model:
   - The default library is addressed as `wikg://lib`.
   - A non-default library is addressed as `wikg://lib/<lib-id>`.
   - The `arc` reserved segment keeps library ids distinct from archive member ids.
-  - `{{ commandName }} wikg://lib` reads the default library scope; it does not list all library registries or archive memberships.
+  - `{{ commandName }} wikg://lib` reads the default library's archive member collection.
+  - `{{ commandName }} wikg://lib --query <query>` searches archive members by URI, relative path, and status.
 
 Registry discovery:
   - `{{ commandName }} wikg://lib/registry add --path <folder>` prints the new non-default library URI.
@@ -30,7 +31,7 @@ Library folders:
 Archive memberships:
   - `{{ commandName }} wikg://lib/arc scan` recursively discovers `.wikg` files under the default library folder and reconciles registry state.
   - `{{ commandName }} wikg://lib/arc add --input <path> [--to <relative-wikg-path>]` copies one `.wikg` file into the default library folder and registers it.
-  - `{{ commandName }} wikg://lib/arc/tree` shows the archive member file tree; use this instead of naked `wikg://lib` or `wikg://lib/arc` when you want to see archive members.
+  - `{{ commandName }} wikg://lib` and `{{ commandName }} wikg://lib/arc` list archive members; use `{{ commandName }} wikg://lib/arc/tree` when you want a file tree visualization.
   - For a non-default library, replace `wikg://lib` with `wikg://lib/<lib-id>` in those `arc` commands.
   - `{{ commandName }} <library-archive-uri>/path set <relative-wikg-path>` moves or renames one managed archive inside the same folder.
   - `{{ commandName }} <library-archive-uri> remove --confirm` deletes one managed archive file and unregisters it.
@@ -48,6 +49,7 @@ Library archive shortcuts:
   - `{{ commandName }} <library-archive-uri>/entity --help` explains the archive object scope reached through that library shortcut.
 
 Library-wide query:
+  - `{{ commandName }} wikg://lib --query <archive-term>` searches archive members themselves, not objects inside archives.
   - `{{ commandName }} wikg://lib/entity --query <query>` searches across present archive members through the library index.
   - `{{ commandName }} wikg://lib/triple --query <query>` searches library-wide Knowledge Graph triples.
   - `{{ commandName }} wikg://lib/chunk --query <query>` searches library-wide Reading Graph chunks.
@@ -68,7 +70,7 @@ Library index lifecycle:
 Concurrency:
   - Library registry and membership writes hold the library write lock.
   - `arc scan`, `arc add`, library `path set`, library archive `path set`, library archive `remove`, and library index `enable` or `disable` cannot run concurrently for the same library.
-  - Library-wide `--query`, naked scope enumeration, evidence, related, and pack commands read the current aggregate index.
+  - Library-wide object `--query`, object scope enumeration, evidence, related, and pack commands read the current aggregate index.
   - If a write marks the aggregate index dirty, rebuild it with `{{ commandName }} <library-uri>/index enable` before relying on library-wide query results.
 
 Upgrade and cleanup:

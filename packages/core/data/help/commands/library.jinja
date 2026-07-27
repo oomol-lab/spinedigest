@@ -165,11 +165,12 @@ Related help:
 Library scope
 
 Default behavior:
-  - `{{ commandName }} {{ uri }}` reads this library scope.
+  - `{{ commandName }} {{ uri }}` lists archive members in this library.
   - Use `{{ commandName }} wikg://lib/registry` to list all library registries.
-  - `{{ commandName }} {{ uri }} --query <query>` runs a broad library index search across indexed object types.
+  - `{{ commandName }} {{ uri }} --query <query>` searches archive members by URI, relative path, and status.
   - `{{ commandName }} {{ uri }}/arc scan` reconciles membership with `.wikg` files currently under the library folder.
   - Library-wide object scopes such as `/entity` and `/triple` query one object type through the library index after it is enabled.
+  - Archive object search must use an explicit lens such as `/entity`, `/triple`, `/chapter`, or `/chunk`.
 
 Use when:
   - You need to manage a folder of `.wikg` archives as one library.

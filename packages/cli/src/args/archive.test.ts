@@ -97,6 +97,46 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
 
+    for (const uri of [
+      "wikg://lib/arc/archive123/entity",
+      "wikg://lib/team/arc/archive123/entity",
+    ]) {
+      expect(parseCLIArguments([uri])).toMatchObject({
+        args: {
+          action: "list",
+          archivePath: uri,
+          kinds: ["entity"],
+        },
+        kind: "archive",
+      });
+    }
+
+    for (const uri of [
+      "wikg://lib/arc/archive123/triple/Q1/_/Q2",
+      "wikg://lib/team/arc/archive123/triple/Q1/_/Q2",
+    ]) {
+      expect(parseCLIArguments([uri])).toMatchObject({
+        args: {
+          action: "list",
+          archivePath: uri,
+          kinds: ["triple"],
+          triplePattern: { objectQid: "Q2", subjectQid: "Q1" },
+        },
+        kind: "archive",
+      });
+    }
+
+    expect(
+      parseCLIArguments(["wikg://lib/arc/archive123/triple/Q1/P31/Q2"]),
+    ).toMatchObject({
+      args: {
+        action: "get",
+        archivePath: "wikg://lib/arc/archive123/triple/Q1/P31/Q2",
+        objectId: "wikg://lib/arc/archive123/triple/Q1/P31/Q2",
+      },
+      kind: "archive",
+    });
+
     expect(
       parseCLIArguments(["wikg://lib/arc/archive123/chapter"]),
     ).toStrictEqual({
@@ -202,6 +242,21 @@ describe("cli/args/archive", () => {
         kind: "archive",
       });
     }
+    expect(
+      parseCLIArguments([
+        "wikg://lib/arc/archive123/chapter/part/triple/Q1/_/Q2",
+        "--json",
+      ]),
+    ).toMatchObject({
+      args: {
+        action: "list",
+        archivePath: "wikg://lib/arc/archive123/chapter/part",
+        format: "json",
+        kinds: ["triple"],
+        triplePattern: { objectQid: "Q2", subjectQid: "Q1" },
+      },
+      kind: "archive",
+    });
     for (const resource of ["source", "summary"] as const) {
       expect(
         parseCLIArguments([
