@@ -157,7 +157,8 @@ describe("facade/digest", () => {
           sourceFormat: "txt",
           title: "Digest Title",
         });
-        expect(await digest.readToc()).toStrictEqual({
+        const toc = await digest.readToc();
+        expect(toc).toMatchObject({
           items: [
             {
               children: [],
@@ -167,6 +168,7 @@ describe("facade/digest", () => {
           ],
           version: 1,
         });
+        expect(toc?.items[0]?.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
 
         return (await digest.readMeta())?.title;
       },
@@ -209,7 +211,8 @@ describe("facade/digest", () => {
             sourceFormat: "markdown",
             title: null,
           });
-          expect(await digest.readToc()).toStrictEqual({
+          const toc = await digest.readToc();
+          expect(toc).toMatchObject({
             items: [
               {
                 children: [],
@@ -218,6 +221,7 @@ describe("facade/digest", () => {
             ],
             version: 1,
           });
+          expect(toc?.items[0]?.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
         },
       );
     });

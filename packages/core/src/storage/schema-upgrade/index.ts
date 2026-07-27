@@ -1,8 +1,11 @@
 import { randomUUID } from "crypto";
-import { rename, rm, stat } from "fs/promises";
+import { mkdtemp, rename, rm, stat, writeFile } from "fs/promises";
+import { tmpdir } from "os";
 import { dirname, join, resolve } from "path";
 
 import { Database } from "../../document/database.js";
+import { ensureChapterKeys } from "../../document/chapter/toc.js";
+import type { MutableTocFile } from "../../document/chapter/tree.js";
 import { ensureWikiGraphHomeSchemaCurrent } from "../../document/home-schema-upgrade.js";
 import {
   resolveWikiGraphHomeDirectoryPath,
@@ -20,6 +23,7 @@ import {
 } from "../wikg/archive/zip.js";
 import { writeWikgArchiveWithOverlays } from "../wikg/archive/write.js";
 import { createArchiveKey } from "../wikg/wikg-coordinator/archive-key.js";
+import { tocFileSchema, type TocFile } from "../../text/source/toc.js";
 
 export {
   ensureWikiGraphHomeSchemaCurrent,
@@ -94,20 +98,95 @@ export async function upgradeWikiGraphArchiveSchema(
     dirname(resolvedArchivePath),
     `.${getArchiveBasename(resolvedArchivePath)}.${process.pid}.${randomUUID()}.upgrade.tmp`,
   );
+  const temporaryDirectories: string[] = [];
 
-  await writeWikgArchiveWithOverlays(
-    resolvedArchivePath,
-    temporaryPath,
-    [
-      {
-        entryPath: SEARCH_INDEX_DATABASE_PATH,
-        kind: "deleted",
-      },
-    ],
-    { preserveMutationToken: true },
-  );
-  await rename(temporaryPath, resolvedArchivePath);
-  await cleanupArchiveDerivedData(archiveKey);
+  try {
+    const tocOverlay = await createChapterTocUpgradeOverlay(
+      resolvedArchivePath,
+      temporaryDirectories,
+    );
+    await writeWikgArchiveWithOverlays(
+      resolvedArchivePath,
+      temporaryPath,
+      [
+        {
+          entryPath: SEARCH_INDEX_DATABASE_PATH,
+          kind: "deleted",
+        },
+        ...(tocOverlay === undefined ? [] : [tocOverlay]),
+      ],
+      { preserveMutationToken: true },
+    );
+    await rename(temporaryPath, resolvedArchivePath);
+    await cleanupArchiveDerivedData(archiveKey);
+  } finally {
+    await Promise.all(
+      temporaryDirectories.map(async (path) => {
+        await deletePathIfExists(path);
+      }),
+    );
+  }
+}
+
+async function createChapterTocUpgradeOverlay(
+  archivePath: string,
+  temporaryDirectories: string[],
+): Promise<
+  | {
+      readonly entryPath: "toc.json";
+      readonly kind: "file";
+      readonly workspacePath: string;
+    }
+  | undefined
+> {
+  const { entries, zipFile } = await openIndexedArchive(archivePath);
+
+  try {
+    const tocEntry = entries.find(
+      (entry) => normalizeArchivePath(entry.fileName) === "toc.json",
+    );
+
+    if (tocEntry === undefined) {
+      return undefined;
+    }
+
+    const tocText = await readArchiveEntryText(archivePath, tocEntry);
+    let toc: TocFile;
+
+    try {
+      const parsed = tocFileSchema.safeParse(JSON.parse(tocText));
+      if (!parsed.success) {
+        return undefined;
+      }
+      toc = parsed.data;
+    } catch {
+      return undefined;
+    }
+
+    const mutableToc = JSON.parse(JSON.stringify(toc)) as MutableTocFile;
+    if (!ensureChapterKeys(mutableToc.items)) {
+      return undefined;
+    }
+
+    const temporaryDirectory = await mkdtemp(
+      join(tmpdir(), "wikigraph-toc-upgrade-"),
+    );
+    temporaryDirectories.push(temporaryDirectory);
+    const workspacePath = join(temporaryDirectory, "toc.json");
+    await writeFile(
+      workspacePath,
+      `${JSON.stringify(mutableToc, null, 2)}\n`,
+      "utf8",
+    );
+
+    return {
+      entryPath: "toc.json",
+      kind: "file",
+      workspacePath,
+    };
+  } finally {
+    zipFile.close();
+  }
 }
 
 async function cleanupArchiveDerivedData(archiveKey: string): Promise<void> {

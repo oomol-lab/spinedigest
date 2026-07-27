@@ -314,11 +314,13 @@ describe("archive/query/archive-view/text search", () => {
             items: [
               {
                 children: [],
+                key: "alpha-appears-in-a-weak-chapter",
                 serialId: 1,
                 title: "alpha appears in a weak chapter",
               },
               {
                 children: [],
+                key: "alpha-beta-alpha-beta-strongest-chapter",
                 serialId: 2,
                 title: "alpha beta alpha beta strongest chapter",
               },

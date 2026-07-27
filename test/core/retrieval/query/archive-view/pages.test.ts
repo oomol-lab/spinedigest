@@ -514,11 +514,13 @@ describe("archive/query/archive-view/pages", () => {
             items: [
               {
                 children: [],
+                key: "second-in-id-first-in-document",
                 serialId: 2,
                 title: "Second in id, first in document",
               },
               {
                 children: [],
+                key: "first-in-id-second-in-document",
                 serialId: 1,
                 title: "First in id, second in document",
               },

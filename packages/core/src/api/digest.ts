@@ -11,6 +11,7 @@ import {
   type SourceAdapter,
 } from "../text/source/index.js";
 import { DirectoryDocument } from "../document/index.js";
+import { createChapterKey } from "../document/chapter/path.js";
 import type { Language } from "../runtime/common/language.js";
 import type { WikiGraphScope } from "../runtime/common/llm-scope.js";
 import {
@@ -93,6 +94,7 @@ export async function digestTextStreamSession<T>(
     await document.openSession(async (openedDocument) => {
       const serialId = await openedDocument.peekNextSerialId();
       const normalizedTitle = normalizeTitle(options.title);
+      const key = createChapterKey(new Set());
       const targetStage = options.targetStage ?? "summarized";
       await progressTracker.markDiscoveryUnavailable();
 
@@ -169,6 +171,7 @@ export async function digestTextStreamSession<T>(
           {
             serialId,
             children: [],
+            key,
             ...(normalizedTitle === undefined
               ? {}
               : { title: normalizedTitle }),

@@ -51,6 +51,12 @@ describe("facade/chapter", () => {
           stage: "planned",
           title: "Chapter 1",
         });
+        expect(parent.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
+        expect(parent.key).not.toBe("part-i");
+        expect(parent.path).toBe(parent.key);
+        expect(child.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
+        expect(child.key).not.toBe("chapter-1");
+        expect(child.path).toBe(`${parent.key}/${child.key}`);
         expect(await listChapters(document)).toMatchObject([
           {
             chapterId: 1,
@@ -71,7 +77,7 @@ describe("facade/chapter", () => {
     });
   });
 
-  it("keeps serial-less grouping nodes read-only when listing chapters", async () => {
+  it("does not randomize missing chapter keys on read-only chapter paths", async () => {
     await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
@@ -99,6 +105,7 @@ describe("facade/chapter", () => {
           {
             chapterId: 1,
             depth: 1,
+            path: "chapter-group/chapter-1",
             stage: "planned",
             title: "Chapter 1",
             tocPath: ["Part I", "Chapter 1"],
@@ -109,7 +116,7 @@ describe("facade/chapter", () => {
             {
               children: [],
               title: "Chapter 1",
-              uri: "wikg://chapter/part-i/chapter-1",
+              uri: "wikg://chapter/chapter-group/chapter-1",
             },
           ],
         });
@@ -181,7 +188,8 @@ describe("facade/chapter", () => {
             title: "Chapter 2",
           },
         ]);
-        expect(await document.readToc()).toMatchObject({
+        const toc = await document.readToc();
+        expect(toc).toMatchObject({
           items: [
             {
               serialId: 2,
@@ -193,6 +201,33 @@ describe("facade/chapter", () => {
             },
           ],
         });
+        expect(toc?.items[0]?.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
+        expect(toc?.items[0]?.children[0]?.key).toMatch(
+          /^(?!\d+$)[0-9a-f]{12}$/u,
+        );
+        expect(toc?.items[1]?.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("uses unique opaque keys for duplicate and non-latin chapter titles", async () => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        const first = await addChapter(document, { title: "Repeat" });
+        const second = await addChapter(document, { title: "Repeat" });
+        const nonLatin = await addChapter(document, { title: "中文标题" });
+
+        expect(new Set([first.key, second.key, nonLatin.key]).size).toBe(3);
+        for (const chapter of [first, second, nonLatin]) {
+          expect(chapter.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
+        }
+        expect(second.key).not.toBe("repeat-2");
+        expect(nonLatin.key).not.toBe("chapter");
+        expect(nonLatin.key).not.toBe("chapter-2");
       } finally {
         await document.release();
       }
@@ -297,6 +332,8 @@ describe("facade/chapter", () => {
         const chapter = await addChapter(document, {
           title: "Original",
         });
+        const originalKey = chapter.key;
+        const originalUri = chapter.uri;
 
         await expect(
           setChapterTitle(document, chapter.chapterId, "  Renamed  "),
@@ -337,11 +374,17 @@ describe("facade/chapter", () => {
           items: [
             {
               children: [],
-              key: "original",
+              key: originalKey,
               serialId: chapter.chapterId,
             },
           ],
           version: 1,
+        });
+        await expect(
+          getChapterDetails(document, chapter.chapterId),
+        ).resolves.toMatchObject({
+          key: originalKey,
+          uri: originalUri,
         });
       } finally {
         await document.release();
@@ -449,6 +492,7 @@ describe("facade/chapter", () => {
         const second = await addChapter(document, {
           parentChapterId: part.chapterId,
         });
+        const secondRootUri = `wikg://chapter/${second.key}`;
 
         await expect(getChapterTree(document)).resolves.toStrictEqual({
           chapters: [
@@ -477,7 +521,7 @@ describe("facade/chapter", () => {
             chapters: [
               {
                 children: [],
-                uri: "wikg://chapter/chapter",
+                uri: secondRootUri,
                 title: "Second",
               },
               {
@@ -497,22 +541,20 @@ describe("facade/chapter", () => {
 
         expect(dryRun.changed).toBe(true);
         expect(dryRun.moved.map((move) => move.oldUri)).toContain(second.uri);
-        expect(
-          [...dryRun.renamed].sort((left, right) =>
-            left.uri.localeCompare(right.uri),
-          ),
-        ).toStrictEqual([
-          {
-            uri: "wikg://chapter/chapter",
-            newTitle: "Second",
-            oldTitle: null,
-          },
-          {
-            uri: first.uri,
-            newTitle: null,
-            oldTitle: "First",
-          },
-        ]);
+        expect(dryRun.renamed).toStrictEqual(
+          expect.arrayContaining([
+            {
+              uri: secondRootUri,
+              newTitle: "Second",
+              oldTitle: null,
+            },
+            {
+              uri: first.uri,
+              newTitle: null,
+              oldTitle: "First",
+            },
+          ]),
+        );
         await expect(listChapters(document)).resolves.toMatchObject([
           { chapterId: part.chapterId, title: "Part" },
           { chapterId: first.chapterId, title: "First" },
@@ -525,7 +567,7 @@ describe("facade/chapter", () => {
             chapters: [
               {
                 children: [],
-                uri: "wikg://chapter/chapter",
+                uri: secondRootUri,
                 title: "Second",
               },
               {
@@ -566,7 +608,7 @@ describe("facade/chapter", () => {
             chapters: [
               {
                 children: [],
-                uri: second.uri,
+                uri: secondRootUri,
                 summary: "not allowed",
               },
             ],

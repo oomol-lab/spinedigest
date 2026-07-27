@@ -34,7 +34,8 @@ export async function normalizeChapterToc(
   };
 
   await normalizeItems(items);
-  changed ||= ensureChapterKeys(items);
+  const keysChanged = ensureChapterKeys(items);
+  changed ||= keysChanged;
 
   const toc: MutableTocFile = {
     items,
@@ -53,7 +54,7 @@ export async function readChapterToc(
 ): Promise<MutableTocFile> {
   const toc = await document.readToc();
   const items = toc?.items.map(cloneTocItem) ?? [];
-  ensureChapterKeys(items);
+  assertChapterKeys(items);
 
   return toc === undefined
     ? { items: [], version: TOC_FILE_VERSION }
@@ -80,7 +81,7 @@ function ensureChapterKeys(items: MutableTocItem[]): boolean {
   const visit = (nodes: MutableTocItem[]): void => {
     for (const item of nodes) {
       if (item.key === undefined) {
-        item.key = createChapterKey(normalizeTitle(item.title), existingKeys);
+        item.key = createChapterKey(existingKeys);
         existingKeys.add(item.key);
         changed = true;
       }
@@ -90,6 +91,26 @@ function ensureChapterKeys(items: MutableTocItem[]): boolean {
   collectExistingKeys(items);
   visit(items);
   return changed;
+}
+
+function assertChapterKeys(items: MutableTocItem[]): void {
+  const existingKeys = new Set<string>();
+  const visit = (nodes: MutableTocItem[]): void => {
+    for (const item of nodes) {
+      if (item.key === undefined) {
+        throw new Error(
+          "Missing chapter key in TOC. Run a writable chapter operation or `wg maintenance upgrade` before using read-only chapter paths.",
+        );
+      }
+      if (existingKeys.has(item.key)) {
+        throw new Error(`Duplicate chapter key: ${item.key}.`);
+      }
+      existingKeys.add(item.key);
+      visit(item.children);
+    }
+  };
+
+  visit(items);
 }
 
 export async function findChapterEntry(

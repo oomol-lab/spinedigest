@@ -102,11 +102,13 @@ describe("archive/query/archive-view/collection", () => {
             items: [
               {
                 children: [],
+                key: "introduction",
                 serialId: 1,
                 title: "Introduction",
               },
               {
                 children: [],
+                key: "second",
                 serialId: 2,
                 title: "Second",
               },

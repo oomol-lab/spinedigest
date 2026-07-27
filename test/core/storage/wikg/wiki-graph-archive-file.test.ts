@@ -263,6 +263,7 @@ describe("wikg/wiki-graph-archive-file", () => {
             items: [
               {
                 children: [],
+                key: "fresh-cache-title",
                 serialId: 1,
                 title: "Fresh Cache Title",
               },

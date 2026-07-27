@@ -147,6 +147,7 @@ export async function seedSourcedDocument(
       items: [
         {
           children: [],
+          key: "introduction",
           serialId: 1,
           title: "Introduction",
         },

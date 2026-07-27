@@ -81,6 +81,57 @@ describe("schema-upgrade", () => {
     });
   });
 
+  it("persists missing chapter keys while upgrading a legacy archive", async () => {
+    await withTempDir("wikigraph-schema-upgrade-toc-", async (root) => {
+      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
+      const archivePath = join(root, "book.wikg");
+      await writeArchiveWithSchemaVersion(
+        archivePath,
+        1,
+        `${JSON.stringify({
+          version: 1,
+          items: [
+            {
+              children: [
+                {
+                  children: [],
+                  key: "existing-key",
+                  serialId: 2,
+                  title: "Existing",
+                },
+              ],
+              serialId: 1,
+              title: "Part I",
+            },
+          ],
+        })}\n`,
+      );
+
+      await upgradeWikiGraphArchiveSchema(archivePath);
+
+      const upgradedTocEntry = await readWikgArchiveEntry(
+        archivePath,
+        "toc.json",
+      );
+      expect(upgradedTocEntry).toBeInstanceOf(Uint8Array);
+      const upgradedToc = JSON.parse(
+        Buffer.from(upgradedTocEntry as Uint8Array).toString("utf8"),
+      ) as {
+        readonly items: readonly {
+          readonly children: readonly { readonly key?: string }[];
+          readonly key?: string;
+        }[];
+      };
+
+      expect(upgradedToc.items[0]?.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
+      expect(upgradedToc.items[0]?.key).not.toBe("part-i");
+      expect(upgradedToc.items[0]?.children[0]?.key).toBe("existing-key");
+      await expect(
+        readWikgArchiveEntry(archivePath, SEARCH_INDEX_DATABASE_PATH),
+      ).resolves.toBeUndefined();
+    });
+  });
+
   it("rejects a future archive schema version", async () => {
     await withTempDir("wikigraph-schema-future-archive-", async (root) => {
       setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
@@ -829,6 +880,7 @@ async function writeLegacyArchive(archivePath: string): Promise<void> {
 async function writeArchiveWithSchemaVersion(
   archivePath: string,
   schemaVersion: number,
+  tocContent = "legacy toc",
 ): Promise<void> {
   await mkdir(dirname(archivePath), { recursive: true });
 
@@ -853,7 +905,7 @@ async function writeArchiveWithSchemaVersion(
   zipFile.addBuffer(Buffer.from("legacy db", "utf8"), "database.db", {
     compress: false,
   });
-  zipFile.addBuffer(Buffer.from("legacy toc", "utf8"), "toc.json", {
+  zipFile.addBuffer(Buffer.from(tocContent, "utf8"), "toc.json", {
     compress: false,
   });
   zipFile.addBuffer(

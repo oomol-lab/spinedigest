@@ -44,7 +44,7 @@ export async function addChapter(
     const chapterId = await openedDocument.createSerial();
     const chapterItem = {
       children: [],
-      key: createChapterKey(normalizedTitle, existingKeys),
+      key: createChapterKey(existingKeys),
       serialId: chapterId,
       ...(normalizedTitle === undefined ? {} : { title: normalizedTitle }),
     } satisfies TocItem;

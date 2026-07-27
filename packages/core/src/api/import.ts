@@ -1,4 +1,5 @@
 import type { Document } from "../document/index.js";
+import { createChapterKey } from "../document/chapter/path.js";
 import type { DigestProgressTracker } from "../runtime/progress/index.js";
 import { AsyncSemaphore } from "../utils/async-semaphore.js";
 import {
@@ -82,6 +83,7 @@ export async function importSourceDocument(
     version: TOC_FILE_VERSION,
     items: [
       ...planTocItems({
+        existingKeys: new Set<string>(),
         fallbackTitle: meta.title,
         plannedSections,
         sections,
@@ -258,6 +260,7 @@ async function generatePlannedSerials(
 }
 
 function planTocItems(input: {
+  readonly existingKeys: Set<string>;
   readonly fallbackTitle: string | null | undefined;
   readonly plannedSections: PlannedSection[];
   readonly sections: readonly SourceSection[];
@@ -267,6 +270,7 @@ function planTocItems(input: {
     planTocItem({
       fallbackTitle:
         input.sections.length === 1 ? input.fallbackTitle : undefined,
+      existingKeys: input.existingKeys,
       indexPath: [index],
       plannedSections: input.plannedSections,
       section,
@@ -276,6 +280,7 @@ function planTocItems(input: {
 }
 
 function planTocItem(input: {
+  readonly existingKeys: Set<string>;
   readonly fallbackTitle: string | null | undefined;
   readonly indexPath: readonly number[];
   readonly plannedSections: PlannedSection[];
@@ -287,6 +292,7 @@ function planTocItem(input: {
     : undefined;
   const children = input.section.children.map((child, index) =>
     planTocItem({
+      existingKeys: input.existingKeys,
       fallbackTitle: undefined,
       indexPath: [...input.indexPath, index],
       plannedSections: input.plannedSections,
@@ -304,8 +310,11 @@ function planTocItem(input: {
 
   const title =
     normalizeTitle(input.section.title) ?? normalizeTitle(input.fallbackTitle);
+  const key = createChapterKey(input.existingKeys);
+  input.existingKeys.add(key);
 
   return {
+    key,
     ...(title === undefined ? {} : { title }),
     ...(serialId === undefined ? {} : { serialId }),
     children,

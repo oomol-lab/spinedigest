@@ -10,7 +10,6 @@ export async function readChapterToc(
 ): Promise<MutableTocFile> {
   const toc = await document.readToc();
   const items = toc?.items.map(cloneTocItem) ?? [];
-  ensureChapterKeys(items);
 
   return toc === undefined
     ? { items: [], version: TOC_FILE_VERSION }
@@ -37,7 +36,7 @@ export function ensureChapterKeys(items: MutableTocFile["items"]): boolean {
   const visit = (nodes: MutableTocFile["items"]): void => {
     for (const item of nodes) {
       if (item.key === undefined) {
-        item.key = createChapterKey(normalizeTitle(item.title), existingKeys);
+        item.key = createChapterKey(existingKeys);
         existingKeys.add(item.key);
         changed = true;
       }

@@ -1,3 +1,5 @@
+import { randomBytes } from "crypto";
+
 import type { TocItem } from "../../text/source/index.js";
 
 export const RESERVED_CHAPTER_KEYS = new Set([
@@ -14,6 +16,9 @@ export const RESERVED_CHAPTER_KEYS = new Set([
   "job",
   "help",
 ]);
+
+const CHAPTER_KEY_RANDOM_BYTES = 6;
+const CREATE_CHAPTER_KEY_MAX_ATTEMPTS = 100;
 
 export function formatChapterUri(path: string): string {
   return `wikg://chapter/${path}`;
@@ -72,22 +77,27 @@ export function validateChapterKey(key: string, label = "chapter key"): string {
   return key;
 }
 
-export function createChapterKey(
-  input: string | null | undefined,
-  existingKeys: ReadonlySet<string>,
-): string {
-  const base = slugify(input ?? "chapter") || "chapter";
-  let key = RESERVED_CHAPTER_KEYS.has(base) ? `${base}-chapter` : base;
-  key = ensureValidKeyBase(key);
-  if (!existingKeys.has(key)) {
-    return key;
-  }
-  for (let index = 2; ; index += 1) {
-    const candidate = `${key}-${index}`;
+export function createChapterKey(existingKeys: ReadonlySet<string>): string {
+  for (
+    let attempt = 0;
+    attempt < CREATE_CHAPTER_KEY_MAX_ATTEMPTS;
+    attempt += 1
+  ) {
+    const candidate = randomBytes(CHAPTER_KEY_RANDOM_BYTES).toString("hex");
+
+    try {
+      validateChapterKey(candidate);
+    } catch {
+      continue;
+    }
     if (!existingKeys.has(candidate)) {
       return candidate;
     }
   }
+
+  throw new Error(
+    `Unable to create a unique chapter key after ${CREATE_CHAPTER_KEY_MAX_ATTEMPTS} attempts.`,
+  );
 }
 
 export function resolveChapterIdByPath(
@@ -139,24 +149,4 @@ export function collectChapterPathById(
     }
   }
   return undefined;
-}
-
-function slugify(value: string): string {
-  return value
-    .normalize("NFKD")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gu, "-")
-    .replace(/^-+|-+$/gu, "")
-    .replace(/-{2,}/gu, "-");
-}
-
-function ensureValidKeyBase(value: string): string {
-  const normalized = value.replace(/^-+/u, "").replace(/-+$/u, "");
-  if (/^\d+$/u.test(normalized)) {
-    return `chapter-${normalized}`;
-  }
-  if (/^[a-z0-9][a-z0-9-]*$/u.test(normalized)) {
-    return normalized;
-  }
-  return "chapter";
 }

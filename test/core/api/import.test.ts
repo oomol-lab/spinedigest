@@ -169,7 +169,7 @@ describe("facade/import", () => {
         expect(imported.serials.map((serial) => serial.id)).toStrictEqual([
           1, 2,
         ]);
-        expect(imported.toc.items).toStrictEqual([
+        expect(imported.toc.items).toMatchObject([
           {
             children: [
               {
@@ -183,6 +183,11 @@ describe("facade/import", () => {
             serialId: 2,
           },
         ]);
+        expect(imported.toc.items[0]?.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
+        expect(imported.toc.items[0]?.children[0]?.key).toMatch(
+          /^(?!\d+$)[0-9a-f]{12}$/u,
+        );
+        expect(imported.toc.items[1]?.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
 
         expect(await document.readBookMeta()).toStrictEqual(meta);
         expect(await document.readCover()).toMatchObject({
@@ -242,13 +247,14 @@ describe("facade/import", () => {
           },
         );
 
-        expect(imported.toc.items).toStrictEqual([
+        expect(imported.toc.items).toMatchObject([
           {
             children: [],
             serialId: 1,
             title: "Single Section Book",
           },
         ]);
+        expect(imported.toc.items[0]?.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
       } finally {
         await document.release();
       }
