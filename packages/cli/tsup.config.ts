@@ -14,7 +14,6 @@ const ESM_DATA_DIR_BANNER = [
   'globalThis.__WIKIGRAPH_DATA_DIR__ ??= __WIKIGRAPH_RESOLVE__(__WIKIGRAPH_FILE_URL_TO_PATH__(new URL("./data", import.meta.url)));',
 ].join("\n");
 const SHARED_OPTIONS = {
-  bundle: true,
   clean: false,
   outDir: "dist",
   platform: "node",
@@ -23,6 +22,28 @@ const SHARED_OPTIONS = {
   splitting: false,
   target: "node22",
 } as const;
+const INDEX_EXTERNAL = [
+  "wiki-graph-core",
+  "wiki-graph-core/gc",
+  "wiki-graph-core/worker",
+];
+const WIKI_GRAPH_CORE_EXTERNAL_PLUGIN = {
+  name: "wiki-graph-core-external",
+  setup(build: {
+    onResolve(
+      options: { readonly filter: RegExp },
+      callback: (args: { readonly path: string }) => {
+        readonly external: boolean;
+        readonly path: string;
+      },
+    ): void;
+  }) {
+    build.onResolve({ filter: /^wiki-graph-core(?:\/.*)?$/ }, (args) => ({
+      external: true,
+      path: args.path,
+    }));
+  },
+};
 
 export default defineConfig([
   {
@@ -30,11 +51,14 @@ export default defineConfig([
     banner: {
       js: CJS_DATA_DIR_BANNER,
     },
+    bundle: true,
     clean: true,
     dts: true,
     entry: {
       index: "src/index.ts",
     },
+    esbuildPlugins: [WIKI_GRAPH_CORE_EXTERNAL_PLUGIN],
+    external: INDEX_EXTERNAL,
     format: ["cjs"],
     outExtension() {
       return {
@@ -47,13 +71,28 @@ export default defineConfig([
     banner: {
       js: ESM_DATA_DIR_BANNER,
     },
+    bundle: true,
     dts: true,
     entry: {
       cli: "src/bin/cli.ts",
       "gc-worker": "src/bin/gc-worker.ts",
-      index: "src/index.ts",
       "queue-worker": "src/bin/queue-worker.ts",
     },
+    format: ["esm"],
+    minify: true,
+  },
+  {
+    ...SHARED_OPTIONS,
+    banner: {
+      js: ESM_DATA_DIR_BANNER,
+    },
+    bundle: true,
+    dts: true,
+    entry: {
+      index: "src/index.ts",
+    },
+    esbuildPlugins: [WIKI_GRAPH_CORE_EXTERNAL_PLUGIN],
+    external: INDEX_EXTERNAL,
     format: ["esm"],
   },
 ]);

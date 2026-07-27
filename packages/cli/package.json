@@ -67,5 +67,16 @@
     "yauzl": "^3.3.0",
     "yazl": "^3.3.1",
     "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "wiki-graph-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "wiki-graph-core": "^0.4.0"
+  },
+  "peerDependenciesMeta": {
+    "wiki-graph-core": {
+      "optional": true
+    }
   }
 }

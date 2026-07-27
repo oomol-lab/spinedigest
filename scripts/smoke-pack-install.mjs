@@ -9,6 +9,7 @@ const cliRoot = join(packageRoot, "packages", "cli");
 const tempRoot = mkdtempSync(join(tmpdir(), "wiki-graph-pack-"));
 const cliInstallRoot = join(tempRoot, "cli-install");
 const coreInstallRoot = join(tempRoot, "core-install");
+const sdkInstallRoot = join(tempRoot, "sdk-install");
 const packedTarballs = [];
 
 function readTarballName(packOutput) {
@@ -131,8 +132,6 @@ try {
   installTarballs(cliInstallRoot, [cliTarballPath]);
 
   assertModuleMissing(cliInstallRoot, "wiki-graph-core");
-  assertCommonJsExport(cliInstallRoot, "wiki-graph", "Language");
-  assertEsmExport(cliInstallRoot, "wiki-graph", "Language");
 
   for (const command of ["wg", "wikigraph"]) {
     execFileSync(
@@ -174,6 +173,14 @@ try {
     "wiki-graph-core/worker",
     "runBuildJobWorker",
   );
+
+  writeInstallPackageJson(sdkInstallRoot, "wiki-graph-sdk-pack-smoke");
+  installTarballs(sdkInstallRoot, [coreTarballPath, cliTarballPath]);
+
+  assertCommonJsExport(sdkInstallRoot, "wiki-graph", "runWikiGraphCLICaptured");
+  assertEsmExport(sdkInstallRoot, "wiki-graph", "runWikiGraphCLICaptured");
+  assertCommonJsExport(sdkInstallRoot, "wiki-graph", "Language");
+  assertEsmExport(sdkInstallRoot, "wiki-graph", "Language");
 } finally {
   for (const tarballPath of packedTarballs) {
     rmSync(tarballPath, { force: true });
