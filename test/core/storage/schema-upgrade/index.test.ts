@@ -132,6 +132,73 @@ describe("schema-upgrade", () => {
     });
   });
 
+  it("repairs missing chapter keys in a current archive", async () => {
+    await withTempDir("wikigraph-schema-upgrade-current-toc-", async (root) => {
+      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
+      const archivePath = join(root, "book.wikg");
+      await writeArchiveWithSchemaVersion(
+        archivePath,
+        2,
+        `${JSON.stringify({
+          version: 1,
+          items: [
+            {
+              children: [
+                {
+                  children: [],
+                  serialId: 2,
+                  title: "Chapter 1",
+                },
+              ],
+              serialId: 1,
+              title: "Part I",
+            },
+          ],
+        })}\n`,
+      );
+
+      await expect(
+        upgradeWikiGraphArchiveSchema(archivePath),
+      ).resolves.toStrictEqual({
+        changed: true,
+        repairedToc: true,
+        schemaChanged: false,
+      });
+      await expect(
+        readWikiGraphArchiveSchemaVersion(archivePath),
+      ).resolves.toBe(2);
+
+      const upgradedTocEntry = await readWikgArchiveEntry(
+        archivePath,
+        "toc.json",
+      );
+      expect(upgradedTocEntry).toBeInstanceOf(Uint8Array);
+      const upgradedToc = JSON.parse(
+        Buffer.from(upgradedTocEntry as Uint8Array).toString("utf8"),
+      ) as {
+        readonly items: readonly {
+          readonly children: readonly { readonly key?: string }[];
+          readonly key?: string;
+        }[];
+      };
+
+      expect(upgradedToc.items[0]?.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
+      expect(upgradedToc.items[0]?.children[0]?.key).toMatch(
+        /^(?!\d+$)[0-9a-f]{12}$/u,
+      );
+      await expect(
+        readWikgArchiveEntry(archivePath, SEARCH_INDEX_DATABASE_PATH),
+      ).resolves.toBeInstanceOf(Uint8Array);
+      await expect(
+        upgradeWikiGraphArchiveSchema(archivePath),
+      ).resolves.toStrictEqual({
+        changed: false,
+        repairedToc: false,
+        schemaChanged: false,
+      });
+    });
+  });
+
   it("rejects a future archive schema version", async () => {
     await withTempDir("wikigraph-schema-future-archive-", async (root) => {
       setWikiGraphStateDirectoryPathForTesting(join(root, "home"));

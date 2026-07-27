@@ -33,6 +33,12 @@ export {
 export const CURRENT_ARCHIVE_SCHEMA_VERSION = 2;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
 
+export interface WikiGraphArchiveSchemaUpgradeResult {
+  readonly changed: boolean;
+  readonly repairedToc: boolean;
+  readonly schemaChanged: boolean;
+}
+
 export async function ensureWikiGraphArchiveSchemaCurrent(
   archivePath: string,
 ): Promise<void> {
@@ -74,14 +80,10 @@ export async function readWikiGraphArchiveSchemaVersion(
 
 export async function upgradeWikiGraphArchiveSchema(
   archivePath: string,
-): Promise<void> {
+): Promise<WikiGraphArchiveSchemaUpgradeResult> {
   const resolvedArchivePath = resolve(archivePath);
   const schemaVersion =
     await readWikiGraphArchiveSchemaVersion(resolvedArchivePath);
-
-  if (schemaVersion === CURRENT_ARCHIVE_SCHEMA_VERSION) {
-    return;
-  }
 
   if (schemaVersion > CURRENT_ARCHIVE_SCHEMA_VERSION) {
     throw new Error(
@@ -89,15 +91,6 @@ export async function upgradeWikiGraphArchiveSchema(
     );
   }
 
-  await ensureWikiGraphHomeSchemaCurrent();
-
-  const archiveKey = createArchiveKey(resolvedArchivePath);
-  await assertArchiveUpgradeSafe(archiveKey);
-
-  const temporaryPath = join(
-    dirname(resolvedArchivePath),
-    `.${getArchiveBasename(resolvedArchivePath)}.${process.pid}.${randomUUID()}.upgrade.tmp`,
-  );
   const temporaryDirectories: string[] = [];
 
   try {
@@ -105,20 +98,50 @@ export async function upgradeWikiGraphArchiveSchema(
       resolvedArchivePath,
       temporaryDirectories,
     );
+    const schemaChanged = schemaVersion < CURRENT_ARCHIVE_SCHEMA_VERSION;
+
+    if (!schemaChanged && tocOverlay === undefined) {
+      return {
+        changed: false,
+        repairedToc: false,
+        schemaChanged: false,
+      };
+    }
+
+    await ensureWikiGraphHomeSchemaCurrent();
+
+    const archiveKey = createArchiveKey(resolvedArchivePath);
+    await assertArchiveUpgradeSafe(archiveKey);
+
+    const temporaryPath = join(
+      dirname(resolvedArchivePath),
+      `.${getArchiveBasename(resolvedArchivePath)}.${process.pid}.${randomUUID()}.upgrade.tmp`,
+    );
+
     await writeWikgArchiveWithOverlays(
       resolvedArchivePath,
       temporaryPath,
       [
-        {
-          entryPath: SEARCH_INDEX_DATABASE_PATH,
-          kind: "deleted",
-        },
+        ...(schemaChanged
+          ? [
+              {
+                entryPath: SEARCH_INDEX_DATABASE_PATH,
+                kind: "deleted" as const,
+              },
+            ]
+          : []),
         ...(tocOverlay === undefined ? [] : [tocOverlay]),
       ],
       { preserveMutationToken: true },
     );
     await rename(temporaryPath, resolvedArchivePath);
     await cleanupArchiveDerivedData(archiveKey);
+
+    return {
+      changed: true,
+      repairedToc: tocOverlay !== undefined,
+      schemaChanged,
+    };
   } finally {
     await Promise.all(
       temporaryDirectories.map(async (path) => {

@@ -126,7 +126,7 @@ export async function upgradeWikiGraphMaintenanceTarget(
   const archivePath = resolveArchiveUpgradeTarget(target);
   const schemaVersionBefore =
     await readWikiGraphArchiveSchemaVersion(archivePath);
-  await upgradeWikiGraphArchiveSchema(archivePath);
+  const upgradeResult = await upgradeWikiGraphArchiveSchema(archivePath);
   const schemaVersionAfter =
     await readWikiGraphArchiveSchemaVersion(archivePath);
   return {
@@ -134,10 +134,7 @@ export async function upgradeWikiGraphMaintenanceTarget(
     path: archivePath,
     schemaVersionBefore,
     schemaVersionAfter,
-    status:
-      schemaVersionBefore === schemaVersionAfter
-        ? "already-current"
-        : "upgraded",
+    status: upgradeResult.changed ? "upgraded" : "already-current",
   };
 }
 
@@ -185,18 +182,24 @@ export async function upgradeWikiGraphLibrarySchema(
       const schemaVersionBefore = await readWikiGraphArchiveSchemaVersion(
         archive.path,
       );
-      if (schemaVersionBefore === CURRENT_ARCHIVE_SCHEMA_VERSION) {
-        skipped.push({
+      try {
+        const upgradeResult = await upgradeWikiGraphArchiveSchema(archive.path);
+        const schemaVersionAfter = await readWikiGraphArchiveSchemaVersion(
+          archive.path,
+        );
+        const item = {
           path: archive.path,
           publicId: archive.publicId,
-          schemaVersionAfter: schemaVersionBefore,
+          schemaVersionAfter,
           schemaVersionBefore,
           uri: archive.uri,
-        });
-        continue;
-      }
-      try {
-        await upgradeWikiGraphArchiveSchema(archive.path);
+        };
+
+        if (upgradeResult.changed) {
+          upgraded.push(item);
+        } else {
+          skipped.push(item);
+        }
       } catch (error) {
         return {
           failed: {
@@ -212,15 +215,6 @@ export async function upgradeWikiGraphLibrarySchema(
           upgraded,
         };
       }
-      upgraded.push({
-        path: archive.path,
-        publicId: archive.publicId,
-        schemaVersionAfter: await readWikiGraphArchiveSchemaVersion(
-          archive.path,
-        ),
-        schemaVersionBefore,
-        uri: archive.uri,
-      });
     }
 
     return {
