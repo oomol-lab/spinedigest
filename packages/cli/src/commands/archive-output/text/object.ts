@@ -52,13 +52,22 @@ export function formatOpenShortUriHint(
   objects: readonly ArchiveOutputObject[],
   context: ArchiveOutputContext,
 ): string {
-  const shortUri = objects.find((object) => isShortOutputUri(object.uri))?.uri;
-
-  if (shortUri === undefined) {
+  const shortObject = objects.find((object) => isShortOutputUri(object.uri));
+  if (shortObject === undefined) {
     return "";
   }
 
-  return `\n\nOpen short URIs with the archive locator, for example:\n  ${formatCliCommand([formatWikiGraphCommandUri(context.archivePath, shortUri)])}`;
+  const locator = shortObject.libraryArchiveUri ?? context.archivePath;
+
+  return `\n\nOpen short URIs with the archive locator, for example:\n  ${formatCliCommand([formatOpenShortUriCommand(locator, shortObject.uri)])}`;
+}
+
+function formatOpenShortUriCommand(locator: string, objectUri: string): string {
+  if (locator.startsWith("wikg://lib/")) {
+    return `${locator.replace(/\/+$/u, "")}/${objectUri.slice("wikg://".length)}`;
+  }
+
+  return formatWikiGraphCommandUri(locator, objectUri);
 }
 
 function isShortOutputUri(uri: string): boolean {

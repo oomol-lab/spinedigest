@@ -75,14 +75,21 @@ describe("cli/library args", () => {
       kind: "library",
     });
 
-    expect(parseCLIArguments(["wikg://lib/abc123abc123"])).toStrictEqual({
+    expect(parseCLIArguments(["wikg://lib"])).toMatchObject({
       args: {
         action: "list",
-        json: undefined,
-        target: { isDefault: false, kind: "scope", publicId: "abc123abc123" },
+        archivePath: "wikg://lib",
       },
       help: false,
-      kind: "library",
+      kind: "archive",
+    });
+    expect(parseCLIArguments(["wikg://lib/abc123abc123"])).toMatchObject({
+      args: {
+        action: "list",
+        archivePath: "wikg://lib/abc123abc123",
+      },
+      help: false,
+      kind: "archive",
     });
 
     expect(() =>
@@ -284,6 +291,17 @@ describe("cli/library args", () => {
       },
       kind: "library",
     });
+    expect(parseCLIArguments(["wikg://lib/arc"])).toMatchObject({
+      args: { action: "list", target: { kind: "archive-collection" } },
+      kind: "library",
+    });
+    expect(parseCLIArguments(["wikg://lib/team/arc"])).toMatchObject({
+      args: {
+        action: "list",
+        target: { kind: "archive-collection", publicId: "team" },
+      },
+      kind: "library",
+    });
 
     expect(() =>
       parseCLIArguments(["wikg://lib/arc", "list", "--jsonl"]),
@@ -423,7 +441,7 @@ describe("cli/library args", () => {
     });
 
     expect(JSON.parse(libraryMockState.textWrites[0] ?? "{}")).toStrictEqual({
-      items: [{ name: "nested", path: "nested" }],
+      items: [{ children: [], name: "nested", path: "nested" }],
     });
 
     libraryMockState.textWrites.length = 0;

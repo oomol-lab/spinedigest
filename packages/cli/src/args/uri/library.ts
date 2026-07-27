@@ -171,7 +171,7 @@ export function parseLibraryUriFirstArguments(
 
   if (
     target.kind === "scope" &&
-    (target.objectUri !== undefined || action === "search")
+    (target.objectUri !== undefined || action === "search" || action === "list")
   ) {
     return parseLibraryQueryArguments(
       uri,
@@ -462,7 +462,11 @@ function parseLibraryQueryArguments(
       ),
     );
   }
-  if (target.objectUri === undefined && action !== "search") {
+  if (
+    target.objectUri === undefined &&
+    action !== "search" &&
+    action !== "list"
+  ) {
     throw new Error("Internal error: missing library query object URI.");
   }
 

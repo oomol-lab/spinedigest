@@ -23,8 +23,10 @@ import {
   scanWikiGraphLibrary,
 } from "wiki-graph-core";
 import type { CLILibraryArguments } from "../args/index.js";
+import type { RenderTreeNode } from "../support/index.js";
 import {
   formatCLIJSON,
+  renderTreeText,
   readTextStreamFromStdin,
   writeTextToStdout,
 } from "../support/index.js";
@@ -76,6 +78,10 @@ export async function runLibraryCommand(
           await listWikiGraphLibraries(),
           args.json ?? false,
         );
+        return;
+      }
+      if (args.target.kind === "archive-collection") {
+        await writeEmptyLibraryScope(args.json ?? false);
         return;
       }
       await writeLibraryArchives(
@@ -226,10 +232,7 @@ export async function runLibraryCommand(
         return;
       }
       await resolveWikiGraphLibrary(args.target);
-      await writeLibraryArchives(
-        await listWikiGraphLibraryArchives(args.target),
-        args.json ?? false,
-      );
+      await writeEmptyLibraryScope(args.json ?? false);
       return;
     }
     case "set": {
@@ -431,6 +434,10 @@ async function writeLibraryArchives(
   );
 }
 
+async function writeEmptyLibraryScope(json: boolean): Promise<void> {
+  await writeTextToStdout(json ? formatCLIJSON({ items: [] }) : "");
+}
+
 async function writeLibraryArchive(
   archive: Awaited<ReturnType<typeof addWikiGraphLibraryArchive>>,
   json: boolean,
@@ -551,31 +558,25 @@ function serializeArchiveTreeNodes(
   nodes: Map<string, ArchiveTreeNode>,
 ): object[] {
   return [...nodes.values()].map((node) => ({
+    children: serializeArchiveTreeNodes(node.children),
     name: node.name,
     path: node.path,
     ...(node.archive === undefined ? {} : { uri: node.archive.uri }),
-    ...(node.children.size === 0
-      ? {}
-      : { children: serializeArchiveTreeNodes(node.children) }),
   }));
 }
 
-function formatArchiveTreeText(
-  nodes: Map<string, ArchiveTreeNode>,
-  indent = "",
-): string {
-  const lines: string[] = [];
-  for (const node of nodes.values()) {
-    lines.push(
-      `${indent}${node.name}${node.archive === undefined ? "/" : `\t${node.archive.uri}`}`,
-    );
-    if (node.children.size > 0) {
-      lines.push(
-        formatArchiveTreeText(node.children, `${indent}  `).replace(/\n$/u, ""),
-      );
-    }
-  }
-  return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
+function formatArchiveTreeText(nodes: Map<string, ArchiveTreeNode>): string {
+  return renderTreeText([...nodes.values()].map(formatArchiveTreeRenderNode));
+}
+
+function formatArchiveTreeRenderNode(node: ArchiveTreeNode): RenderTreeNode {
+  return {
+    children: [...node.children.values()].map(formatArchiveTreeRenderNode),
+    label:
+      node.archive === undefined
+        ? node.name
+        : `${node.name} (${node.archive.uri})`,
+  };
 }
 
 async function writeLibraryIndexState(

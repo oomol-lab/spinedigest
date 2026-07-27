@@ -58,7 +58,9 @@ export async function runArchiveCommand(
   if (
     libraryTarget?.kind === "scope" &&
     libraryTarget.objectUri !== "wikg://index" &&
-    (libraryTarget.objectUri !== undefined || args.action === "search")
+    (libraryTarget.objectUri !== undefined ||
+      args.action === "search" ||
+      args.action === "list")
   ) {
     await runLibraryIndexArchiveCommand(args, libraryTarget);
     return;

@@ -756,6 +756,7 @@ describe("cli/args/help", () => {
     expect(scopeHelpText).toContain(
       "Use `wg wikg://lib/registry` to list all library registries.",
     );
+    expect(scopeHelpText).not.toContain("lists archive memberships");
     expect(scopeHelpText).toContain("broad library index search");
     expect(scopeHelpText).toContain("wg wikg://lib --query <query>");
     expect(
@@ -904,6 +905,8 @@ describe("cli/args/help", () => {
     expect(arcHelpText).toContain("wikg://lib/arc add --help");
     expect(arcHelpText).toContain("wikg://lib/arc scan --help");
     expect(arcHelpText).toContain("wikg://lib/arc/tree --help");
+    expect(arcHelpText).not.toContain("lists archive members");
+    expect(arcHelpText).toContain("use `/tree` for member file visualization");
     expect(arcTreeHelpText).toContain("This object is read-only");
     for (const text of [
       scopeHelpText,

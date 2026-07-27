@@ -25,7 +25,9 @@ import {
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIArchiveChapterArguments } from "../../args/index.js";
+import type { RenderTreeNode } from "../../support/index.js";
 import {
+  renderTreeText,
   readTextStreamFromStdin,
   writeTextToStdout,
 } from "../../support/index.js";
@@ -404,24 +406,17 @@ async function writeChapterTree(
   }
 
   await writeTextToStdout(
-    `${formatChapterTreeNodes(tree.chapters).join("\n")}\n`,
+    renderTreeText(tree.chapters.map(formatChapterTreeRenderNode)),
   );
 }
 
-function formatChapterTreeNodes(
-  nodes: readonly ChapterTree["chapters"][number][],
-  prefix = "",
-): readonly string[] {
-  return nodes.flatMap((node, index) => {
-    const last = index === nodes.length - 1;
-    const branch = last ? "└─ " : "├─ ";
-    const childPrefix = `${prefix}${last ? "   " : "│  "}`;
-
-    return [
-      `${prefix}${branch}${formatChapterTreeTitle(node.title)} (${formatChapterTreeKey(node.uri)})`,
-      ...formatChapterTreeNodes(node.children, childPrefix),
-    ];
-  });
+function formatChapterTreeRenderNode(
+  node: ChapterTree["chapters"][number],
+): RenderTreeNode {
+  return {
+    children: node.children.map(formatChapterTreeRenderNode),
+    label: `${formatChapterTreeTitle(node.title)} (${formatChapterTreeKey(node.uri)})`,
+  };
 }
 
 function formatChapterTreeKey(uri: string): string {

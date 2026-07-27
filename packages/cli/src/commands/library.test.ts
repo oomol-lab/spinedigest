@@ -62,6 +62,7 @@ describe("library command", () => {
         {
           children: [
             {
+              children: [],
               name: "book.wikg",
               path: "nested/book.wikg",
               uri: archive.uri,
@@ -72,6 +73,16 @@ describe("library command", () => {
         },
       ],
     });
+
+    const textOutput = await captureStdout(async () => {
+      await runLibraryCommand({
+        action: "archive-tree",
+        parent: "nested/book.wikg",
+        target: { isDefault: true, kind: "archive-tree" },
+      });
+    });
+
+    expect(textOutput).toBe(`└─ nested\n   └─ book.wikg (${archive.uri})\n`);
   });
 });
 

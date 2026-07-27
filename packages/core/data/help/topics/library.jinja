@@ -12,7 +12,7 @@ Core model:
   - The default library is addressed as `wikg://lib`.
   - A non-default library is addressed as `wikg://lib/<lib-id>`.
   - The `arc` reserved segment keeps library ids distinct from archive member ids.
-  - `{{ commandName }} wikg://lib` lists archive memberships in the default library; it does not list all library registries.
+  - `{{ commandName }} wikg://lib` reads the default library scope; it does not list all library registries or archive memberships.
 
 Registry discovery:
   - `{{ commandName }} wikg://lib/registry add --path <folder>` prints the new non-default library URI.
@@ -30,6 +30,7 @@ Library folders:
 Archive memberships:
   - `{{ commandName }} wikg://lib/arc scan` recursively discovers `.wikg` files under the default library folder and reconciles registry state.
   - `{{ commandName }} wikg://lib/arc add --input <path> [--to <relative-wikg-path>]` copies one `.wikg` file into the default library folder and registers it.
+  - `{{ commandName }} wikg://lib/arc/tree` shows the archive member file tree; use this instead of naked `wikg://lib` or `wikg://lib/arc` when you want to see archive members.
   - For a non-default library, replace `wikg://lib` with `wikg://lib/<lib-id>` in those `arc` commands.
   - `{{ commandName }} <library-archive-uri>/path set <relative-wikg-path>` moves or renames one managed archive inside the same folder.
   - `{{ commandName }} <library-archive-uri> remove --confirm` deletes one managed archive file and unregisters it.

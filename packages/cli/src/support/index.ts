@@ -3,4 +3,5 @@ export * from "./formats.js";
 export * from "./io.js";
 export * from "./json.js";
 export * from "./shell.js";
+export * from "./tree.js";
 export * from "./version.js";
