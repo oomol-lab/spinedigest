@@ -406,6 +406,19 @@ export async function resolveWikiGraphLibrary(
   );
 }
 
+export async function resolveWikiGraphLibraryForScan(
+  target: ParsedWikiGraphLibraryUri,
+): Promise<WikiGraphLibraryRecord> {
+  if (!target.isDefault) {
+    return await resolveWikiGraphLibrary(target);
+  }
+
+  const existing = await withLibraryRegistryDatabase(
+    async (database) => await readDefaultLibraryRecord(database),
+  );
+  return existing ?? (await ensureDefaultWikiGraphLibrary());
+}
+
 export async function resolveWikiGraphLibraryById(
   id: number,
 ): Promise<WikiGraphLibraryRecord> {

@@ -30,6 +30,7 @@ import { isNodeError } from "../utils/node-error.js";
 import {
   parseWikiGraphLibraryUri,
   resolveWikiGraphLibrary,
+  resolveWikiGraphLibraryForScan,
   updateWikiGraphLibraryFolderPathForRebind,
   type ParsedWikiGraphLibraryUri,
   type WikiGraphLibraryRecord,
@@ -103,7 +104,7 @@ interface DiscoveredLibraryArchiveFile {
 export async function scanWikiGraphLibrary(
   target: ParsedWikiGraphLibraryUri,
 ): Promise<WikiGraphLibraryScanResult> {
-  const library = await resolveWikiGraphLibrary(target);
+  const library = await resolveWikiGraphLibraryForScan(target);
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
     const result = await scanWikiGraphLibraryUnlocked(target, library, {
       pathIdentity: "trusted",
@@ -207,7 +208,6 @@ async function scanWikiGraphLibraryUnlocked(
         });
       }
 
-      const now = new Date().toISOString();
       for (const archive of existing) {
         if (
           seenArchiveIds.has(archive.id) ||
@@ -218,11 +218,10 @@ async function scanWikiGraphLibraryUnlocked(
         }
         await database.run(
           `
-            UPDATE library_archives
-            SET status = 'missing', updated_at = ?, last_scanned_at = ?
+            DELETE FROM library_archives
             WHERE id = ?
           `,
-          [now, now, archive.id],
+          [archive.id],
         );
       }
     });
@@ -772,6 +771,7 @@ function archivePathMatchRank(archive: WikiGraphLibraryArchiveRecord): number {
 async function listWikgFiles(
   root: string,
 ): Promise<DiscoveredLibraryArchiveFile[]> {
+  await assertLibraryFolderExists(root);
   const relativePaths: string[] = [];
   await walkLibraryDirectory(root, root, relativePaths);
   const files: DiscoveredLibraryArchiveFile[] = [];
@@ -784,6 +784,20 @@ async function listWikgFiles(
     );
   }
   return files;
+}
+
+async function assertLibraryFolderExists(root: string): Promise<void> {
+  try {
+    const rootStat = await stat(root);
+    if (!rootStat.isDirectory()) {
+      throw new Error(`Wiki Graph library folder is not a directory: ${root}`);
+    }
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      throw new Error(`Wiki Graph library folder is missing: ${root}`);
+    }
+    throw error;
+  }
 }
 
 async function ensureLibraryArchiveFileHasNoSearchIndexAndInspect(

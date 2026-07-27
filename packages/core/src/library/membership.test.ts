@@ -21,6 +21,7 @@ import {
   findWikiGraphLibraryArchiveMembers,
   getWikiGraphLibraryMetadata,
   isWikiGraphLibraryUri,
+  listWikiGraphLibraryArchives,
   moveWikiGraphLibraryArchive,
   parseLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
@@ -52,7 +53,7 @@ import { acquireWikiGraphLibraryLock } from "./lock.js";
 import { listWikiGraphLibrarySearchIndex } from "./search-index.js";
 
 describe("library archive membership", () => {
-  it("scans nested .wikg files and reports missing registered files", async () => {
+  it("scans nested .wikg files and prunes deleted registered files", async () => {
     await withLibraryTestState(async () => {
       const library = await ensureDefaultWikiGraphLibrary();
       await mkdir(join(library.folderPath, "nested"), { recursive: true });
@@ -73,7 +74,10 @@ describe("library archive membership", () => {
           relativePath: archive.relativePath,
           status: archive.status,
         })),
-      ).toContainEqual({ relativePath: "a.wikg", status: "missing" });
+      ).toStrictEqual([{ relativePath: "nested/b.wikg", status: "present" }]);
+      await expect(listWikiGraphLibraryArchives(target!)).resolves.toHaveLength(
+        1,
+      );
     });
   });
 
@@ -199,11 +203,11 @@ describe("library archive membership", () => {
       );
 
       expect(fresh?.publicId).not.toBe(first.archives[0]?.publicId);
-      expect(second.archives).toContainEqual(
-        expect.objectContaining({
-          relativePath: "old.wikg",
-          status: "missing",
-        }),
+      expect(second.archives.map((archive) => archive.relativePath)).toEqual([
+        "new.wikg",
+      ]);
+      expect(second.archives).not.toContainEqual(
+        expect.objectContaining({ relativePath: "old.wikg" }),
       );
     });
   });
@@ -731,9 +735,30 @@ describe("library archive membership", () => {
       expect(fresh?.lastSeenMutationToken).not.toBe(
         oldArchive?.lastSeenMutationToken,
       );
-      expect(rebound.archives).toContainEqual(
+      expect(rebound.archives).not.toContainEqual(
+        expect.objectContaining({ publicId: oldArchive?.publicId }),
+      );
+      expect(rebound.archives).toHaveLength(1);
+    });
+  });
+
+  it("does not prune members when the library folder root is missing", async () => {
+    await withLibraryTestState(async () => {
+      const library = await ensureDefaultWikiGraphLibrary();
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      await writeFile(join(library.folderPath, "book.wikg"), "book");
+      const first = await scanWikiGraphLibrary(target!);
+
+      await rm(library.folderPath, { recursive: true });
+      await expect(scanWikiGraphLibrary(target!)).rejects.toThrow(
+        "Wiki Graph library folder is missing",
+      );
+      await expect(
+        listWikiGraphLibraryArchives(target!),
+      ).resolves.toContainEqual(
         expect.objectContaining({
-          publicId: oldArchive?.publicId,
+          publicId: first.archives[0]?.publicId,
           relativePath: "book.wikg",
           status: "missing",
         }),

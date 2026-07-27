@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   addWikiGraphLibraryArchive,
+  createWikiGraphLibrary,
   parseWikiGraphLibraryUri,
 } from "../../../core/src/index.js";
 import { withWikiGraphStateDirectoryPathForTesting } from "../../../core/src/runtime/common/wiki-graph/dir.js";
@@ -12,6 +13,62 @@ import { runLibraryCommand } from "./library.js";
 import { createEmptyArchive } from "./test-helpers.js";
 
 describe("library command", () => {
+  it("scan prunes deleted members while registry listing remains library-only", async () => {
+    await withLibraryCommandTestState(async (tempDir) => {
+      const libraryFolder = join(tempDir, "library");
+      const library = await createWikiGraphLibrary({
+        folderPath: libraryFolder,
+      });
+      const target = parseWikiGraphLibraryUri(`${library.uri}/arc`);
+      expect(target).toBeDefined();
+      await createEmptyArchive({
+        path: join(libraryFolder, "book.wikg"),
+        tempDir,
+      });
+
+      const firstScanOutput = await captureStdout(async () => {
+        await runLibraryCommand({
+          action: "scan",
+          json: true,
+          target: target!,
+        });
+      });
+      const firstScan = JSON.parse(firstScanOutput) as {
+        readonly items: Array<{
+          readonly id: string;
+          readonly relativePath: string;
+        }>;
+      };
+      expect(firstScan.items).toHaveLength(1);
+      const archiveId = firstScan.items[0]?.id;
+
+      await rm(join(libraryFolder, "book.wikg"));
+      const secondScanOutput = await captureStdout(async () => {
+        await runLibraryCommand({
+          action: "scan",
+          json: true,
+          target: target!,
+        });
+      });
+      expect(JSON.parse(secondScanOutput)).toStrictEqual({ items: [] });
+
+      const libraryListOutput = await captureStdout(async () => {
+        await runLibraryCommand({
+          action: "list",
+          json: true,
+          target: { isDefault: true, kind: "registry" },
+        });
+      });
+      const libraryList = JSON.parse(libraryListOutput) as {
+        readonly items: Array<{ readonly id: string; readonly uri: string }>;
+      };
+      expect(libraryList.items).toContainEqual(
+        expect.objectContaining({ id: library.publicId, uri: library.uri }),
+      );
+      expect(libraryListOutput).not.toContain(archiveId);
+    });
+  });
+
   it("filters archive tree by file parent without changing the display root", async () => {
     await withLibraryCommandTestState(async (tempDir) => {
       const target = parseWikiGraphLibraryUri("wikg://lib");
