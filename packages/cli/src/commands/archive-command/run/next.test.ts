@@ -133,47 +133,59 @@ describe("runNextArchivePage library cursors", () => {
     );
   });
 
-  it("continues library archive member collection cursors", async () => {
-    vi.mocked(parseWikiGraphLibraryUri).mockReturnValue({
-      isDefault: true,
-      kind: "scope",
-    });
-    vi.mocked(listWikiGraphLibraryArchiveMembers).mockResolvedValue({
-      chapters: null,
-      ids: null,
-      items: [
-        {
-          archiveId: 8,
-          field: "metadata",
-          id: "wikg://lib/arc/book",
-          libraryArchiveUri: "wikg://lib/arc/book",
-          snippet: "books/book.wikg  present  exists",
-          title: "books/book.wikg",
-          type: "meta",
-        },
-      ],
-      limit: 20,
-      nextCursor: null,
-      order: "doc-asc",
-      types: null,
-    });
-
-    await runNextArchivePage({ action: "next", archivePath: "c_next" });
-
-    expect(listWikiGraphLibraryArchiveMembers).toHaveBeenCalledWith(
-      libraryTarget,
-      expect.objectContaining({ cursor: "raw-collection-cursor" }),
-    );
-    expect(listWikiGraphLibraryObjects).not.toHaveBeenCalled();
-  });
-
-  it("continues library archive member search cursors", async () => {
+  it("continues library root scope collection cursors as library-wide objects", async () => {
     vi.mocked(parseWikiGraphLibraryUri).mockReturnValue({
       isDefault: true,
       kind: "scope",
     });
     vi.mocked(readContinuationCursor).mockResolvedValue({
-      archiveKey: "wikg://lib",
+      archiveKey: "wikg://lib#scope",
+      archivePath: "wikg://lib",
+      chapters: null,
+      cursor: "raw-collection-cursor",
+      format: "json",
+      ids: null,
+      indexScope: { kind: "library-index", libraryId: 42 },
+      kind: "collection",
+      order: "doc-asc",
+      types: ["entity"],
+    });
+    vi.mocked(listWikiGraphLibraryObjects).mockResolvedValue({
+      chapters: null,
+      ids: null,
+      items: [
+        {
+          archiveId: 7,
+          field: "metadata",
+          id: "wikg://entity/Q7",
+          libraryArchiveUri: "wikg://lib/archive-7",
+          snippet: "Entity 7",
+          title: "Entity 7",
+          type: "entity",
+        },
+      ],
+      limit: 20,
+      nextCursor: null,
+      order: "doc-asc",
+      types: ["entity"],
+    });
+
+    await runNextArchivePage({ action: "next", archivePath: "c_next" });
+
+    expect(listWikiGraphLibraryObjects).toHaveBeenCalledWith(
+      libraryTarget,
+      expect.objectContaining({ cursor: "raw-collection-cursor" }),
+    );
+    expect(listWikiGraphLibraryArchiveMembers).not.toHaveBeenCalled();
+  });
+
+  it("continues library root search cursors as library-wide object searches", async () => {
+    vi.mocked(parseWikiGraphLibraryUri).mockReturnValue({
+      isDefault: true,
+      kind: "scope",
+    });
+    vi.mocked(readContinuationCursor).mockResolvedValue({
+      archiveKey: "wikg://lib#scope",
       archivePath: "wikg://lib",
       cursor: "raw-search-cursor",
       format: "json",
@@ -182,7 +194,7 @@ describe("runNextArchivePage library cursors", () => {
       query: "book",
       types: null,
     });
-    vi.mocked(findWikiGraphLibraryArchiveMembers).mockResolvedValue({
+    vi.mocked(findWikiGraphLibraryObjects).mockResolvedValue({
       chapters: null,
       items: [],
       lens: "typed",
@@ -198,11 +210,11 @@ describe("runNextArchivePage library cursors", () => {
 
     await runNextArchivePage({ action: "next", archivePath: "c_next" });
 
-    expect(findWikiGraphLibraryArchiveMembers).toHaveBeenCalledWith(
+    expect(findWikiGraphLibraryObjects).toHaveBeenCalledWith(
       libraryTarget,
       "book",
       expect.objectContaining({ cursor: "raw-search-cursor" }),
     );
-    expect(findWikiGraphLibraryObjects).not.toHaveBeenCalled();
+    expect(findWikiGraphLibraryArchiveMembers).not.toHaveBeenCalled();
   });
 });

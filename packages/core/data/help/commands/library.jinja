@@ -166,9 +166,9 @@ Related help:
 Library scope
 
 Default behavior:
-  - `{{ commandName }} {{ uri }}` lists archive members in this library.
+  - `{{ commandName }} {{ uri }}` reads the library-wide scope collection.
   - Use `{{ commandName }} wikg://lib/registry` to list all library registries.
-  - `{{ commandName }} {{ uri }} --query <query>` searches archive members by URI, relative path, and status.
+  - `{{ commandName }} {{ uri }} --query <query>` searches library-wide objects through the library index.
   - `{{ commandName }} {{ uri }}/arc scan` reconciles membership with `.wikg` files currently under the library folder.
   - Library-wide object scopes such as `/entity` and `/triple` query one object type through the library index after it is enabled.
   - Archive object search must use an explicit lens such as `/entity`, `/triple`, `/chapter`, or `/chunk`.
@@ -183,14 +183,14 @@ Use when:
 {% endif %}
 
 URI forms:
-  - `{{ commandName }} wikg://lib` addresses the default library.
-  - `{{ commandName }} wikg://lib/<lib-id>` addresses a non-default library.
+  - `{{ commandName }} wikg://lib` addresses the default library root scope.
+  - `{{ commandName }} wikg://lib/<lib-id>` addresses a non-default library root scope.
   - `{{ commandName }} wikg://lib/arc/<archive-id>/` addresses one archive membership in the default library.
   - `{{ commandName }} wikg://lib/<lib-id>/arc/<archive-id>/` addresses one archive membership in a non-default library.
 
 Usage:
 {% if target.isDefault %}
-  {{ commandName }} wikg://lib [--limit <n>] [--cursor <cursor>] [--json]
+  {{ commandName }} wikg://lib [--json]
   {{ commandName }} wikg://lib --query <query> [--limit <n>] [--cursor <cursor>] [--json]
   {{ commandName }} wikg://lib/chapter --query <query>
   {{ commandName }} wikg://lib/chunk --query <query>
@@ -204,7 +204,7 @@ Usage:
   {{ commandName }} wikg://lib/triple --query <query>
   {{ commandName }} wikg://lib/meta [--json]
 {% else %}
-  {{ commandName }} {{ uri }} [--limit <n>] [--cursor <cursor>] [--json]
+  {{ commandName }} {{ uri }} [--json]
   {{ commandName }} {{ uri }} --query <query> [--limit <n>] [--cursor <cursor>] [--json]
   {{ commandName }} {{ uri }}/chapter --query <query>
   {{ commandName }} {{ uri }}/chunk --query <query>

@@ -8,10 +8,12 @@ import {
   deleteWikiGraphLibraryMetadataKey,
   getWikiGraphLibraryMetadata,
   getWikiGraphLibraryArchive,
+  listWikiGraphLibraryObjects,
   listWikiGraphLibraries,
   listWikiGraphLibraryArchives,
   moveWikiGraphLibraryArchive,
   disableWikiGraphLibraryIndex,
+  formatWikiGraphLibraryUri,
   putWikiGraphLibraryMetadata,
   readWikiGraphLibraryIndexState,
   rebuildWikiGraphLibraryIndex,
@@ -30,6 +32,8 @@ import {
   readTextStreamFromStdin,
   writeTextToStdout,
 } from "../support/index.js";
+import { createCollectionFindResult } from "./archive-command/run/index.js";
+import { writeFindHits } from "./archive-output/index.js";
 import {
   ProgressOutputWriter,
   type ProgressCounter,
@@ -81,13 +85,13 @@ export async function runLibraryCommand(
         return;
       }
       if (args.target.kind === "archive-collection") {
-        await writeEmptyLibraryScope(args.json ?? false);
+        await writeLibraryArchives(
+          await listWikiGraphLibraryArchives(args.target),
+          args.json ?? false,
+        );
         return;
       }
-      await writeLibraryArchives(
-        await listWikiGraphLibraryArchives(args.target),
-        args.json ?? false,
-      );
+      await writeLibraryScopeCollection(args.target, args.json ?? false);
       return;
     }
     case "scan": {
@@ -230,10 +234,14 @@ export async function runLibraryCommand(
         );
         return;
       }
-      await writeLibraryArchives(
-        await listWikiGraphLibraryArchives(args.target),
-        args.json ?? false,
-      );
+      if (args.target.kind === "archive-collection") {
+        await writeLibraryArchives(
+          await listWikiGraphLibraryArchives(args.target),
+          args.json ?? false,
+        );
+        return;
+      }
+      await writeLibraryScopeCollection(args.target, args.json ?? false);
       return;
     }
     case "set": {
@@ -435,8 +443,27 @@ async function writeLibraryArchives(
   );
 }
 
-async function writeEmptyLibraryScope(json: boolean): Promise<void> {
-  await writeTextToStdout(json ? formatCLIJSON({ items: [] }) : "");
+async function writeLibraryScopeCollection(
+  target: Parameters<typeof listWikiGraphLibraryObjects>[0],
+  json: boolean,
+): Promise<void> {
+  const library = await resolveWikiGraphLibrary(target);
+  const baseUri = formatWikiGraphLibraryUri(target.publicId);
+  const context = {
+    archiveKey: `${baseUri}#scope`,
+    archivePath: baseUri,
+    continuationKind: "collection" as const,
+    format: json ? ("json" as const) : ("text" as const),
+    indexScope: { kind: "library-index" as const, libraryId: library.id },
+    limit: 20,
+    types: null,
+  };
+
+  await writeFindHits(
+    createCollectionFindResult(await listWikiGraphLibraryObjects(target)),
+    context,
+    json ? "json" : "text",
+  );
 }
 
 async function writeLibraryArchive(

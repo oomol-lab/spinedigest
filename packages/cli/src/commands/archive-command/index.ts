@@ -2,9 +2,8 @@ import {
   listArchiveCollection,
   listArchiveEvidence,
   listRelatedArchiveObjects,
-  findWikiGraphLibraryArchiveMembers,
   findWikiGraphLibraryObjects,
-  listWikiGraphLibraryArchiveMembers,
+  formatWikiGraphLibraryUri,
   listRelatedWikiGraphLibraryObjects,
   listWikiGraphLibraryEvidence,
   listWikiGraphLibraryObjects,
@@ -331,24 +330,27 @@ async function runLibraryIndexArchiveCommand(
   target: NonNullable<ReturnType<typeof parseWikiGraphLibraryUri>>,
 ): Promise<void> {
   const library = await resolveWikiGraphLibrary(target);
-  const objectUri =
-    target.objectUri === undefined && args.objectId === undefined
-      ? "wikg://"
-      : getObjectUri(args.objectId ?? args.archivePath);
+  const isLibraryRootCollection =
+    target.objectUri === undefined && args.objectId === undefined;
+  const objectUri = isLibraryRootCollection
+    ? undefined
+    : getObjectUri(args.objectId ?? args.archivePath);
   const context = {
     ...createArchiveOutputContext(args),
-    archiveKey: args.archivePath,
+    archiveKey: isLibraryRootCollection
+      ? `${formatWikiGraphLibraryUri(target.publicId)}#scope`
+      : args.archivePath,
     archivePath: args.archivePath,
     indexScope: { kind: "library-index" as const, libraryId: library.id },
   };
 
   switch (args.action) {
     case "search":
-      if (objectUri === "wikg://") {
+      if (objectUri === undefined) {
         if (args.all === true) {
           await writeAllFindHits(
             async (cursor) =>
-              await findWikiGraphLibraryArchiveMembers(target, args.query!, {
+              await findWikiGraphLibraryObjects(target, args.query!, {
                 ...createFindOptions(args),
                 ...(cursor === undefined ? {} : { cursor }),
               }),
@@ -358,7 +360,7 @@ async function runLibraryIndexArchiveCommand(
           return;
         }
         await writeFindHits(
-          await findWikiGraphLibraryArchiveMembers(
+          await findWikiGraphLibraryObjects(
             target,
             args.query!,
             createFindOptions(args),
@@ -396,16 +398,30 @@ async function runLibraryIndexArchiveCommand(
         ...context,
         continuationKind: "collection" as const,
       };
-      if (objectUri === "wikg://") {
+      if (objectUri === undefined) {
         if (args.all === true) {
-          await writeAllFindHits(
-            async (cursor) =>
-              createCollectionFindResult(
-                await listWikiGraphLibraryArchiveMembers(target, {
-                  ...createCollectionOptions(args),
-                  ...(cursor === undefined ? {} : { cursor }),
-                }),
-              ),
+          if (args.limit !== undefined) {
+            await writeAllFindHits(
+              async (cursor) =>
+                createCollectionFindResult(
+                  await listWikiGraphLibraryObjects(target, {
+                    ...createCollectionOptions(args),
+                    ...(cursor === undefined ? {} : { cursor }),
+                  }),
+                ),
+              listContext,
+              args.format ?? "text",
+            );
+            return;
+          }
+
+          await writeFindHitsWithoutContinuation(
+            createCollectionFindResult(
+              await listWikiGraphLibraryObjects(target, {
+                ...createCollectionOptions(args),
+                limit: ALL_COLLECTION_OUTPUT_LIMIT,
+              }),
+            ),
             listContext,
             args.format ?? "text",
           );
@@ -413,7 +429,7 @@ async function runLibraryIndexArchiveCommand(
         }
         await writeFindHits(
           createCollectionFindResult(
-            await listWikiGraphLibraryArchiveMembers(
+            await listWikiGraphLibraryObjects(
               target,
               createCollectionOptions(args),
             ),
@@ -465,6 +481,24 @@ async function runLibraryIndexArchiveCommand(
       return;
     }
     case "get": {
+      if (objectUri === undefined) {
+        const getContext = {
+          ...context,
+          continuationKind: "collection" as const,
+        };
+        await writeFindHits(
+          createCollectionFindResult(
+            await listWikiGraphLibraryObjects(
+              target,
+              createCollectionOptions(args),
+            ),
+          ),
+          getContext,
+          args.format ?? "text",
+        );
+        return;
+      }
+
       const evidenceLimit = getSingleObjectEvidenceLimit(args, objectUri);
       await writePage(
         await readWikiGraphLibraryPage(target, objectUri, {
@@ -481,6 +515,9 @@ async function runLibraryIndexArchiveCommand(
       return;
     }
     case "related": {
+      if (objectUri === undefined) {
+        throw new Error("Internal error: missing library object URI.");
+      }
       const relatedContext = {
         ...context,
         continuationKind: "related" as const,
@@ -517,6 +554,9 @@ async function runLibraryIndexArchiveCommand(
       return;
     }
     case "evidence": {
+      if (objectUri === undefined) {
+        throw new Error("Internal error: missing library object URI.");
+      }
       const evidenceContext = {
         ...context,
         continuationKind: "evidence" as const,
@@ -553,6 +593,9 @@ async function runLibraryIndexArchiveCommand(
       return;
     }
     case "pack":
+      if (objectUri === undefined) {
+        throw new Error("Internal error: missing library object URI.");
+      }
       await writePack(
         await packWikiGraphLibraryContext(
           target,

@@ -414,7 +414,11 @@ function isLibraryArchiveMemberCursor(
   cursor: Awaited<ReturnType<typeof readContinuationCursor>>,
 ): boolean {
   const target = parseWikiGraphLibraryUri(cursor.archivePath);
-  return target?.kind === "scope" && target.objectUri === undefined;
+  return (
+    target?.kind === "scope" &&
+    target.objectUri === undefined &&
+    cursor.archiveKey === cursor.archivePath
+  );
 }
 
 function createCursorOutputContext(
