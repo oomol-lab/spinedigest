@@ -60,6 +60,9 @@ export async function runArchiveCommand(
     libraryTarget?.kind === "scope" &&
     libraryTarget.objectUri !== "wikg://index" &&
     (libraryTarget.objectUri !== undefined ||
+      args.action === "related" ||
+      args.action === "evidence" ||
+      args.action === "pack" ||
       args.action === "search" ||
       args.action === "list")
   ) {
@@ -515,18 +518,16 @@ async function runLibraryIndexArchiveCommand(
       return;
     }
     case "related": {
-      if (objectUri === undefined) {
-        throw new Error("Internal error: missing library object URI.");
-      }
+      const concreteObjectUri = requireLibraryObjectUri("related", objectUri);
       const relatedContext = {
         ...context,
         continuationKind: "related" as const,
-        targetUri: objectUri,
+        targetUri: concreteObjectUri,
       };
       const readPage = async (
         cursor: string | undefined,
       ): Promise<ArchiveRelatedResult> =>
-        await listRelatedWikiGraphLibraryObjects(target, objectUri, {
+        await listRelatedWikiGraphLibraryObjects(target, concreteObjectUri, {
           ...(cursor === undefined ? {} : { cursor }),
           ...createOptionalEvidenceLimit(args),
           ...(args.limit === undefined ? {} : { limit: args.limit }),
@@ -554,19 +555,17 @@ async function runLibraryIndexArchiveCommand(
       return;
     }
     case "evidence": {
-      if (objectUri === undefined) {
-        throw new Error("Internal error: missing library object URI.");
-      }
+      const concreteObjectUri = requireLibraryObjectUri("evidence", objectUri);
       const evidenceContext = {
         ...context,
         continuationKind: "evidence" as const,
-        targetUri: objectUri,
+        targetUri: concreteObjectUri,
       };
 
       if (args.all === true) {
         await writeAllEvidence(
           async (cursor) =>
-            await listWikiGraphLibraryEvidence(target, objectUri, {
+            await listWikiGraphLibraryEvidence(target, concreteObjectUri, {
               ...(cursor === undefined ? {} : { cursor }),
               ...(args.limit === undefined ? {} : { limit: args.limit }),
               ...(args.reverse === true ? { order: "doc-desc" } : {}),
@@ -580,7 +579,7 @@ async function runLibraryIndexArchiveCommand(
       }
 
       await writeEvidence(
-        await listWikiGraphLibraryEvidence(target, objectUri, {
+        await listWikiGraphLibraryEvidence(target, concreteObjectUri, {
           ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
           ...(args.limit === undefined ? {} : { limit: args.limit }),
           ...(args.reverse === true ? { order: "doc-desc" } : {}),
@@ -592,20 +591,19 @@ async function runLibraryIndexArchiveCommand(
       );
       return;
     }
-    case "pack":
-      if (objectUri === undefined) {
-        throw new Error("Internal error: missing library object URI.");
-      }
+    case "pack": {
+      const concreteObjectUri = requireLibraryObjectUri("pack", objectUri);
       await writePack(
         await packWikiGraphLibraryContext(
           target,
-          objectUri,
+          concreteObjectUri,
           args.budget ?? 5000,
         ),
         context,
         args.format ?? "text",
       );
       return;
+    }
     case "create":
     case "export":
     case "inspect":
@@ -614,4 +612,17 @@ async function runLibraryIndexArchiveCommand(
         `The library index scope does not support \`${args.action}\`.`,
       );
   }
+}
+
+function requireLibraryObjectUri(
+  action: "related" | "evidence" | "pack",
+  objectUri: string | undefined,
+): string {
+  if (objectUri === undefined) {
+    throw new Error(
+      `The library \`${action}\` predicate requires a concrete library object URI.`,
+    );
+  }
+
+  return objectUri;
 }

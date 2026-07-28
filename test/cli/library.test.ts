@@ -67,7 +67,10 @@ vi.mock("../../packages/cli/src/support/index.js", async (importOriginal) => {
 });
 
 import { parseCLIArguments } from "../../packages/cli/src/args/index.js";
-import { runLibraryCommand } from "../../packages/cli/src/commands/index.js";
+import {
+  runArchiveCommand,
+  runLibraryCommand,
+} from "../../packages/cli/src/commands/index.js";
 
 describe("cli/library args", () => {
   beforeEach(() => {
@@ -372,6 +375,15 @@ describe("cli/library args", () => {
   });
 
   it("rejects reverse query combinations for library query predicates", () => {
+    expect(() => parseCLIArguments(["wikg://lib", "related"])).toThrow(
+      "The library `related` predicate requires a concrete library object URI.",
+    );
+    expect(() => parseCLIArguments(["wikg://lib/team", "evidence"])).toThrow(
+      "The library `evidence` predicate requires a concrete library object URI.",
+    );
+    expect(() => parseCLIArguments(["wikg://lib", "pack"])).toThrow(
+      "The library `pack` predicate requires a concrete library object URI.",
+    );
     expect(() =>
       parseCLIArguments([
         "wikg://lib/entity/Q1",
@@ -526,6 +538,24 @@ describe("cli/library args", () => {
         },
       ],
     });
+  });
+
+  it("rejects library object predicates without a concrete object URI", async () => {
+    await expect(
+      runArchiveCommand({ action: "related", archivePath: "wikg://lib" }),
+    ).rejects.toThrow(
+      "The library `related` predicate requires a concrete library object URI.",
+    );
+    await expect(
+      runArchiveCommand({ action: "evidence", archivePath: "wikg://lib/team" }),
+    ).rejects.toThrow(
+      "The library `evidence` predicate requires a concrete library object URI.",
+    );
+    await expect(
+      runArchiveCommand({ action: "pack", archivePath: "wikg://lib" }),
+    ).rejects.toThrow(
+      "The library `pack` predicate requires a concrete library object URI.",
+    );
   });
 
   it("renders archive member pages with business entry links and diagnostic metadata", async () => {

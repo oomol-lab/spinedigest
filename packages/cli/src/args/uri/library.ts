@@ -176,6 +176,9 @@ export function parseLibraryUriFirstArguments(
   if (
     target.kind === "scope" &&
     (target.objectUri !== undefined ||
+      action === "related" ||
+      action === "evidence" ||
+      action === "pack" ||
       action === "search" ||
       (action === "list" && explicitAction === undefined))
   ) {
@@ -473,7 +476,12 @@ function parseLibraryQueryArguments(
     action !== "search" &&
     action !== "list"
   ) {
-    throw new Error("Internal error: missing library query object URI.");
+    throw new Error(
+      withHelpRoute(
+        formatMissingLibraryQueryObjectUriMessage(action),
+        formatWikiGraphHelpCommand(uri, action),
+      ),
+    );
   }
 
   const parsed = parseArchiveArguments(
@@ -513,6 +521,10 @@ function parseLibraryQueryArguments(
       ...optionalObjectId(replaceTemporaryUri(parsed.args.objectId)),
     },
   };
+}
+
+function formatMissingLibraryQueryObjectUriMessage(action: string): string {
+  return `The library \`${action}\` predicate requires a concrete library object URI.`;
 }
 
 function optionalDefaultKinds(
