@@ -293,6 +293,137 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
 
+    expect(
+      parseCLIArguments([
+        "wikg://lib/triple/Q1",
+        "--query",
+        "memory",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: "wikg://lib/triple/Q1",
+        format: "json",
+        kinds: ["triple"],
+        query: "memory",
+        triplePattern: { subjectQid: "Q1" },
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments([
+        "wikg://lib/triple/Q1/P31",
+        "--query",
+        "memory",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: "wikg://lib/triple/Q1/P31",
+        format: "json",
+        kinds: ["triple"],
+        query: "memory",
+        triplePattern: { predicate: "P31", subjectQid: "Q1" },
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments(["wikg://lib/triple/Q1/P31/Q2", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "get",
+        archivePath: "wikg://lib/triple/Q1/P31/Q2",
+        format: "json",
+        objectId: "wikg://lib/triple/Q1/P31/Q2",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments([
+        "wikg://lib/team/triple/Q1/P31",
+        "--query",
+        "memory",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: "wikg://lib/team/triple/Q1/P31",
+        format: "json",
+        kinds: ["triple"],
+        query: "memory",
+        triplePattern: { predicate: "P31", subjectQid: "Q1" },
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments([
+        "wikg://lib/chapter/part/entity",
+        "--query",
+        "memory",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: "wikg://lib/chapter/part/entity",
+        format: "json",
+        kinds: ["entity"],
+        query: "memory",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments([
+        "wikg://lib/chapter/part/triple",
+        "--query",
+        "memory",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: "wikg://lib/chapter/part/triple",
+        format: "json",
+        kinds: ["triple"],
+        query: "memory",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments([
+        "wikg://lib/chapter/part/triple/Q1/P31",
+        "--query",
+        "memory",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: "wikg://lib/chapter/part/triple/Q1/P31",
+        format: "json",
+        kinds: ["triple"],
+        query: "memory",
+        triplePattern: { predicate: "P31", subjectQid: "Q1" },
+      },
+      help: false,
+      kind: "archive",
+    });
+
     expect(parseCLIArguments(["wikg://lib/team/entity"])).toStrictEqual({
       args: {
         action: "list",

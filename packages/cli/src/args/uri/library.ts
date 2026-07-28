@@ -1,5 +1,6 @@
 import {
   parseWikiGraphLibraryUri,
+  type ArchiveTriplePattern,
   type ParsedWikiGraphLibraryUri,
 } from "wiki-graph-core";
 
@@ -496,6 +497,7 @@ function parseLibraryQueryArguments(
     formatWikiGraphHelpCommand(uri, action),
     {
       ...optionalDefaultKinds(getLibraryQueryDefaultKinds(target.objectUri)),
+      ...optionalTriplePattern(getLibraryQueryTriplePattern(target.objectUri)),
     },
   );
 
@@ -533,6 +535,12 @@ function optionalDefaultKinds(
   return defaultKinds === undefined ? {} : { defaultKinds };
 }
 
+function optionalTriplePattern(
+  triplePattern: ArchiveTriplePattern | undefined,
+): { readonly triplePattern?: ArchiveTriplePattern } {
+  return triplePattern === undefined ? {} : { triplePattern };
+}
+
 function optionalObjectId(objectId: string | undefined): {
   readonly objectId?: string;
 } {
@@ -549,6 +557,27 @@ function getLibraryQueryDefaultKinds(
 ): readonly CLIObjectKind[] | undefined {
   if (objectUri === undefined) {
     return undefined;
+  }
+  const chapterTarget = parseChapterTarget(objectUri);
+  if (chapterTarget !== undefined) {
+    switch (chapterTarget.kind) {
+      case "collection":
+      case "chapter":
+        return ["chapter"];
+      case "lens":
+      case "chapter-lens":
+        return [chapterTarget.lens];
+      case "triple-pattern-lens":
+      case "chapter-triple-pattern-lens":
+        return ["triple"];
+      case "chapter-resource":
+        return chapterTarget.resource === "title"
+          ? undefined
+          : [chapterTarget.resource];
+      case "chapter-state":
+      case "tree":
+        return undefined;
+    }
   }
   const path = stripObjectUriPrefix(objectUri);
   const [head] = path.split("/");
@@ -571,6 +600,26 @@ function getLibraryQueryDefaultKinds(
   }
 }
 
+function getLibraryQueryTriplePattern(
+  objectUri: string | undefined,
+): ArchiveTriplePattern | undefined {
+  if (objectUri === undefined) {
+    return undefined;
+  }
+  const chapterTarget = parseChapterTarget(objectUri);
+  if (chapterTarget === undefined) {
+    return undefined;
+  }
+
+  switch (chapterTarget.kind) {
+    case "triple-pattern-lens":
+    case "chapter-triple-pattern-lens":
+      return chapterTarget.pattern;
+    default:
+      return undefined;
+  }
+}
+
 function resolveImplicitLibraryQueryAction(
   objectUri: string | undefined,
   query: string | undefined,
@@ -578,12 +627,35 @@ function resolveImplicitLibraryQueryAction(
   if (objectUri === undefined) {
     return query === undefined ? "list" : "search";
   }
-  const path = stripObjectUriPrefix(objectUri);
-  if (/^(?:chapter|chunk|entity|source|summary|triple)$/u.test(path)) {
+  if (isLibraryScopeObjectUri(objectUri)) {
     return query === undefined ? "list" : "search";
   }
 
   return "get";
+}
+
+function isLibraryScopeObjectUri(objectUri: string): boolean {
+  const chapterTarget = parseChapterTarget(objectUri);
+  if (chapterTarget !== undefined) {
+    switch (chapterTarget.kind) {
+      case "collection":
+      case "chapter":
+      case "lens":
+      case "triple-pattern-lens":
+      case "chapter-lens":
+      case "chapter-triple-pattern-lens":
+        return true;
+      case "chapter-resource":
+      case "chapter-state":
+      case "tree":
+        return false;
+    }
+  }
+
+  const path = stripObjectUriPrefix(objectUri);
+  return /^(?:chunk|entity|source|summary|triple)$/u.test(path)
+    ? true
+    : isTripleScopePath(path);
 }
 
 function parseLibraryRegistryArguments(
