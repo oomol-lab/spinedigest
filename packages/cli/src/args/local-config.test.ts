@@ -48,6 +48,23 @@ describe("cli/args/local config", () => {
     });
     expect(
       parseCLIArguments([
+        "wikg://local/config/embedding",
+        "put",
+        "model",
+        "text-embedding-3-small",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "put",
+        inputValue: "text-embedding-3-small",
+        key: "model",
+        section: "embedding",
+      },
+      help: false,
+      kind: "local-config",
+    });
+    expect(
+      parseCLIArguments([
         "wikg://local/config/concurrent",
         "set",
         "--json",

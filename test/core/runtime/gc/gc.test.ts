@@ -171,10 +171,14 @@ describe("gc", () => {
       await mkdir(orphanPath, { recursive: true });
       await mkdir(lockedPath, { recursive: true });
       await mkdir(stateLockedPath, { recursive: true });
-      await writeFile(join(validPath, "fts.db"), "valid", "utf8");
-      await writeFile(join(orphanPath, "fts.db"), "orphan", "utf8");
-      await writeFile(join(lockedPath, "fts.db"), "locked", "utf8");
-      await writeFile(join(stateLockedPath, "fts.db"), "state-locked", "utf8");
+      await writeFile(join(validPath, "index.db"), "valid", "utf8");
+      await writeFile(join(orphanPath, "index.db"), "orphan", "utf8");
+      await writeFile(join(lockedPath, "index.db"), "locked", "utf8");
+      await writeFile(
+        join(stateLockedPath, "index.db"),
+        "state-locked",
+        "utf8",
+      );
       await insertLibraryLock(1000);
       await insertStateLibraryLock(1001);
 
@@ -198,7 +202,7 @@ describe("gc", () => {
       const libraryPath = join(path, "state", "staging", "library", "1");
 
       await mkdir(libraryPath, { recursive: true });
-      await writeFile(join(libraryPath, "fts.db"), "library", "utf8");
+      await writeFile(join(libraryPath, "index.db"), "library", "utf8");
 
       const report = await tryRunWikiGraphGc();
       const libraryIndexJob = report.jobs.find(
@@ -284,7 +288,7 @@ describe("gc", () => {
     await withTempDir("wikigraph-gc-", async (path) => {
       setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const sqliteCachePath = await createCoordinatorSqliteCache(path, {
-        entryPath: "fts.db",
+        entryPath: "index.db",
         updatedAt: Date.now() - 2 * 60 * 60 * 1000,
       });
 
@@ -306,7 +310,7 @@ describe("gc", () => {
       setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const { ftsPath } = await createArchiveWithExternalSearchIndex(path);
 
-      await makeCoordinatorOverlayOld("fts.db");
+      await makeCoordinatorOverlayOld("index.db");
       const normalReport = await tryRunWikiGraphGc();
 
       expect(normalReport.skipped).toBe(false);
@@ -532,7 +536,7 @@ async function createArchiveWithExternalSearchIndex(path: string): Promise<{
     { searchIndexWritebackPolicy: "cache" },
   );
 
-  const ftsPath = await readCoordinatorWorkspacePath("fts.db");
+  const ftsPath = await readCoordinatorWorkspacePath("index.db");
 
   if (ftsPath === undefined) {
     throw new Error("Expected external fts cache overlay.");

@@ -339,7 +339,7 @@ describe("schema-upgrade", () => {
             join(home, "book.wikg"),
             SEARCH_INDEX_DATABASE_PATH,
             "file",
-            join(stagingDirectoryPath, "library", "1", "index", "fts.db"),
+            join(stagingDirectoryPath, "library", "1", "index", "index.db"),
             Date.now(),
           ],
         );
@@ -633,7 +633,7 @@ describe("schema-upgrade", () => {
       async () => await withStateDatabase(() => Promise.resolve()),
     ],
     [
-      "staging/library/<library-id>/index/fts.db",
+      "staging/library/<library-id>/index/index.db",
       async () => {
         const target = parseWikiGraphLibraryUri("wikg://lib/index");
         expect(target).toBeDefined();
@@ -841,7 +841,7 @@ async function writeActiveCoordinatorState(
     const entryPathValues =
       input.tableName === "entry_locks" ||
       input.tableName === "entry_sqlite_leases"
-        ? ", 'fts.db', 'read'"
+        ? ", 'index.db', 'read'"
         : "";
     await database.run(
       `INSERT INTO ${input.tableName} (archive_key${entryPathColumn}, owner_id, owner_pid, heartbeat_at, created_at) VALUES (?${entryPathValues}, 'owner', ?, ?, ?)`,

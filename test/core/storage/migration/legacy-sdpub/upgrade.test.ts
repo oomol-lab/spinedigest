@@ -43,7 +43,7 @@ describe("legacy-sdpub/upgrade", () => {
           "Summary sentence one.\nSummary sentence two.",
         );
         await expect(
-          readFile(`${extractedPath}/fts.db`, "utf8"),
+          readFile(`${extractedPath}/index.db`, "utf8"),
         ).rejects.toThrow();
         await rebuildArchiveSearchIndex(document);
         await expect(

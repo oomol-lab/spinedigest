@@ -11,6 +11,7 @@ import {
   type WikispineProvider,
 } from "wiki-graph-core";
 import { buildLLMOptions } from "../runtime/llm.js";
+import { embedQueryText, readEmbeddingConfig } from "../runtime/embedding.js";
 import { setCLIExitCode } from "../runtime/context.js";
 import { writeTextToStderr, writeTextToStdout } from "../support/index.js";
 import { formatCLIJSON } from "../support/index.js";
@@ -86,10 +87,70 @@ async function runConfigTest(args: CLILocalConfigArguments): Promise<void> {
     case "wikispine":
       await runWikispineConfigTest(args);
       return;
+    case "embedding":
+      await runEmbeddingConfigTest(args);
+      return;
     default:
       throw new Error(
-        "Only wikg://local/config/llm and wikg://local/config/wikispine support test.",
+        "Only wikg://local/config/llm, wikg://local/config/embedding, and wikg://local/config/wikispine support test.",
       );
+  }
+}
+
+async function runEmbeddingConfigTest(
+  args: CLILocalConfigArguments,
+): Promise<void> {
+  const startedAt = Date.now();
+  const embedding = await readEmbeddingConfig();
+
+  try {
+    const result = await embedQueryText(
+      "Wiki Graph embedding connectivity test.",
+      embedding,
+    );
+    const output = {
+      dimensions: result.dimensions,
+      durationMs: Date.now() - startedAt,
+      model: result.model,
+      ok: true,
+      provider: result.provider,
+      ...(result.usage?.tokens === undefined
+        ? {}
+        : { tokens: result.usage.tokens }),
+    };
+
+    if (args.json === true) {
+      await writeTextToStdout(formatCLIJSON(output));
+      return;
+    }
+
+    await writeTextToStdout(
+      [
+        "Embedding connection ok.",
+        `Provider: ${output.provider}`,
+        `Model: ${output.model}`,
+        `Dimensions: ${output.dimensions}`,
+        "",
+      ].join("\n"),
+    );
+  } catch (error) {
+    const output = {
+      durationMs: Date.now() - startedAt,
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+      },
+      model: embedding.model,
+      ok: false,
+      provider: embedding.provider,
+    };
+
+    if (args.json === true) {
+      await writeTextToStdout(formatCLIJSON(output));
+      setCLIExitCode(1);
+      return;
+    }
+
+    throw error;
   }
 }
 
@@ -280,7 +341,10 @@ export function mergeMaskedSecretsForSet(
   input: LocalConfigObject,
   current: LocalConfigObject,
 ): LocalConfigObject {
-  if (section !== "llm" || input.apiKey === undefined) {
+  if (
+    (section !== "llm" && section !== "embedding") ||
+    input.apiKey === undefined
+  ) {
     return input;
   }
   if (typeof input.apiKey === "string" && /^\*+$/u.test(input.apiKey)) {
@@ -290,7 +354,7 @@ export function mergeMaskedSecretsForSet(
   }
 
   throw new Error(
-    "apiKey is sensitive and cannot be set from JSON. Use `wg wikg://local/config/llm put apiKey --secret`.",
+    `apiKey is sensitive and cannot be set from JSON. Use \`wg wikg://local/config/${section} put apiKey --secret\`.`,
   );
 }
 

@@ -670,6 +670,9 @@ describe("cli/args/help", () => {
     expect(uriHelpText).not.toContain("wg ls");
     expect(renderHelpTopicText("config")).toContain("wikg://local/config/llm");
     expect(renderHelpTopicText("config")).toContain(
+      "wikg://local/config/embedding",
+    );
+    expect(renderHelpTopicText("config")).toContain(
       "wikg://local/config/concurrent",
     );
     expect(renderHelpTopicText("config")).toContain("One-run overrides");
@@ -726,6 +729,13 @@ describe("cli/args/help", () => {
         "wikg://local/config/concurrent",
       ),
     ).toContain("wg wikg://local/config/concurrent put <key> <value> [--json]");
+    expect(
+      renderUriPredicateHelpText(
+        "local-config-section",
+        "test",
+        "wikg://local/config/embedding",
+      ),
+    ).toContain("reports the returned vector dimensions");
   });
 
   it("renders library help through templates", () => {

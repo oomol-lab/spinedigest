@@ -35,6 +35,14 @@ const inlineLLMConfigSchema = z.object({
 export type CLIProvider = z.infer<typeof cliProviderSchema>;
 
 export interface CLIConfig {
+  readonly embedding?: {
+    readonly apiKey?: string;
+    readonly baseURL?: string;
+    readonly dimensions?: number;
+    readonly model?: string;
+    readonly name?: string;
+    readonly provider?: "openai" | "openai-compatible";
+  };
   readonly llm?: {
     readonly apiKey?: string;
     readonly baseURL?: string;
@@ -57,7 +65,8 @@ type InlineLLMConfig = NonNullable<CLIConfig["llm"]>;
 export async function loadCLIConfig(options?: {
   readonly llmJSON?: string;
 }): Promise<CLIConfig> {
-  const [localLLM, concurrent, wikispine] = await Promise.all([
+  const [embedding, localLLM, concurrent, wikispine] = await Promise.all([
+    readLocalConfigSection("embedding"),
     readLocalConfigSection("llm"),
     readLocalConfigSection("concurrent"),
     readLocalConfigSection("wikispine"),
@@ -82,6 +91,7 @@ export async function loadCLIConfig(options?: {
   const requestConcurrent = readPositiveInteger(concurrent.request);
   const jobConcurrent = readPositiveInteger(concurrent.job);
   const wikispineConfig = createWikispineConfig(wikispine);
+  const embeddingConfig = createEmbeddingConfig(embedding);
 
   return {
     ...(jobConcurrent === undefined && requestConcurrent === undefined
@@ -94,8 +104,46 @@ export async function loadCLIConfig(options?: {
               : { request: requestConcurrent }),
           },
         }),
+    ...(embeddingConfig === undefined ? {} : { embedding: embeddingConfig }),
     ...(llm === undefined ? {} : { llm }),
     ...(wikispineConfig === undefined ? {} : { wikispine: wikispineConfig }),
+  };
+}
+
+function createEmbeddingConfig(
+  input: Record<string, unknown> | undefined,
+): CLIConfig["embedding"] | undefined {
+  const value = input ?? {};
+  const provider = readEmbeddingProvider(value.provider);
+  const apiKey = readString(value.apiKey);
+  const baseURL = readString(value.baseURL);
+  const dimensions =
+    typeof value.dimensions === "number" &&
+    Number.isInteger(value.dimensions) &&
+    value.dimensions > 0
+      ? value.dimensions
+      : undefined;
+  const model = readString(value.model);
+  const name = readString(value.name);
+
+  if (
+    apiKey === undefined &&
+    baseURL === undefined &&
+    dimensions === undefined &&
+    model === undefined &&
+    name === undefined &&
+    provider === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(apiKey === undefined ? {} : { apiKey }),
+    ...(baseURL === undefined ? {} : { baseURL }),
+    ...(dimensions === undefined ? {} : { dimensions }),
+    ...(model === undefined ? {} : { model }),
+    ...(name === undefined ? {} : { name }),
+    ...(provider === undefined ? {} : { provider }),
   };
 }
 
@@ -266,6 +314,14 @@ function createWikispineConfig(
 
 function readWikispineProvider(value: unknown): "cli" | "fetch" | undefined {
   return value === "cli" || value === "fetch" ? value : undefined;
+}
+
+function readEmbeddingProvider(
+  value: unknown,
+): "openai" | "openai-compatible" | undefined {
+  return value === "openai" || value === "openai-compatible"
+    ? value
+    : undefined;
 }
 
 function readString(value: unknown): string | undefined {

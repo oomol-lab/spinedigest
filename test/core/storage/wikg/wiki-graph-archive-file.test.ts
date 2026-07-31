@@ -315,12 +315,12 @@ describe("wikg/wiki-graph-archive-file", () => {
 
         const beforeOverlays = await readCoordinatorOverlays(path);
         const oldFtsOverlay = beforeOverlays.find(
-          (overlay) => overlay.entryPath === "fts.db",
+          (overlay) => overlay.entryPath === "index.db",
         );
 
         expect(oldFtsOverlay).toMatchObject({
           archivePath,
-          entryPath: "fts.db",
+          entryPath: "index.db",
           kind: "file",
         });
         expect(oldFtsOverlay?.workspacePath).toContain(
@@ -338,13 +338,13 @@ describe("wikg/wiki-graph-archive-file", () => {
         const afterOverlays = await readCoordinatorOverlays(path);
         const newFtsOverlay = afterOverlays.find(
           (overlay) =>
-            overlay.entryPath === "fts.db" &&
+            overlay.entryPath === "index.db" &&
             overlay.archivePath === movedArchivePath,
         );
 
         expect(newFtsOverlay).toMatchObject({
           archivePath: movedArchivePath,
-          entryPath: "fts.db",
+          entryPath: "index.db",
           kind: "file",
         });
         expect(newFtsOverlay?.workspacePath).toContain(

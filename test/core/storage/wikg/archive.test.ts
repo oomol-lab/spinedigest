@@ -89,14 +89,14 @@ describe("wikg/archive", () => {
       const document = await DirectoryDocument.open(sourceDir);
 
       try {
-        await writeFile(`${sourceDir}/fts.db`, "fts", "utf8");
+        await writeFile(`${sourceDir}/index.db`, "fts", "utf8");
       } finally {
         await document.release();
       }
 
       await writeWikgArchive(sourceDir, archivePath);
 
-      await expect(readWikgArchiveEntry(archivePath, "fts.db")).resolves.toBe(
+      await expect(readWikgArchiveEntry(archivePath, "index.db")).resolves.toBe(
         undefined,
       );
     });
@@ -119,7 +119,7 @@ describe("wikg/archive", () => {
             `,
           );
         });
-        await writeFile(`${sourceDir}/fts.db`, "fts", "utf8");
+        await writeFile(`${sourceDir}/index.db`, "fts", "utf8");
       } finally {
         await document.release();
       }
@@ -127,7 +127,7 @@ describe("wikg/archive", () => {
       await writeWikgArchive(sourceDir, archivePath);
 
       await expect(
-        readWikgArchiveEntry(archivePath, "fts.db"),
+        readWikgArchiveEntry(archivePath, "index.db"),
       ).resolves.toEqual(Buffer.from("fts", "utf8"));
     });
   });

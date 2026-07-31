@@ -186,7 +186,7 @@ describe("archive/query/archive-view/index", () => {
       const documentPath = `${path}/document`;
       await mkdir(documentPath, { recursive: true });
       const legacyDatabase = await Database.open(
-        join(documentPath, "fts.db"),
+        join(documentPath, "index.db"),
         `
           CREATE TABLE text_sentence_records (
             id INTEGER PRIMARY KEY,
