@@ -48,6 +48,7 @@ import {
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
   writeWikgArchive,
+  writeWikgArchiveWithOverlays,
 } from "../storage/wikg/index.js";
 import { acquireWikiGraphLibraryLock } from "./lock.js";
 import { listWikiGraphLibrarySearchIndex } from "./search-index.js";
@@ -273,7 +274,7 @@ describe("library archive membership", () => {
         to: "embedded.wikg",
       });
 
-      await expect(readWikgArchiveEntry(added.path, "fts.db")).resolves.toBe(
+      await expect(readWikgArchiveEntry(added.path, "index.db")).resolves.toBe(
         undefined,
       );
       await expect(readArchiveFtsEmbedded(added.path)).resolves.toBe(true);
@@ -281,6 +282,29 @@ describe("library archive membership", () => {
         await readWikgArchiveMutationToken(added.path),
       );
       expect(added.lastSeenMutationToken).not.toBe(sourceToken);
+    });
+  });
+
+  it("removes legacy embedded FTS entries on library add", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      const source = join(tempDir, "legacy-embedded.wikg");
+      await createLegacyEmbeddedSearchIndexArchive(tempDir, source);
+
+      const added = await addWikiGraphLibraryArchive({
+        inputPath: source,
+        target: target!,
+        to: "legacy-embedded.wikg",
+      });
+
+      await expect(readWikgArchiveEntry(added.path, "index.db")).resolves.toBe(
+        undefined,
+      );
+      await expect(readWikgArchiveEntry(added.path, "fts.db")).resolves.toBe(
+        undefined,
+      );
+      await expect(readArchiveFtsEmbedded(added.path)).resolves.toBe(true);
     });
   });
 
@@ -298,7 +322,7 @@ describe("library archive membership", () => {
         (archive) => archive.relativePath === "scanned.wikg",
       );
 
-      await expect(readWikgArchiveEntry(archivePath, "fts.db")).resolves.toBe(
+      await expect(readWikgArchiveEntry(archivePath, "index.db")).resolves.toBe(
         undefined,
       );
       await expect(readArchiveFtsEmbedded(archivePath)).resolves.toBe(true);
@@ -330,7 +354,7 @@ describe("library archive membership", () => {
         (archive) => archive.relativePath === "rebound.wikg",
       );
 
-      await expect(readWikgArchiveEntry(archivePath, "fts.db")).resolves.toBe(
+      await expect(readWikgArchiveEntry(archivePath, "index.db")).resolves.toBe(
         undefined,
       );
       await expect(readArchiveFtsEmbedded(archivePath)).resolves.toBe(true);
@@ -395,7 +419,7 @@ describe("library archive membership", () => {
         target: target!,
         to: "searchable.wikg",
       });
-      await expect(readWikgArchiveEntry(added.path, "fts.db")).resolves.toBe(
+      await expect(readWikgArchiveEntry(added.path, "index.db")).resolves.toBe(
         undefined,
       );
 
@@ -1044,7 +1068,36 @@ async function createEmbeddedSearchIndexArchive(
   }
 
   await writeWikgArchive(sourceDir, path);
+  await expect(readWikgArchiveEntry(path, "index.db")).resolves.toBeDefined();
+}
+
+async function createLegacyEmbeddedSearchIndexArchive(
+  tempDir: string,
+  path: string,
+): Promise<void> {
+  const sourceDir = await mkdtemp(join(tempDir, "wikg-source-"));
+  const legacyIndexPath = join(tempDir, "legacy-index.db");
+  const document = await DirectoryDocument.open(sourceDir);
+
+  try {
+    await setFtsIndexEmbedded(document, true);
+  } finally {
+    await document.release();
+  }
+
+  await writeFile(legacyIndexPath, "legacy search index", "utf8");
+  await writeWikgArchive(sourceDir, path);
+  const temporaryPath = join(tempDir, "legacy-embedded.tmp.wikg");
+  await writeWikgArchiveWithOverlays(path, temporaryPath, [
+    {
+      entryPath: "fts.db",
+      kind: "file",
+      workspacePath: legacyIndexPath,
+    },
+  ]);
+  await rename(temporaryPath, path);
   await expect(readWikgArchiveEntry(path, "fts.db")).resolves.toBeDefined();
+  await expect(readWikgArchiveEntry(path, "index.db")).resolves.toBeUndefined();
 }
 
 async function createSearchableArchiveWithoutSearchIndex(
@@ -1070,7 +1123,7 @@ async function createSearchableArchiveWithoutSearchIndex(
   }
 
   await writeWikgArchive(sourceDir, path);
-  await expect(readWikgArchiveEntry(path, "fts.db")).resolves.toBeUndefined();
+  await expect(readWikgArchiveEntry(path, "index.db")).resolves.toBeUndefined();
 }
 
 async function readArchiveFtsEmbedded(path: string): Promise<boolean> {

@@ -2,7 +2,10 @@ import { readdir } from "fs/promises";
 import { join, posix, relative, sep } from "path";
 
 import { Database } from "../../../document/database.js";
-import { SEARCH_INDEX_DATABASE_PATH } from "./constants.js";
+import {
+  LEGACY_SEARCH_INDEX_DATABASE_PATH,
+  SEARCH_INDEX_DATABASE_PATH,
+} from "./constants.js";
 import { isWikgArchivePath } from "./paths.js";
 
 export async function listDocumentFiles(
@@ -76,6 +79,9 @@ export function shouldWriteDocumentFile(input: {
     return false;
   }
   if (input.archivePath === ".wikg-mutation-token") {
+    return false;
+  }
+  if (input.archivePath === LEGACY_SEARCH_INDEX_DATABASE_PATH) {
     return false;
   }
 

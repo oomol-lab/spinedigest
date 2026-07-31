@@ -15,7 +15,8 @@ import { Database } from "./database.js";
 
 const CURRENT_HOME_SCHEMA_VERSION = 2;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
-const SEARCH_INDEX_DATABASE_PATH = "fts.db";
+const SEARCH_INDEX_DATABASE_PATH = "index.db";
+const LEGACY_SEARCH_INDEX_DATABASE_PATH = "fts.db";
 let homeSchemaUpgradeInFlight: Promise<void> | undefined;
 let currentHomeSchemaDatabaseMemo: HomeSchemaDatabaseMemo | undefined;
 const HOME_SCHEMA_SQL = `
@@ -466,7 +467,7 @@ async function assertNoNonDerivedCoordinatorOverlays(): Promise<void> {
     );
 
     const problematicOverlay = overlays.find(
-      (entryPath) => entryPath !== SEARCH_INDEX_DATABASE_PATH,
+      (entryPath) => !isDerivedSearchIndexPath(entryPath),
     );
     if (problematicOverlay !== undefined) {
       throw new Error(
@@ -552,12 +553,16 @@ async function removeArchiveSearchIndexOverlays(
 
     const whereClause =
       archiveKey === undefined
-        ? "WHERE entry_path = ?"
-        : "WHERE archive_key = ? AND entry_path = ?";
+        ? "WHERE entry_path IN (?, ?)"
+        : "WHERE archive_key = ? AND entry_path IN (?, ?)";
     const parameters =
       archiveKey === undefined
-        ? [SEARCH_INDEX_DATABASE_PATH]
-        : [archiveKey, SEARCH_INDEX_DATABASE_PATH];
+        ? [SEARCH_INDEX_DATABASE_PATH, LEGACY_SEARCH_INDEX_DATABASE_PATH]
+        : [
+            archiveKey,
+            SEARCH_INDEX_DATABASE_PATH,
+            LEGACY_SEARCH_INDEX_DATABASE_PATH,
+          ];
     const overlays = await database.queryAll(
       `
         SELECT archive_key, workspace_path
@@ -604,9 +609,13 @@ async function removeOrphanedSqliteCacheOverlays(
       `
         SELECT archive_key, archive_path, entry_path, workspace_path
         FROM entry_overlays
-        WHERE entry_path IN (?, ?)
+        WHERE entry_path IN (?, ?, ?)
       `,
-      ["database.db", SEARCH_INDEX_DATABASE_PATH],
+      [
+        "database.db",
+        SEARCH_INDEX_DATABASE_PATH,
+        LEGACY_SEARCH_INDEX_DATABASE_PATH,
+      ],
       (row) => ({
         archiveKey: String(row.archive_key),
         archivePath: String(row.archive_path),
@@ -636,6 +645,13 @@ async function removeOrphanedSqliteCacheOverlays(
   } finally {
     await database.close();
   }
+}
+
+function isDerivedSearchIndexPath(entryPath: string): boolean {
+  return (
+    entryPath === SEARCH_INDEX_DATABASE_PATH ||
+    entryPath === LEGACY_SEARCH_INDEX_DATABASE_PATH
+  );
 }
 
 async function tableExists(

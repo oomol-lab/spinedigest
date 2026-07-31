@@ -5,7 +5,11 @@ import { finished } from "stream/promises";
 
 import { ZipFile as YazlZipFile } from "yazl";
 
-import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
+import {
+  LEGACY_SEARCH_INDEX_DATABASE_PATH,
+  WIKG_MANIFEST_PATH,
+  WIKG_MUTATION_TOKEN_PATH,
+} from "./constants.js";
 import {
   listDocumentFiles,
   shouldEmbedSearchIndex,
@@ -89,7 +93,11 @@ export async function writeWikgArchiveWithOverlays(
   for (const entry of sourceEntries) {
     const archivePath = normalizeArchivePath(entry.fileName);
 
-    if (archivePath !== "" && isWikgArchivePath(archivePath)) {
+    if (
+      archivePath !== "" &&
+      archivePath !== LEGACY_SEARCH_INDEX_DATABASE_PATH &&
+      isWikgArchivePath(archivePath)
+    ) {
       entryPaths.add(archivePath);
     }
   }

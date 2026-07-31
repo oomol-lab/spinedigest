@@ -7,7 +7,8 @@ export function isMissingSearchIndexError(error: unknown): boolean {
   return (
     code === "SQLITE_CANTOPEN" ||
     (error instanceof Error &&
-      (error.message.includes("Archive SQLite entry is missing: fts.db") ||
+      (error.message.includes("Archive SQLite entry is missing: index.db") ||
+        error.message.includes("Archive SQLite entry is missing: fts.db") ||
         error.message.includes("no such table: search_index_state")))
   );
 }

@@ -36,7 +36,7 @@ Only the following archive entries are part of the standard layout:
 | `cover/data.bin`               | No       | Binary          | Cover binary payload. Required when `cover/info.json` is present. |
 | `texts/source/<serialId>.txt`  | No       | UTF-8 text      | Source text stream for one chapter serial.                        |
 | `texts/summary/<serialId>.txt` | No       | UTF-8 text      | Summary text stream for one chapter serial.                       |
-| `fts.db`                       | No       | SQLite database | Embedded full-text search index.                                  |
+| `index.db`                     | No       | SQLite database | Embedded full-text search index.                                  |
 
 No other entry is currently standard. Examples of non-standard entries include
 SQLite journal files, arbitrary JSON sidecars, and text files outside
@@ -184,15 +184,15 @@ Path rules are the same as source streams: the filename must be
 Summaries are generated projections. They do not replace source text as the
 grounding layer.
 
-### `fts.db`
+### `index.db`
 
-`fts.db` is an optional SQLite full-text search index.
+`index.db` is an optional SQLite full-text search index.
 
-Writers include `fts.db` only when the archive index policy marks the search
+Writers include `index.db` only when the archive index policy marks the search
 index as embedded. Otherwise, the search index may exist as a local cache and
 must not be treated as required archive content.
 
-Readers must be able to open archives without `fts.db`. Missing or stale search
+Readers must be able to open archives without `index.db`. Missing or stale search
 index state should be handled as readiness information, not as archive
 corruption.
 
@@ -204,7 +204,7 @@ Standard readers and writers recognize only these path patterns:
 .wikg-mutation-token
 manifest.json
 database.db
-fts.db
+index.db
 toc.json
 cover/data.bin
 cover/info.json
@@ -218,9 +218,9 @@ Writers must not include transient SQLite files such as:
 database.db-journal
 database.db-wal
 database.db-shm
-fts.db-journal
-fts.db-wal
-fts.db-shm
+index.db-journal
+index.db-wal
+index.db-shm
 ```
 
 Writers must not include arbitrary sidecar files unless a future format version
@@ -242,7 +242,7 @@ A conforming reader should:
 - ignore non-standard entry paths;
 - reject unsupported ZIP compression methods;
 - accept archives without optional entries;
-- treat `fts.db` as optional;
+- treat `index.db` as optional;
 - validate JSON entries before using them;
 - prevent path traversal when extracting archive entries.
 
@@ -255,7 +255,7 @@ A conforming writer should:
 - include only standard entry paths;
 - refresh `.wikg-mutation-token` on every archive rewrite;
 - omit transient database files;
-- include `fts.db` only when the archive declares an embedded search index;
+- include `index.db` only when the archive declares an embedded search index;
 - preserve source and summary text as UTF-8;
 - keep `database.db` consistent with `toc.json` and text stream serial ids.
 
@@ -270,7 +270,7 @@ The file layout is small, but the archive carries several semantic layers:
 - Knowledge Graph: mentions, mention links, entity projections, triple
   projections, and evidence references in `database.db`.
 - Summary layer: `texts/summary/*.txt` plus summary sentence records.
-- Search layer: optional `fts.db` and index settings in `database.db`.
+- Search layer: optional `index.db` and index settings in `database.db`.
 - Metadata layer: archive, chapter, chunk, entity, and triple metadata in
   `database.db`, plus optional cover files.
 

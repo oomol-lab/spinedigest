@@ -38,12 +38,12 @@ write the target schema marker.
 
 Archive schema belongs to each `.wikg` file. The archive gate runs at archive
 open/upgrade boundaries and covers archive entries such as `database.db` and an
-embedded `fts.db`. It must not be reimplemented across query/list/search/evidence
+embedded `index.db`. It must not be reimplemented across query/list/search/evidence
 business paths.
 
-The v1 -> v2 archive upgrader removes the embedded archive `fts.db` as derived
+The v1 -> v2 archive upgrader removes the embedded archive `index.db` as derived
 search index data and preserves important archive content and the mutation token.
-It must refuse active coordinator state for the target archive and non-`fts.db`
+It must refuse active coordinator state for the target archive and non-`index.db`
 overlays, because those can represent uncommitted important data.
 
 ## Home Gate
@@ -71,15 +71,15 @@ code and tests when adding new home SQLite files:
   - GC locks.
 - `~/.wikigraph/staging/staging.sqlite`
   - coordinator overlays, entry locks, owners, sqlite leases, and commit locks.
-- `~/.wikigraph/staging/library/<library-id>/index/fts.db`
+- `~/.wikigraph/staging/library/<library-id>/index/index.db`
   - library aggregate search index SQLite.
-- `~/.wikigraph/staging/work/<archiveKey>/fts.db`
+- `~/.wikigraph/staging/work/<archiveKey>/index.db`
   - archive coordinator external search index cache workspace referenced by
-    `entry_overlays(entry_path = 'fts.db')`.
+    `entry_overlays(entry_path = 'index.db')`.
 
 For v1 -> v2, derived home data is deleted or invalidated: query/search caches,
 external cache, GC state, build queue SQLite/cache when safe, library aggregate
-indexes, external archive search index overlays/workspaces for `fts.db`, and
+indexes, external archive search index overlays/workspaces for `index.db`, and
 orphaned SQLite materialization cache overlays whose archive file no longer
 exists. The upgrader must block when active GC, build job, worker lease,
 coordinator owner/lock/sqlite lease/commit lock, or remaining non-derived
@@ -99,7 +99,7 @@ opening other home SQLite state.
 
 User-visible upgrade targets are limited to home, standalone archive, library,
 and legacy sdpub inputs. Internal SQLite files such as search sessions, job
-state, staging state, and library `fts.db` are implementation details of the
+state, staging state, and library `index.db` are implementation details of the
 home or library target and must not become CLI targets.
 
 - `wg maintenance upgrade ~/.wikigraph` explicitly upgrades home state. Real CLI

@@ -262,7 +262,10 @@ export class DirectoryDocument implements Document {
   }
 
   public async deleteSearchIndexDatabase(): Promise<void> {
-    await this.#fileStore.deleteFile(join(this.path, "fts.db"));
+    await this.#fileStore.deleteFile(join(this.path, "index.db"));
+    await this.#fileStore
+      .deleteFile(join(this.path, "fts.db"))
+      .catch(() => undefined);
   }
 
   public async peekNextSerialId(): Promise<number> {

@@ -17,7 +17,7 @@ export async function openSearchIndexDatabase<T>(input: {
 }): Promise<T> {
   const databasePath =
     input.fileStore.resolveSearchIndexDatabasePath === undefined
-      ? join(input.documentPath, "fts.db")
+      ? join(input.documentPath, "index.db")
       : await input.fileStore.resolveSearchIndexDatabasePath(
           input.documentPath,
         );

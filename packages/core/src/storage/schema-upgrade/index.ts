@@ -12,6 +12,7 @@ import {
   resolveWikiGraphStagingDirectoryPath,
 } from "../../runtime/common/wiki-graph/dir.js";
 import {
+  LEGACY_SEARCH_INDEX_DATABASE_PATH,
   SEARCH_INDEX_DATABASE_PATH,
   WIKG_MANIFEST_PATH,
 } from "../wikg/archive/constants.js";
@@ -126,6 +127,10 @@ export async function upgradeWikiGraphArchiveSchema(
           ? [
               {
                 entryPath: SEARCH_INDEX_DATABASE_PATH,
+                kind: "deleted" as const,
+              },
+              {
+                entryPath: LEGACY_SEARCH_INDEX_DATABASE_PATH,
                 kind: "deleted" as const,
               },
             ]
@@ -285,7 +290,7 @@ async function assertArchiveUpgradeSafe(archiveKey: string): Promise<void> {
       );
 
       const problematicOverlay = overlays.find(
-        (entryPath) => entryPath !== SEARCH_INDEX_DATABASE_PATH,
+        (entryPath) => !isDerivedSearchIndexPath(entryPath),
       );
       if (problematicOverlay !== undefined) {
         throw new Error(
@@ -311,12 +316,16 @@ async function removeArchiveSearchIndexOverlays(
 
     const whereClause =
       archiveKey === undefined
-        ? "WHERE entry_path = ?"
-        : "WHERE archive_key = ? AND entry_path = ?";
+        ? "WHERE entry_path IN (?, ?)"
+        : "WHERE archive_key = ? AND entry_path IN (?, ?)";
     const parameters =
       archiveKey === undefined
-        ? [SEARCH_INDEX_DATABASE_PATH]
-        : [archiveKey, SEARCH_INDEX_DATABASE_PATH];
+        ? [SEARCH_INDEX_DATABASE_PATH, LEGACY_SEARCH_INDEX_DATABASE_PATH]
+        : [
+            archiveKey,
+            SEARCH_INDEX_DATABASE_PATH,
+            LEGACY_SEARCH_INDEX_DATABASE_PATH,
+          ];
     const overlays = await database.queryAll(
       `
         SELECT archive_key, workspace_path
@@ -347,6 +356,13 @@ async function removeArchiveSearchIndexOverlays(
   } finally {
     await database.close();
   }
+}
+
+function isDerivedSearchIndexPath(entryPath: string): boolean {
+  return (
+    entryPath === SEARCH_INDEX_DATABASE_PATH ||
+    entryPath === LEGACY_SEARCH_INDEX_DATABASE_PATH
+  );
 }
 
 async function tableExists(

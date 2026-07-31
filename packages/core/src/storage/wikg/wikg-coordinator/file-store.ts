@@ -13,6 +13,7 @@ import {
 } from "./archive-key.js";
 import {
   DATABASE_ENTRY_PATH,
+  LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
   SEARCH_INDEX_DATABASE_ENTRY_PATH,
 } from "./constants.js";
 import {
@@ -105,6 +106,11 @@ export class WikgDocumentFileStore implements DocumentFileStore {
     await releaseSqliteLease({
       archiveKey: this.#archiveKey,
       entryPath: SEARCH_INDEX_DATABASE_ENTRY_PATH,
+      ownerId: this.#sqliteLeaseOwnerId,
+    });
+    await releaseSqliteLease({
+      archiveKey: this.#archiveKey,
+      entryPath: LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
       ownerId: this.#sqliteLeaseOwnerId,
     });
   }
@@ -305,10 +311,14 @@ export class WikgDocumentFileStore implements DocumentFileStore {
         }
 
         if (overlay?.kind !== "file") {
-          const content = await readWikgArchiveEntry(
-            this.#archivePath,
-            entryPath,
-          );
+          const content =
+            (await readWikgArchiveEntry(this.#archivePath, entryPath)) ??
+            (entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH
+              ? await readWikgArchiveEntry(
+                  this.#archivePath,
+                  LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
+                )
+              : undefined);
 
           if (content === undefined && !options.createIfMissing) {
             throw new Error(`Archive SQLite entry is missing: ${entryPath}`);

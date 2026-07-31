@@ -622,7 +622,7 @@ function createLibraryIndexDirectory(library: WikiGraphLibraryRecord): string {
 function createLibraryIndexDatabasePath(
   library: WikiGraphLibraryRecord,
 ): string {
-  return join(createLibraryIndexDirectory(library), "fts.db");
+  return join(createLibraryIndexDirectory(library), "index.db");
 }
 
 function createDisabledPath(library: WikiGraphLibraryRecord): string {

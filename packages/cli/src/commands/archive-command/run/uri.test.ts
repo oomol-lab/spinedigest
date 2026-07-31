@@ -191,12 +191,12 @@ describe("archive-command URI runtime resolution", () => {
       { searchIndexWritebackPolicy: "archive" },
     );
     await expect(
-      readWikgArchiveEntry(archive.path, "fts.db"),
+      readWikgArchiveEntry(archive.path, "index.db"),
     ).resolves.toBeDefined();
 
     await runArchiveChapterCommand({ action: "add", path: archive.uri });
 
-    await expect(readWikgArchiveEntry(archive.path, "fts.db")).resolves.toBe(
+    await expect(readWikgArchiveEntry(archive.path, "index.db")).resolves.toBe(
       undefined,
     );
     await expect(

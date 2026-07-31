@@ -18,6 +18,7 @@ import {
 import { pathExists } from "./archive-key.js";
 import {
   DATABASE_ENTRY_PATH,
+  LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
   SEARCH_INDEX_DATABASE_ENTRY_PATH,
   SQLITE_CACHE_TTL_MS,
 } from "./constants.js";
@@ -72,12 +73,16 @@ async function listSqliteCacheGcCandidates(): Promise<readonly EntryOverlay[]> {
       `
 SELECT overlay.*
 FROM entry_overlays AS overlay
-WHERE overlay.entry_path IN (?, ?)
+WHERE overlay.entry_path IN (?, ?, ?)
   AND overlay.kind = 'file'
   AND overlay.workspace_path IS NOT NULL
 ORDER BY overlay.updated_at ASC
 `,
-      [DATABASE_ENTRY_PATH, SEARCH_INDEX_DATABASE_ENTRY_PATH],
+      [
+        DATABASE_ENTRY_PATH,
+        SEARCH_INDEX_DATABASE_ENTRY_PATH,
+        LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
+      ],
       mapEntryOverlay,
     );
   });
@@ -155,10 +160,7 @@ async function canRemoveSqliteCacheOverlay(
   if (!context.force && context.now - overlay.updatedAt < SQLITE_CACHE_TTL_MS) {
     return false;
   }
-  if (
-    overlay.entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH &&
-    !context.force
-  ) {
+  if (isSearchIndexEntryPath(overlay.entryPath) && !context.force) {
     return false;
   }
 
@@ -177,11 +179,18 @@ async function isSqliteCacheOverlayDirty(
   if (!(await pathExists(overlay.archivePath))) {
     return true;
   }
-  if (overlay.entryPath !== SEARCH_INDEX_DATABASE_ENTRY_PATH) {
+  if (!isSearchIndexEntryPath(overlay.entryPath)) {
     return false;
   }
 
   return (await readSearchIndexCacheStatus(overlay)) !== "current";
+}
+
+function isSearchIndexEntryPath(entryPath: string): boolean {
+  return (
+    entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH ||
+    entryPath === LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH
+  );
 }
 
 async function removeOrphanedWorkspaceFiles(

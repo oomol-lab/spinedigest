@@ -39,7 +39,8 @@ import { markWikiGraphLibraryIndexDirty } from "./search-index.js";
 import { withWikiGraphLibraryLock } from "./lock.js";
 
 const PUBLIC_ID_BYTES = 6;
-const SEARCH_INDEX_ARCHIVE_ENTRY_PATH = "fts.db";
+const SEARCH_INDEX_ARCHIVE_ENTRY_PATH = "index.db";
+const LEGACY_SEARCH_INDEX_ARCHIVE_ENTRY_PATH = "fts.db";
 const LIBRARY_ARCHIVES_TABLE_COLUMNS_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     library_id INTEGER NOT NULL,
@@ -378,11 +379,7 @@ export async function ensureLibraryManagedArchiveHasNoSearchIndex(
     return false;
   }
 
-  const searchIndex = await readWikgArchiveEntry(
-    archivePath,
-    SEARCH_INDEX_ARCHIVE_ENTRY_PATH,
-  );
-  if (searchIndex === undefined) {
+  if (!(await archiveHasSearchIndex(archivePath))) {
     return false;
   }
 
@@ -393,6 +390,19 @@ export async function ensureLibraryManagedArchiveHasNoSearchIndex(
     { searchIndexWritebackPolicy: "archive" },
   );
   return true;
+}
+
+async function archiveHasSearchIndex(archivePath: string): Promise<boolean> {
+  for (const entryPath of [
+    SEARCH_INDEX_ARCHIVE_ENTRY_PATH,
+    LEGACY_SEARCH_INDEX_ARCHIVE_ENTRY_PATH,
+  ]) {
+    if ((await readWikgArchiveEntry(archivePath, entryPath)) !== undefined) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function removeWikiGraphLibraryArchive(input: {

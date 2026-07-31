@@ -37,7 +37,7 @@ export const LOCAL_DOCUMENT_FILE_STORE: DocumentFileStore = {
   resolveDatabasePath: (documentPath) =>
     Promise.resolve(join(documentPath, "database.db")),
   resolveSearchIndexDatabasePath: (documentPath) =>
-    Promise.resolve(join(documentPath, "fts.db")),
+    Promise.resolve(join(documentPath, "index.db")),
   writeFile: async (path, content, options) => {
     if (typeof content === "string") {
       await writeFile(path, content, {

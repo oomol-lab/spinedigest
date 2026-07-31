@@ -7,6 +7,7 @@ import { writeWikgArchiveWithOverlays } from "../archive/index.js";
 import { createArchiveKey } from "./archive-key.js";
 import {
   DATABASE_ENTRY_PATH,
+  LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
   SEARCH_INDEX_DATABASE_ENTRY_PATH,
 } from "./constants.js";
 import {
@@ -105,11 +106,19 @@ export async function flushArchiveOverlays(
       );
 
       try {
-        await writeWikgArchiveWithOverlays(
-          archivePath,
-          temporaryArchivePath,
-          currentOverlays.map(toArchiveOverlay),
-        );
+        await writeWikgArchiveWithOverlays(archivePath, temporaryArchivePath, [
+          ...currentOverlays.map(toArchiveOverlay),
+          ...(currentOverlays.some(
+            (overlay) => overlay.entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH,
+          )
+            ? [
+                {
+                  entryPath: LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
+                  kind: "deleted" as const,
+                },
+              ]
+            : []),
+        ]);
         await mkdir(dirname(archivePath), { recursive: true });
         await rename(temporaryArchivePath, archivePath);
       } finally {
