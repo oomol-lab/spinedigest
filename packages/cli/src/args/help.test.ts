@@ -531,17 +531,17 @@ describe("cli/args/help", () => {
       renderUriHelpText("index-object", "wikg://book.wikg/index"),
     ).toContain("status, readiness, storage policy, and materialization state");
     expect(
-      renderUriPredicateHelpText("index-object", "enable", "wikg://lib/index"),
+      renderUriPredicateHelpText("index-object", "sync", "wikg://lib/index"),
     ).toContain("Build or rebuild this library's aggregate search index");
     expect(
-      renderUriPredicateHelpText("index-object", "enable", "wikg://lib/index"),
+      renderUriPredicateHelpText("index-object", "sync", "wikg://lib/index"),
     ).not.toContain(
       "Use `embed` when the index should travel with the archive",
     );
     expect(
       renderUriPredicateHelpText(
         "index-object",
-        "external",
+        "clean",
         "wikg://book.wikg/index",
       ),
     ).toContain("does not guarantee a current local materialization");
@@ -820,14 +820,14 @@ describe("cli/args/help", () => {
       renderLibraryPredicateHelpText(
         "wikg://lib/index",
         { isDefault: true, kind: "scope", objectUri: "wikg://index" },
-        "enable",
+        "sync",
       ),
     ).toContain("Rebuild holds the library write lock");
     expect(
       renderLibraryPredicateHelpText(
         "wikg://lib/index",
         { isDefault: true, kind: "scope", objectUri: "wikg://index" },
-        "enable",
+        "sync",
       ),
     ).toContain("wg help readiness");
     expect(

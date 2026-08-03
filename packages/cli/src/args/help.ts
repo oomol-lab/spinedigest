@@ -67,12 +67,8 @@ export type UriHelpPredicateName =
   | "clean"
   | "create"
   | "delete"
-  | "disable"
-  | "embed"
-  | "enable"
   | "evidence"
   | "export"
-  | "external"
   | "inspect"
   | "move"
   | "pack"
@@ -83,10 +79,11 @@ export type UriHelpPredicateName =
   | "reset"
   | "resume"
   | "set"
+  | "sync"
   | "test"
   | "watch";
 
-export type LibraryHelpPredicateName = CLILibraryAction | "disable" | "enable";
+export type LibraryHelpPredicateName = CLILibraryAction | "clean" | "sync";
 
 interface UriHelpTarget {
   readonly name: UriHelpTargetName;
@@ -124,7 +121,7 @@ const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
   { name: "entity-wikipage-object", predicates: [] },
   {
     name: "index-object",
-    predicates: ["enable", "disable", "embed", "external"],
+    predicates: ["clean", "sync"],
   },
   {
     name: "job-collection-scope",

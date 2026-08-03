@@ -13,7 +13,6 @@ import {
   formatWikiGraphHelpCommand,
   isArchiveAction,
   isArchiveIndexAction,
-  parseSearchIndexSelectionFlag,
   rejectArchiveBooleanFlag,
   rejectArchiveExtraPositionals,
   rejectArchiveFlag,
@@ -152,7 +151,7 @@ export function parseArchiveIndexUriArguments(
   if (!isArchiveIndexAction(action)) {
     throw new Error(
       withHelpRoute(
-        `The index object does not support \`${action}\`. Read the index object directly, or use enable, disable, embed, or external.`,
+        `The index cache does not support \`${action}\`. Read the index cache directly, or use sync or clean.`,
         CLI_HELP_ROUTES.uri,
       ),
     );
@@ -190,7 +189,7 @@ export function parseArchiveIndexUriArguments(
   rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
   rejectArchiveBooleanFlag(action, "--dry-run", values["dry-run"], helpRoute);
   rejectArchiveBooleanFlag(action, "--first", values.first, helpRoute);
-  if (action === "enable") {
+  if (action === "sync") {
     rejectStreamingJSONFlag(action, values.json, helpRoute);
   } else {
     rejectArchiveFlag(action, "--indexes", values.indexes, helpRoute);
@@ -206,28 +205,10 @@ export function parseArchiveIndexUriArguments(
     args: {
       action,
       archivePath,
-      ...(action === "enable"
-        ? optionalSearchIndexSelection(values.indexes, helpRoute)
-        : {}),
       ...(values.json === undefined ? {} : { json: values.json }),
       ...(values.jsonl === undefined ? {} : { jsonl: values.jsonl }),
     },
     help: false,
     kind: "archive-index",
   };
-}
-
-function optionalSearchIndexSelection(
-  value: string | undefined,
-  helpRoute: string,
-):
-  | {
-      readonly indexes: NonNullable<
-        ReturnType<typeof parseSearchIndexSelectionFlag>
-      >;
-    }
-  | Record<string, never> {
-  const indexes = parseSearchIndexSelectionFlag(value, helpRoute);
-
-  return indexes === undefined ? {} : { indexes };
 }

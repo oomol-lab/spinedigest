@@ -67,6 +67,12 @@ export interface SearchIndexBuildOptions {
   readonly indexes?: SearchIndexSelection;
 }
 
+export interface SearchIndexStoredEmbeddingState {
+  readonly dimensions: number;
+  readonly identity?: string;
+  readonly model: string;
+}
+
 export type SearchIndexProgressPhase =
   | "checking"
   | "clearing"

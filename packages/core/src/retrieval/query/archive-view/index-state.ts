@@ -1,20 +1,29 @@
-import type { Document, ReadonlyDocument } from "../../../document/index.js";
+import type {
+  Document,
+  IndexArtifactLexicalRow,
+  ReadonlyDocument,
+} from "../../../document/index.js";
 import { listChapters } from "../../../document/chapter/index.js";
 import {
   createSearchIndexFingerprint,
+  finalizeStoredSearchIndexReplacement,
+  insertFtsRecord,
+  insertSearchObjectPropertyRecord,
+  insertTextEmbeddingSegment,
+  insertTextSentenceRecord,
   readSearchIndexStatus,
   SEARCH_OBJECT_PROPERTY_KIND,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
   SINGLE_ARCHIVE_INDEX_ID,
   TEXT_SENTENCE_KIND,
+  prepareSearchIndexReplacement,
   type SearchIndexInput,
   type SearchIndexBuildOptions,
+  type SearchIndexStoredEmbeddingState,
   type SearchIndexProgressReporter,
   type SearchIndexWriteBatch,
-  writeArchiveIndexProjection,
 } from "../../search-index/search/index.js";
-
-import type { ArchiveTextStreamKind } from "./types.js";
+import { createSearchTokenPlan } from "../../search-index/search/tokenizer.js";
 
 const SEARCH_INDEX_REBUILD_ATTEMPTS = 2;
 const ARCHIVE_INDEX_BATCH_RECORDS = 512;
@@ -22,9 +31,10 @@ const ARCHIVE_INDEX_BATCH_RECORDS = 512;
 export async function rebuildArchiveSearchIndex(
   document: Document,
   progress?: SearchIndexProgressReporter,
-  options: SearchIndexBuildOptions = {},
+  _options: SearchIndexBuildOptions = {},
 ): Promise<void> {
   for (let attempt = 0; attempt < SEARCH_INDEX_REBUILD_ATTEMPTS; attempt += 1) {
+    await assertArchiveIndexArtifactsReady(document);
     const input = await buildArchiveIndexProjection(document, progress);
     const fingerprint = createSearchIndexFingerprint(input);
 
@@ -38,7 +48,7 @@ export async function rebuildArchiveSearchIndex(
       await document.deleteSearchIndexDatabase();
     }
 
-    await writeArchiveIndexProjection(document, input, progress, options);
+    await writeArchiveIndexProjectionFromArtifacts(document, progress);
 
     const verifiedInput = await buildArchiveIndexProjection(document);
     if (
@@ -101,6 +111,160 @@ export async function buildArchiveIndexProjection(
   return { objectProperties, textSentences };
 }
 
+export async function assertArchiveIndexArtifactsReady(
+  document: ReadonlyDocument,
+): Promise<void> {
+  const [ftsCoverage, sourceEmbeddingCoverage] = await Promise.all([
+    document.indexArtifacts.listCoverage("fts"),
+    document.indexArtifacts.listCoverage("embedding-source"),
+  ]);
+  const sourceEmbeddingBySerial = new Map(
+    sourceEmbeddingCoverage.map((record) => [record.serialId, record]),
+  );
+  const blocked = ftsCoverage.filter(
+    (record) =>
+      !record.current &&
+      sourceEmbeddingBySerial.get(record.serialId)?.current !== true,
+  );
+
+  if (blocked.length === 0) {
+    return;
+  }
+
+  const serials = blocked.map((record) => record.serialId).join(", ");
+  throw new Error(
+    `Wiki Graph query is not ready. Chapters ${serials} need a current FTS artifact or source embedding artifact before query.`,
+  );
+}
+
+export async function writeArchiveIndexProjectionFromArtifacts(
+  document: Document,
+  progress?: SearchIndexProgressReporter,
+): Promise<void> {
+  const chaptersRevision = await document.serials.getChaptersRevision();
+  const fingerprint = createSearchIndexFingerprint(
+    await buildArchiveIndexProjection(document),
+  );
+  const embeddingState = await readArchiveEmbeddingState(document);
+  const hasFts = (await document.indexArtifacts.list("fts")).length > 0;
+
+  await document.writeSearchIndexDatabase(async (database) => {
+    await prepareSearchIndexReplacement(database, progress);
+
+    let textDone = 0;
+    let vectorDone = 0;
+
+    for (const chapter of await listChapters(document)) {
+      for (const record of await streamIndexArtifactProjectionRecords(
+        document,
+        SINGLE_ARCHIVE_INDEX_ID,
+        chapter.chapterId,
+      )) {
+        if (record.kind === "text") {
+          const rowId = await insertTextSentenceRecord(database, record.value);
+
+          if (record.value.text !== "") {
+            await insertFtsRecord(
+              database,
+              "text_sentence_fts",
+              rowId,
+              createSearchTokenPlan(record.value.text),
+            );
+          }
+          textDone += 1;
+          await progress?.({
+            done: textDone,
+            phase: "indexing-text",
+            unit: "sentence",
+          });
+          continue;
+        }
+
+        const rowId = await insertSearchObjectPropertyRecord(
+          database,
+          record.value,
+        );
+
+        await insertFtsRecord(
+          database,
+          "search_object_properties_fts",
+          rowId,
+          createSearchTokenPlan(record.value.text),
+        );
+      }
+    }
+
+    for (const artifact of await document.indexArtifacts.list(
+      "embedding-source",
+    )) {
+      const segments = await document.indexArtifacts.listEmbeddingSegments(
+        artifact.serialId,
+        "embedding-source",
+      );
+      const dimensions = readEmbeddingDimensions(artifact.metadata);
+      const model = readEmbeddingModel(artifact.metadata);
+
+      if (
+        segments.length > 0 &&
+        (dimensions === undefined || model === undefined)
+      ) {
+        throw new Error(
+          `Source embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
+        );
+      }
+
+      for (const segment of segments) {
+        const vectorDimensions = dimensions ?? segment.vector.length;
+
+        if (segment.vector.length !== vectorDimensions) {
+          throw new Error(
+            `Source embedding artifact for chapter ${artifact.serialId} has ${segment.vector.length} dimensions; expected ${vectorDimensions}.`,
+          );
+        }
+        for (
+          let sentenceIndex = segment.startSentenceIndex;
+          sentenceIndex <= segment.endSentenceIndex;
+          sentenceIndex += 1
+        ) {
+          await insertTextSentenceRecord(database, {
+            archiveId: SINGLE_ARCHIVE_INDEX_ID,
+            chapterId: artifact.serialId,
+            kind: TEXT_SENTENCE_KIND.source,
+            sentenceIndex,
+            text: "",
+            wordsCount: 0,
+          });
+        }
+        await insertTextEmbeddingSegment(database, {
+          archiveId: SINGLE_ARCHIVE_INDEX_ID,
+          chapterId: artifact.serialId,
+          dimensions: vectorDimensions,
+          endSentenceIndex: segment.endSentenceIndex,
+          kind: TEXT_SENTENCE_KIND.source,
+          model: model ?? "",
+          startSentenceIndex: segment.startSentenceIndex,
+          vector: segment.vector,
+          wordsCount: segment.wordsCount,
+        });
+        vectorDone += 1;
+        await progress?.({
+          done: vectorDone,
+          phase: "indexing-dense",
+          unit: "vector",
+        });
+      }
+    }
+
+    await finalizeStoredSearchIndexReplacement(database, {
+      chaptersRevision,
+      ...(embeddingState === undefined ? {} : { embedding: embeddingState }),
+      fingerprint,
+      hasFts,
+      ...(progress === undefined ? {} : { progress }),
+    });
+  });
+}
+
 export async function* streamArchiveIndexProjection(
   document: ReadonlyDocument,
   archiveId: number,
@@ -111,79 +275,15 @@ export async function* streamArchiveIndexProjection(
   let batch = createEmptySearchIndexBatch();
 
   for (const chapter of chapters) {
-    const title = chapter.title ?? `[chapter ${chapter.chapterId}]`;
-
-    batch = appendObjectProperty(batch, {
-      archiveId,
-      chapterId: chapter.chapterId,
-      ownerId: String(chapter.chapterId),
-      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
-      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.title,
-      text: title,
-    });
-
-    for await (const record of streamTextStreamSearchIndexRecords(
+    for (const record of await streamIndexArtifactProjectionRecords(
       document,
       archiveId,
       chapter.chapterId,
-      "summary",
     )) {
-      batch = appendTextSentence(batch, record);
-      if (countSearchIndexBatchRecords(batch) >= ARCHIVE_INDEX_BATCH_RECORDS) {
-        yield batch;
-        batch = createEmptySearchIndexBatch();
-      }
-    }
-
-    for await (const record of streamTextStreamSearchIndexRecords(
-      document,
-      archiveId,
-      chapter.chapterId,
-      "source",
-    )) {
-      batch = appendTextSentence(batch, record);
-      if (countSearchIndexBatchRecords(batch) >= ARCHIVE_INDEX_BATCH_RECORDS) {
-        yield batch;
-        batch = createEmptySearchIndexBatch();
-      }
-    }
-
-    for (const node of await document.chunks.listBySerial(chapter.chapterId)) {
-      batch = appendObjectProperty(batch, {
-        archiveId,
-        chapterId: node.sentenceId[0],
-        ownerId: String(node.id),
-        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
-        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.label,
-        text: node.label,
-      });
-      batch = appendObjectProperty(batch, {
-        archiveId,
-        chapterId: node.sentenceId[0],
-        ownerId: String(node.id),
-        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
-        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.content,
-        text: node.content,
-      });
-
-      if (countSearchIndexBatchRecords(batch) >= ARCHIVE_INDEX_BATCH_RECORDS) {
-        yield batch;
-        batch = createEmptySearchIndexBatch();
-      }
-    }
-
-    for (const mention of await document.mentions.listByChapter(
-      chapter.chapterId,
-    )) {
-      batch = appendObjectProperty(batch, {
-        archiveId,
-        chapterId: mention.chapterId,
-        ownerId: mention.qid,
-        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity,
-        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.surface,
-        text: mention.surface,
-      });
-
+      batch =
+        record.kind === "text"
+          ? appendTextSentence(batch, record.value)
+          : appendObjectProperty(batch, record.value);
       if (countSearchIndexBatchRecords(batch) >= ARCHIVE_INDEX_BATCH_RECORDS) {
         yield batch;
         batch = createEmptySearchIndexBatch();
@@ -201,6 +301,168 @@ export async function* streamArchiveIndexProjection(
 
   if (countSearchIndexBatchRecords(batch) > 0) {
     yield batch;
+  }
+}
+
+async function streamIndexArtifactProjectionRecords(
+  document: ReadonlyDocument,
+  archiveId: number,
+  serialId: number,
+): Promise<
+  readonly (
+    | {
+        readonly kind: "object";
+        readonly value: SearchIndexWriteBatch["objectProperties"][number];
+      }
+    | {
+        readonly kind: "text";
+        readonly value: SearchIndexWriteBatch["textSentences"][number];
+      }
+  )[]
+> {
+  const records: (
+    | {
+        readonly kind: "object";
+        readonly value: SearchIndexWriteBatch["objectProperties"][number];
+      }
+    | {
+        readonly kind: "text";
+        readonly value: SearchIndexWriteBatch["textSentences"][number];
+      }
+  )[] = [];
+
+  for (const row of await document.indexArtifacts.listLexicalRows(
+    serialId,
+    "fts",
+  )) {
+    const textRecord = mapLexicalRowToTextSentence(archiveId, serialId, row);
+
+    if (textRecord !== undefined) {
+      records.push({ kind: "text", value: textRecord });
+      continue;
+    }
+
+    const objectRecord = mapLexicalRowToObjectProperty(
+      archiveId,
+      serialId,
+      row,
+    );
+    if (objectRecord !== undefined) {
+      records.push({ kind: "object", value: objectRecord });
+    }
+  }
+
+  for (const artifactKind of [
+    "embedding-source",
+    "embedding-summary",
+  ] as const) {
+    const artifact = await document.indexArtifacts.get(serialId, artifactKind);
+    if (artifact === undefined) {
+      continue;
+    }
+    const textKind =
+      artifactKind === "embedding-source"
+        ? TEXT_SENTENCE_KIND.source
+        : TEXT_SENTENCE_KIND.summary;
+    for (const segment of await document.indexArtifacts.listEmbeddingSegments(
+      serialId,
+      artifactKind,
+    )) {
+      for (
+        let sentenceIndex = segment.startSentenceIndex;
+        sentenceIndex <= segment.endSentenceIndex;
+        sentenceIndex += 1
+      ) {
+        records.push({
+          kind: "text",
+          value: {
+            archiveId,
+            chapterId: serialId,
+            kind: textKind,
+            sentenceIndex,
+            text: "",
+            wordsCount: 0,
+          },
+        });
+      }
+    }
+  }
+
+  return records;
+}
+
+function mapLexicalRowToTextSentence(
+  archiveId: number,
+  serialId: number,
+  row: IndexArtifactLexicalRow,
+): SearchIndexWriteBatch["textSentences"][number] | undefined {
+  if (
+    row.objectKind !== "source-sentence" &&
+    row.objectKind !== "summary-sentence"
+  ) {
+    return undefined;
+  }
+  if (row.sentenceIndex === undefined) {
+    return undefined;
+  }
+
+  return {
+    archiveId,
+    chapterId: serialId,
+    kind:
+      row.objectKind === "source-sentence"
+        ? TEXT_SENTENCE_KIND.source
+        : TEXT_SENTENCE_KIND.summary,
+    sentenceIndex: row.sentenceIndex,
+    text: row.text,
+    wordsCount: readWordsCount(row.metadata),
+  };
+}
+
+function mapLexicalRowToObjectProperty(
+  archiveId: number,
+  serialId: number,
+  row: IndexArtifactLexicalRow,
+): SearchIndexWriteBatch["objectProperties"][number] | undefined {
+  switch (row.objectKind) {
+    case "chapter-title":
+      return {
+        archiveId,
+        chapterId: serialId,
+        ownerId: row.objectId,
+        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
+        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.title,
+        text: row.text,
+      };
+    case "chunk-label":
+      return {
+        archiveId,
+        chapterId: serialId,
+        ownerId: row.objectId,
+        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
+        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.label,
+        text: row.text,
+      };
+    case "chunk-content":
+      return {
+        archiveId,
+        chapterId: serialId,
+        ownerId: row.objectId,
+        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
+        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.content,
+        text: row.text,
+      };
+    case "mention-surface":
+      return {
+        archiveId,
+        chapterId: serialId,
+        ownerId: row.objectId,
+        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity,
+        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.surface,
+        text: row.text,
+      };
+    default:
+      return undefined;
   }
 }
 
@@ -232,34 +494,74 @@ function countSearchIndexBatchRecords(batch: SearchIndexWriteBatch): number {
   return batch.objectProperties.length + batch.textSentences.length;
 }
 
-async function* streamTextStreamSearchIndexRecords(
+async function readArchiveEmbeddingState(
   document: ReadonlyDocument,
-  archiveId: number,
-  chapterId: number,
-  stream: ArchiveTextStreamKind,
-): AsyncIterable<SearchIndexWriteBatch["textSentences"][number]> {
-  const fragments =
-    stream === "summary"
-      ? document.getSummaryFragments(chapterId)
-      : document.getSerialFragments(chapterId);
-  let globalIndex = 0;
+): Promise<SearchIndexStoredEmbeddingState | undefined> {
+  let state: SearchIndexStoredEmbeddingState | undefined;
 
-  for (const fragmentId of await fragments.listFragmentIds()) {
-    const fragment = await fragments.getFragment(fragmentId);
+  for (const artifact of await document.indexArtifacts.list(
+    "embedding-source",
+  )) {
+    const dimensions = readEmbeddingDimensions(artifact.metadata);
+    const model = readEmbeddingModel(artifact.metadata);
 
-    for (const sentence of fragment.sentences) {
-      yield {
-        archiveId,
-        chapterId,
-        kind:
-          stream === "source"
-            ? TEXT_SENTENCE_KIND.source
-            : TEXT_SENTENCE_KIND.summary,
-        sentenceIndex: globalIndex,
-        text: sentence.text,
-        wordsCount: sentence.wordsCount,
-      };
-      globalIndex += 1;
+    if (dimensions === undefined || model === undefined) {
+      throw new Error(
+        `Source embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
+      );
     }
+
+    const identity = readEmbeddingIdentity(artifact.metadata);
+    const next: SearchIndexStoredEmbeddingState = {
+      dimensions,
+      ...(identity === undefined ? {} : { identity }),
+      model,
+    };
+
+    if (
+      state !== undefined &&
+      (state.dimensions !== next.dimensions ||
+        state.model !== next.model ||
+        state.identity !== next.identity)
+    ) {
+      throw new Error(
+        "Source embedding artifacts use different embedding providers or dimensions; rebuild them with one embeddings configuration.",
+      );
+    }
+    state = next;
   }
+
+  return state;
+}
+
+function readWordsCount(metadata: Readonly<Record<string, unknown>>): number {
+  const value = metadata.wordsCount;
+
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function readEmbeddingDimensions(
+  metadata: Readonly<Record<string, unknown>>,
+): number | undefined {
+  const value = metadata.dimensions;
+
+  return Number.isInteger(value) && Number(value) > 0
+    ? Number(value)
+    : undefined;
+}
+
+function readEmbeddingIdentity(
+  metadata: Readonly<Record<string, unknown>>,
+): string | undefined {
+  const value = metadata.identity;
+
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+function readEmbeddingModel(
+  metadata: Readonly<Record<string, unknown>>,
+): string | undefined {
+  const value = metadata.model;
+
+  return typeof value === "string" && value !== "" ? value : undefined;
 }

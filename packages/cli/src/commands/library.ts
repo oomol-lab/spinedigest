@@ -12,7 +12,7 @@ import {
   listWikiGraphLibraries,
   listWikiGraphLibraryArchives,
   moveWikiGraphLibraryArchive,
-  disableWikiGraphLibraryIndex,
+  cleanWikiGraphLibraryIndex,
   formatWikiGraphLibraryUri,
   putWikiGraphLibraryMetadata,
   readWikiGraphLibraryIndexState,
@@ -23,7 +23,6 @@ import {
   replaceWikiGraphLibraryMetadata,
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
-  type SearchIndexBuildOptions,
 } from "wiki-graph-core";
 import type { CLILibraryArguments } from "../args/index.js";
 import type { RenderTreeNode } from "../support/index.js";
@@ -39,8 +38,6 @@ import {
   ProgressOutputWriter,
   type ProgressCounter,
 } from "../runtime/index.js";
-import { loadCLIConfig } from "../runtime/config.js";
-import { buildSearchIndexEmbeddingProvider } from "../runtime/embedding.js";
 
 const INDEX_PROGRESS_OUTPUT_INTERVAL_MS = 6_000;
 
@@ -141,8 +138,7 @@ export async function runLibraryCommand(
       );
       return;
     }
-    case "enable-index": {
-      const buildOptions = await createSearchIndexBuildOptions(args.indexes);
+    case "sync-index": {
       const writer = new ProgressOutputWriter({
         jsonl: args.jsonl ?? false,
         throttleMs: INDEX_PROGRESS_OUTPUT_INTERVAL_MS,
@@ -151,7 +147,7 @@ export async function runLibraryCommand(
       await writer.write({
         json: { type: "started" },
         kind: "lifecycle",
-        text: `library index enable started\nindexes: ${buildOptions.indexes ?? "auto"}\nsteps: ${formatIndexEnableSteps(buildOptions).join(" -> ")}`,
+        text: "library index cache sync started\nsteps: collecting -> clearing -> indexing-text -> indexing-dense -> finalizing",
       });
       const state = await rebuildWikiGraphLibraryIndex(
         args.target,
@@ -172,12 +168,11 @@ export async function runLibraryCommand(
             phase: event.phase,
           });
         },
-        buildOptions,
       );
       await writer.write({
         json: { status: state.status, type: "completed" },
         kind: "lifecycle",
-        text: "library index enabled",
+        text: "library index cache synced",
       });
       await writer.write({
         json: { type: "succeeded" },
@@ -186,9 +181,9 @@ export async function runLibraryCommand(
       });
       return;
     }
-    case "disable-index": {
+    case "clean-index": {
       await writeLibraryIndexState(
-        await disableWikiGraphLibraryIndex(args.target),
+        await cleanWikiGraphLibraryIndex(args.target),
         args.json ?? false,
       );
       return;
@@ -303,43 +298,6 @@ export async function runLibraryCommand(
       return;
     }
   }
-}
-
-async function createSearchIndexBuildOptions(
-  indexes: CLILibraryArguments["indexes"],
-): Promise<SearchIndexBuildOptions> {
-  if (indexes === "fts") {
-    return { indexes };
-  }
-
-  const config = await loadCLIConfig();
-
-  if (config.embedding === undefined) {
-    if (indexes === "dense" || indexes === "fts,dense") {
-      throw new Error(
-        `Missing embeddings configuration. Configure \`wikg://local/config/embeddings\` before using --indexes ${indexes}.`,
-      );
-    }
-    return { indexes: indexes ?? "auto" };
-  }
-
-  return {
-    embeddingProvider: buildSearchIndexEmbeddingProvider(config.embedding),
-    indexes: indexes ?? "auto",
-  };
-}
-
-function formatIndexEnableSteps(
-  options: SearchIndexBuildOptions,
-): readonly string[] {
-  return [
-    "collecting",
-    "clearing",
-    "indexing-text",
-    "indexing-objects",
-    ...(options.embeddingProvider === undefined ? [] : ["indexing-dense"]),
-    "finalizing",
-  ];
 }
 
 async function writeLibrary(
@@ -716,7 +674,6 @@ async function writeLibraryIndexState(
   await writeTextToStdout(
     [
       `Status: ${state.status}`,
-      `Enabled: ${state.enabled ? "yes" : "no"}`,
       ...(state.capabilities === undefined
         ? []
         : [

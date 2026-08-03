@@ -13,6 +13,7 @@ import type {
   SearchIndexInput,
   SearchIndexProgressReporter,
   SearchIndexSelection,
+  SearchIndexStoredEmbeddingState,
   TextSentenceRecordInput,
 } from "./types.js";
 import {
@@ -389,6 +390,44 @@ export async function finalizeSearchIndexReplacement(
   });
 }
 
+export async function finalizeStoredSearchIndexReplacement(
+  database: Database,
+  input: {
+    readonly chaptersRevision: number;
+    readonly embedding?: SearchIndexStoredEmbeddingState;
+    readonly fingerprint: string;
+    readonly hasFts: boolean;
+    readonly progress?: SearchIndexProgressReporter;
+  },
+): Promise<void> {
+  await database.transaction(async () => {
+    await input.progress?.({ phase: "finalizing" });
+    await database.run("DELETE FROM index_dirty_chapters");
+    await database.run(
+      `
+        INSERT INTO search_index_state(key, value)
+        VALUES ('version', ?)
+      `,
+      [SEARCH_INDEX_VERSION],
+    );
+    await database.run(
+      `
+        INSERT INTO search_index_state(key, value)
+        VALUES ('fingerprint', ?)
+      `,
+      [input.fingerprint],
+    );
+    await database.run(
+      `
+        INSERT INTO search_index_state(key, value)
+        VALUES ('chaptersRevision', ?)
+      `,
+      [String(input.chaptersRevision)],
+    );
+    await writeStoredSearchIndexBuildState(database, input);
+  });
+}
+
 type ResolvedSearchIndexBuildOptions =
   | {
       readonly indexes: "fts";
@@ -695,6 +734,57 @@ async function writeSearchIndexBuildState(
           "",
       ),
     ],
+  );
+}
+
+async function writeStoredSearchIndexBuildState(
+  database: Database,
+  input: {
+    readonly embedding?: SearchIndexStoredEmbeddingState;
+    readonly hasFts: boolean;
+  },
+): Promise<void> {
+  const indexes =
+    input.embedding === undefined
+      ? "fts"
+      : input.hasFts
+        ? "fts,dense"
+        : "dense";
+
+  await database.run(
+    `
+      INSERT INTO search_index_state(key, value)
+      VALUES ('indexes', ?)
+    `,
+    [indexes],
+  );
+
+  if (input.embedding === undefined) {
+    return;
+  }
+
+  await database.run(
+    `
+      INSERT INTO search_index_state(key, value)
+      VALUES ('embeddingModel', ?)
+    `,
+    [input.embedding.model],
+  );
+  if (input.embedding.identity !== undefined) {
+    await database.run(
+      `
+        INSERT INTO search_index_state(key, value)
+        VALUES ('embeddingIdentity', ?)
+      `,
+      [input.embedding.identity],
+    );
+  }
+  await database.run(
+    `
+      INSERT INTO search_index_state(key, value)
+      VALUES ('embeddingDimensions', ?)
+    `,
+    [String(input.embedding.dimensions)],
   );
 }
 

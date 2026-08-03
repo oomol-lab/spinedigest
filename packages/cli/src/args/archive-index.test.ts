@@ -10,65 +10,33 @@ import {
 describe("cli/args/archive index", () => {
   it("parses archive index object commands", () => {
     expect(() =>
-      parseCLIArguments(["wikg:///tmp/book.wikg/index", "enable", "--json"]),
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "sync", "--json"]),
     ).toThrow(
-      "The `enable` command does not support --json because it streams progress events. Use --jsonl for line-delimited progress output.",
+      "The `sync` command does not support --json because it streams progress events. Use --jsonl for line-delimited progress output.",
     );
     expect(() =>
       parseCLIArguments(["wikg:///tmp/book.wikg/index", "--reverse"]),
     ).toThrow("The `get` command does not support --reverse.");
     expect(
-      parseCLIArguments(["wikg:///tmp/book.wikg/index", "enable", "--jsonl"]),
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "sync", "--jsonl"]),
     ).toStrictEqual({
       args: {
-        action: "enable",
+        action: "sync",
         archivePath: "/tmp/book.wikg",
         jsonl: true,
       },
       help: false,
       kind: "archive-index",
     });
-    expect(
-      parseCLIArguments([
-        "wikg:///tmp/book.wikg/index",
-        "enable",
-        "--indexes",
-        "dense",
-      ]),
-    ).toStrictEqual({
-      args: {
-        action: "enable",
-        archivePath: "/tmp/book.wikg",
-        indexes: "dense",
-      },
-      help: false,
-      kind: "archive-index",
-    });
-    expect(
-      parseCLIArguments([
-        "wikg:///tmp/book.wikg/index",
-        "enable",
-        "--indexes",
-        "fts,dense",
-      ]),
-    ).toStrictEqual({
-      args: {
-        action: "enable",
-        archivePath: "/tmp/book.wikg",
-        indexes: "fts,dense",
-      },
-      help: false,
-      kind: "archive-index",
-    });
     expect(() =>
       parseCLIArguments([
         "wikg:///tmp/book.wikg/index",
-        "enable",
+        "sync",
         "--indexes",
-        "hybrid",
+        "fts",
       ]),
     ).toThrow(
-      "Invalid --indexes: hybrid. Expected auto, dense, fts, or fts,dense.",
+      "The --indexes option has been removed. Build chapter index artifacts explicitly, then sync the archive or library index cache.",
     );
     expect(() =>
       parseCLIArguments([
@@ -78,7 +46,7 @@ describe("cli/args/archive index", () => {
         "fts",
       ]),
     ).toThrow(
-      "The --indexes option is only supported by `wg <index-uri> enable`.",
+      "The --indexes option has been removed. Build chapter index artifacts explicitly, then sync the archive or library index cache.",
     );
     expect(
       parseCLIArguments(["wikg://lib/arc/archive123/index", "--json"]),
@@ -92,14 +60,10 @@ describe("cli/args/archive index", () => {
       kind: "archive-index",
     });
     expect(
-      parseCLIArguments([
-        "wikg://lib/arc/archive123/index",
-        "enable",
-        "--jsonl",
-      ]),
+      parseCLIArguments(["wikg://lib/arc/archive123/index", "sync", "--jsonl"]),
     ).toStrictEqual({
       args: {
-        action: "enable",
+        action: "sync",
         archivePath: "wikg://lib/arc/archive123",
         jsonl: true,
       },
@@ -107,22 +71,22 @@ describe("cli/args/archive index", () => {
       kind: "archive-index",
     });
     expect(
-      parseCLIArguments(["wikg:///tmp/book.wikg/index", "external"]),
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "clean"]),
     ).toStrictEqual({
       args: {
-        action: "external",
+        action: "clean",
         archivePath: "/tmp/book.wikg",
       },
       help: false,
       kind: "archive-index",
     });
     expect(
-      parseCLIArguments(["wikg:///tmp/book.wikg/index", "enable", "--help"]),
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "sync", "--help"]),
     ).toStrictEqual({
       help: true,
       helpText: renderUriPredicateHelpText(
         "index-object",
-        "enable",
+        "sync",
         "wikg:///tmp/book.wikg/index",
       ),
       kind: "help",
@@ -134,23 +98,24 @@ describe("cli/args/archive index", () => {
       "Invalid help topic: build.",
     );
     expect(() =>
-      parseCLIArguments([
-        "wikg:///tmp/book.wikg/index",
-        "disable",
-        "--dry-run",
-      ]),
-    ).toThrow("The `disable` command does not support --dry-run.");
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "clean", "--dry-run"]),
+    ).toThrow("The `clean` command does not support --dry-run.");
     expect(() =>
-      parseCLIArguments(["wikg:///tmp/book.wikg/index", "disable", "--jsonl"]),
-    ).toThrow("The `disable` command does not support --jsonl.");
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "clean", "--jsonl"]),
+    ).toThrow("The `clean` command does not support --jsonl.");
     expect(() =>
       parseCLIArguments([
         "wikg:///tmp/book.wikg/index",
-        "disable",
+        "clean",
         "--title",
         "x",
       ]),
-    ).toThrow("The `disable` command does not support --title.");
+    ).toThrow("The `clean` command does not support --title.");
+    expect(() =>
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "enable"]),
+    ).toThrow(
+      "The URI-first form does not support `enable`. Use `wg wikg:///tmp/book.wikg/index --help` to inspect valid predicates.",
+    );
   });
 
   it("parses library index object commands", () => {
@@ -167,10 +132,10 @@ describe("cli/args/archive index", () => {
       kind: "library",
     });
     expect(
-      parseCLIArguments(["wikg://lib/team/index", "enable", "--jsonl"]),
+      parseCLIArguments(["wikg://lib/team/index", "sync", "--jsonl"]),
     ).toStrictEqual({
       args: {
-        action: "enable-index",
+        action: "sync-index",
         jsonl: true,
         target: {
           isDefault: false,
@@ -183,52 +148,10 @@ describe("cli/args/archive index", () => {
       kind: "library",
     });
     expect(
-      parseCLIArguments([
-        "wikg://lib/team/index",
-        "enable",
-        "--indexes",
-        "dense",
-      ]),
+      parseCLIArguments(["wikg://lib/index", "clean", "--json"]),
     ).toStrictEqual({
       args: {
-        action: "enable-index",
-        indexes: "dense",
-        target: {
-          isDefault: false,
-          kind: "scope",
-          objectUri: "wikg://index",
-          publicId: "team",
-        },
-      },
-      help: false,
-      kind: "library",
-    });
-    expect(
-      parseCLIArguments([
-        "wikg://lib/team/index",
-        "enable",
-        "--indexes",
-        "fts,dense",
-      ]),
-    ).toStrictEqual({
-      args: {
-        action: "enable-index",
-        indexes: "fts,dense",
-        target: {
-          isDefault: false,
-          kind: "scope",
-          objectUri: "wikg://index",
-          publicId: "team",
-        },
-      },
-      help: false,
-      kind: "library",
-    });
-    expect(
-      parseCLIArguments(["wikg://lib/index", "disable", "--json"]),
-    ).toStrictEqual({
-      args: {
-        action: "disable-index",
+        action: "clean-index",
         json: true,
         target: {
           isDefault: true,
@@ -249,7 +172,7 @@ describe("cli/args/archive index", () => {
       kind: "help",
     });
     expect(
-      parseCLIArguments(["wikg://lib/index", "enable", "--help"]),
+      parseCLIArguments(["wikg://lib/index", "sync", "--help"]),
     ).toStrictEqual({
       help: true,
       helpText: renderLibraryPredicateHelpText(
@@ -259,12 +182,12 @@ describe("cli/args/archive index", () => {
           kind: "scope",
           objectUri: "wikg://index",
         },
-        "enable",
+        "sync",
       ),
       kind: "help",
     });
     expect(
-      parseCLIArguments(["wikg://lib/index", "disable", "--help"]),
+      parseCLIArguments(["wikg://lib/index", "clean", "--help"]),
     ).toStrictEqual({
       help: true,
       helpText: renderLibraryPredicateHelpText(
@@ -274,16 +197,16 @@ describe("cli/args/archive index", () => {
           kind: "scope",
           objectUri: "wikg://index",
         },
-        "disable",
+        "clean",
       ),
       kind: "help",
     });
     expect(() =>
-      parseCLIArguments(["wikg://lib/index", "enable", "--json"]),
+      parseCLIArguments(["wikg://lib/index", "sync", "--json"]),
     ).toThrow("Use --jsonl for line-delimited progress output.");
     expect(() =>
-      parseCLIArguments(["wikg://lib/index", "enable", "--to", "x.wikg"]),
-    ).toThrow("The `enable` command does not support --to.");
+      parseCLIArguments(["wikg://lib/index", "sync", "--to", "x.wikg"]),
+    ).toThrow("The `sync` command does not support --to.");
     expect(() => parseCLIArguments(["wikg://lib/index", "embed"])).toThrow(
       "The library index wikg://lib/index does not support `embed`.\nSee: wg wikg://lib/index embed --help",
     );

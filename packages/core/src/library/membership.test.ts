@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import {
   addWikiGraphLibraryArchive,
   createWikiGraphLibrary,
-  disableWikiGraphLibraryIndex,
+  cleanWikiGraphLibraryIndex,
   ensureDefaultWikiGraphLibrary,
   finalizeWikiGraphLibraryArchiveWrite,
   findWikiGraphLibraryArchiveMembers,
@@ -29,6 +29,8 @@ import {
   readArchiveIndexSettings,
   queryWikiGraphLibrarySearchIndex,
   rebuildArchiveSearchIndex,
+  replaceChapterFtsIndexArtifact,
+  replaceChapterSourceEmbeddingIndexArtifact,
   rebindWikiGraphLibrary,
   setFtsIndexEmbedded,
   listWikiGraphLibraryArchiveMembers,
@@ -530,7 +532,7 @@ describe("library archive membership", () => {
       const library = await ensureDefaultWikiGraphLibrary();
       await rebuildWikiGraphLibraryIndex(target!);
       const release = await acquireWikiGraphLibraryLock(library.id, "read");
-      const disable = disableWikiGraphLibraryIndex(target!);
+      const disable = cleanWikiGraphLibraryIndex(target!);
       let settled = false;
       void disable.finally(() => {
         settled = true;
@@ -543,10 +545,10 @@ describe("library archive membership", () => {
         await release();
       }
 
-      await expect(disable).resolves.toMatchObject({ status: "disabled" });
+      await expect(disable).resolves.toMatchObject({ status: "missing" });
       await expect(
         queryWikiGraphLibrarySearchIndex(target!, "anything"),
-      ).rejects.toThrow("Wiki Graph library index is disabled");
+      ).rejects.toThrow("Wiki Graph library index is missing");
     });
   });
 
@@ -930,16 +932,18 @@ describe("library archive membership", () => {
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
       const source = join(tempDir, "dense-library.wikg");
-      await createSearchableArchiveWithoutSearchIndex(tempDir, source);
+      await createSearchableArchiveWithoutSearchIndex(
+        tempDir,
+        source,
+        createLibraryTestEmbeddingProvider(),
+      );
 
       await addWikiGraphLibraryArchive({
         inputPath: source,
         target: target!,
         to: "dense-library.wikg",
       });
-      const state = await rebuildWikiGraphLibraryIndex(target!, undefined, {
-        embeddingProvider: createLibraryTestEmbeddingProvider(),
-      });
+      const state = await rebuildWikiGraphLibraryIndex(target!);
 
       expect(state.capabilities).toStrictEqual({
         dense: {
@@ -952,30 +956,27 @@ describe("library archive membership", () => {
     });
   });
 
-  it("removes dense vectors from the library aggregate index when fts is requested", async () => {
+  it("cleans the library aggregate index cache", async () => {
     await withLibraryTestState(async (tempDir) => {
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
       const source = join(tempDir, "fts-library.wikg");
-      await createSearchableArchiveWithoutSearchIndex(tempDir, source);
+      await createSearchableArchiveWithoutSearchIndex(
+        tempDir,
+        source,
+        createLibraryTestEmbeddingProvider(),
+      );
 
       await addWikiGraphLibraryArchive({
         inputPath: source,
         target: target!,
         to: "fts-library.wikg",
       });
-      await rebuildWikiGraphLibraryIndex(target!, undefined, {
-        embeddingProvider: createLibraryTestEmbeddingProvider(),
-        indexes: "fts,dense",
-      });
-      const state = await rebuildWikiGraphLibraryIndex(target!, undefined, {
-        indexes: "fts",
-      });
+      await rebuildWikiGraphLibraryIndex(target!);
+      const state = await cleanWikiGraphLibraryIndex(target!);
 
-      expect(state.capabilities).toStrictEqual({
-        dense: { current: false },
-        indexes: "fts",
-      });
+      expect(state.status).toBe("missing");
+      expect(state.capabilities).toBeUndefined();
     });
   });
 });
@@ -1170,6 +1171,7 @@ async function createLegacyEmbeddedSearchIndexArchive(
 async function createSearchableArchiveWithoutSearchIndex(
   tempDir: string,
   path: string,
+  embeddingProvider?: ReturnType<typeof createLibraryTestEmbeddingProvider>,
 ): Promise<void> {
   const sourceDir = await mkdtemp(join(tempDir, "wikg-source-"));
   const document = await DirectoryDocument.open(sourceDir);
@@ -1185,6 +1187,14 @@ async function createSearchableArchiveWithoutSearchIndex(
         version: 1,
       });
     });
+    await replaceChapterFtsIndexArtifact(document, 1);
+    if (embeddingProvider !== undefined) {
+      await replaceChapterSourceEmbeddingIndexArtifact(
+        document,
+        1,
+        embeddingProvider,
+      );
+    }
   } finally {
     await document.release();
   }

@@ -233,7 +233,7 @@ export function parseCLIArguments(
 
   rejectNonGcForceFlag(positionals, values);
   rejectNonCreateReplaceFlag(positionals, values);
-  rejectUnsupportedIndexesFlag(positionals, values.indexes);
+  rejectUnsupportedIndexesFlag(values.indexes);
 
   if (values.version === true) {
     return {
@@ -348,29 +348,15 @@ export function parseCLIArguments(
   throw new Error(formatUnknownCommandMessage(positionals[0]!));
 }
 
-function rejectUnsupportedIndexesFlag(
-  positionals: readonly string[],
-  value: string | undefined,
-): void {
-  if (value === undefined || isIndexEnableCommand(positionals)) {
+function rejectUnsupportedIndexesFlag(value: string | undefined): void {
+  if (value === undefined) {
     return;
   }
 
   throw new Error(
     withHelpRoute(
-      "The --indexes option is only supported by `wg <index-uri> enable`.",
+      "The --indexes option has been removed. Build chapter index artifacts explicitly, then sync the archive or library index cache.",
       CLI_HELP_ROUTES.root,
     ),
-  );
-}
-
-function isIndexEnableCommand(positionals: readonly string[]): boolean {
-  const [uri, action] = positionals;
-
-  return (
-    uri !== undefined &&
-    isWikiGraphUri(uri) &&
-    uri.endsWith("/index") &&
-    action === "enable"
   );
 }

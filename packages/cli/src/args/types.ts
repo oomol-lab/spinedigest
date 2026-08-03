@@ -6,7 +6,6 @@ import type {
   ChapterStage,
   IndexArtifactKind,
   ParsedWikiGraphLibraryUri,
-  SearchIndexSelection,
 } from "wiki-graph-core";
 
 export interface CLIArguments {
@@ -113,10 +112,9 @@ export type CLILibraryAction =
   | "add"
   | "archive-tree"
   | "clear"
+  | "clean-index"
   | "create"
   | "delete"
-  | "disable-index"
-  | "enable-index"
   | "get"
   | "get-index"
   | "list"
@@ -124,7 +122,8 @@ export type CLILibraryAction =
   | "rebind"
   | "remove"
   | "scan"
-  | "set";
+  | "set"
+  | "sync-index";
 
 export interface CLILibraryArguments {
   readonly action: CLILibraryAction;
@@ -134,7 +133,6 @@ export interface CLILibraryArguments {
   readonly inputValue?: string | undefined;
   readonly json?: boolean | undefined;
   readonly jsonl?: boolean | undefined;
-  readonly indexes?: SearchIndexSelection | undefined;
   readonly jsonInputValue?: string | undefined;
   readonly key?: string | undefined;
   readonly path?: string | undefined;
@@ -236,12 +234,7 @@ export type CLIArchiveAction =
   | "search";
 
 export type CLIArchiveMaintenanceCommand = "chapter" | "cover" | "meta";
-export type CLIArchiveIndexAction =
-  | "disable"
-  | "embed"
-  | "enable"
-  | "external"
-  | "get";
+export type CLIArchiveIndexAction = "clean" | "get" | "sync";
 export type CLIArchiveRootAction = CLIArchiveAction;
 export type CLIArchiveUriAction =
   | CLIArchiveRootAction
@@ -302,7 +295,6 @@ export interface CLIArchiveArguments {
 export interface CLIArchiveIndexArguments {
   readonly action: CLIArchiveIndexAction;
   readonly archivePath: string;
-  readonly indexes?: SearchIndexSelection;
   readonly json?: boolean;
   readonly jsonl?: boolean;
 }

@@ -9,10 +9,13 @@ export type { ArchivePageOptions } from "./pages.js";
 
 export {
   clearDirtyArchiveSearchIndex,
+  assertArchiveIndexArtifactsReady,
+  buildArchiveIndexProjection,
   createArchiveSearchIndexFingerprint,
   isArchiveSearchIndexCurrent,
   readArchiveSearchIndexStatus,
   rebuildArchiveSearchIndex,
+  writeArchiveIndexProjectionFromArtifacts,
 } from "./index-state.js";
 
 export {

@@ -1,6 +1,7 @@
 export {
   createSearchIndexFingerprint,
   ensureSearchIndex,
+  finalizeStoredSearchIndexReplacement,
   finalizeSearchIndexReplacement,
   isSearchIndexCurrent,
   markDirtySearchIndexChapters,
@@ -21,6 +22,10 @@ export {
   SINGLE_ARCHIVE_INDEX_ID,
   setFtsIndexEmbedded,
   TEXT_SENTENCE_KIND,
+  insertFtsRecord,
+  insertSearchObjectPropertyRecord,
+  insertTextSentenceRecord,
+  insertTextEmbeddingSegment,
   writeSearchIndexBatch,
   writeSearchIndexDenseSegments,
 } from "./search/index.js";
@@ -37,6 +42,7 @@ export type {
   SearchIndexQueryResult,
   SearchIndexStatus,
   SearchIndexSelection,
+  SearchIndexStoredEmbeddingState,
   SearchIndexTextHit,
   SearchIndexWriteCounters,
   SearchObjectPropertyKind,

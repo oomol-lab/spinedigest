@@ -22,7 +22,6 @@ import type {
 } from "../types.js";
 import {
   formatWikiGraphHelpCommand,
-  parseSearchIndexSelectionFlag,
   rejectArchiveBooleanFlag,
   rejectArchiveFlag,
   stripObjectUriPrefix,
@@ -46,7 +45,7 @@ const LIBRARY_METADATA_ACTIONS = new Set([
 const LIBRARY_PATH_ACTIONS = new Set(["get", "set"]);
 const LIBRARY_REGISTRY_ACTIONS = new Set(["add", "list"]);
 const LIBRARY_SCOPE_ACTIONS = new Set(["get", "remove"]);
-const LIBRARY_INDEX_ACTIONS = new Set(["disable", "enable", "get"]);
+const LIBRARY_INDEX_ACTIONS = new Set(["clean", "get", "sync"]);
 const LIBRARY_QUERY_ACTIONS = new Set([
   "evidence",
   "get",
@@ -886,19 +885,18 @@ function parseLibraryIndexArguments(
   rejectArchiveFlag(action, "--json-input", values["json-input"], helpRoute);
   rejectArchiveFlag(action, "--to", values.to, helpRoute);
 
-  if (action === "enable") {
+  if (action === "sync") {
     if (values.json === true) {
       throw new Error(
         withHelpRoute(
-          "The `enable` command does not support --json because it streams progress events. Use --jsonl for line-delimited progress output.",
+          "The `sync` command does not support --json because it streams progress events. Use --jsonl for line-delimited progress output.",
           helpRoute,
         ),
       );
     }
     return {
       args: {
-        action: "enable-index",
-        ...optionalSearchIndexSelection(values.indexes, helpRoute),
+        action: "sync-index",
         ...(values.jsonl === undefined ? {} : { jsonl: values.jsonl }),
         target,
       },
@@ -911,28 +909,13 @@ function parseLibraryIndexArguments(
   rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
   return {
     args: {
-      action: action === "disable" ? "disable-index" : "get-index",
+      action: action === "clean" ? "clean-index" : "get-index",
       ...(values.json === undefined ? {} : { json: values.json }),
       target,
     },
     help: false,
     kind: "library",
   };
-}
-
-function optionalSearchIndexSelection(
-  value: string | undefined,
-  helpRoute: string,
-):
-  | {
-      readonly indexes: NonNullable<
-        ReturnType<typeof parseSearchIndexSelectionFlag>
-      >;
-    }
-  | Record<string, never> {
-  const indexes = parseSearchIndexSelectionFlag(value, helpRoute);
-
-  return indexes === undefined ? {} : { indexes };
 }
 
 function parseLibraryArchiveArguments(
@@ -1068,9 +1051,9 @@ function parseLibraryScopeArguments(
     case "set":
     case "put":
     case "delete":
-    case "disable-index":
-    case "enable-index":
+    case "clean-index":
     case "get-index":
+    case "sync-index":
     case "clear":
     case "archive-tree":
     case "add":
@@ -1153,9 +1136,9 @@ function parseLibraryMetadataArguments(
     case "remove":
     case "add":
     case "rebind":
-    case "disable-index":
-    case "enable-index":
+    case "clean-index":
     case "get-index":
+    case "sync-index":
     case "scan":
     case "archive-tree":
       throw new Error(
@@ -1212,10 +1195,9 @@ function isLibraryAction(action: string): action is CLILibraryAction {
     action === "add" ||
     action === "archive-tree" ||
     action === "clear" ||
+    action === "clean-index" ||
     action === "create" ||
     action === "delete" ||
-    action === "disable-index" ||
-    action === "enable-index" ||
     action === "get" ||
     action === "get-index" ||
     action === "list" ||
@@ -1223,7 +1205,8 @@ function isLibraryAction(action: string): action is CLILibraryAction {
     action === "rebind" ||
     action === "remove" ||
     action === "scan" ||
-    action === "set"
+    action === "set" ||
+    action === "sync-index"
   );
 }
 

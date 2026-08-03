@@ -6,6 +6,8 @@ export {
   formatSummaryId,
   getArchiveIndex,
   grepArchiveObjects,
+  assertArchiveIndexArtifactsReady,
+  buildArchiveIndexProjection,
   createArchiveSearchIndexFingerprint,
   clearDirtyArchiveSearchIndex,
   isArchiveSearchIndexCurrent,
@@ -20,6 +22,7 @@ export {
   readArchivePage,
   readArchiveText,
   rebuildArchiveSearchIndex,
+  writeArchiveIndexProjectionFromArtifacts,
 } from "./view.js";
 export type {
   ArchiveBacklinkBucket,

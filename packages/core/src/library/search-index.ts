@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { mkdir, readdir, rm, stat, writeFile } from "fs/promises";
+import { mkdir, readdir, rm, stat } from "fs/promises";
 import { join } from "path";
 
 import { Database, getNumber, getString } from "../document/database.js";
@@ -7,14 +7,22 @@ import { ensureWikiGraphHomeSchemaCurrent } from "../document/home-schema-upgrad
 import { SEARCH_INDEX_SCHEMA_SQL } from "../document/schema.js";
 import { openSharedStateDatabase } from "../document/index.js";
 import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
-import { streamArchiveIndexProjection } from "../retrieval/query/archive-view/index-state.js";
+import {
+  assertArchiveIndexArtifactsReady,
+  buildArchiveIndexProjection,
+  streamArchiveIndexProjection,
+} from "../retrieval/query/archive-view/index-state.js";
 import type {
   ArchiveFindMatch,
   ArchiveFindObjectType,
 } from "../retrieval/query/archive-view/types.js";
 import {
   markDirtySearchIndexChapters,
-  finalizeSearchIndexReplacement,
+  finalizeStoredSearchIndexReplacement,
+  insertFtsRecord,
+  insertSearchObjectPropertyRecord,
+  insertTextEmbeddingSegment,
+  insertTextSentenceRecord,
   prepareSearchIndexReplacement,
   readSearchIndexFingerprintFromDatabase,
   readSearchIndexCapabilityStatus,
@@ -22,18 +30,17 @@ import {
   SEARCH_OBJECT_PROPERTY_KIND,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
   type SearchIndexObjectHit,
-  type SearchIndexBuildOptions,
   type SearchIndexCapabilityStatus,
   type SearchIndexEmbeddingProvider,
   type SearchIndexProgressReporter,
+  type SearchIndexStoredEmbeddingState,
   type SearchIndexTextHit,
-  type SearchIndexWriteCounters,
   type SearchObjectPropertyKind,
   type SearchObjectPropertyOwnerKind,
   type TextSentenceKind,
-  writeSearchIndexBatch,
-  writeSearchIndexDenseSegments,
+  TEXT_SENTENCE_KIND,
 } from "../retrieval/search-index/index.js";
+import { createSearchTokenPlan } from "../retrieval/search-index/search/tokenizer.js";
 import { readPathSize } from "../runtime/gc/files.js";
 import type { GcContext, GcJobResult } from "../runtime/gc/index.js";
 import {
@@ -52,11 +59,7 @@ import {
 } from "./registry.js";
 import { isWikiGraphLibraryLocked, withWikiGraphLibraryLock } from "./lock.js";
 
-export type WikiGraphLibraryIndexStatus =
-  | "current"
-  | "dirty"
-  | "disabled"
-  | "missing";
+export type WikiGraphLibraryIndexStatus = "current" | "dirty" | "missing";
 
 export interface WikiGraphLibraryIndexSource {
   readonly archiveId: number;
@@ -69,7 +72,6 @@ export interface WikiGraphLibraryIndexSource {
 
 export interface WikiGraphLibraryIndexState {
   readonly capabilities?: SearchIndexCapabilityStatus;
-  readonly enabled: boolean;
   readonly fingerprint?: string;
   readonly sourceFingerprint: string;
   readonly sources: readonly WikiGraphLibraryIndexSource[];
@@ -112,25 +114,18 @@ export type WikiGraphLibraryIndexTextHit = SearchIndexTextHit & {
   readonly libraryArchiveUri: string;
 };
 
-const LIBRARY_INDEX_DISABLED_FILE = "index.disabled";
-
 export async function readWikiGraphLibraryIndexState(
   target: ParsedWikiGraphLibraryUri,
 ): Promise<WikiGraphLibraryIndexState> {
   const library = await resolveWikiGraphLibrary(target);
   const sources = await listLibraryIndexSources(target);
   const sourceFingerprint = createLibraryIndexSourceFingerprint(sources);
-  const enabled = !(await pathExists(createDisabledPath(library)));
-
-  if (!enabled) {
-    return { enabled, sourceFingerprint, sources, status: "disabled" };
-  }
 
   const document = new LibraryIndexDocument(library);
   const searchStatus = await readSearchIndexStatus(document as never);
 
   if (searchStatus === "missing") {
-    return { enabled, sourceFingerprint, sources, status: "missing" };
+    return { sourceFingerprint, sources, status: "missing" };
   }
 
   const databaseState = await document.readSearchIndexDatabase(
@@ -143,7 +138,6 @@ export async function readWikiGraphLibraryIndexState(
 
   return {
     capabilities,
-    enabled,
     ...(databaseState.fingerprint === undefined
       ? {}
       : { fingerprint: databaseState.fingerprint }),
@@ -160,12 +154,11 @@ export async function readWikiGraphLibraryIndexState(
 export async function rebuildWikiGraphLibraryIndex(
   target: ParsedWikiGraphLibraryUri,
   progress?: SearchIndexProgressReporter,
-  options: SearchIndexBuildOptions = {},
+  _options?: unknown,
 ): Promise<WikiGraphLibraryIndexState> {
   const library = await resolveWikiGraphLibrary(target);
 
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
-    await rm(createDisabledPath(library), { force: true });
     const archives = await listWikiGraphLibraryArchives(target);
     const sources = archives.map(formatLibraryIndexSource);
     const present = archives.filter(
@@ -181,7 +174,6 @@ export async function rebuildWikiGraphLibraryIndex(
       present,
       indexFingerprint,
       progress,
-      options,
     );
     await document.writeSearchIndexDatabase(async (database) => {
       await setStateValue(database, "sourceFingerprint", sourceFingerprint);
@@ -192,7 +184,7 @@ export async function rebuildWikiGraphLibraryIndex(
   });
 }
 
-export async function disableWikiGraphLibraryIndex(
+export async function cleanWikiGraphLibraryIndex(
   target: ParsedWikiGraphLibraryUri,
 ): Promise<WikiGraphLibraryIndexState> {
   const library = await resolveWikiGraphLibrary(target);
@@ -200,7 +192,6 @@ export async function disableWikiGraphLibraryIndex(
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
     await mkdir(createLibraryIndexDirectory(library), { recursive: true });
     await rm(createLibraryIndexDatabasePath(library), { force: true });
-    await writeFile(createDisabledPath(library), "disabled\n", "utf8");
     return await readWikiGraphLibraryIndexState(target);
   });
 }
@@ -212,10 +203,6 @@ export async function markWikiGraphLibraryIndexDirty(
     "folderPath" in targetOrLibrary
       ? targetOrLibrary
       : await resolveWikiGraphLibrary(targetOrLibrary);
-
-  if (await pathExists(createDisabledPath(library))) {
-    return;
-  }
 
   const document = new LibraryIndexDocument(library);
 
@@ -241,7 +228,7 @@ export async function assertWikiGraphLibraryIndexReady(
 
   if (state.status !== "current") {
     throw new Error(
-      `Wiki Graph library index is ${state.status}. Run \`<lib-uri>/index enable\` before querying.`,
+      `Wiki Graph library index is ${state.status}. Run \`<lib-uri>/index sync\` before querying.`,
     );
   }
 
@@ -476,50 +463,123 @@ async function replaceLibrarySearchIndex(
   archives: readonly WikiGraphLibraryArchiveRecord[],
   fingerprint: string,
   progress?: SearchIndexProgressReporter,
-  options: SearchIndexBuildOptions = {},
 ): Promise<void> {
   await document.writeSearchIndexDatabase(async (database) => {
     await prepareSearchIndexReplacement(database, progress);
 
-    let counters: SearchIndexWriteCounters = {
-      denseDone: 0,
-      denseRecords: [],
-      objectDone: 0,
-      textDone: 0,
-    };
+    let embeddingState: SearchIndexStoredEmbeddingState | undefined;
+    let hasFts = false;
+    let textDone = 0;
+    let objectDone = 0;
+    let vectorDone = 0;
+
     for (const archive of archives) {
       await new WikiGraphArchiveFile(archive.path).readDocument(
         async (archiveDocument) => {
+          await assertArchiveIndexArtifactsReady(archiveDocument);
+
+          const archiveInput =
+            await buildArchiveIndexProjection(archiveDocument);
+          hasFts =
+            hasFts || archiveInput.textSentences.some((row) => row.text !== "");
+
           for await (const batch of streamArchiveIndexProjection(
             archiveDocument,
             archive.id,
           )) {
-            counters = await writeSearchIndexBatch(
-              database,
-              batch,
-              counters,
-              progress,
-              options,
+            for (const record of batch.textSentences) {
+              const rowId = await insertTextSentenceRecord(database, record);
+
+              if (record.text !== "") {
+                await insertFtsRecord(
+                  database,
+                  "text_sentence_fts",
+                  rowId,
+                  createSearchTokenPlan(record.text),
+                );
+              }
+              textDone += 1;
+              await progress?.({
+                done: textDone,
+                phase: "indexing-text",
+                unit: "sentence",
+              });
+            }
+
+            for (const record of batch.objectProperties) {
+              const rowId = await insertSearchObjectPropertyRecord(
+                database,
+                record,
+              );
+
+              await insertFtsRecord(
+                database,
+                "search_object_properties_fts",
+                rowId,
+                createSearchTokenPlan(record.text),
+              );
+              objectDone += 1;
+              await progress?.({
+                done: objectDone,
+                phase: "indexing-objects",
+                unit: "object",
+              });
+            }
+          }
+
+          const archiveEmbeddingState =
+            await readArchiveEmbeddingState(archiveDocument);
+          if (archiveEmbeddingState !== undefined) {
+            embeddingState = mergeEmbeddingState(
+              embeddingState,
+              archiveEmbeddingState,
             );
+          }
+          for (const artifact of await archiveDocument.indexArtifacts.list(
+            "embedding-source",
+          )) {
+            const model = readEmbeddingModel(artifact.metadata);
+            const dimensions = readEmbeddingDimensions(artifact.metadata);
+
+            if (model === undefined || dimensions === undefined) {
+              throw new Error(
+                `Source embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
+              );
+            }
+            for (const segment of await archiveDocument.indexArtifacts.listEmbeddingSegments(
+              artifact.serialId,
+              "embedding-source",
+            )) {
+              await insertTextEmbeddingSegment(database, {
+                archiveId: archive.id,
+                chapterId: artifact.serialId,
+                dimensions,
+                endSentenceIndex: segment.endSentenceIndex,
+                kind: TEXT_SENTENCE_KIND.source,
+                model,
+                startSentenceIndex: segment.startSentenceIndex,
+                vector: segment.vector,
+                wordsCount: segment.wordsCount,
+              });
+              vectorDone += 1;
+              await progress?.({
+                done: vectorDone,
+                phase: "indexing-dense",
+                unit: "vector",
+              });
+            }
           }
         },
       );
     }
-    counters = await writeSearchIndexDenseSegments(
-      database,
-      counters,
-      progress,
-      options,
-    );
 
-    await finalizeSearchIndexReplacement(
-      database,
+    await finalizeStoredSearchIndexReplacement(database, {
+      chaptersRevision: 0,
+      ...(embeddingState === undefined ? {} : { embedding: embeddingState }),
       fingerprint,
-      0,
-      progress,
-      options.indexes,
-      options,
-    );
+      hasFts,
+      ...(progress === undefined ? {} : { progress }),
+    });
   });
 }
 
@@ -531,6 +591,81 @@ function createLibraryIndexSearchFingerprint(
     .update("\0")
     .update(sourceFingerprint)
     .digest("hex");
+}
+
+async function readArchiveEmbeddingState(
+  document: Parameters<typeof assertArchiveIndexArtifactsReady>[0],
+): Promise<SearchIndexStoredEmbeddingState | undefined> {
+  let state: SearchIndexStoredEmbeddingState | undefined;
+
+  for (const artifact of await document.indexArtifacts.list(
+    "embedding-source",
+  )) {
+    const dimensions = readEmbeddingDimensions(artifact.metadata);
+    const model = readEmbeddingModel(artifact.metadata);
+
+    if (dimensions === undefined || model === undefined) {
+      throw new Error(
+        `Source embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
+      );
+    }
+
+    state = mergeEmbeddingState(state, {
+      dimensions,
+      ...(readEmbeddingIdentity(artifact.metadata) === undefined
+        ? {}
+        : { identity: readEmbeddingIdentity(artifact.metadata)! }),
+      model,
+    });
+  }
+
+  return state;
+}
+
+function mergeEmbeddingState(
+  current: SearchIndexStoredEmbeddingState | undefined,
+  next: SearchIndexStoredEmbeddingState,
+): SearchIndexStoredEmbeddingState {
+  if (current === undefined) {
+    return next;
+  }
+  if (
+    current.dimensions !== next.dimensions ||
+    current.model !== next.model ||
+    current.identity !== next.identity
+  ) {
+    throw new Error(
+      "Source embedding artifacts use different embedding providers or dimensions; rebuild them with one embeddings configuration.",
+    );
+  }
+
+  return current;
+}
+
+function readEmbeddingDimensions(
+  metadata: Readonly<Record<string, unknown>>,
+): number | undefined {
+  const value = metadata.dimensions;
+
+  return Number.isInteger(value) && Number(value) > 0
+    ? Number(value)
+    : undefined;
+}
+
+function readEmbeddingIdentity(
+  metadata: Readonly<Record<string, unknown>>,
+): string | undefined {
+  const value = metadata.identity;
+
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+function readEmbeddingModel(
+  metadata: Readonly<Record<string, unknown>>,
+): string | undefined {
+  const value = metadata.model;
+
+  return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 function formatLibraryHitSource(
@@ -654,13 +789,6 @@ function createLibraryIndexDatabasePath(
   library: WikiGraphLibraryRecord,
 ): string {
   return join(createLibraryIndexDirectory(library), "index.db");
-}
-
-function createDisabledPath(library: WikiGraphLibraryRecord): string {
-  return join(
-    createLibraryIndexDirectory(library),
-    LIBRARY_INDEX_DISABLED_FILE,
-  );
 }
 
 async function pathExists(path: string): Promise<boolean> {

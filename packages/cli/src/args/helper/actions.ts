@@ -62,13 +62,7 @@ export function isArchiveUriAction(
 export function isArchiveIndexAction(
   value: string | undefined,
 ): value is CLIArchiveIndexAction {
-  return (
-    value === "disable" ||
-    value === "embed" ||
-    value === "enable" ||
-    value === "external" ||
-    value === "get"
-  );
+  return value === "clean" || value === "get" || value === "sync";
 }
 
 export function isMetadataAction(

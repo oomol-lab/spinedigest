@@ -79,7 +79,7 @@ export {
   resolveWikiGraphLibrary,
   resolveWikiGraphLibraryStagingDirectoryPath,
   scanWikiGraphLibrary,
-  disableWikiGraphLibraryIndex,
+  cleanWikiGraphLibraryIndex,
   markWikiGraphLibraryIndexDirty,
 } from "./library/index.js";
 export type {
@@ -224,7 +224,12 @@ export {
 export type { Database, Document, ReadonlyDocument } from "./document/index.js";
 export { TOC_FILE_VERSION } from "./text/source/index.js";
 export type { BookMeta } from "./text/source/index.js";
-export { isArchiveSearchIndexCurrent } from "./retrieval/query/index.js";
+export {
+  assertArchiveIndexArtifactsReady,
+  buildArchiveIndexProjection,
+  isArchiveSearchIndexCurrent,
+  writeArchiveIndexProjectionFromArtifacts,
+} from "./retrieval/query/index.js";
 export {
   ensureWikiGraphArchiveSchemaCurrent,
   ensureWikiGraphHomeSchemaCurrent,
