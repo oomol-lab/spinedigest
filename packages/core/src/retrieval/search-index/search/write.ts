@@ -86,29 +86,50 @@ export async function insertFtsRecord(
   );
 }
 
-export async function insertTextSentenceEmbedding(
+export async function insertTextEmbeddingSegment(
   database: Database,
   record: {
+    readonly archiveId: number;
+    readonly chapterId: number;
     readonly dimensions: number;
+    readonly endSentenceIndex: number;
+    readonly kind: number;
     readonly model: string;
-    readonly sentenceRecordId: number;
+    readonly startSentenceIndex: number;
     readonly vector: readonly number[];
+    readonly wordsCount: number;
   },
 ): Promise<void> {
   await database.run(
     `
-      INSERT INTO text_sentence_embeddings (
-        sentence_record_id, model, dimensions, vector
+      INSERT INTO text_embedding_segments (
+        archive_id, kind, chapter_id, start_sentence_index, end_sentence_index,
+        words_count, model, dimensions, vector
       )
-      VALUES (?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
-      record.sentenceRecordId,
+      record.archiveId,
+      record.kind,
+      record.chapterId,
+      record.startSentenceIndex,
+      record.endSentenceIndex,
+      record.wordsCount,
       record.model,
       record.dimensions,
       serializeFloat32Vector(record.vector),
     ],
   );
+}
+
+export function deserializeFloat32Vector(buffer: Buffer): readonly number[] {
+  const vector: number[] = [];
+
+  for (let offset = 0; offset < buffer.length; offset += 4) {
+    vector.push(buffer.readFloatLE(offset));
+  }
+
+  return vector;
 }
 
 function serializeFloat32Vector(vector: readonly number[]): Buffer {

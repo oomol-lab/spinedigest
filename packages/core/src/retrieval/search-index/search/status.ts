@@ -61,17 +61,14 @@ export async function readSearchIndexCapabilityStatus(document: {
       const indexes = await readStateValue(database, "indexes");
       const current = await isSearchIndexDatabaseCurrent(database);
 
-      if (indexes !== "fts,dense") {
+      if (indexes !== "dense" && indexes !== "fts,dense") {
         return {
           dense: { current: false },
           indexes: indexes === "missing" ? "missing" : "fts",
         };
       }
 
-      const [sentenceCount, vectorCount] = await Promise.all([
-        countRows(database, "text_sentence_records"),
-        countRows(database, "text_sentence_embeddings"),
-      ]);
+      const segmentCount = await countRows(database, "text_embedding_segments");
       const dimensions = parseOptionalPositiveInteger(
         await readStateValue(database, "embeddingDimensions"),
       );
@@ -79,11 +76,11 @@ export async function readSearchIndexCapabilityStatus(document: {
 
       return {
         dense: {
-          current: current && sentenceCount === vectorCount,
+          current: current && segmentCount > 0,
           ...(dimensions === undefined ? {} : { dimensions }),
           ...(model === undefined || model === "" ? {} : { model }),
         },
-        indexes: "fts,dense",
+        indexes,
       };
     });
   } catch (error) {
@@ -140,6 +137,10 @@ async function hasTable(database: Database, table: string): Promise<boolean> {
 }
 
 async function countRows(database: Database, table: string): Promise<number> {
+  if (!(await hasTable(database, table))) {
+    return 0;
+  }
+
   return (
     (await database.queryOne(
       `SELECT COUNT(*) AS count FROM ${table}`,

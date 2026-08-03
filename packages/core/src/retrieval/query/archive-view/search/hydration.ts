@@ -46,6 +46,9 @@ export async function findArchiveObjectsIndexed(
   }
   const result = await querySearchIndex(document, query, {
     ...(options.chapters === undefined ? {} : { chapters: options.chapters }),
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
     ...(options.match === undefined ? {} : { match: options.match }),
     ...createSearchIndexQueryLimitOptions(options),
     types: options.types ?? null,

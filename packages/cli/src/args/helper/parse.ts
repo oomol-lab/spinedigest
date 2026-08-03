@@ -53,13 +53,18 @@ export function parseSearchIndexSelectionFlag(
   if (value === undefined) {
     return undefined;
   }
-  if (value === "auto" || value === "fts" || value === "fts,dense") {
+  if (
+    value === "auto" ||
+    value === "dense" ||
+    value === "fts" ||
+    value === "fts,dense"
+  ) {
     return value;
   }
 
   throw new Error(
     withHelpRoute(
-      `Invalid --indexes: ${value}. Expected auto, fts, or fts,dense.`,
+      `Invalid --indexes: ${value}. Expected auto, dense, fts, or fts,dense.`,
       helpRoute,
     ),
   );

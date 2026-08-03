@@ -315,9 +315,9 @@ async function createSearchIndexBuildOptions(
   const config = await loadCLIConfig();
 
   if (config.embedding === undefined) {
-    if (indexes === "fts,dense") {
+    if (indexes === "dense" || indexes === "fts,dense") {
       throw new Error(
-        "Missing embeddings configuration. Configure `wikg://local/config/embeddings` before using --indexes fts,dense.",
+        `Missing embeddings configuration. Configure \`wikg://local/config/embeddings\` before using --indexes ${indexes}.`,
       );
     }
     return { indexes: indexes ?? "auto" };

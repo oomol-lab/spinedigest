@@ -72,6 +72,9 @@ export async function findWikiGraphLibraryObjects(
 
   const indexHitLimit = createLibraryQueryIndexHitLimit(options);
   const result = await queryWikiGraphLibrarySearchIndex(target, query, {
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
     objectHitLimit: indexHitLimit,
     textHitLimit: indexHitLimit,
   });

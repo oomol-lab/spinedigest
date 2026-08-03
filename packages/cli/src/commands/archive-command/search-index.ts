@@ -52,11 +52,10 @@ async function readIndexSettings(
     async (document) => {
       const settings = await readArchiveIndexSettings(document);
 
-      await writeIndexOutput(args, {
-        capabilities: await readSearchIndexCapabilityStatus(document),
-        ftsEmbedded: settings.ftsEmbedded,
-        ftsCurrent: await isArchiveSearchIndexCurrent(document),
-      });
+      await writeIndexOutput(
+        args,
+        await readIndexOutputPayload(document, settings.ftsEmbedded),
+      );
     },
   );
 }
@@ -150,6 +149,15 @@ async function isRequestedSearchIndexAlreadyCurrent(
     return capabilities.indexes === "fts";
   }
 
+  if (options.indexes === "dense") {
+    return (
+      capabilities.indexes === "dense" &&
+      capabilities.dense.current &&
+      (options.embeddingProvider.dimensions === undefined ||
+        capabilities.dense.dimensions === options.embeddingProvider.dimensions)
+    );
+  }
+
   return (
     capabilities.indexes === "fts,dense" &&
     capabilities.dense.current &&
@@ -169,9 +177,9 @@ async function createSearchIndexBuildOptions(
   const config = await loadCLIConfig();
 
   if (config.embedding === undefined) {
-    if (indexes === "fts,dense") {
+    if (indexes === "dense" || indexes === "fts,dense") {
       throw new Error(
-        "Missing embeddings configuration. Configure `wikg://local/config/embeddings` before using --indexes fts,dense.",
+        `Missing embeddings configuration. Configure \`wikg://local/config/embeddings\` before using --indexes ${indexes}.`,
       );
     }
     return { indexes: indexes ?? "auto" };
@@ -215,10 +223,8 @@ async function embedIndex(args: CLIArchiveIndexArguments): Promise<void> {
         built = true;
       }
       await writeIndexOutput(args, {
+        ...(await readIndexOutputPayload(document, true)),
         built,
-        capabilities: await readSearchIndexCapabilityStatus(document),
-        ftsEmbedded: true,
-        ftsCurrent: await isArchiveSearchIndexCurrent(document),
       });
     },
     { searchIndexWritebackPolicy: "archive" },
@@ -278,6 +284,30 @@ async function readSearchIndexWritebackPolicy(
   );
 
   return embedded ? "archive" : "cache";
+}
+
+async function readIndexOutputPayload(
+  document: Parameters<typeof isArchiveSearchIndexCurrent>[0],
+  ftsEmbedded: boolean,
+): Promise<{
+  readonly capabilities: Awaited<
+    ReturnType<typeof readSearchIndexCapabilityStatus>
+  >;
+  readonly ftsCurrent: boolean;
+  readonly ftsEmbedded: boolean;
+}> {
+  const [capabilities, indexCurrent] = await Promise.all([
+    readSearchIndexCapabilityStatus(document),
+    isArchiveSearchIndexCurrent(document),
+  ]);
+
+  return {
+    capabilities,
+    ftsEmbedded,
+    ftsCurrent:
+      indexCurrent &&
+      (capabilities.indexes === "fts" || capabilities.indexes === "fts,dense"),
+  };
 }
 
 function formatIndexCounter(input: {

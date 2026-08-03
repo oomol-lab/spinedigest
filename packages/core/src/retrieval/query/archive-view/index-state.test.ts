@@ -5,11 +5,15 @@ import { describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../../document/directory/index.js";
 import { getNumber } from "../../../document/database.js";
-import { readSearchIndexCapabilityStatus } from "../../search-index/index.js";
+import {
+  querySearchIndex,
+  readSearchIndexCapabilityStatus,
+  TEXT_SENTENCE_KIND,
+} from "../../search-index/index.js";
 import { rebuildArchiveSearchIndex } from "./index-state.js";
 
 describe("archive search index state", () => {
-  it("writes dense text sentence embeddings when requested", async () => {
+  it("writes dense text embedding segments when requested", async () => {
     await withTempDocument(async (document) => {
       await writeSourceChapter(document);
       const embeddedTexts: string[] = [];
@@ -31,13 +35,12 @@ describe("archive search index state", () => {
       });
 
       expect(embeddedTexts).toStrictEqual([
-        "Dense indexing writes vectors.",
-        "FTS still indexes the same text.",
+        "Dense indexing writes vectors.\nFTS still indexes the same text.",
       ]);
       await expect(
         document.readSearchIndexDatabase(async (database) => ({
           embeddings: await database.queryOne(
-            "SELECT COUNT(*) AS count FROM text_sentence_embeddings",
+            "SELECT COUNT(*) AS count FROM text_embedding_segments",
             undefined,
             (row) => getNumber(row, "count"),
           ),
@@ -48,7 +51,7 @@ describe("archive search index state", () => {
           ),
         })),
       ).resolves.toStrictEqual({
-        embeddings: 2,
+        embeddings: 1,
         indexed: "fts,dense",
       });
       await expect(
@@ -83,7 +86,7 @@ describe("archive search index state", () => {
         document.readSearchIndexDatabase(
           async (database) =>
             await database.queryOne(
-              "SELECT COUNT(*) AS count FROM text_sentence_embeddings",
+              "SELECT COUNT(*) AS count FROM text_embedding_segments",
               undefined,
               (row) => getNumber(row, "count"),
             ),
@@ -138,6 +141,212 @@ describe("archive search index state", () => {
         },
         indexes: "fts,dense",
       });
+    });
+  });
+
+  it("treats legacy dense state without segment table as not current", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await rebuildArchiveSearchIndex(document, undefined, {
+        embeddingProvider: createFakeEmbeddingProvider(),
+        indexes: "fts,dense",
+      });
+      await document.writeSearchIndexDatabase(async (database) => {
+        await database.run("DROP TABLE text_embedding_segments");
+      });
+
+      await expect(
+        readSearchIndexCapabilityStatus(document),
+      ).resolves.toStrictEqual({
+        dense: {
+          current: false,
+          dimensions: 3,
+          model: "test-embedding",
+        },
+        indexes: "fts,dense",
+      });
+    });
+  });
+
+  it("builds and queries a dense-only text index", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      const provider = createFakeEmbeddingProvider();
+
+      await rebuildArchiveSearchIndex(document, undefined, {
+        embeddingProvider: provider,
+        indexes: "dense",
+      });
+
+      await expect(
+        readSearchIndexCapabilityStatus(document),
+      ).resolves.toStrictEqual({
+        dense: {
+          current: true,
+          dimensions: 3,
+          model: "test-embedding",
+        },
+        indexes: "dense",
+      });
+      await expect(
+        document.readSearchIndexDatabase(async (database) => ({
+          objectFtsRows: await database.queryOne(
+            "SELECT COUNT(*) AS count FROM search_object_properties_fts",
+            undefined,
+            (row) => getNumber(row, "count"),
+          ),
+          textFtsRows: await database.queryOne(
+            "SELECT COUNT(*) AS count FROM text_sentence_fts",
+            undefined,
+            (row) => getNumber(row, "count"),
+          ),
+        })),
+      ).resolves.toStrictEqual({
+        objectFtsRows: 0,
+        textFtsRows: 0,
+      });
+
+      await expect(
+        querySearchIndex(document, "semantic vectors", {
+          embeddingProvider: provider,
+          types: ["source"],
+        }),
+      ).resolves.toMatchObject({
+        objectHits: [],
+        textHits: [
+          {
+            archiveId: 0,
+            chapterId: 1,
+            kind: TEXT_SENTENCE_KIND.source,
+            sentenceIndex: 0,
+          },
+          {
+            archiveId: 0,
+            chapterId: 1,
+            kind: TEXT_SENTENCE_KIND.source,
+            sentenceIndex: 1,
+          },
+        ],
+      });
+    });
+  });
+
+  it("falls back to fts when hybrid query embedding fails", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await rebuildArchiveSearchIndex(document, undefined, {
+        embeddingProvider: createFakeEmbeddingProvider(),
+        indexes: "fts,dense",
+      });
+
+      await expect(
+        querySearchIndex(document, "FTS", {
+          embeddingProvider: {
+            dimensions: 3,
+            model: "broken-embedding",
+            embedTexts: async () => {
+              await Promise.resolve();
+              throw new Error("embedding unavailable");
+            },
+          },
+          types: ["source"],
+        }),
+      ).resolves.toMatchObject({
+        textHits: [
+          {
+            archiveId: 0,
+            chapterId: 1,
+            kind: TEXT_SENTENCE_KIND.source,
+            sentenceIndex: 1,
+          },
+        ],
+      });
+    });
+  });
+
+  it("falls back to fts when a legacy hybrid index has no segment table", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await rebuildArchiveSearchIndex(document, undefined, {
+        embeddingProvider: createFakeEmbeddingProvider(),
+        indexes: "fts,dense",
+      });
+      await document.writeSearchIndexDatabase(async (database) => {
+        await database.run("DROP TABLE text_embedding_segments");
+      });
+
+      await expect(
+        querySearchIndex(document, "FTS", {
+          embeddingProvider: createFakeEmbeddingProvider(),
+          types: ["source"],
+        }),
+      ).resolves.toMatchObject({
+        textHits: [
+          {
+            archiveId: 0,
+            chapterId: 1,
+            kind: TEXT_SENTENCE_KIND.source,
+            sentenceIndex: 1,
+          },
+        ],
+      });
+    });
+  });
+
+  it("does not create a dense query embedding when text hits are disabled", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await rebuildArchiveSearchIndex(document, undefined, {
+        embeddingProvider: createFakeEmbeddingProvider(),
+        indexes: "fts,dense",
+      });
+      let calls = 0;
+
+      await expect(
+        querySearchIndex(document, "FTS", {
+          embeddingProvider: {
+            dimensions: 3,
+            model: "counting-embedding",
+            embedTexts: async (texts) => {
+              await Promise.resolve();
+              calls += 1;
+              return {
+                embeddings: texts.map(() => [1, 0, 0]),
+              };
+            },
+          },
+          objectHitLimit: 32,
+          textHitLimit: 0,
+          types: null,
+        }),
+      ).resolves.toBeDefined();
+      expect(calls).toBe(0);
+    });
+  });
+
+  it("rejects dense-only query embedding dimension mismatch", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await rebuildArchiveSearchIndex(document, undefined, {
+        embeddingProvider: createFakeEmbeddingProvider(),
+        indexes: "dense",
+      });
+
+      await expect(
+        querySearchIndex(document, "semantic vectors", {
+          embeddingProvider: {
+            dimensions: 2,
+            model: "wrong-size",
+            embedTexts: async () => {
+              await Promise.resolve();
+              return { embeddings: [[1, 2]] };
+            },
+          },
+          types: ["source"],
+        }),
+      ).rejects.toThrow(
+        "Dense query embedding has 2 dimensions; index expects 3.",
+      );
     });
   });
 });

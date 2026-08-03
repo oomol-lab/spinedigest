@@ -89,12 +89,22 @@ async function migrateSearchIndexSchema(database: Database): Promise<void> {
     )
   `);
   await database.run(`
-    CREATE TABLE IF NOT EXISTS text_sentence_embeddings (
-      sentence_record_id INTEGER PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS text_embedding_segments (
+      id INTEGER PRIMARY KEY,
+      archive_id INTEGER NOT NULL,
+      kind INTEGER NOT NULL,
+      chapter_id INTEGER NOT NULL,
+      start_sentence_index INTEGER NOT NULL,
+      end_sentence_index INTEGER NOT NULL,
+      words_count INTEGER NOT NULL,
       model TEXT NOT NULL,
       dimensions INTEGER NOT NULL,
       vector BLOB NOT NULL
     )
+  `);
+  await database.run(`
+    CREATE INDEX IF NOT EXISTS idx_text_embedding_segments_scope
+    ON text_embedding_segments(archive_id, kind, chapter_id, start_sentence_index, end_sentence_index)
   `);
 }
 

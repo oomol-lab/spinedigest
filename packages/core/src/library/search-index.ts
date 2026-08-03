@@ -24,6 +24,7 @@ import {
   type SearchIndexObjectHit,
   type SearchIndexBuildOptions,
   type SearchIndexCapabilityStatus,
+  type SearchIndexEmbeddingProvider,
   type SearchIndexProgressReporter,
   type SearchIndexTextHit,
   type SearchIndexWriteCounters,
@@ -31,6 +32,7 @@ import {
   type SearchObjectPropertyOwnerKind,
   type TextSentenceKind,
   writeSearchIndexBatch,
+  writeSearchIndexDenseSegments,
 } from "../retrieval/search-index/index.js";
 import { readPathSize } from "../runtime/gc/files.js";
 import type { GcContext, GcJobResult } from "../runtime/gc/index.js";
@@ -86,6 +88,7 @@ export interface WikiGraphLibraryIndexListOptions {
 
 export interface WikiGraphLibraryIndexQueryOptions {
   readonly chapters?: readonly number[];
+  readonly embeddingProvider?: SearchIndexEmbeddingProvider;
   readonly match?: ArchiveFindMatch;
   readonly objectHitLimit?: number;
   readonly textAfter?: {
@@ -480,6 +483,7 @@ async function replaceLibrarySearchIndex(
 
     let counters: SearchIndexWriteCounters = {
       denseDone: 0,
+      denseRecords: [],
       objectDone: 0,
       textDone: 0,
     };
@@ -501,6 +505,12 @@ async function replaceLibrarySearchIndex(
         },
       );
     }
+    counters = await writeSearchIndexDenseSegments(
+      database,
+      counters,
+      progress,
+      options,
+    );
 
     await finalizeSearchIndexReplacement(
       database,

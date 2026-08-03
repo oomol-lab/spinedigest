@@ -18,6 +18,7 @@ export {
   setFtsIndexEmbedded,
   TEXT_SENTENCE_KIND,
   writeSearchIndexBatch,
+  writeSearchIndexDenseSegments,
 } from "./search/index.js";
 export type {
   ArchiveIndexSettings,

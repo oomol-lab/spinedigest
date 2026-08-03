@@ -13,6 +13,7 @@ import { writeFindHits } from "../../archive-output/index.js";
 import { runNextArchivePage } from "./next.js";
 
 vi.mock("wiki-graph-core", () => ({
+  CLI_PRIMARY_COMMAND: "wg",
   findArchiveObjects: vi.fn(),
   findWikiGraphLibraryArchiveMembers: vi.fn(),
   findWikiGraphLibraryObjects: vi.fn(),
@@ -34,6 +35,14 @@ vi.mock("../../archive-output/index.js", () => ({
   writeEvidence: vi.fn(),
   writeFindHits: vi.fn(),
   writeList: vi.fn(),
+}));
+
+vi.mock("../../../runtime/config.js", () => ({
+  loadCLIConfig: vi.fn(() => Promise.resolve({})),
+}));
+
+vi.mock("../../../runtime/embedding.js", () => ({
+  buildSearchIndexEmbeddingProvider: vi.fn(),
 }));
 
 vi.mock("./document.js", () => ({

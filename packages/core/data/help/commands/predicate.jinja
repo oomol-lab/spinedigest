@@ -364,12 +364,13 @@ Purpose:
   Build or rebuild this library's aggregate search index.
 
 Usage:
-  {{ commandName }} {{ uri }} enable [--indexes auto|fts|fts,dense] [--jsonl]
+  {{ commandName }} {{ uri }} enable [--indexes auto|fts|dense|fts,dense] [--jsonl]
 
 Notes:
   - This is a full rebuild from registered present archives.
   - `--indexes auto` builds FTS and builds Dense when embeddings are configured.
   - `--indexes fts` builds only FTS and does not call an embeddings provider.
+  - `--indexes dense` builds only Dense semantic segments.
   - `--indexes fts,dense` requires embeddings and fails if Dense cannot be built.
   - Missing or unreadable library archive members are skipped and reported.
   - Progress is emitted as text by default, or line-delimited events with `--jsonl`.
@@ -382,12 +383,13 @@ Purpose:
   Enable searchable index support for this archive on this machine.
 
 Usage:
-  {{ commandName }} {{ uri }} enable [--indexes auto|fts|fts,dense] [--jsonl]
+  {{ commandName }} {{ uri }} enable [--indexes auto|fts|dense|fts,dense] [--jsonl]
 
 Notes:
   - This initializes or repairs the local searchable index and may take time on large archives.
   - `--indexes auto` builds FTS and builds Dense when embeddings are configured.
   - `--indexes fts` builds only FTS and does not call an embeddings provider.
+  - `--indexes dense` builds only Dense semantic segments.
   - `--indexes fts,dense` requires embeddings and fails if Dense cannot be built.
   - After the index is enabled, CLI archive writes keep it synchronized automatically.
   - Do not run this after every generation job; run it when `inspect` says query support is unavailable or the index needs repair.

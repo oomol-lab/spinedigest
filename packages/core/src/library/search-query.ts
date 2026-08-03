@@ -143,6 +143,7 @@ async function readLibraryBucketedSearchResultPage(
       session,
       bucketCursor,
       remaining,
+      options,
     );
 
     items.push(...page.items);
@@ -176,6 +177,7 @@ async function readLibraryBucketPage(
   session: SearchSessionDescriptor,
   cursor: BucketSearchCursor,
   limit: number,
+  options: ArchiveFindOptions,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
@@ -200,7 +202,13 @@ async function readLibraryBucketPage(
         : { items: [], nextCursor: { bucket: 3 } };
     case 3:
       return shouldReadLibraryBucket(session, "source", "summary")
-        ? await readLibraryTextBucketPage(target, session, cursor.key, limit)
+        ? await readLibraryTextBucketPage(
+            target,
+            session,
+            cursor.key,
+            limit,
+            options,
+          )
         : { items: [], nextCursor: undefined };
   }
 }
@@ -345,6 +353,7 @@ async function readLibraryTextBucketPage(
   session: SearchSessionDescriptor,
   after: SearchTextCursorKey | undefined,
   limit: number,
+  options: ArchiveFindOptions,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
@@ -352,6 +361,9 @@ async function readLibraryTextBucketPage(
   const types = createLibraryTextTypes(session);
   const result = await queryWikiGraphLibrarySearchIndex(target, session.query, {
     ...(session.chapters === null ? {} : { chapters: session.chapters }),
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
     match: session.match as ArchiveFindResult["match"],
     objectHitLimit: 0,
     ...(after === undefined

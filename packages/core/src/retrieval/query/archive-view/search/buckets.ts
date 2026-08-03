@@ -94,6 +94,7 @@ export async function readBucketedSearchResultPage(
       session,
       bucketCursor,
       remaining,
+      options,
     );
 
     items.push(...page.items);
@@ -135,6 +136,7 @@ async function readBucketPage(
   session: SearchSessionDescriptor,
   cursor: BucketSearchCursor,
   limit: number,
+  options: ArchiveFindOptions,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
@@ -146,13 +148,26 @@ async function readBucketPage(
         session,
         cursor.key,
         limit,
+        options,
       );
     case 1:
-      return await readObjectBucketPage(document, session, cursor.key, limit);
+      return await readObjectBucketPage(
+        document,
+        session,
+        cursor.key,
+        limit,
+        options,
+      );
     case 2:
       return await readChunkBucketPage(document, session, cursor.key, limit);
     case 3:
-      return await readTextBucketPage(document, session, cursor.key, limit);
+      return await readTextBucketPage(
+        document,
+        session,
+        cursor.key,
+        limit,
+        options,
+      );
   }
 }
 
@@ -161,12 +176,16 @@ async function readChapterTitleBucketPage(
   session: SearchSessionDescriptor,
   after: SearchChapterTitleCursorKey | undefined,
   limit: number,
+  options: ArchiveFindOptions,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
   const result = await querySearchIndex(document, session.query, {
     ...(session.chapters === null ? {} : { chapters: session.chapters }),
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
     match: parseFindMatch(session.match),
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     textHitLimit: 0,
@@ -219,12 +238,13 @@ async function readObjectBucketPage(
   session: SearchSessionDescriptor,
   after: SearchObjectCursorKey | undefined,
   limit: number,
+  options: ArchiveFindOptions,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
   if (!session.objectCachesPopulated) {
-    await populateObjectBucketCaches(document, session);
+    await populateObjectBucketCaches(document, session, options);
   }
   const page = await readSearchSessionObjectBucketPage(
     session.sessionId,
@@ -258,6 +278,7 @@ async function readObjectBucketPage(
 async function populateObjectBucketCaches(
   document: ReadonlyDocument,
   session: SearchSessionDescriptor,
+  options: ArchiveFindOptions,
 ): Promise<void> {
   const search = createLexicalQuery(session.query);
 
@@ -271,6 +292,9 @@ async function populateObjectBucketCaches(
     ),
     querySearchIndex(document, session.query, {
       ...(session.chapters === null ? {} : { chapters: session.chapters }),
+      ...(options.embeddingProvider === undefined
+        ? {}
+        : { embeddingProvider: options.embeddingProvider }),
       match: parseFindMatch(session.match),
       objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
       textHitLimit: 0,
@@ -340,12 +364,16 @@ async function readTextBucketPage(
   session: SearchSessionDescriptor,
   after: SearchTextCursorKey | undefined,
   limit: number,
+  options: ArchiveFindOptions,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
   const result = await querySearchIndex(document, session.query, {
     ...(session.chapters === null ? {} : { chapters: session.chapters }),
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
     match: parseFindMatch(session.match),
     objectHitLimit: 0,
     ...(after === undefined

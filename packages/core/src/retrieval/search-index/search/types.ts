@@ -50,7 +50,7 @@ export interface SearchIndexInput {
   readonly textSentences: readonly TextSentenceRecordInput[];
 }
 
-export type SearchIndexSelection = "auto" | "fts" | "fts,dense";
+export type SearchIndexSelection = "auto" | "dense" | "fts" | "fts,dense";
 
 export interface SearchIndexEmbeddingProvider {
   readonly dimensions?: number;
@@ -94,7 +94,7 @@ export interface SearchIndexCapabilityStatus {
     readonly dimensions?: number;
     readonly model?: string;
   };
-  readonly indexes: "fts" | "fts,dense" | "missing";
+  readonly indexes: "dense" | "fts" | "fts,dense" | "missing";
 }
 
 export interface SearchIndexTextHit {
@@ -122,10 +122,17 @@ export interface SearchIndexQueryResult {
   readonly textHits: readonly SearchIndexTextHit[];
 }
 
-export const SEARCH_INDEX_VERSION = "5";
+export const SEARCH_INDEX_VERSION = "6";
 export const SEARCH_INDEX_FTS_HIT_LIMIT = 32_000;
+export const SEARCH_INDEX_DENSE_SEGMENT_HIT_LIMIT = 256;
+export const SEARCH_INDEX_DENSE_EXPANDED_SENTENCE_LIMIT = 1_024;
 export const FTS5_RANK_SCORE_SCALE = 1_000_000;
 export const TIER_WEIGHTS = [1, 0.45, 0.08] as const;
+
+export const DENSE_SEGMENT_TARGET_WORDS = 300;
+export const DENSE_SEGMENT_MAX_WORDS = 420;
+export const DENSE_SEGMENT_OVERLAP_WORDS = 80;
+export const DENSE_SEGMENT_MIN_WORDS = 80;
 
 export interface ArchiveIndexSettings {
   readonly ftsEmbedded: boolean;

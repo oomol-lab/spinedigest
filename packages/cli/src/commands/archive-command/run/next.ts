@@ -17,6 +17,8 @@ import {
 } from "wiki-graph-core";
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
+import { loadCLIConfig } from "../../../runtime/config.js";
+import { buildSearchIndexEmbeddingProvider } from "../../../runtime/embedding.js";
 import {
   writeEvidence,
   writeFindHits,
@@ -141,6 +143,7 @@ export async function runNextArchivePage(
             types: cursor.types as ArchiveFindOptions["types"],
           });
         }
+        await addSearchIndexEmbeddingProvider(findOptions);
 
         await writeFindHits(
           await findArchiveObjects(document, cursor.query ?? "", findOptions),
@@ -332,6 +335,7 @@ async function runNextLibraryIndexPage(
           types: cursor.types as ArchiveFindOptions["types"],
         });
       }
+      await addSearchIndexEmbeddingProvider(findOptions);
 
       if (isLibraryArchiveMemberCursor(cursor)) {
         await writeFindHits(
@@ -408,6 +412,19 @@ async function runNextLibraryIndexPage(
       );
       return;
   }
+}
+
+async function addSearchIndexEmbeddingProvider(
+  options: ArchiveFindOptions,
+): Promise<void> {
+  const config = await loadCLIConfig();
+
+  if (config.embedding === undefined) {
+    return;
+  }
+  Object.assign(options, {
+    embeddingProvider: buildSearchIndexEmbeddingProvider(config.embedding),
+  });
 }
 
 function isLibraryArchiveMemberCursor(

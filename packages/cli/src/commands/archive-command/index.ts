@@ -14,10 +14,13 @@ import {
   readWikiGraphLibraryPage,
   resolveWikiGraphLibrary,
   findArchiveObjects,
+  type ArchiveFindOptions,
   type ArchiveRelatedResult,
 } from "wiki-graph-core";
 
 import type { CLIArchiveArguments } from "../../args/index.js";
+import { loadCLIConfig } from "../../runtime/config.js";
+import { buildSearchIndexEmbeddingProvider } from "../../runtime/embedding.js";
 import { runConvertCommand } from "../convert.js";
 import { createArchive } from "./create.js";
 import { writeArchiveInspectReport } from "./inspect.js";
@@ -109,12 +112,13 @@ export async function runArchiveCommand(
               ? args
               : { ...args, chapters: scope.chapterIds };
           const context = createArchiveOutputContext(scopedArgs);
+          const findOptions = await createSearchFindOptions(scopedArgs);
 
           if (args.all === true) {
             await writeAllFindHits(
               async (cursor) =>
                 await findArchiveObjects(document, scopedArgs.query!, {
-                  ...createFindOptions(scopedArgs),
+                  ...findOptions,
                   ...(cursor === undefined ? {} : { cursor }),
                 }),
               context,
@@ -124,11 +128,7 @@ export async function runArchiveCommand(
           }
 
           await writeFindHits(
-            await findArchiveObjects(
-              document,
-              scopedArgs.query!,
-              createFindOptions(scopedArgs),
-            ),
+            await findArchiveObjects(document, scopedArgs.query!, findOptions),
             context,
             args.format ?? "text",
           );
@@ -348,13 +348,14 @@ async function runLibraryIndexArchiveCommand(
   };
 
   switch (args.action) {
-    case "search":
+    case "search": {
+      const findOptions = await createSearchFindOptions(args);
       if (objectUri === undefined) {
         if (args.all === true) {
           await writeAllFindHits(
             async (cursor) =>
               await findWikiGraphLibraryObjects(target, args.query!, {
-                ...createFindOptions(args),
+                ...findOptions,
                 ...(cursor === undefined ? {} : { cursor }),
               }),
             context,
@@ -363,11 +364,7 @@ async function runLibraryIndexArchiveCommand(
           return;
         }
         await writeFindHits(
-          await findWikiGraphLibraryObjects(
-            target,
-            args.query!,
-            createFindOptions(args),
-          ),
+          await findWikiGraphLibraryObjects(target, args.query!, findOptions),
           context,
           args.format ?? "text",
         );
@@ -377,7 +374,7 @@ async function runLibraryIndexArchiveCommand(
         await writeAllFindHits(
           async (cursor) =>
             await findWikiGraphLibraryObjects(target, args.query!, {
-              ...createFindOptions(args),
+              ...findOptions,
               ...(cursor === undefined ? {} : { cursor }),
             }),
           context,
@@ -387,15 +384,12 @@ async function runLibraryIndexArchiveCommand(
       }
 
       await writeFindHits(
-        await findWikiGraphLibraryObjects(
-          target,
-          args.query!,
-          createFindOptions(args),
-        ),
+        await findWikiGraphLibraryObjects(target, args.query!, findOptions),
         context,
         args.format ?? "text",
       );
       return;
+    }
     case "list": {
       const listContext = {
         ...context,
@@ -612,6 +606,24 @@ async function runLibraryIndexArchiveCommand(
         `The library index scope does not support \`${args.action}\`.`,
       );
   }
+}
+
+async function createSearchFindOptions(
+  args: CLIArchiveArguments,
+): Promise<ArchiveFindOptions> {
+  const options = createFindOptions(args);
+  const config = await loadCLIConfig();
+
+  return {
+    ...options,
+    ...(config.embedding === undefined
+      ? {}
+      : {
+          embeddingProvider: buildSearchIndexEmbeddingProvider(
+            config.embedding,
+          ),
+        }),
+  };
 }
 
 function requireLibraryObjectUri(

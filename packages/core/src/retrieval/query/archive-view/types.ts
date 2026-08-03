@@ -8,6 +8,7 @@ import type {
   ChapterEntry,
   ChapterTree,
 } from "../../../document/chapter/index.js";
+import type { SearchIndexEmbeddingProvider } from "../../search-index/index.js";
 
 export type ArchiveObjectType =
   | "chapter"
@@ -139,6 +140,7 @@ export interface ArchiveFindOptions {
   readonly backlinks?: boolean;
   readonly chapters?: readonly number[];
   readonly cursor?: string;
+  readonly embeddingProvider?: SearchIndexEmbeddingProvider;
   readonly evidenceLimit?: number;
   readonly ids?: readonly string[];
   readonly limit?: number;

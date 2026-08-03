@@ -24,6 +24,7 @@ import {
   shouldQueryObjects,
 } from "./helpers.js";
 import type {
+  SearchIndexEmbeddingProvider,
   SearchIndexObjectHit,
   SearchIndexQueryResult,
   SearchIndexTextHit,
@@ -31,14 +32,21 @@ import type {
   SearchObjectPropertyOwnerKind,
   TextSentenceKind,
 } from "./types.js";
-import { SEARCH_INDEX_FTS_HIT_LIMIT, TIER_WEIGHTS } from "./types.js";
+import {
+  SEARCH_INDEX_DENSE_EXPANDED_SENTENCE_LIMIT,
+  SEARCH_INDEX_DENSE_SEGMENT_HIT_LIMIT,
+  SEARCH_INDEX_FTS_HIT_LIMIT,
+  TIER_WEIGHTS,
+} from "./types.js";
 import { assertSearchIndexNotDirty } from "./status.js";
+import { deserializeFloat32Vector } from "./write.js";
 
 export async function querySearchIndex(
   document: ReadonlyDocument,
   query: string,
   options: {
     readonly chapters?: readonly number[];
+    readonly embeddingProvider?: SearchIndexEmbeddingProvider;
     readonly match?: ArchiveFindMatch;
     readonly objectHitLimit?: number;
     readonly textAfter?: {
@@ -53,15 +61,27 @@ export async function querySearchIndex(
   } = {},
 ): Promise<SearchIndexQueryResult | undefined> {
   const plan = createSearchTokenPlan(query);
-
-  if (!hasSearchTokens(plan)) {
-    return undefined;
-  }
-
   const terms = listSearchPlanTerms(plan);
 
   return await document.readSearchIndexDatabase(async (database) => {
     await assertSearchIndexNotDirty(database);
+    const indexState = await readSearchIndexQueryState(database);
+    const hasDenseSegments =
+      (indexState.indexes === "dense" || indexState.indexes === "fts,dense") &&
+      (await hasTable(database, "text_embedding_segments"));
+    const hasFts =
+      indexState.indexes === "fts" || indexState.indexes === "fts,dense";
+    const hasDense = hasDenseSegments;
+    const usesFts = hasFts && hasSearchTokens(plan);
+    const usesDense =
+      hasDense &&
+      options.textHitLimit !== 0 &&
+      createTextKindFilter(options.types).length > 0;
+
+    if (!usesFts && !usesDense) {
+      return undefined;
+    }
+
     const tierQueries = createTierQueries(query, plan, options.match ?? "any");
     const objectHitLimit = options.objectHitLimit ?? SEARCH_INDEX_FTS_HIT_LIMIT;
     const textHitLimit = options.textHitLimit ?? SEARCH_INDEX_FTS_HIT_LIMIT;
@@ -69,55 +89,90 @@ export async function querySearchIndex(
     const queriesText = createTextKindFilter(options.types).length > 0;
     const objectHitsByKey = new Map<string, SearchIndexObjectHit>();
     const textHitsByKey = new Map<string, SearchIndexTextHit>();
+    const ftsTextHitsByKey = new Map<string, SearchIndexTextHit>();
 
-    for (const tierQuery of tierQueries) {
-      if (tierQuery.matchExpression === "") {
-        continue;
-      }
+    if (usesFts) {
+      for (const tierQuery of tierQueries) {
+        if (tierQuery.matchExpression === "") {
+          continue;
+        }
 
-      const objectHitRemaining = Math.max(
-        0,
-        objectHitLimit - objectHitsByKey.size,
-      );
-      const textHitRemaining = Math.max(0, textHitLimit - textHitsByKey.size);
+        const objectHitRemaining = Math.max(
+          0,
+          objectHitLimit - objectHitsByKey.size,
+        );
+        const textHitRemaining = Math.max(
+          0,
+          textHitLimit - ftsTextHitsByKey.size,
+        );
 
-      if (
-        (!queriesObjects || objectHitRemaining <= 0) &&
-        (!queriesText || textHitRemaining <= 0)
-      ) {
-        break;
-      }
+        if (
+          (!queriesObjects || objectHitRemaining <= 0) &&
+          (!queriesText || textHitRemaining <= 0)
+        ) {
+          break;
+        }
 
-      const [objectRows, textRows] = await Promise.all([
-        queryObjectRows(database, tierQuery.matchExpression, {
+        const textRowOptions = {
           ...options,
-          objectHitLimit: objectHitRemaining,
-        }),
-        queryTextRows(database, tierQuery.matchExpression, {
-          ...options,
-          textHitLimit: textHitRemaining,
-        }),
-      ]);
+          textHitLimit: hasDense
+            ? SEARCH_INDEX_FTS_HIT_LIMIT
+            : textHitRemaining,
+          ...(hasDense || options.textAfter === undefined
+            ? {}
+            : { textAfter: options.textAfter }),
+        };
 
-      for (const hit of objectRows) {
-        const key = createObjectHitKey(hit);
+        const [objectRows, textRows] = await Promise.all([
+          queryObjectRows(database, tierQuery.matchExpression, {
+            ...options,
+            objectHitLimit: objectHitRemaining,
+          }),
+          queryTextRows(database, tierQuery.matchExpression, textRowOptions),
+        ]);
 
-        if (!objectHitsByKey.has(key)) {
-          objectHitsByKey.set(key, hit);
+        for (const hit of objectRows) {
+          const key = createObjectHitKey(hit);
+
+          if (!objectHitsByKey.has(key)) {
+            objectHitsByKey.set(key, hit);
+          }
+        }
+        for (const hit of textRows) {
+          const key = createTextHitKey(hit);
+
+          if (!ftsTextHitsByKey.has(key)) {
+            ftsTextHitsByKey.set(key, hit);
+          }
+        }
+        if (
+          (!queriesObjects || objectHitsByKey.size >= objectHitLimit) &&
+          (!queriesText || ftsTextHitsByKey.size >= textHitLimit)
+        ) {
+          break;
         }
       }
-      for (const hit of textRows) {
-        const key = createTextHitKey(hit);
+    }
 
-        if (!textHitsByKey.has(key)) {
-          textHitsByKey.set(key, hit);
-        }
-      }
-      if (
-        (!queriesObjects || objectHitsByKey.size >= objectHitLimit) &&
-        (!queriesText || textHitsByKey.size >= textHitLimit)
-      ) {
-        break;
+    const ftsTextHits = [...ftsTextHitsByKey.values()];
+    const denseTextHits = usesDense
+      ? await queryDenseTextRows(database, query, indexState, options)
+      : [];
+    const textHits =
+      ftsTextHits.length > 0 && denseTextHits.length > 0
+        ? fuseTextHitsByRrf(ftsTextHits, denseTextHits, options.textHitLimit)
+        : denseTextHits.length > 0
+          ? denseTextHits
+          : ftsTextHits;
+
+    for (const hit of applyTextAfter(textHits, options.textAfter).slice(
+      0,
+      textHitLimit,
+    )) {
+      const key = createTextHitKey(hit);
+
+      if (!textHitsByKey.has(key)) {
+        textHitsByKey.set(key, hit);
       }
     }
 
@@ -127,6 +182,378 @@ export async function querySearchIndex(
       textHits: [...textHitsByKey.values()],
     };
   });
+}
+
+interface SearchIndexQueryState {
+  readonly denseDimensions?: number;
+  readonly indexes: "dense" | "fts" | "fts,dense";
+}
+
+interface DenseSegmentHit {
+  readonly archiveId: number;
+  readonly chapterId: number;
+  readonly endSentenceIndex: number;
+  readonly kind: TextSentenceKind;
+  readonly score: number;
+  readonly startSentenceIndex: number;
+}
+
+async function readSearchIndexQueryState(
+  database: Database,
+): Promise<SearchIndexQueryState> {
+  const indexes = await database.queryOne(
+    `
+      SELECT value
+      FROM search_index_state
+      WHERE key = 'indexes'
+    `,
+    undefined,
+    (row) => String(row.value),
+  );
+  const dimensionsValue = await database.queryOne(
+    `
+      SELECT value
+      FROM search_index_state
+      WHERE key = 'embeddingDimensions'
+    `,
+    undefined,
+    (row) => Number(row.value),
+  );
+  const denseDimensions =
+    dimensionsValue === undefined ? undefined : Number(dimensionsValue);
+
+  const state: SearchIndexQueryState = {
+    indexes: indexes === "dense" || indexes === "fts,dense" ? indexes : "fts",
+  };
+
+  if (
+    denseDimensions !== undefined &&
+    Number.isInteger(denseDimensions) &&
+    denseDimensions > 0
+  ) {
+    return { ...state, denseDimensions };
+  }
+
+  return state;
+}
+
+async function hasTable(database: Database, table: string): Promise<boolean> {
+  const row = await database.queryOne(
+    `
+      SELECT 1 AS found
+      FROM sqlite_master
+      WHERE type = 'table' AND name = ?
+    `,
+    [table],
+    (value) => getNumber(value, "found"),
+  );
+
+  return row === 1;
+}
+
+async function queryDenseTextRows(
+  database: Database,
+  query: string,
+  state: SearchIndexQueryState,
+  options: {
+    readonly chapters?: readonly number[];
+    readonly embeddingProvider?: SearchIndexEmbeddingProvider;
+    readonly textHitLimit?: number;
+    readonly types?: readonly ArchiveFindObjectType[] | null;
+  },
+): Promise<readonly SearchIndexTextHit[]> {
+  if (options.embeddingProvider === undefined) {
+    if (state.indexes === "dense") {
+      throw new Error(
+        "Dense search requires embeddings configuration. Configure `wikg://local/config/embeddings` before querying a Dense-only index.",
+      );
+    }
+    return [];
+  }
+
+  let queryVector: readonly number[];
+  try {
+    const result = await options.embeddingProvider.embedTexts([query]);
+
+    queryVector = result.embeddings[0] ?? [];
+  } catch (error) {
+    if (state.indexes === "dense") {
+      throw error;
+    }
+    return [];
+  }
+
+  if (
+    state.denseDimensions !== undefined &&
+    queryVector.length !== state.denseDimensions
+  ) {
+    const message = `Dense query embedding has ${queryVector.length} dimensions; index expects ${state.denseDimensions}.`;
+
+    if (state.indexes === "dense") {
+      throw new Error(message);
+    }
+    return [];
+  }
+
+  const segmentHits = await queryDenseSegmentHits(database, queryVector, {
+    ...(options.chapters === undefined ? {} : { chapters: options.chapters }),
+    limit: SEARCH_INDEX_DENSE_SEGMENT_HIT_LIMIT,
+    ...(options.types === undefined ? {} : { types: options.types }),
+  });
+
+  if (segmentHits.length === 0) {
+    return [];
+  }
+
+  return expandDenseSegmentHits(database, segmentHits, {
+    limit: Math.max(
+      options.textHitLimit ?? SEARCH_INDEX_FTS_HIT_LIMIT,
+      SEARCH_INDEX_DENSE_EXPANDED_SENTENCE_LIMIT,
+    ),
+    ...(options.types === undefined ? {} : { types: options.types }),
+  });
+}
+
+async function queryDenseSegmentHits(
+  database: Database,
+  queryVector: readonly number[],
+  options: {
+    readonly chapters?: readonly number[];
+    readonly limit: number;
+    readonly types?: readonly ArchiveFindObjectType[] | null;
+  },
+): Promise<readonly DenseSegmentHit[]> {
+  const kinds = createTextKindFilter(options.types);
+
+  if (kinds.length === 0 || queryVector.length === 0) {
+    return [];
+  }
+
+  const rows = await database.queryAll(
+    `
+      SELECT
+        archive_id,
+        kind,
+        chapter_id,
+        start_sentence_index,
+        end_sentence_index,
+        vector
+      FROM text_embedding_segments
+      WHERE kind IN (${kinds.map(() => "?").join(", ")})
+        ${createChapterSql(options.chapters).replaceAll("r.", "")}
+    `,
+    [...kinds, ...createChapterParams(options.chapters)],
+    (row) => ({
+      archiveId: getNumber(row, "archive_id"),
+      chapterId: getNumber(row, "chapter_id"),
+      endSentenceIndex: getNumber(row, "end_sentence_index"),
+      kind: getNumber(row, "kind") as TextSentenceKind,
+      startSentenceIndex: getNumber(row, "start_sentence_index"),
+      vector:
+        Buffer.isBuffer(row.vector) || row.vector instanceof Uint8Array
+          ? deserializeFloat32Vector(Buffer.from(row.vector))
+          : [],
+    }),
+  );
+
+  return rows
+    .map((row) => ({
+      archiveId: row.archiveId,
+      chapterId: row.chapterId,
+      endSentenceIndex: row.endSentenceIndex,
+      kind: row.kind,
+      score: cosineSimilarity(queryVector, row.vector),
+      startSentenceIndex: row.startSentenceIndex,
+    }))
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.archiveId - right.archiveId ||
+        left.chapterId - right.chapterId ||
+        left.startSentenceIndex - right.startSentenceIndex ||
+        left.kind - right.kind,
+    )
+    .slice(0, options.limit);
+}
+
+async function expandDenseSegmentHits(
+  database: Database,
+  segmentHits: readonly DenseSegmentHit[],
+  options: {
+    readonly limit: number;
+    readonly types?: readonly ArchiveFindObjectType[] | null;
+  },
+): Promise<readonly SearchIndexTextHit[]> {
+  const kinds = createTextKindFilter(options.types);
+  const hitsByKey = new Map<string, SearchIndexTextHit>();
+
+  for (const [segmentRank, segment] of segmentHits.entries()) {
+    const rows = await database.queryAll(
+      `
+        SELECT
+          archive_id,
+          kind,
+          chapter_id,
+          sentence_index,
+          words_count
+        FROM text_sentence_records
+        WHERE archive_id = ?
+          AND kind = ?
+          AND chapter_id = ?
+          AND sentence_index >= ?
+          AND sentence_index <= ?
+          AND kind IN (${kinds.map(() => "?").join(", ")})
+        ORDER BY sentence_index ASC
+      `,
+      [
+        segment.archiveId,
+        segment.kind,
+        segment.chapterId,
+        segment.startSentenceIndex,
+        segment.endSentenceIndex,
+        ...kinds,
+      ],
+      (row) => {
+        const rank = segmentRank + 1;
+
+        return {
+          archiveId: getNumber(row, "archive_id"),
+          chapterId: getNumber(row, "chapter_id"),
+          kind: getNumber(row, "kind") as TextSentenceKind,
+          rank,
+          score: segment.score,
+          sentenceIndex: getNumber(row, "sentence_index"),
+          wordsCount: getNumber(row, "words_count"),
+        };
+      },
+    );
+
+    for (const row of rows) {
+      const key = createTextHitKey(row);
+      const existing = hitsByKey.get(key);
+
+      if (existing === undefined || row.score > existing.score) {
+        hitsByKey.set(key, row);
+      }
+    }
+    if (hitsByKey.size >= options.limit) {
+      break;
+    }
+  }
+
+  return [...hitsByKey.values()].slice(0, options.limit);
+}
+
+function fuseTextHitsByRrf(
+  ftsHits: readonly SearchIndexTextHit[],
+  denseHits: readonly SearchIndexTextHit[],
+  limit: number | undefined,
+): readonly SearchIndexTextHit[] {
+  const fused = new Map<
+    string,
+    { hit: SearchIndexTextHit; score: number; topRank: number }
+  >();
+  const addHits = (hits: readonly SearchIndexTextHit[], weight: number) => {
+    for (const [index, hit] of hits.entries()) {
+      const key = createTextHitKey(hit);
+      const rank = index + 1;
+      const contribution = weight / (60 + rank);
+      const existing = fused.get(key);
+
+      if (existing === undefined) {
+        fused.set(key, {
+          hit,
+          score: contribution,
+          topRank: rank,
+        });
+      } else {
+        existing.score += contribution;
+        existing.topRank = Math.min(existing.topRank, rank);
+      }
+    }
+  };
+
+  addHits(ftsHits, 1);
+  addHits(denseHits, 1);
+
+  return [...fused.values()]
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.topRank - right.topRank ||
+        left.hit.archiveId - right.hit.archiveId ||
+        left.hit.chapterId - right.hit.chapterId ||
+        left.hit.sentenceIndex - right.hit.sentenceIndex ||
+        left.hit.kind - right.hit.kind,
+    )
+    .slice(0, limit ?? SEARCH_INDEX_FTS_HIT_LIMIT)
+    .map((entry, index) => ({
+      ...entry.hit,
+      rank: index + 1,
+      score: entry.score,
+    }));
+}
+
+function applyTextAfter(
+  hits: readonly SearchIndexTextHit[],
+  after:
+    | {
+        readonly archiveId: number;
+        readonly chapterId: number;
+        readonly kind: TextSentenceKind;
+        readonly rank: number;
+        readonly sentenceIndex: number;
+      }
+    | undefined,
+): readonly SearchIndexTextHit[] {
+  if (after === undefined) {
+    return hits;
+  }
+
+  return hits.filter(
+    (hit) =>
+      hit.rank > after.rank ||
+      (hit.rank === after.rank && hit.archiveId > after.archiveId) ||
+      (hit.rank === after.rank &&
+        hit.archiveId === after.archiveId &&
+        hit.chapterId > after.chapterId) ||
+      (hit.rank === after.rank &&
+        hit.archiveId === after.archiveId &&
+        hit.chapterId === after.chapterId &&
+        hit.sentenceIndex > after.sentenceIndex) ||
+      (hit.rank === after.rank &&
+        hit.archiveId === after.archiveId &&
+        hit.chapterId === after.chapterId &&
+        hit.sentenceIndex === after.sentenceIndex &&
+        hit.kind > after.kind),
+  );
+}
+
+function cosineSimilarity(
+  left: readonly number[],
+  right: readonly number[],
+): number {
+  if (left.length !== right.length || left.length === 0) {
+    return 0;
+  }
+
+  let dot = 0;
+  let leftMagnitude = 0;
+  let rightMagnitude = 0;
+
+  for (const [index, leftValue] of left.entries()) {
+    const rightValue = right[index] ?? 0;
+
+    dot += leftValue * rightValue;
+    leftMagnitude += leftValue * leftValue;
+    rightMagnitude += rightValue * rightValue;
+  }
+
+  if (leftMagnitude === 0 || rightMagnitude === 0) {
+    return 0;
+  }
+
+  return dot / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude));
 }
 
 async function queryObjectRows(
