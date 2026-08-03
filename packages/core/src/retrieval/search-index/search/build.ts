@@ -1,21 +1,26 @@
 import type { Database } from "../../../document/database.js";
 import type { Document } from "../../../document/index.js";
 import { createSearchTokenPlan } from "./tokenizer.js";
-import {
-  createSearchIndexFingerprint,
-  readSearchIndexFingerprintFromDatabase,
-} from "./fingerprint.js";
+import { createSearchIndexFingerprint } from "./fingerprint.js";
 import {
   insertFtsRecord,
+  insertTextSentenceEmbedding,
   insertSearchObjectPropertyRecord,
   insertTextSentenceRecord,
 } from "./write.js";
-import type { SearchIndexInput, SearchIndexProgressReporter } from "./types.js";
+import type {
+  SearchIndexBuildOptions,
+  SearchIndexEmbeddingProvider,
+  SearchIndexInput,
+  SearchIndexProgressReporter,
+  SearchIndexSelection,
+} from "./types.js";
 import { SEARCH_INDEX_VERSION } from "./types.js";
 
 export type ArchiveIndexProjection = SearchIndexInput;
 export type SearchIndexWriteBatch = SearchIndexInput;
 export interface SearchIndexWriteCounters {
+  readonly denseDone: number;
   readonly objectDone: number;
   readonly textDone: number;
 }
@@ -24,29 +29,36 @@ export async function writeArchiveIndexProjection(
   document: Document,
   projection: ArchiveIndexProjection,
   progress?: SearchIndexProgressReporter,
+  options: SearchIndexBuildOptions = {},
 ): Promise<void> {
-  await ensureSearchIndex(document, projection, progress);
+  await replaceSearchIndex(
+    document,
+    (async function* (): AsyncIterable<SearchIndexWriteBatch> {
+      await Promise.resolve();
+      yield projection;
+    })(),
+    createSearchIndexFingerprint(projection),
+    progress,
+    options,
+  );
 }
 
 export async function ensureSearchIndex(
   document: Document,
   input: SearchIndexInput,
   progress?: SearchIndexProgressReporter,
+  options: SearchIndexBuildOptions = {},
 ): Promise<void> {
   const chaptersRevision = await document.serials.getChaptersRevision();
+  const resolved = resolveSearchIndexBuildOptions(options);
 
   await document.writeSearchIndexDatabase(async (database) => {
     const fingerprint = createSearchIndexFingerprint(input);
-    const indexedFingerprint =
-      await readSearchIndexFingerprintFromDatabase(database);
-
-    if (indexedFingerprint === fingerprint) {
-      return;
-    }
 
     await database.transaction(async () => {
       await progress?.({ phase: "clearing" });
       await database.run("DELETE FROM text_sentence_fts");
+      await database.run("DELETE FROM text_sentence_embeddings");
       await database.run("DELETE FROM search_object_properties_fts");
       await database.run("DELETE FROM text_sentence_records");
       await database.run("DELETE FROM search_object_properties_records");
@@ -54,17 +66,30 @@ export async function ensureSearchIndex(
       await database.run("DELETE FROM search_index_state");
 
       let textDone = 0;
+      const textSentenceRows: {
+        readonly rowId: number;
+        readonly text: string;
+      }[] = [];
       for (const record of input.textSentences) {
         const plan = createSearchTokenPlan(record.text);
         const rowId = await insertTextSentenceRecord(database, record);
 
         await insertFtsRecord(database, "text_sentence_fts", rowId, plan);
+        textSentenceRows.push({ rowId, text: record.text });
         textDone += 1;
         await progress?.({
           done: textDone,
           phase: "indexing-text",
           total: input.textSentences.length,
           unit: "sentence",
+        });
+      }
+
+      if (resolved.indexes === "fts,dense") {
+        await writeTextSentenceEmbeddings(database, textSentenceRows, {
+          doneOffset: 0,
+          embeddingProvider: resolved.embeddingProvider,
+          ...(progress === undefined ? {} : { progress }),
         });
       }
 
@@ -110,6 +135,7 @@ export async function ensureSearchIndex(
         `,
         [String(chaptersRevision)],
       );
+      await writeSearchIndexBuildState(database, resolved.indexes, resolved);
     });
   });
 }
@@ -119,19 +145,26 @@ export async function replaceSearchIndex(
   batches: AsyncIterable<SearchIndexWriteBatch>,
   fingerprint: string,
   progress?: SearchIndexProgressReporter,
+  options: SearchIndexBuildOptions = {},
 ): Promise<void> {
   const chaptersRevision = await document.serials.getChaptersRevision();
+  const resolved = resolveSearchIndexBuildOptions(options);
 
   await document.writeSearchIndexDatabase(async (database) => {
     await prepareSearchIndexReplacement(database, progress);
 
-    let counters: SearchIndexWriteCounters = { objectDone: 0, textDone: 0 };
+    let counters: SearchIndexWriteCounters = {
+      denseDone: 0,
+      objectDone: 0,
+      textDone: 0,
+    };
     for await (const batch of batches) {
       counters = await writeSearchIndexBatch(
         database,
         batch,
         counters,
         progress,
+        resolved,
       );
     }
 
@@ -140,6 +173,8 @@ export async function replaceSearchIndex(
       fingerprint,
       chaptersRevision,
       progress,
+      resolved.indexes,
+      resolved,
     );
   });
 }
@@ -151,6 +186,7 @@ export async function prepareSearchIndexReplacement(
   await database.transaction(async () => {
     await progress?.({ phase: "clearing" });
     await database.run("DELETE FROM text_sentence_fts");
+    await database.run("DELETE FROM text_sentence_embeddings");
     await database.run("DELETE FROM search_object_properties_fts");
     await database.run("DELETE FROM text_sentence_records");
     await database.run("DELETE FROM search_object_properties_records");
@@ -171,8 +207,15 @@ export async function writeSearchIndexBatch(
   batch: SearchIndexWriteBatch,
   counters: SearchIndexWriteCounters,
   progress?: SearchIndexProgressReporter,
+  options: SearchIndexBuildOptions = {},
 ): Promise<SearchIndexWriteCounters> {
-  let { objectDone, textDone } = counters;
+  const resolved = resolveSearchIndexBuildOptions(options);
+  let { denseDone, objectDone, textDone } = counters;
+
+  const sentenceRecords: {
+    readonly rowId: number;
+    readonly text: string;
+  }[] = [];
 
   await database.transaction(async () => {
     for (const record of batch.textSentences) {
@@ -180,6 +223,7 @@ export async function writeSearchIndexBatch(
       const rowId = await insertReplacementTextSentenceRecord(database, record);
 
       await insertFtsRecord(database, "text_sentence_fts", rowId, plan);
+      sentenceRecords.push({ rowId, text: record.text });
       textDone += 1;
       await progress?.({
         done: textDone,
@@ -207,7 +251,15 @@ export async function writeSearchIndexBatch(
     }
   });
 
-  return { objectDone, textDone };
+  if (resolved.indexes === "fts,dense") {
+    denseDone = await writeTextSentenceEmbeddings(database, sentenceRecords, {
+      doneOffset: denseDone,
+      embeddingProvider: resolved.embeddingProvider,
+      ...(progress === undefined ? {} : { progress }),
+    });
+  }
+
+  return { denseDone, objectDone, textDone };
 }
 
 async function insertReplacementTextSentenceRecord(
@@ -238,7 +290,13 @@ export async function finalizeSearchIndexReplacement(
   fingerprint: string,
   chaptersRevision: number,
   progress?: SearchIndexProgressReporter,
+  indexes?: SearchIndexSelection,
+  options: SearchIndexBuildOptions = {},
 ): Promise<void> {
+  const resolved = resolveSearchIndexBuildOptions(
+    indexes === undefined ? options : { ...options, indexes },
+  );
+
   await database.transaction(async () => {
     await progress?.({ phase: "finalizing" });
     await database.run("DELETE FROM index_dirty_chapters");
@@ -263,5 +321,125 @@ export async function finalizeSearchIndexReplacement(
       `,
       [String(chaptersRevision)],
     );
+    await writeSearchIndexBuildState(database, resolved.indexes, resolved);
   });
+}
+
+type ResolvedSearchIndexBuildOptions =
+  | {
+      readonly indexes: "fts";
+    }
+  | {
+      readonly embeddingProvider: SearchIndexEmbeddingProvider;
+      readonly indexes: "fts,dense";
+    };
+
+function resolveSearchIndexBuildOptions(
+  options: SearchIndexBuildOptions,
+): ResolvedSearchIndexBuildOptions {
+  switch (options.indexes ?? "auto") {
+    case "fts":
+      return { indexes: "fts" };
+    case "fts,dense": {
+      if (options.embeddingProvider === undefined) {
+        throw new Error(
+          "Embeddings configuration is required for --indexes fts,dense.",
+        );
+      }
+      return {
+        embeddingProvider: options.embeddingProvider,
+        indexes: "fts,dense",
+      };
+    }
+    case "auto":
+      return options.embeddingProvider === undefined
+        ? { indexes: "fts" }
+        : {
+            embeddingProvider: options.embeddingProvider,
+            indexes: "fts,dense",
+          };
+  }
+}
+
+async function writeTextSentenceEmbeddings(
+  database: Database,
+  records: readonly { readonly rowId: number; readonly text: string }[],
+  input: {
+    readonly doneOffset: number;
+    readonly embeddingProvider: SearchIndexEmbeddingProvider;
+    readonly progress?: SearchIndexProgressReporter;
+  },
+): Promise<number> {
+  if (records.length === 0) {
+    return input.doneOffset;
+  }
+
+  const result = await input.embeddingProvider.embedTexts(
+    records.map((record) => record.text),
+  );
+
+  if (result.embeddings.length !== records.length) {
+    throw new Error(
+      `Embedding provider returned ${result.embeddings.length} vectors for ${records.length} texts.`,
+    );
+  }
+
+  let done = input.doneOffset;
+  for (const [index, record] of records.entries()) {
+    const vector = result.embeddings[index]!;
+    const dimensions =
+      input.embeddingProvider.dimensions ?? result.embeddings[index]!.length;
+
+    if (vector.length !== dimensions) {
+      throw new Error(
+        `Embedding provider returned ${vector.length} dimensions; expected ${dimensions}.`,
+      );
+    }
+
+    await insertTextSentenceEmbedding(database, {
+      dimensions,
+      model: input.embeddingProvider.model,
+      sentenceRecordId: record.rowId,
+      vector,
+    });
+    done += 1;
+    await input.progress?.({
+      done,
+      phase: "indexing-dense",
+      unit: "vector",
+    });
+  }
+
+  return done;
+}
+
+async function writeSearchIndexBuildState(
+  database: Database,
+  indexes: SearchIndexSelection,
+  options: ResolvedSearchIndexBuildOptions,
+): Promise<void> {
+  await database.run(
+    `
+      INSERT INTO search_index_state(key, value)
+      VALUES ('indexes', ?)
+    `,
+    [indexes],
+  );
+  if (options.indexes !== "fts,dense") {
+    return;
+  }
+  await database.run(
+    `
+      INSERT INTO search_index_state(key, value)
+      VALUES ('embeddingModel', ?)
+    `,
+    [options.embeddingProvider.model],
+  );
+  await database.run(
+    `
+      INSERT INTO search_index_state(key, value)
+      VALUES ('embeddingDimensions', ?)
+    `,
+    [String(options.embeddingProvider.dimensions ?? "")],
+  );
 }

@@ -114,10 +114,13 @@ Purpose:
   Build or rebuild this library's aggregate search index.
 
 Usage:
-  {{ commandName }} {{ uri }} enable [--jsonl]
+  {{ commandName }} {{ uri }} enable [--indexes auto|fts|fts,dense] [--jsonl]
 
 Notes:
   - This is a full rebuild from registered present archives.
+  - `--indexes auto` builds FTS and builds Dense when embeddings are configured.
+  - `--indexes fts` builds only FTS and does not call an embeddings provider.
+  - `--indexes fts,dense` requires embeddings and fails if Dense cannot be built.
   - Missing or unreadable library archive members are skipped and reported.
   - Progress is emitted as text by default, or line-delimited events with `--jsonl`.
   - `--json` is not supported for enable because progress is streamed.

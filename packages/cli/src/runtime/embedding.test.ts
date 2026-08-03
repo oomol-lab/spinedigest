@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { embedQueryText } from "./embedding.js";
+import {
+  buildSearchIndexEmbeddingProvider,
+  embedQueryText,
+} from "./embedding.js";
 
 describe("runtime/embedding", () => {
   afterEach(() => {
@@ -56,6 +59,53 @@ describe("runtime/embedding", () => {
       provider: "openai-compatible",
       usage: { tokens: 4 },
     });
+  });
+
+  it("batches search index embeddings for provider request limits", async () => {
+    const requestSizes: number[] = [];
+    const fetch = vi.fn((url: string | URL | Request, init?: RequestInit) => {
+      expect(formatFetchURL(url)).toBe("https://api.example.com/v1/embeddings");
+      if (typeof init?.body !== "string") {
+        throw new Error("Expected JSON request body.");
+      }
+      const body = JSON.parse(init.body) as {
+        readonly input?: string[];
+      };
+      const input = body.input ?? [];
+
+      requestSizes.push(input.length);
+      return new Response(
+        JSON.stringify({
+          data: input.map((_, index) => ({
+            embedding: [index, 1, 2],
+            index,
+          })),
+          model: "embedding-model",
+          object: "list",
+          usage: { prompt_tokens: input.length, total_tokens: input.length },
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        },
+      );
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const provider = buildSearchIndexEmbeddingProvider({
+      apiKey: "sk-test",
+      baseURL: "https://api.example.com/v1",
+      dimensions: 3,
+      model: "embedding-model",
+      provider: "openai-compatible",
+    });
+    const result = await provider.embedTexts(
+      Array.from({ length: 11 }, (_, index) => `sentence ${index}`),
+    );
+
+    expect(requestSizes).toStrictEqual([10, 1]);
+    expect(result.embeddings).toHaveLength(11);
+    expect(result.tokens).toBe(11);
   });
 
   it("requires query text and embedding provider fields", async () => {

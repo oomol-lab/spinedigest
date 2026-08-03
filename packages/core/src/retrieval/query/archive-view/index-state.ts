@@ -8,6 +8,7 @@ import {
   SINGLE_ARCHIVE_INDEX_ID,
   TEXT_SENTENCE_KIND,
   type SearchIndexInput,
+  type SearchIndexBuildOptions,
   type SearchIndexProgressReporter,
   type SearchIndexWriteBatch,
   writeArchiveIndexProjection,
@@ -21,6 +22,7 @@ const ARCHIVE_INDEX_BATCH_RECORDS = 512;
 export async function rebuildArchiveSearchIndex(
   document: Document,
   progress?: SearchIndexProgressReporter,
+  options: SearchIndexBuildOptions = {},
 ): Promise<void> {
   for (let attempt = 0; attempt < SEARCH_INDEX_REBUILD_ATTEMPTS; attempt += 1) {
     const input = await buildArchiveIndexProjection(document, progress);
@@ -36,7 +38,7 @@ export async function rebuildArchiveSearchIndex(
       await document.deleteSearchIndexDatabase();
     }
 
-    await writeArchiveIndexProjection(document, input, progress);
+    await writeArchiveIndexProjection(document, input, progress, options);
 
     const verifiedInput = await buildArchiveIndexProjection(document);
     if (

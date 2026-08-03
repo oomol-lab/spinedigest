@@ -88,6 +88,14 @@ async function migrateSearchIndexSchema(database: Database): Promise<void> {
       PRIMARY KEY (archive_id, chapter_id)
     )
   `);
+  await database.run(`
+    CREATE TABLE IF NOT EXISTS text_sentence_embeddings (
+      sentence_record_id INTEGER PRIMARY KEY,
+      model TEXT NOT NULL,
+      dimensions INTEGER NOT NULL,
+      vector BLOB NOT NULL
+    )
+  `);
 }
 
 async function rebuildTextSentenceRecordsTable(

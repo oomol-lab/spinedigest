@@ -1,4 +1,6 @@
-import { embed } from "ai";
+import type { SearchIndexEmbeddingProvider } from "wiki-graph-core";
+
+import { embed, embedMany } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
@@ -25,6 +27,8 @@ export interface QueryEmbeddingResult {
     readonly tokens?: number;
   };
 }
+
+const EMBEDDING_BATCH_SIZE = 10;
 
 export async function readEmbeddingConfig(): Promise<CLIEmbeddingConfig> {
   const config = await readLocalConfigSection("embeddings");
@@ -73,6 +77,51 @@ export async function embedQueryText(
       ? {}
       : { usage: { tokens: result.usage.tokens } }),
   };
+}
+
+export function buildSearchIndexEmbeddingProvider(
+  config: CLIEmbeddingConfig,
+): SearchIndexEmbeddingProvider {
+  const provider = requireEmbeddingProvider(config.provider);
+  const model = requireEmbeddingModel(config.model);
+  const embeddingModel = createEmbeddingModel(provider, model, config);
+  const providerOptions = createEmbeddingProviderOptions(provider, config);
+
+  return {
+    ...(config.dimensions === undefined
+      ? {}
+      : { dimensions: config.dimensions }),
+    model,
+    embedTexts: async (texts) => {
+      const embeddings: number[][] = [];
+      let tokens = 0;
+
+      for (const batch of chunkTexts(texts, EMBEDDING_BATCH_SIZE)) {
+        const result = await embedMany({
+          maxRetries: 0,
+          model: embeddingModel,
+          ...(providerOptions === undefined ? {} : { providerOptions }),
+          values: [...batch],
+        });
+
+        embeddings.push(...result.embeddings);
+        tokens += result.usage.tokens ?? 0;
+      }
+      return {
+        embeddings,
+        ...(tokens === 0 ? {} : { tokens }),
+      };
+    },
+  };
+}
+
+function* chunkTexts(
+  texts: readonly string[],
+  size: number,
+): Iterable<readonly string[]> {
+  for (let index = 0; index < texts.length; index += size) {
+    yield texts.slice(index, index + size);
+  }
 }
 
 export async function embedQueryTextWithLocalConfig(

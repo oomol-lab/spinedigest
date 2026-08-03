@@ -924,7 +924,74 @@ describe("library archive membership", () => {
       ).rejects.toThrow("requires a library scope URI");
     });
   });
+
+  it("builds dense vectors in the library aggregate index", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      const source = join(tempDir, "dense-library.wikg");
+      await createSearchableArchiveWithoutSearchIndex(tempDir, source);
+
+      await addWikiGraphLibraryArchive({
+        inputPath: source,
+        target: target!,
+        to: "dense-library.wikg",
+      });
+      const state = await rebuildWikiGraphLibraryIndex(target!, undefined, {
+        embeddingProvider: createLibraryTestEmbeddingProvider(),
+      });
+
+      expect(state.capabilities).toStrictEqual({
+        dense: {
+          current: true,
+          dimensions: 3,
+          model: "test-embedding",
+        },
+        indexes: "fts,dense",
+      });
+    });
+  });
+
+  it("removes dense vectors from the library aggregate index when fts is requested", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      const source = join(tempDir, "fts-library.wikg");
+      await createSearchableArchiveWithoutSearchIndex(tempDir, source);
+
+      await addWikiGraphLibraryArchive({
+        inputPath: source,
+        target: target!,
+        to: "fts-library.wikg",
+      });
+      await rebuildWikiGraphLibraryIndex(target!, undefined, {
+        embeddingProvider: createLibraryTestEmbeddingProvider(),
+        indexes: "fts,dense",
+      });
+      const state = await rebuildWikiGraphLibraryIndex(target!, undefined, {
+        indexes: "fts",
+      });
+
+      expect(state.capabilities).toStrictEqual({
+        dense: { current: false },
+        indexes: "fts",
+      });
+    });
+  });
 });
+
+function createLibraryTestEmbeddingProvider() {
+  return {
+    dimensions: 3,
+    model: "test-embedding",
+    embedTexts: async (texts: readonly string[]) => {
+      await Promise.resolve();
+      return {
+        embeddings: texts.map((text, index) => [text.length, index, 1]),
+      };
+    },
+  };
+}
 
 async function getDefaultMetadata(
   target: NonNullable<ReturnType<typeof parseWikiGraphLibraryUri>>,

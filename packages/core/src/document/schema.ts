@@ -323,6 +323,13 @@ ${SEARCH_INDEX_TEXT_SENTENCE_RECORDS_COLUMNS_SQL}
     tokenize='ascii'
   );
 
+  CREATE TABLE IF NOT EXISTS text_sentence_embeddings (
+    sentence_record_id INTEGER PRIMARY KEY,
+    model TEXT NOT NULL,
+    dimensions INTEGER NOT NULL,
+    vector BLOB NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS search_object_properties_records (
     id INTEGER PRIMARY KEY,
     archive_id INTEGER NOT NULL,

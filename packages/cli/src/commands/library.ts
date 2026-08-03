@@ -23,6 +23,7 @@ import {
   replaceWikiGraphLibraryMetadata,
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
+  type SearchIndexBuildOptions,
 } from "wiki-graph-core";
 import type { CLILibraryArguments } from "../args/index.js";
 import type { RenderTreeNode } from "../support/index.js";
@@ -38,6 +39,8 @@ import {
   ProgressOutputWriter,
   type ProgressCounter,
 } from "../runtime/index.js";
+import { loadCLIConfig } from "../runtime/config.js";
+import { buildSearchIndexEmbeddingProvider } from "../runtime/embedding.js";
 
 const INDEX_PROGRESS_OUTPUT_INTERVAL_MS = 6_000;
 
@@ -139,6 +142,7 @@ export async function runLibraryCommand(
       return;
     }
     case "enable-index": {
+      const buildOptions = await createSearchIndexBuildOptions(args.indexes);
       const writer = new ProgressOutputWriter({
         jsonl: args.jsonl ?? false,
         throttleMs: INDEX_PROGRESS_OUTPUT_INTERVAL_MS,
@@ -147,7 +151,7 @@ export async function runLibraryCommand(
       await writer.write({
         json: { type: "started" },
         kind: "lifecycle",
-        text: "library index enable started\nsteps: collecting -> clearing -> indexing-text -> indexing-objects -> finalizing",
+        text: `library index enable started\nindexes: ${buildOptions.indexes ?? "auto"}\nsteps: ${formatIndexEnableSteps(buildOptions).join(" -> ")}`,
       });
       const state = await rebuildWikiGraphLibraryIndex(
         args.target,
@@ -168,6 +172,7 @@ export async function runLibraryCommand(
             phase: event.phase,
           });
         },
+        buildOptions,
       );
       await writer.write({
         json: { status: state.status, type: "completed" },
@@ -298,6 +303,43 @@ export async function runLibraryCommand(
       return;
     }
   }
+}
+
+async function createSearchIndexBuildOptions(
+  indexes: CLILibraryArguments["indexes"],
+): Promise<SearchIndexBuildOptions> {
+  if (indexes === "fts") {
+    return { indexes };
+  }
+
+  const config = await loadCLIConfig();
+
+  if (config.embedding === undefined) {
+    if (indexes === "fts,dense") {
+      throw new Error(
+        "Missing embeddings configuration. Configure `wikg://local/config/embeddings` before using --indexes fts,dense.",
+      );
+    }
+    return { indexes: indexes ?? "auto" };
+  }
+
+  return {
+    embeddingProvider: buildSearchIndexEmbeddingProvider(config.embedding),
+    indexes: indexes ?? "auto",
+  };
+}
+
+function formatIndexEnableSteps(
+  options: SearchIndexBuildOptions,
+): readonly string[] {
+  return [
+    "collecting",
+    "clearing",
+    "indexing-text",
+    "indexing-objects",
+    ...(options.embeddingProvider === undefined ? [] : ["indexing-dense"]),
+    "finalizing",
+  ];
 }
 
 async function writeLibrary(
@@ -675,6 +717,18 @@ async function writeLibraryIndexState(
     [
       `Status: ${state.status}`,
       `Enabled: ${state.enabled ? "yes" : "no"}`,
+      ...(state.capabilities === undefined
+        ? []
+        : [
+            `Enabled indexes: ${state.capabilities.indexes}`,
+            `Dense current: ${state.capabilities.dense.current ? "yes" : "no"}`,
+            ...(state.capabilities.dense.model === undefined
+              ? []
+              : [`Dense model: ${state.capabilities.dense.model}`]),
+            ...(state.capabilities.dense.dimensions === undefined
+              ? []
+              : [`Dense dimensions: ${state.capabilities.dense.dimensions}`]),
+          ]),
       `Source fingerprint: ${state.sourceFingerprint}`,
       ...(state.fingerprint === undefined
         ? []
@@ -688,14 +742,16 @@ async function writeLibraryIndexState(
 function formatIndexCounter(input: {
   readonly done?: number;
   readonly total?: number;
-  readonly unit?: "chapter" | "object" | "sentence";
+  readonly unit?: "chapter" | "object" | "sentence" | "vector";
 }): ProgressCounter {
   const unit =
     input.unit === "chapter"
       ? "chapters"
       : input.unit === "sentence"
         ? "sentences"
-        : "objects";
+        : input.unit === "vector"
+          ? "vectors"
+          : "objects";
 
   return {
     done: input.done ?? 0,

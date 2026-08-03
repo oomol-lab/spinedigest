@@ -22,6 +22,7 @@ import type {
 } from "../types.js";
 import {
   formatWikiGraphHelpCommand,
+  parseSearchIndexSelectionFlag,
   rejectArchiveBooleanFlag,
   rejectArchiveFlag,
   stripObjectUriPrefix,
@@ -895,12 +896,18 @@ function parseLibraryIndexArguments(
       );
     }
     return {
-      args: { action: "enable-index", jsonl: values.jsonl, target },
+      args: {
+        action: "enable-index",
+        ...optionalSearchIndexSelection(values.indexes, helpRoute),
+        ...(values.jsonl === undefined ? {} : { jsonl: values.jsonl }),
+        target,
+      },
       help: false,
       kind: "library",
     };
   }
 
+  rejectArchiveFlag(action, "--indexes", values.indexes, helpRoute);
   rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
   return {
     args: {
@@ -911,6 +918,21 @@ function parseLibraryIndexArguments(
     help: false,
     kind: "library",
   };
+}
+
+function optionalSearchIndexSelection(
+  value: string | undefined,
+  helpRoute: string,
+):
+  | {
+      readonly indexes: NonNullable<
+        ReturnType<typeof parseSearchIndexSelectionFlag>
+      >;
+    }
+  | Record<string, never> {
+  const indexes = parseSearchIndexSelectionFlag(value, helpRoute);
+
+  return indexes === undefined ? {} : { indexes };
 }
 
 function parseLibraryArchiveArguments(

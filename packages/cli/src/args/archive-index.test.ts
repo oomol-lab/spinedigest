@@ -29,6 +29,40 @@ describe("cli/args/archive index", () => {
       kind: "archive-index",
     });
     expect(
+      parseCLIArguments([
+        "wikg:///tmp/book.wikg/index",
+        "enable",
+        "--indexes",
+        "fts,dense",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "enable",
+        archivePath: "/tmp/book.wikg",
+        indexes: "fts,dense",
+      },
+      help: false,
+      kind: "archive-index",
+    });
+    expect(() =>
+      parseCLIArguments([
+        "wikg:///tmp/book.wikg/index",
+        "enable",
+        "--indexes",
+        "hybrid",
+      ]),
+    ).toThrow("Invalid --indexes: hybrid. Expected auto, fts, or fts,dense.");
+    expect(() =>
+      parseCLIArguments([
+        "wikg:///tmp/book.wikg",
+        "inspect",
+        "--indexes",
+        "fts",
+      ]),
+    ).toThrow(
+      "The --indexes option is only supported by `wg <index-uri> enable`.",
+    );
+    expect(
       parseCLIArguments(["wikg://lib/arc/archive123/index", "--json"]),
     ).toStrictEqual({
       args: {
@@ -120,6 +154,27 @@ describe("cli/args/archive index", () => {
       args: {
         action: "enable-index",
         jsonl: true,
+        target: {
+          isDefault: false,
+          kind: "scope",
+          objectUri: "wikg://index",
+          publicId: "team",
+        },
+      },
+      help: false,
+      kind: "library",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://lib/team/index",
+        "enable",
+        "--indexes",
+        "fts,dense",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "enable-index",
+        indexes: "fts,dense",
         target: {
           isDefault: false,
           kind: "scope",

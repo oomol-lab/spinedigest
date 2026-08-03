@@ -124,6 +124,9 @@ export function parseCLIArguments(
       import: {
         type: "string",
       },
+      indexes: {
+        type: "string",
+      },
       "input-format": {
         type: "string",
       },
@@ -230,6 +233,7 @@ export function parseCLIArguments(
 
   rejectNonGcForceFlag(positionals, values);
   rejectNonCreateReplaceFlag(positionals, values);
+  rejectUnsupportedIndexesFlag(positionals, values.indexes);
 
   if (values.version === true) {
     return {
@@ -342,4 +346,31 @@ export function parseCLIArguments(
     throw new Error(withHelpRoute("Missing command.", CLI_HELP_ROUTES.command));
   }
   throw new Error(formatUnknownCommandMessage(positionals[0]!));
+}
+
+function rejectUnsupportedIndexesFlag(
+  positionals: readonly string[],
+  value: string | undefined,
+): void {
+  if (value === undefined || isIndexEnableCommand(positionals)) {
+    return;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      "The --indexes option is only supported by `wg <index-uri> enable`.",
+      CLI_HELP_ROUTES.root,
+    ),
+  );
+}
+
+function isIndexEnableCommand(positionals: readonly string[]): boolean {
+  const [uri, action] = positionals;
+
+  return (
+    uri !== undefined &&
+    isWikiGraphUri(uri) &&
+    uri.endsWith("/index") &&
+    action === "enable"
+  );
 }

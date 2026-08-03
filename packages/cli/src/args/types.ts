@@ -5,6 +5,7 @@ import type {
   BuildJobTarget,
   ChapterStage,
   ParsedWikiGraphLibraryUri,
+  SearchIndexSelection,
 } from "wiki-graph-core";
 
 export interface CLIArguments {
@@ -127,6 +128,7 @@ export interface CLILibraryArguments {
   readonly inputValue?: string | undefined;
   readonly json?: boolean | undefined;
   readonly jsonl?: boolean | undefined;
+  readonly indexes?: SearchIndexSelection | undefined;
   readonly jsonInputValue?: string | undefined;
   readonly key?: string | undefined;
   readonly path?: string | undefined;
@@ -293,6 +295,7 @@ export interface CLIArchiveArguments {
 export interface CLIArchiveIndexArguments {
   readonly action: CLIArchiveIndexAction;
   readonly archivePath: string;
+  readonly indexes?: SearchIndexSelection;
   readonly json?: boolean;
   readonly jsonl?: boolean;
 }
@@ -337,6 +340,7 @@ export interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly from?: string;
   readonly help?: boolean;
   readonly import?: string;
+  readonly indexes?: string;
   readonly input?: string;
   readonly "input-format"?: string;
   readonly json?: boolean;

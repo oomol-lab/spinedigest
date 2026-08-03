@@ -13,6 +13,7 @@ import {
   formatWikiGraphHelpCommand,
   isArchiveAction,
   isArchiveIndexAction,
+  parseSearchIndexSelectionFlag,
   rejectArchiveBooleanFlag,
   rejectArchiveExtraPositionals,
   rejectArchiveFlag,
@@ -192,6 +193,7 @@ export function parseArchiveIndexUriArguments(
   if (action === "enable") {
     rejectStreamingJSONFlag(action, values.json, helpRoute);
   } else {
+    rejectArchiveFlag(action, "--indexes", values.indexes, helpRoute);
     rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
   }
   rejectArchiveBooleanFlag(action, "--last", values.last, helpRoute);
@@ -204,10 +206,28 @@ export function parseArchiveIndexUriArguments(
     args: {
       action,
       archivePath,
+      ...(action === "enable"
+        ? optionalSearchIndexSelection(values.indexes, helpRoute)
+        : {}),
       ...(values.json === undefined ? {} : { json: values.json }),
       ...(values.jsonl === undefined ? {} : { jsonl: values.jsonl }),
     },
     help: false,
     kind: "archive-index",
   };
+}
+
+function optionalSearchIndexSelection(
+  value: string | undefined,
+  helpRoute: string,
+):
+  | {
+      readonly indexes: NonNullable<
+        ReturnType<typeof parseSearchIndexSelectionFlag>
+      >;
+    }
+  | Record<string, never> {
+  const indexes = parseSearchIndexSelectionFlag(value, helpRoute);
+
+  return indexes === undefined ? {} : { indexes };
 }

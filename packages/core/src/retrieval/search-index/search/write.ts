@@ -85,3 +85,38 @@ export async function insertFtsRecord(
     ],
   );
 }
+
+export async function insertTextSentenceEmbedding(
+  database: Database,
+  record: {
+    readonly dimensions: number;
+    readonly model: string;
+    readonly sentenceRecordId: number;
+    readonly vector: readonly number[];
+  },
+): Promise<void> {
+  await database.run(
+    `
+      INSERT INTO text_sentence_embeddings (
+        sentence_record_id, model, dimensions, vector
+      )
+      VALUES (?, ?, ?, ?)
+    `,
+    [
+      record.sentenceRecordId,
+      record.model,
+      record.dimensions,
+      serializeFloat32Vector(record.vector),
+    ],
+  );
+}
+
+function serializeFloat32Vector(vector: readonly number[]): Buffer {
+  const buffer = Buffer.alloc(vector.length * 4);
+
+  for (const [index, value] of vector.entries()) {
+    buffer.writeFloatLE(value, index * 4);
+  }
+
+  return buffer;
+}
