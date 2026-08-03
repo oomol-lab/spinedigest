@@ -18,17 +18,16 @@
 
 只有以下归档 entry 属于标准布局：
 
-| Entry                          | Required | Type            | Meaning                                                 |
-| ------------------------------ | -------- | --------------- | ------------------------------------------------------- |
-| `.wikg-mutation-token`         | Yes      | UTF-8 text      | 归档 mutation token。必须是第一个 ZIP entry。           |
-| `manifest.json`                | Yes      | JSON            | 归档格式 manifest。                                     |
-| `database.db`                  | Yes      | SQLite database | 主文档、图谱、元数据和 readiness 数据库。               |
-| `toc.json`                     | No       | JSON            | 章节树。                                                |
-| `cover/info.json`              | No       | JSON            | 封面元数据。                                            |
-| `cover/data.bin`               | No       | Binary          | 封面二进制内容。存在 `cover/info.json` 时必需。         |
-| `texts/source/<serialId>.txt`  | No       | UTF-8 text      | 某个 chapter serial 的 source text stream。             |
-| `texts/summary/<serialId>.txt` | No       | UTF-8 text      | 某个 chapter serial 的 summary text stream。            |
-| `index.db`                     | No       | SQLite database | 内嵌搜索索引，包含 FTS records、Dense segments 或两者。 |
+| Entry                          | Required | Type            | Meaning                                         |
+| ------------------------------ | -------- | --------------- | ----------------------------------------------- |
+| `.wikg-mutation-token`         | Yes      | UTF-8 text      | 归档 mutation token。必须是第一个 ZIP entry。   |
+| `manifest.json`                | Yes      | JSON            | 归档格式 manifest。                             |
+| `database.db`                  | Yes      | SQLite database | 主文档、图谱、元数据和 readiness 数据库。       |
+| `toc.json`                     | No       | JSON            | 章节树。                                        |
+| `cover/info.json`              | No       | JSON            | 封面元数据。                                    |
+| `cover/data.bin`               | No       | Binary          | 封面二进制内容。存在 `cover/info.json` 时必需。 |
+| `texts/source/<serialId>.txt`  | No       | UTF-8 text      | 某个 chapter serial 的 source text stream。     |
+| `texts/summary/<serialId>.txt` | No       | UTF-8 text      | 某个 chapter serial 的 summary text stream。    |
 
 当前没有其他标准 entry。非标准 entry 的例子包括 SQLite journal 文件、任意 JSON sidecar，以及 `texts/source/` 或 `texts/summary/` 之外的文本文件。
 
@@ -72,7 +71,7 @@ Reader 必须拒绝缺少 `manifest.json` 的归档、`manifest.json` 中包含�
 - Knowledge Graph mentions、mention links、entity projections、triple projections 和 evidence references；
 - object metadata，包括 archive-level book metadata；
 - generation parameter hashes 和 readiness state；
-- index embedding policy。
+- chapter index artifacts。
 
 Book metadata 不存为顶层 `meta.json` 文件。它作为 archive-level object metadata 存在 `database.db` 中。
 
@@ -150,13 +149,11 @@ Summary streams 以 UTF-8 文本文件形式存储在 `texts/summary/` 下。
 
 Summaries 是生成投影。它们不会替代 source text 作为 grounding layer。
 
-### `index.db`
+### Index artifacts
 
-`index.db` 是可选的 SQLite 搜索索引。它可以包含 FTS records、Dense embedding segments，或同时包含两者。
+必须随归档流转的搜索材料存储为 `database.db` 中的 chapter index artifacts。这些 artifacts 是紧凑、静态的编译产物，例如 FTS artifact records 和 Dense embedding segment vectors。
 
-只有当归档 index policy 标记搜索索引为 embedded 时，writer 才会包含 `index.db`。否则，搜索索引可以作为本地 cache 存在，并且不得被视为必需的归档内容。
-
-Reader 必须能打开不包含 `index.db` 的归档。缺失或过期的搜索索引状态应作为 readiness 信息处理，而不是归档损坏。
+`index.db` 不是标准归档 entry。它是从 artifacts 生成的本地派生 index cache，用于快速 query。Reader 必须把缺失或过期的 index cache 状态作为 readiness 信息处理，而不是归档损坏。
 
 ## Path Whitelist
 
@@ -166,7 +163,6 @@ Reader 必须能打开不包含 `index.db` 的归档。缺失或过期的搜索�
 .wikg-mutation-token
 manifest.json
 database.db
-index.db
 toc.json
 cover/data.bin
 cover/info.json
@@ -180,9 +176,6 @@ Writer 不得包含临时 SQLite 文件，例如：
 database.db-journal
 database.db-wal
 database.db-shm
-index.db-journal
-index.db-wal
-index.db-shm
 ```
 
 除非未来格式版本把任意 sidecar 文件加入标准，否则 writer 不得包含它们。
@@ -202,7 +195,7 @@ index.db-shm
 - 忽略非标准 entry 路径；
 - 拒绝不支持的 ZIP 压缩方法；
 - 接受缺少 optional entries 的归档；
-- 把 `index.db` 视为可选；
+- 把本地 index cache 视为归档外的派生状态；
 - 使用 JSON entry 前先校验；
 - 提取归档 entry 时防止 path traversal。
 
@@ -215,7 +208,6 @@ index.db-shm
 - 只包含标准 entry 路径；
 - 每次重写归档时刷新 `.wikg-mutation-token`；
 - 省略临时数据库文件；
-- 只有归档声明内嵌搜索索引时才包含 `index.db`；
 - 以 UTF-8 保留 source 和 summary text；
 - 保持 `database.db` 与 `toc.json`、text stream serial ids 一致。
 
@@ -227,7 +219,7 @@ index.db-shm
 - Reading Graph：`database.db` 中的 chunks、reading edges、snakes 和 sentence groups。
 - Knowledge Graph：`database.db` 中的 mentions、mention links、entity projections、triple projections 和 evidence references。
 - Summary layer：`texts/summary/*.txt` 加上 summary sentence records。
-- Search layer：可选的 `index.db` 和 `database.db` 中的 index settings。
+- Search artifact layer：`database.db` 中的 chapter index artifacts。
 - Metadata layer：`database.db` 中的 archive、chapter、chunk、entity 和 triple metadata，以及可选 cover files。
 
 Reading Graph objects 和 Knowledge Graph objects 是不同层。Chunks 是阅读单元；entities 和 triples 是知识对象。Source text 是两者共同的 grounding layer。
