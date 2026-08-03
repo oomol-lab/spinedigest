@@ -37,14 +37,15 @@ write the target schema marker.
 ## Archive Gate
 
 Archive schema belongs to each `.wikg` file. The archive gate runs at archive
-open/upgrade boundaries and covers archive entries such as `database.db` and an
-embedded `index.db`. It must not be reimplemented across query/list/search/evidence
-business paths.
+open/upgrade boundaries and covers archive entries such as `database.db`, an
+embedded `index.db`, and legacy embedded `fts.db`. It must not be reimplemented
+across query/list/search/evidence business paths.
 
-The v1 -> v2 archive upgrader removes the embedded archive `index.db` as derived
-search index data and preserves important archive content and the mutation token.
-It must refuse active coordinator state for the target archive and non-`index.db`
-overlays, because those can represent uncommitted important data.
+The v1 -> v2 archive upgrader removes embedded archive `index.db` and legacy
+`fts.db` as derived search index data and preserves important archive content
+and the mutation token. It must refuse active coordinator state for the target
+archive and non-search-index overlays, because those can represent uncommitted
+important data.
 
 ## Home Gate
 
@@ -79,7 +80,8 @@ code and tests when adding new home SQLite files:
 
 For v1 -> v2, derived home data is deleted or invalidated: query/search caches,
 external cache, GC state, build queue SQLite/cache when safe, library aggregate
-indexes, external archive search index overlays/workspaces for `index.db`, and
+indexes, external archive search index overlays/workspaces for `index.db` or
+legacy `fts.db`, and
 orphaned SQLite materialization cache overlays whose archive file no longer
 exists. The upgrader must block when active GC, build job, worker lease,
 coordinator owner/lock/sqlite lease/commit lock, or remaining non-derived

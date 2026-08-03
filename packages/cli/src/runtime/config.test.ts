@@ -39,4 +39,23 @@ describe("runtime/config", () => {
       await rm(tempDir, { force: true, recursive: true });
     }
   });
+
+  it("ignores incomplete embedding config in general CLI config", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "wikigraph-config-test-"));
+
+    try {
+      await withWikiGraphStateDirectoryPathForTesting(tempDir, async () => {
+        await putLocalConfigValue(
+          "embeddings",
+          "provider",
+          "openai-compatible",
+        );
+        await putLocalConfigValue("embeddings", "dimensions", 1536);
+
+        await expect(loadCLIConfig()).resolves.not.toHaveProperty("embedding");
+      });
+    } finally {
+      await rm(tempDir, { force: true, recursive: true });
+    }
+  });
 });

@@ -160,7 +160,7 @@ export async function querySearchIndex(
       : [];
     const textHits =
       ftsTextHits.length > 0 && denseTextHits.length > 0
-        ? fuseTextHitsByRrf(ftsTextHits, denseTextHits, options.textHitLimit)
+        ? fuseTextHitsByRrf(ftsTextHits, denseTextHits)
         : denseTextHits.length > 0
           ? denseTextHits
           : ftsTextHits;
@@ -186,6 +186,8 @@ export async function querySearchIndex(
 
 interface SearchIndexQueryState {
   readonly denseDimensions?: number;
+  readonly embeddingIdentity?: string;
+  readonly embeddingModel?: string;
   readonly indexes: "dense" | "fts" | "fts,dense";
 }
 
@@ -219,10 +221,34 @@ async function readSearchIndexQueryState(
     undefined,
     (row) => Number(row.value),
   );
+  const embeddingModel = await database.queryOne(
+    `
+      SELECT value
+      FROM search_index_state
+      WHERE key = 'embeddingModel'
+    `,
+    undefined,
+    (row) => String(row.value),
+  );
+  const embeddingIdentity = await database.queryOne(
+    `
+      SELECT value
+      FROM search_index_state
+      WHERE key = 'embeddingIdentity'
+    `,
+    undefined,
+    (row) => String(row.value),
+  );
   const denseDimensions =
     dimensionsValue === undefined ? undefined : Number(dimensionsValue);
 
   const state: SearchIndexQueryState = {
+    ...(embeddingIdentity === undefined || embeddingIdentity === ""
+      ? {}
+      : { embeddingIdentity }),
+    ...(embeddingModel === undefined || embeddingModel === ""
+      ? {}
+      : { embeddingModel }),
     indexes: indexes === "dense" || indexes === "fts,dense" ? indexes : "fts",
   };
 
@@ -267,6 +293,30 @@ async function queryDenseTextRows(
       throw new Error(
         "Dense search requires embeddings configuration. Configure `wikg://local/config/embeddings` before querying a Dense-only index.",
       );
+    }
+    return [];
+  }
+
+  if (
+    state.embeddingModel !== undefined &&
+    options.embeddingProvider.model !== state.embeddingModel
+  ) {
+    const message = `Dense query embedding model is ${options.embeddingProvider.model}; index expects ${state.embeddingModel}.`;
+
+    if (state.indexes === "dense") {
+      throw new Error(message);
+    }
+    return [];
+  }
+  if (
+    state.embeddingIdentity !== undefined &&
+    options.embeddingProvider.identity !== undefined &&
+    options.embeddingProvider.identity !== state.embeddingIdentity
+  ) {
+    const message = "Dense query embedding identity does not match the index.";
+
+    if (state.indexes === "dense") {
+      throw new Error(message);
     }
     return [];
   }
@@ -340,7 +390,7 @@ async function queryDenseSegmentHits(
         vector
       FROM text_embedding_segments
       WHERE kind IN (${kinds.map(() => "?").join(", ")})
-        ${createChapterSql(options.chapters).replaceAll("r.", "")}
+        ${createChapterSql(options.chapters, "")}
     `,
     [...kinds, ...createChapterParams(options.chapters)],
     (row) => ({
@@ -447,7 +497,6 @@ async function expandDenseSegmentHits(
 function fuseTextHitsByRrf(
   ftsHits: readonly SearchIndexTextHit[],
   denseHits: readonly SearchIndexTextHit[],
-  limit: number | undefined,
 ): readonly SearchIndexTextHit[] {
   const fused = new Map<
     string,
@@ -486,7 +535,6 @@ function fuseTextHitsByRrf(
         left.hit.sentenceIndex - right.hit.sentenceIndex ||
         left.hit.kind - right.hit.kind,
     )
-    .slice(0, limit ?? SEARCH_INDEX_FTS_HIT_LIMIT)
     .map((entry, index) => ({
       ...entry.hit,
       rank: index + 1,

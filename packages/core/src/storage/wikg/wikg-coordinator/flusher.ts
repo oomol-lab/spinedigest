@@ -109,7 +109,9 @@ export async function flushArchiveOverlays(
         await writeWikgArchiveWithOverlays(archivePath, temporaryArchivePath, [
           ...currentOverlays.map(toArchiveOverlay),
           ...(currentOverlays.some(
-            (overlay) => overlay.entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH,
+            (overlay) =>
+              overlay.entryPath === DATABASE_ENTRY_PATH ||
+              overlay.entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH,
           )
             ? [
                 {

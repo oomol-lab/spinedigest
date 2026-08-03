@@ -116,17 +116,7 @@ export function normalizeLocalConfigKey(
     throw new Error("Config key cannot be empty.");
   }
 
-  if (section === "llm") {
-    switch (normalized) {
-      case "api-key":
-        return "apiKey";
-      case "base-url":
-        return "baseURL";
-      default:
-        return normalized;
-    }
-  }
-  if (section === "embeddings") {
+  if (section === "llm" || section === "embeddings") {
     switch (normalized) {
       case "api-key":
         return "apiKey";

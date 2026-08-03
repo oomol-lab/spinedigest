@@ -62,7 +62,6 @@ export async function embedQueryText(
   const embeddingModel = createEmbeddingModel(provider, model, config);
   const providerOptions = createEmbeddingProviderOptions(provider, config);
   const result = await embed({
-    maxRetries: 0,
     model: embeddingModel,
     ...(providerOptions === undefined ? {} : { providerOptions }),
     value: normalized,
@@ -91,6 +90,7 @@ export function buildSearchIndexEmbeddingProvider(
     ...(config.dimensions === undefined
       ? {}
       : { dimensions: config.dimensions }),
+    identity: createEmbeddingIdentity(provider, model, config),
     model,
     embedTexts: async (texts) => {
       const embeddings: number[][] = [];
@@ -98,7 +98,6 @@ export function buildSearchIndexEmbeddingProvider(
 
       for (const batch of chunkTexts(texts, EMBEDDING_BATCH_SIZE)) {
         const result = await embedMany({
-          maxRetries: 0,
           model: embeddingModel,
           ...(providerOptions === undefined ? {} : { providerOptions }),
           values: [...batch],
@@ -113,6 +112,21 @@ export function buildSearchIndexEmbeddingProvider(
       };
     },
   };
+}
+
+function createEmbeddingIdentity(
+  provider: CLIEmbeddingProvider,
+  model: string,
+  config: CLIEmbeddingConfig,
+): string {
+  return JSON.stringify({
+    ...(config.baseURL === undefined ? {} : { baseURL: config.baseURL }),
+    ...(config.dimensions === undefined
+      ? {}
+      : { dimensions: config.dimensions }),
+    model,
+    provider,
+  });
 }
 
 function* chunkTexts(

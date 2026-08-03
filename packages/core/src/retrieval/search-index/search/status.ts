@@ -64,7 +64,7 @@ export async function readSearchIndexCapabilityStatus(document: {
       if (indexes !== "dense" && indexes !== "fts,dense") {
         return {
           dense: { current: false },
-          indexes: indexes === "missing" ? "missing" : "fts",
+          indexes: indexes === undefined && !current ? "missing" : "fts",
         };
       }
 
@@ -72,12 +72,14 @@ export async function readSearchIndexCapabilityStatus(document: {
       const dimensions = parseOptionalPositiveInteger(
         await readStateValue(database, "embeddingDimensions"),
       );
+      const identity = await readStateValue(database, "embeddingIdentity");
       const model = await readStateValue(database, "embeddingModel");
 
       return {
         dense: {
           current: current && segmentCount > 0,
           ...(dimensions === undefined ? {} : { dimensions }),
+          ...(identity === undefined || identity === "" ? {} : { identity }),
           ...(model === undefined || model === "" ? {} : { model }),
         },
         indexes,

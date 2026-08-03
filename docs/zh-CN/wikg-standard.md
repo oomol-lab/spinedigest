@@ -18,17 +18,17 @@
 
 只有以下归档 entry 属于标准布局：
 
-| Entry                          | Required | Type            | Meaning                                         |
-| ------------------------------ | -------- | --------------- | ----------------------------------------------- |
-| `.wikg-mutation-token`         | Yes      | UTF-8 text      | 归档 mutation token。必须是第一个 ZIP entry。   |
-| `manifest.json`                | Yes      | JSON            | 归档格式 manifest。                             |
-| `database.db`                  | Yes      | SQLite database | 主文档、图谱、元数据和 readiness 数据库。       |
-| `toc.json`                     | No       | JSON            | 章节树。                                        |
-| `cover/info.json`              | No       | JSON            | 封面元数据。                                    |
-| `cover/data.bin`               | No       | Binary          | 封面二进制内容。存在 `cover/info.json` 时必需。 |
-| `texts/source/<serialId>.txt`  | No       | UTF-8 text      | 某个 chapter serial 的 source text stream。     |
-| `texts/summary/<serialId>.txt` | No       | UTF-8 text      | 某个 chapter serial 的 summary text stream。    |
-| `index.db`                     | No       | SQLite database | 内嵌全文搜索索引。                              |
+| Entry                          | Required | Type            | Meaning                                                 |
+| ------------------------------ | -------- | --------------- | ------------------------------------------------------- |
+| `.wikg-mutation-token`         | Yes      | UTF-8 text      | 归档 mutation token。必须是第一个 ZIP entry。           |
+| `manifest.json`                | Yes      | JSON            | 归档格式 manifest。                                     |
+| `database.db`                  | Yes      | SQLite database | 主文档、图谱、元数据和 readiness 数据库。               |
+| `toc.json`                     | No       | JSON            | 章节树。                                                |
+| `cover/info.json`              | No       | JSON            | 封面元数据。                                            |
+| `cover/data.bin`               | No       | Binary          | 封面二进制内容。存在 `cover/info.json` 时必需。         |
+| `texts/source/<serialId>.txt`  | No       | UTF-8 text      | 某个 chapter serial 的 source text stream。             |
+| `texts/summary/<serialId>.txt` | No       | UTF-8 text      | 某个 chapter serial 的 summary text stream。            |
+| `index.db`                     | No       | SQLite database | 内嵌搜索索引，包含 FTS records、Dense segments 或两者。 |
 
 当前没有其他标准 entry。非标准 entry 的例子包括 SQLite journal 文件、任意 JSON sidecar，以及 `texts/source/` 或 `texts/summary/` 之外的文本文件。
 
@@ -152,9 +152,9 @@ Summaries 是生成投影。它们不会替代 source text 作为 grounding laye
 
 ### `index.db`
 
-`index.db` 是可选的 SQLite 全文搜索索引。
+`index.db` 是可选的 SQLite 搜索索引。它可以包含 FTS records、Dense embedding segments，或同时包含两者。
 
-只有当归档 index policy 标记搜索索引为 embedded 时，writer 才会包含 `index.db`。否则，搜索索引可以作为本地 cache 存在，并且不得被视为必需归档内容。
+只有当归档 index policy 标记搜索索引为 embedded 时，writer 才会包含 `index.db`。否则，搜索索引可以作为本地 cache 存在，并且不得被视为必需的归档内容。
 
 Reader 必须能打开不包含 `index.db` 的归档。缺失或过期的搜索索引状态应作为 readiness 信息处理，而不是归档损坏。
 

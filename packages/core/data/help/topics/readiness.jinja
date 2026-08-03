@@ -138,8 +138,8 @@ WikiSpine readiness:
 How to choose:
   - Need searchable retrieval on this machine: enable the archive index.
   - Need searchable retrieval across a managed folder: enable the library index.
-  - Need local-only indexing with no provider calls: use `--indexes fts`.
-  - Need semantic retrieval: configure embeddings, then use `--indexes auto`, `dense`, or `fts,dense`.
+  - Need local-only indexing with no provider calls: use `{{ commandName }} <archive-uri>/index enable --indexes fts`.
+  - Need semantic retrieval: configure embeddings, then use `{{ commandName }} <archive-uri>/index enable --indexes auto|dense|fts,dense`.
   - Need to send a more self-contained `.wikg`: consider embedding the index.
   - Need to intentionally drop query support or index materialization: disable index.
   - Need generated Reading Graph or summaries: configure LLM and use local jobs.

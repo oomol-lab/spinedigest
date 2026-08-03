@@ -36,7 +36,7 @@ Only the following archive entries are part of the standard layout:
 | `cover/data.bin`               | No       | Binary          | Cover binary payload. Required when `cover/info.json` is present. |
 | `texts/source/<serialId>.txt`  | No       | UTF-8 text      | Source text stream for one chapter serial.                        |
 | `texts/summary/<serialId>.txt` | No       | UTF-8 text      | Summary text stream for one chapter serial.                       |
-| `index.db`                     | No       | SQLite database | Embedded full-text search index.                                  |
+| `index.db`                     | No       | SQLite database | Embedded search index with FTS records, Dense segments, or both.  |
 
 No other entry is currently standard. Examples of non-standard entries include
 SQLite journal files, arbitrary JSON sidecars, and text files outside
@@ -186,7 +186,8 @@ grounding layer.
 
 ### `index.db`
 
-`index.db` is an optional SQLite full-text search index.
+`index.db` is an optional SQLite search index. It may contain FTS records, Dense
+embedding segments, or both.
 
 Writers include `index.db` only when the archive index policy marks the search
 index as embedded. Otherwise, the search index may exist as a local cache and

@@ -22,10 +22,11 @@ export function serializeTokens(
 
 export function createChapterSql(
   chapters: readonly number[] | undefined,
+  alias = "r.",
 ): string {
   return chapters === undefined || chapters.length === 0
     ? ""
-    : `AND r.chapter_id IN (${chapters.map(() => "?").join(", ")})`;
+    : `AND ${alias}chapter_id IN (${chapters.map(() => "?").join(", ")})`;
 }
 
 export function createChapterParams(

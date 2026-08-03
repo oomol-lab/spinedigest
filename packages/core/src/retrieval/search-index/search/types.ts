@@ -54,6 +54,7 @@ export type SearchIndexSelection = "auto" | "dense" | "fts" | "fts,dense";
 
 export interface SearchIndexEmbeddingProvider {
   readonly dimensions?: number;
+  readonly identity?: string;
   readonly model: string;
   embedTexts(texts: readonly string[]): Promise<{
     readonly embeddings: readonly (readonly number[])[];
@@ -92,6 +93,7 @@ export interface SearchIndexCapabilityStatus {
   readonly dense: {
     readonly current: boolean;
     readonly dimensions?: number;
+    readonly identity?: string;
     readonly model?: string;
   };
   readonly indexes: "dense" | "fts" | "fts,dense" | "missing";

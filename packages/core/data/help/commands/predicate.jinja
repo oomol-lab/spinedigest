@@ -448,7 +448,8 @@ Notes:
   - This switches the index storage policy to the `.wikg` archive and ensures the embedded index is current.
   - After embedding, CLI archive writes keep the embedded index synchronized automatically.
   - This makes the archive more portable, but increases archive size.
-  - Use it when distributing a `.wikg` with query support ready for another machine.
+  - Use it when distributing a `.wikg` with index materialization ready for another machine.
+  - If the index includes Dense, configure `wikg://local/config/embeddings` on the destination before Dense queries. Hybrid queries can fall back to FTS.
 {% endif %}
 {% elif predicate == "external" %}
 {% if target.name == "index-object" and libraryContext.isLibraryWide %}

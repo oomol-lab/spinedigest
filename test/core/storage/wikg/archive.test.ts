@@ -212,6 +212,36 @@ describe("wikg/archive", () => {
     });
   });
 
+  it("preserves legacy fts.db when unrelated overlays rewrite the archive", async () => {
+    await withTempDir("wikigraph-archive-", async (path) => {
+      const archivePath = `${path}/legacy.wikg`;
+      const rewrittenPath = `${path}/rewritten.wikg`;
+      const overlayPath = `${path}/toc.json`;
+      const zipFile = new ZipFile();
+
+      zipFile.addBuffer(
+        Buffer.from(VALID_MUTATION_TOKEN_CONTENT, "utf8"),
+        ".wikg-mutation-token",
+      );
+      zipFile.addBuffer(
+        Buffer.from('{"formatVersion":1,"schemaVersion":2}', "utf8"),
+        "manifest.json",
+      );
+      zipFile.addBuffer(Buffer.from("sqlite", "utf8"), "database.db");
+      zipFile.addBuffer(Buffer.from("legacy-index", "utf8"), "fts.db");
+      await writeZipFile(zipFile, archivePath);
+      await writeFile(overlayPath, '{"items":[]}', "utf8");
+
+      await writeWikgArchiveWithOverlays(archivePath, rewrittenPath, [
+        { entryPath: "toc.json", kind: "file", workspacePath: overlayPath },
+      ]);
+
+      await expect(
+        readWikgArchiveEntry(rewrittenPath, "fts.db"),
+      ).resolves.toEqual(Buffer.from("legacy-index", "utf8"));
+    });
+  });
+
   it("rejects archives that omit the mutation token", async () => {
     await withTempDir("wikigraph-archive-", async (path) => {
       const archivePath = `${path}/missing-token.wikg`;

@@ -6,7 +6,6 @@ import {
   insertFtsRecord,
   insertTextEmbeddingSegment,
   insertSearchObjectPropertyRecord,
-  insertTextSentenceRecord,
 } from "./write.js";
 import type {
   SearchIndexBuildOptions,
@@ -28,10 +27,13 @@ export type ArchiveIndexProjection = SearchIndexInput;
 export type SearchIndexWriteBatch = SearchIndexInput;
 export interface SearchIndexWriteCounters {
   readonly denseDone: number;
-  readonly denseRecords: readonly TextSentenceRecordInput[];
+  readonly denseDimensions?: number;
+  readonly denseRecords: TextSentenceRecordInput[];
   readonly objectDone: number;
   readonly textDone: number;
 }
+
+const DENSE_RECORD_FLUSH_THRESHOLD = 2000;
 
 export async function writeArchiveIndexProjection(
   document: Document,
@@ -57,103 +59,16 @@ export async function ensureSearchIndex(
   progress?: SearchIndexProgressReporter,
   options: SearchIndexBuildOptions = {},
 ): Promise<void> {
-  const chaptersRevision = await document.serials.getChaptersRevision();
-  const resolved = resolveSearchIndexBuildOptions(options);
-
-  await document.writeSearchIndexDatabase(async (database) => {
-    const fingerprint = createSearchIndexFingerprint(input);
-
-    await database.transaction(async () => {
-      await progress?.({ phase: "clearing" });
-      await database.run("DELETE FROM text_sentence_fts");
-      await database.run("DELETE FROM text_embedding_segments");
-      await database.run("DELETE FROM search_object_properties_fts");
-      await database.run("DELETE FROM text_sentence_records");
-      await database.run("DELETE FROM search_object_properties_records");
-      await database.run("DELETE FROM index_dirty_chapters");
-      await database.run("DELETE FROM search_index_state");
-
-      let textDone = 0;
-      const textSentenceRows: TextSentenceEmbeddingInput[] = [];
-      for (const record of input.textSentences) {
-        const rowId = await insertTextSentenceRecord(database, record);
-
-        if (resolved.indexes !== "dense") {
-          await insertFtsRecord(
-            database,
-            "text_sentence_fts",
-            rowId,
-            createSearchTokenPlan(record.text),
-          );
-        }
-        textSentenceRows.push(record);
-        textDone += 1;
-        await progress?.({
-          done: textDone,
-          phase: "indexing-text",
-          total: input.textSentences.length,
-          unit: "sentence",
-        });
-      }
-
-      if (resolved.indexes !== "fts") {
-        await writeTextEmbeddingSegments(database, textSentenceRows, {
-          doneOffset: 0,
-          embeddingProvider: resolved.embeddingProvider,
-          ...(progress === undefined ? {} : { progress }),
-        });
-      }
-
-      let objectDone = 0;
-      if (resolved.indexes !== "dense") {
-        for (const record of input.objectProperties) {
-          const plan = createSearchTokenPlan(record.text);
-          const rowId = await insertSearchObjectPropertyRecord(
-            database,
-            record,
-          );
-
-          await insertFtsRecord(
-            database,
-            "search_object_properties_fts",
-            rowId,
-            plan,
-          );
-          objectDone += 1;
-          await progress?.({
-            done: objectDone,
-            phase: "indexing-objects",
-            total: input.objectProperties.length,
-            unit: "object",
-          });
-        }
-      }
-
-      await progress?.({ phase: "finalizing" });
-      await database.run(
-        `
-          INSERT INTO search_index_state(key, value)
-          VALUES ('version', ?)
-        `,
-        [SEARCH_INDEX_VERSION],
-      );
-      await database.run(
-        `
-          INSERT INTO search_index_state(key, value)
-          VALUES ('fingerprint', ?)
-        `,
-        [fingerprint],
-      );
-      await database.run(
-        `
-          INSERT INTO search_index_state(key, value)
-          VALUES ('chaptersRevision', ?)
-        `,
-        [String(chaptersRevision)],
-      );
-      await writeSearchIndexBuildState(database, resolved.indexes, resolved);
-    });
-  });
+  await replaceSearchIndex(
+    document,
+    (async function* (): AsyncIterable<SearchIndexWriteBatch> {
+      await Promise.resolve();
+      yield input;
+    })(),
+    createSearchIndexFingerprint(input),
+    progress,
+    options,
+  );
 }
 
 export async function replaceSearchIndex(
@@ -233,8 +148,8 @@ export async function writeSearchIndexBatch(
   options: SearchIndexBuildOptions = {},
 ): Promise<SearchIndexWriteCounters> {
   const resolved = resolveSearchIndexBuildOptions(options);
-  const denseRecords = [...counters.denseRecords];
-  const { denseDone } = counters;
+  const denseRecords = counters.denseRecords;
+  const { denseDimensions, denseDone } = counters;
   let { objectDone, textDone } = counters;
 
   await database.transaction(async () => {
@@ -281,7 +196,22 @@ export async function writeSearchIndexBatch(
     }
   });
 
-  return { denseDone, denseRecords, objectDone, textDone };
+  const nextDenseDone = await writePendingDenseRecords(database, denseRecords, {
+    ...(denseDimensions === undefined ? {} : { denseDimensions }),
+    doneOffset: denseDone,
+    ...(resolved.indexes === "fts"
+      ? {}
+      : { embeddingProvider: resolved.embeddingProvider }),
+    force: false,
+    ...(progress === undefined ? {} : { progress }),
+  });
+
+  return {
+    ...nextDenseDone,
+    denseRecords,
+    objectDone,
+    textDone,
+  };
 }
 
 export async function writeSearchIndexDenseSegments(
@@ -296,17 +226,104 @@ export async function writeSearchIndexDenseSegments(
     return counters;
   }
 
-  const denseDone = await writeTextEmbeddingSegments(
+  const denseDone = await writePendingDenseRecords(
     database,
     counters.denseRecords,
     {
+      ...(counters.denseDimensions === undefined
+        ? {}
+        : { denseDimensions: counters.denseDimensions }),
       doneOffset: counters.denseDone,
       embeddingProvider: resolved.embeddingProvider,
+      force: true,
       ...(progress === undefined ? {} : { progress }),
     },
   );
 
-  return { ...counters, denseDone, denseRecords: [] };
+  return { ...counters, ...denseDone };
+}
+
+async function writePendingDenseRecords(
+  database: Database,
+  denseRecords: TextSentenceEmbeddingInput[],
+  input: {
+    readonly denseDimensions?: number;
+    readonly doneOffset: number;
+    readonly embeddingProvider?: SearchIndexEmbeddingProvider;
+    readonly force: boolean;
+    readonly progress?: SearchIndexProgressReporter;
+  },
+): Promise<{
+  readonly denseDimensions?: number;
+  readonly denseDone: number;
+}> {
+  const doneOffset = input.doneOffset;
+
+  if (
+    input.embeddingProvider === undefined ||
+    denseRecords.length === 0 ||
+    (!input.force && denseRecords.length < DENSE_RECORD_FLUSH_THRESHOLD)
+  ) {
+    return {
+      ...(input.denseDimensions === undefined
+        ? {}
+        : { denseDimensions: input.denseDimensions }),
+      denseDone: doneOffset,
+    };
+  }
+  const writeCount = input.force
+    ? denseRecords.length
+    : findCompletedDenseRecordFlushCount(denseRecords);
+
+  if (writeCount === 0) {
+    return {
+      ...(input.denseDimensions === undefined
+        ? {}
+        : { denseDimensions: input.denseDimensions }),
+      denseDone: doneOffset,
+    };
+  }
+
+  const result = await writeTextEmbeddingSegments(
+    database,
+    denseRecords.slice(0, writeCount),
+    {
+      doneOffset,
+      embeddingProvider: input.embeddingProvider,
+      ...(input.denseDimensions === undefined
+        ? {}
+        : { expectedDimensions: input.denseDimensions }),
+      ...(input.progress === undefined ? {} : { progress: input.progress }),
+    },
+  );
+
+  denseRecords.splice(0, writeCount);
+  return {
+    ...(result.dimensions === undefined
+      ? {}
+      : { denseDimensions: result.dimensions }),
+    denseDone: result.done,
+  };
+}
+
+function findCompletedDenseRecordFlushCount(
+  records: readonly TextSentenceEmbeddingInput[],
+): number {
+  const last = records.at(-1);
+
+  if (last === undefined) {
+    return 0;
+  }
+
+  const lastGroupKey = createTextEmbeddingGroupKey(last);
+
+  for (let index = records.length - 2; index >= 0; index -= 1) {
+    if (createTextEmbeddingGroupKey(records[index]!) !== lastGroupKey) {
+      return index + 1;
+    }
+  }
+
+  return 0;
 }
 
 async function insertReplacementTextSentenceRecord(
@@ -388,7 +405,7 @@ function resolveSearchIndexBuildOptions(
     case "dense": {
       if (options.embeddingProvider === undefined) {
         throw new Error(
-          "Embeddings configuration is required for --indexes dense.",
+          "Embeddings configuration is required to build a Dense search index.",
         );
       }
       return {
@@ -401,7 +418,7 @@ function resolveSearchIndexBuildOptions(
     case "fts,dense": {
       if (options.embeddingProvider === undefined) {
         throw new Error(
-          "Embeddings configuration is required for --indexes fts,dense.",
+          "Embeddings configuration is required to build an FTS + Dense search index.",
         );
       }
       return {
@@ -437,13 +454,19 @@ async function writeTextEmbeddingSegments(
   input: {
     readonly doneOffset: number;
     readonly embeddingProvider: SearchIndexEmbeddingProvider;
+    readonly expectedDimensions?: number;
     readonly progress?: SearchIndexProgressReporter;
   },
-): Promise<number> {
+): Promise<{ readonly dimensions?: number; readonly done: number }> {
   const segments = createTextEmbeddingSegments(records);
 
   if (segments.length === 0) {
-    return input.doneOffset;
+    return {
+      ...(input.expectedDimensions === undefined
+        ? {}
+        : { dimensions: input.expectedDimensions }),
+      done: input.doneOffset,
+    };
   }
 
   const result = await input.embeddingProvider.embedTexts(
@@ -456,22 +479,29 @@ async function writeTextEmbeddingSegments(
     );
   }
 
+  const expectedDimensions =
+    input.expectedDimensions ??
+    input.embeddingProvider.dimensions ??
+    result.embeddings[0]?.length;
+
+  if (expectedDimensions === undefined || expectedDimensions <= 0) {
+    throw new Error("Embedding provider returned no usable vector dimensions.");
+  }
+
   let done = input.doneOffset;
   for (const [index, segment] of segments.entries()) {
     const vector = result.embeddings[index]!;
-    const dimensions =
-      input.embeddingProvider.dimensions ?? result.embeddings[index]!.length;
 
-    if (vector.length !== dimensions) {
+    if (vector.length !== expectedDimensions) {
       throw new Error(
-        `Embedding provider returned ${vector.length} dimensions; expected ${dimensions}.`,
+        `Embedding provider returned ${vector.length} dimensions; expected ${expectedDimensions}.`,
       );
     }
 
     await insertTextEmbeddingSegment(database, {
       archiveId: segment.archiveId,
       chapterId: segment.chapterId,
-      dimensions,
+      dimensions: expectedDimensions,
       endSentenceIndex: segment.endSentenceIndex,
       kind: segment.kind,
       model: input.embeddingProvider.model,
@@ -487,7 +517,7 @@ async function writeTextEmbeddingSegments(
     });
   }
 
-  return done;
+  return { dimensions: expectedDimensions, done };
 }
 
 function createTextEmbeddingSegments(
@@ -499,7 +529,7 @@ function createTextEmbeddingSegments(
     if (record.text.trim() === "") {
       continue;
     }
-    const key = [record.archiveId, record.kind, record.chapterId].join(":");
+    const key = createTextEmbeddingGroupKey(record);
     const group = groups.get(key) ?? [];
 
     group.push(record);
@@ -509,6 +539,12 @@ function createTextEmbeddingSegments(
   return [...groups.values()].flatMap((group) =>
     createTextEmbeddingSegmentsForGroup(group),
   );
+}
+
+function createTextEmbeddingGroupKey(
+  record: TextSentenceEmbeddingInput,
+): string {
+  return [record.archiveId, record.kind, record.chapterId].join(":");
 }
 
 function createTextEmbeddingSegmentsForGroup(
@@ -638,11 +674,54 @@ async function writeSearchIndexBuildState(
     `,
     [options.embeddingProvider.model],
   );
+  if (options.embeddingProvider.identity !== undefined) {
+    await database.run(
+      `
+        INSERT INTO search_index_state(key, value)
+        VALUES ('embeddingIdentity', ?)
+      `,
+      [options.embeddingProvider.identity],
+    );
+  }
   await database.run(
     `
       INSERT INTO search_index_state(key, value)
       VALUES ('embeddingDimensions', ?)
     `,
-    [String(options.embeddingProvider.dimensions ?? "")],
+    [
+      String(
+        options.embeddingProvider.dimensions ??
+          (await readStoredEmbeddingDimensions(database)) ??
+          "",
+      ),
+    ],
   );
+}
+
+async function readStoredEmbeddingDimensions(
+  database: Database,
+): Promise<number | undefined> {
+  const row = await database.queryOne(
+    `
+      SELECT MIN(dimensions) AS min_dimensions, MAX(dimensions) AS max_dimensions
+      FROM text_embedding_segments
+    `,
+    undefined,
+    (value) => ({
+      max: Number(value.max_dimensions),
+      min: Number(value.min_dimensions),
+    }),
+  );
+
+  if (
+    row === undefined ||
+    !Number.isInteger(row.min) ||
+    !Number.isInteger(row.max) ||
+    row.min <= 0 ||
+    row.min !== row.max
+  ) {
+    return undefined;
+  }
+
+  return row.min;
 }

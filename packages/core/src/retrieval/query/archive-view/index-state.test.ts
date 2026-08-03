@@ -21,6 +21,7 @@ describe("archive search index state", () => {
       await rebuildArchiveSearchIndex(document, undefined, {
         embeddingProvider: {
           dimensions: 3,
+          identity: "provider=openai-compatible;model=test-embedding;baseURL=a",
           model: "test-embedding",
           embedTexts: async (texts) => {
             await Promise.resolve();
@@ -60,6 +61,7 @@ describe("archive search index state", () => {
         dense: {
           current: true,
           dimensions: 3,
+          identity: "provider=openai-compatible;model=test-embedding;baseURL=a",
           model: "test-embedding",
         },
         indexes: "fts,dense",
@@ -92,6 +94,21 @@ describe("archive search index state", () => {
             ),
         ),
       ).resolves.toBe(0);
+    });
+  });
+
+  it("reports a state-less index database as missing", async () => {
+    await withTempDocument(async (document) => {
+      await document.writeSearchIndexDatabase(async () => {
+        await Promise.resolve();
+      });
+
+      await expect(
+        readSearchIndexCapabilityStatus(document),
+      ).resolves.toStrictEqual({
+        dense: { current: false },
+        indexes: "missing",
+      });
     });
   });
 
@@ -231,6 +248,36 @@ describe("archive search index state", () => {
     });
   });
 
+  it("stores inferred embedding dimensions when the provider omits dimensions", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+
+      await rebuildArchiveSearchIndex(document, undefined, {
+        embeddingProvider: {
+          model: "test-embedding",
+          embedTexts: async (texts) => {
+            await Promise.resolve();
+            return {
+              embeddings: texts.map((text, index) => [text.length, index, 1]),
+            };
+          },
+        },
+        indexes: "dense",
+      });
+
+      await expect(
+        readSearchIndexCapabilityStatus(document),
+      ).resolves.toStrictEqual({
+        dense: {
+          current: true,
+          dimensions: 3,
+          model: "test-embedding",
+        },
+        indexes: "dense",
+      });
+    });
+  });
+
   it("falls back to fts when hybrid query embedding fails", async () => {
     await withTempDocument(async (document) => {
       await writeSourceChapter(document);
@@ -336,7 +383,7 @@ describe("archive search index state", () => {
         querySearchIndex(document, "semantic vectors", {
           embeddingProvider: {
             dimensions: 2,
-            model: "wrong-size",
+            model: "test-embedding",
             embedTexts: async () => {
               await Promise.resolve();
               return { embeddings: [[1, 2]] };
@@ -347,6 +394,111 @@ describe("archive search index state", () => {
       ).rejects.toThrow(
         "Dense query embedding has 2 dimensions; index expects 3.",
       );
+    });
+  });
+
+  it("rejects dense-only query embedding model mismatch", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await rebuildArchiveSearchIndex(document, undefined, {
+        embeddingProvider: createFakeEmbeddingProvider(),
+        indexes: "dense",
+      });
+
+      await expect(
+        querySearchIndex(document, "semantic vectors", {
+          embeddingProvider: {
+            dimensions: 3,
+            model: "other-embedding",
+            embedTexts: async () => {
+              await Promise.resolve();
+              return { embeddings: [[1, 2, 3]] };
+            },
+          },
+          types: ["source"],
+        }),
+      ).rejects.toThrow(
+        "Dense query embedding model is other-embedding; index expects test-embedding.",
+      );
+    });
+  });
+
+  it("rejects dense-only query embedding identity mismatch", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await rebuildArchiveSearchIndex(document, undefined, {
+        embeddingProvider: {
+          ...createFakeEmbeddingProvider(),
+          identity: "provider=openai-compatible;model=test-embedding;baseURL=a",
+        },
+        indexes: "dense",
+      });
+
+      await expect(
+        querySearchIndex(document, "semantic vectors", {
+          embeddingProvider: {
+            ...createFakeEmbeddingProvider(),
+            identity:
+              "provider=openai-compatible;model=test-embedding;baseURL=b",
+          },
+          types: ["source"],
+        }),
+      ).rejects.toThrow(
+        "Dense query embedding identity does not match the index.",
+      );
+    });
+  });
+
+  it("rejects ragged dense build embeddings", async () => {
+    await withTempDocument(async (document) => {
+      await writeLongSourceChapter(document);
+
+      await expect(
+        rebuildArchiveSearchIndex(document, undefined, {
+          embeddingProvider: {
+            model: "ragged-embedding",
+            embedTexts: async (texts) => {
+              await Promise.resolve();
+              return {
+                embeddings: texts.map((_, index) =>
+                  index === 1 ? [1, 2] : [1, 2, 3],
+                ),
+              };
+            },
+          },
+          indexes: "dense",
+        }),
+      ).rejects.toThrow(
+        "Embedding provider returned 2 dimensions; expected 3.",
+      );
+    });
+  });
+
+  it("rejects inferred dense dimensions that change across flushes", async () => {
+    await withTempDocument(async (document) => {
+      await writeManySourceChapters(document, 3, 1000);
+      let calls = 0;
+
+      await expect(
+        rebuildArchiveSearchIndex(document, undefined, {
+          embeddingProvider: {
+            model: "changing-embedding",
+            embedTexts: async (texts) => {
+              await Promise.resolve();
+              calls += 1;
+              return {
+                embeddings: texts.map((_, index) =>
+                  calls === 2 ? [index, 1] : [index, 1, 1],
+                ),
+              };
+            },
+          },
+          indexes: "dense",
+        }),
+      ).rejects.toThrow(
+        "Embedding provider returned 2 dimensions; expected 3.",
+      );
+      expect(calls).toBeGreaterThan(1);
     });
   });
 });
@@ -376,6 +528,55 @@ async function writeSourceChapter(document: DirectoryDocument): Promise<void> {
       items: [{ children: [], serialId: 1, title: "Dense" }],
       version: 1,
     });
+  });
+}
+
+async function writeLongSourceChapter(
+  document: DirectoryDocument,
+): Promise<void> {
+  await document.openSession(async (openedDocument) => {
+    await openedDocument.createSerial();
+    const draft = await openedDocument.getSerialFragments(1).createDraft();
+
+    for (let index = 0; index < 80; index += 1) {
+      draft.addSentence(`Dense indexing long sentence ${index}.`, 10);
+    }
+    await draft.commit();
+    await openedDocument.writeToc({
+      items: [{ children: [], serialId: 1, title: "Dense" }],
+      version: 1,
+    });
+  });
+}
+
+async function writeManySourceChapters(
+  document: DirectoryDocument,
+  chapters: number,
+  sentencesPerChapter: number,
+): Promise<void> {
+  await document.openSession(async (openedDocument) => {
+    const items: Array<{ children: []; serialId: number; title: string }> = [];
+
+    for (let chapter = 0; chapter < chapters; chapter += 1) {
+      const serialId = await openedDocument.createSerial();
+      const draft = await openedDocument
+        .getSerialFragments(serialId)
+        .createDraft();
+
+      for (let index = 0; index < sentencesPerChapter; index += 1) {
+        draft.addSentence(
+          `Dense indexing chapter ${chapter} sentence ${index}.`,
+          10,
+        );
+      }
+      await draft.commit();
+      items.push({
+        children: [],
+        serialId,
+        title: `Dense ${chapter}`,
+      });
+    }
+    await openedDocument.writeToc({ items, version: 1 });
   });
 }
 

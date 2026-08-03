@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { access, mkdir, readFile, rename } from "fs/promises";
+import { access, mkdir, readFile, rename, writeFile } from "fs/promises";
 import { resolve } from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -16,6 +16,10 @@ import {
 import { isSearchIndexCurrent } from "../../../../packages/core/src/retrieval/search-index/index.js";
 import { WikiGraphArchive } from "../../../../packages/core/src/api/wiki-graph-archive.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
+import {
+  readWikgArchiveEntry,
+  writeWikgArchiveWithOverlays,
+} from "../../../../packages/core/src/storage/wikg/archive/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
@@ -228,6 +232,37 @@ describe("wikg/wiki-graph-archive-file", () => {
           async (document) => {
             await expect(document.peekNextSerialId()).resolves.toBe(3);
           },
+        );
+      } finally {
+        restoreStateDir();
+      }
+    });
+  });
+
+  it("drops legacy fts.db when flushing mutated database overlays", async () => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
+      const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
+      try {
+        const archivePath = await createSeedArchive(path);
+        const legacyIndexPath = `${path}/legacy-fts.db`;
+        const rewrittenPath = `${path}/legacy-search.wikg`;
+
+        await writeFile(legacyIndexPath, "legacy-index", "utf8");
+        await writeWikgArchiveWithOverlays(archivePath, rewrittenPath, [
+          { entryPath: "fts.db", kind: "file", workspacePath: legacyIndexPath },
+        ]);
+        await rename(rewrittenPath, archivePath);
+
+        await expect(
+          readWikgArchiveEntry(archivePath, "fts.db"),
+        ).resolves.toEqual(Buffer.from("legacy-index", "utf8"));
+
+        await new WikiGraphArchiveFile(archivePath).write(async (document) => {
+          await document.createSerial();
+        });
+
+        await expect(readWikgArchiveEntry(archivePath, "fts.db")).resolves.toBe(
+          undefined,
         );
       } finally {
         restoreStateDir();

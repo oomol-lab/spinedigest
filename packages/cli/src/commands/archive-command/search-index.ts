@@ -153,6 +153,11 @@ async function isRequestedSearchIndexAlreadyCurrent(
     return (
       capabilities.indexes === "dense" &&
       capabilities.dense.current &&
+      capabilities.dense.model === options.embeddingProvider.model &&
+      isDenseIdentityCurrent(
+        capabilities,
+        options.embeddingProvider.identity,
+      ) &&
       (options.embeddingProvider.dimensions === undefined ||
         capabilities.dense.dimensions === options.embeddingProvider.dimensions)
     );
@@ -162,9 +167,17 @@ async function isRequestedSearchIndexAlreadyCurrent(
     capabilities.indexes === "fts,dense" &&
     capabilities.dense.current &&
     capabilities.dense.model === options.embeddingProvider.model &&
+    isDenseIdentityCurrent(capabilities, options.embeddingProvider.identity) &&
     (options.embeddingProvider.dimensions === undefined ||
       capabilities.dense.dimensions === options.embeddingProvider.dimensions)
   );
+}
+
+function isDenseIdentityCurrent(
+  capabilities: Awaited<ReturnType<typeof readSearchIndexCapabilityStatus>>,
+  identity: string | undefined,
+): boolean {
+  return identity === undefined || capabilities.dense.identity === identity;
 }
 
 async function createSearchIndexBuildOptions(

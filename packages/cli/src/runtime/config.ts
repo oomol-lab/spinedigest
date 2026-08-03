@@ -127,12 +127,10 @@ function createEmbeddingConfig(
   const name = readString(value.name);
 
   if (
-    apiKey === undefined &&
-    baseURL === undefined &&
-    dimensions === undefined &&
-    model === undefined &&
-    name === undefined &&
-    provider === undefined
+    provider === undefined ||
+    model === undefined ||
+    (provider === "openai-compatible" && baseURL === undefined) ||
+    (provider === "openai" && baseURL !== undefined)
   ) {
     return undefined;
   }
