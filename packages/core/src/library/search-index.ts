@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { mkdir, readdir, rm, stat } from "fs/promises";
+import { mkdir, readdir, rm } from "fs/promises";
 import { join } from "path";
 
 import { Database, getNumber, getString } from "../document/database.js";
@@ -804,18 +804,6 @@ function createLibraryIndexDatabasePath(
   library: WikiGraphLibraryRecord,
 ): string {
   return join(createLibraryIndexDirectory(library), "index.db");
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return false;
-    }
-    throw error;
-  }
 }
 
 function isMissingSqliteOpenError(error: unknown): boolean {

@@ -7,6 +7,7 @@ import type {
   ReplaceFtsIndexArtifactInput,
   SentenceRecord,
 } from "../../document/index.js";
+import type { TocItem } from "../../text/source/index.js";
 import {
   DENSE_SEGMENT_MAX_WORDS,
   DENSE_SEGMENT_MIN_WORDS,
@@ -81,6 +82,7 @@ export async function buildChapterFtsIndexArtifact(
   );
 
   return createFtsIndexArtifactInput({
+    chapterTitles: await readChapterTitles(document, serialId),
     chunks: await document.chunks.listBySerial(serialId),
     mentions: await document.mentions.listByChapter(serialId),
     sentences,
@@ -91,6 +93,10 @@ export async function buildChapterFtsIndexArtifact(
 }
 
 export function createFtsIndexArtifactInput(input: {
+  readonly chapterTitles?: readonly {
+    readonly id: number;
+    readonly title: string;
+  }[];
   readonly chunks?: readonly {
     readonly content: string;
     readonly id: number;
@@ -109,6 +115,14 @@ export function createFtsIndexArtifactInput(input: {
 }): ReplaceFtsIndexArtifactInput {
   return {
     lexicalRows: [
+      ...(input.chapterTitles ?? []).map((chapter) =>
+        createObjectLexicalRow({
+          objectId: String(chapter.id),
+          objectKind: "chapter-title",
+          rowId: `chapter-title:${chapter.id}`,
+          text: chapter.title,
+        }),
+      ),
       ...input.sentences.map((sentence, sentenceIndex) =>
         createTextSentenceLexicalRow({
           objectKind: "source-sentence",
@@ -304,6 +318,41 @@ async function listTextStreamSentences(stream: {
   }
 
   return await stream.listSentences();
+}
+
+async function readChapterTitles(
+  document: ReadonlyDocument,
+  serialId: number,
+): Promise<readonly { readonly id: number; readonly title: string }[]> {
+  const toc = await readDocumentToc(document);
+  if (toc === undefined) {
+    return [];
+  }
+
+  const items = collectTocItems(toc.items);
+  const chapter = items.find((item) => item.serialId === serialId);
+
+  if (chapter === undefined || typeof chapter.title !== "string") {
+    return [];
+  }
+
+  return [{ id: serialId, title: chapter.title }];
+}
+
+async function readDocumentToc(
+  document: ReadonlyDocument,
+): Promise<{ readonly items: readonly TocItem[] } | undefined> {
+  const reader = document as ReadonlyDocument & {
+    readonly readToc?: () => Promise<
+      { readonly items: readonly TocItem[] } | undefined
+    >;
+  };
+
+  return await reader.readToc?.();
+}
+
+function collectTocItems(items: readonly TocItem[]): readonly TocItem[] {
+  return items.flatMap((item) => [item, ...collectTocItems(item.children)]);
 }
 
 function createEmbeddingSegments(

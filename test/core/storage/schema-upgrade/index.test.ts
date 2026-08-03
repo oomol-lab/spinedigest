@@ -188,7 +188,7 @@ describe("schema-upgrade", () => {
       );
       await expect(
         readWikgArchiveEntry(archivePath, SEARCH_INDEX_DATABASE_PATH),
-      ).resolves.toBeInstanceOf(Uint8Array);
+      ).resolves.toBeUndefined();
       await expect(
         upgradeWikiGraphArchiveSchema(archivePath),
       ).resolves.toStrictEqual({

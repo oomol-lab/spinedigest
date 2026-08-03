@@ -10,6 +10,7 @@ import {
   Database,
   DirectoryDocument,
 } from "../../../../../packages/core/src/document/index.js";
+import { replaceChapterFtsIndexArtifact } from "../../../../../packages/core/src/retrieval/index-artifact/index.js";
 import { rebuildArchiveSearchIndex } from "../../../../../packages/core/src/retrieval/query/index.js";
 import { extractWikgArchive } from "../../../../../packages/core/src/storage/wikg/archive/index.js";
 import { migrateLegacySdpubToWikg } from "../../../../../packages/core/src/storage/migration/legacy-sdpub/upgrade/index.js";
@@ -45,6 +46,7 @@ describe("legacy-sdpub/upgrade", () => {
         await expect(
           readFile(`${extractedPath}/index.db`, "utf8"),
         ).rejects.toThrow();
+        await replaceChapterFtsIndexArtifact(document, 1);
         await rebuildArchiveSearchIndex(document);
         await expect(
           countSearchIndexRecords(document),

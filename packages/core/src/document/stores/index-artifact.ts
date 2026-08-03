@@ -1,4 +1,4 @@
-import { getNumber, getOptionalString, getString } from "../database.js";
+import { getNumber, getString } from "../database.js";
 import type { Database, SqlRow } from "../database.js";
 import {
   INDEX_ARTIFACT_KINDS,
@@ -404,7 +404,7 @@ function parseStringArray(value: string): readonly string[] {
     throw new TypeError("Expected artifact tokens to be a string array");
   }
 
-  return parsed;
+  return parsed as string[];
 }
 
 function parseNumberArray(value: string): readonly number[] {
@@ -417,5 +417,5 @@ function parseNumberArray(value: string): readonly number[] {
     throw new TypeError("Expected artifact vector to be a number array");
   }
 
-  return parsed;
+  return parsed as number[];
 }

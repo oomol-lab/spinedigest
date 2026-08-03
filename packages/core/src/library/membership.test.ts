@@ -27,7 +27,6 @@ import {
   parseWikiGraphLibraryUri,
   putWikiGraphLibraryMetadata,
   queryWikiGraphLibrarySearchIndex,
-  rebuildArchiveSearchIndex,
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
   rebindWikiGraphLibrary,
@@ -38,7 +37,6 @@ import {
   resolveWikiGraphLibraryArchivePath,
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
-  WikiGraphArchiveFile,
 } from "../index.js";
 import { Database } from "../document/database.js";
 import { DirectoryDocument } from "../document/index.js";
