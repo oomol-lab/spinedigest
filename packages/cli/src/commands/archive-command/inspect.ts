@@ -2,7 +2,6 @@ import {
   formatWikiGraphCommandUri,
   isArchiveSearchIndexCurrent,
   listChapters,
-  readArchiveIndexSettings,
   type ChapterEntry,
   type IndexArtifactCoverageRecord,
   type ReadonlyDocument,
@@ -71,7 +70,6 @@ interface InspectReport {
     readonly querySupport: boolean;
     readonly resource?: string;
     readonly status: "current" | "missing-or-outdated";
-    readonly storage: "archive" | "cache";
   };
   readonly coverage: {
     readonly ftsIndexArtifact: InspectCoverage;
@@ -117,7 +115,6 @@ async function createArchiveInspectReport(
     chapters,
     summaryWords,
     ftsCurrent,
-    indexSettings,
     config,
     ftsArtifactCoverage,
     sourceEmbeddingArtifactCoverage,
@@ -126,7 +123,6 @@ async function createArchiveInspectReport(
     readInspectChapters(document, args.chapterId),
     readSummaryWords(document, args.chapterId),
     isArchiveSearchIndexCurrent(document),
-    readArchiveIndexSettings(document),
     loadCLIConfig(),
     readIndexArtifactCoverage(document, "fts", args.chapterId),
     readIndexArtifactCoverage(document, "embedding-source", args.chapterId),
@@ -212,14 +208,13 @@ async function createArchiveInspectReport(
       ...(ftsCurrent
         ? {}
         : {
-            fixCommand: formatCliCommand([`${archiveUri}/index`, "enable"]),
+            fixCommand: formatCliCommand([`${archiveUri}/index`, "sync"]),
             impact:
-              "--query, related --query, and evidence --query are unavailable.",
-            resource: "local CPU/disk time only; no LLM tokens.",
+              "The next archive query may need to sync index cache first.",
+            resource: "local CPU/disk time only; no provider calls.",
           }),
-      querySupport: ftsCurrent,
+      querySupport: queryBlockedChapters.length === 0,
       status: ftsCurrent ? "current" : "missing-or-outdated",
-      storage: indexSettings.ftsEmbedded ? "archive" : "cache",
     },
     coverage: {
       ftsIndexArtifact: createInspectCoverage(
@@ -276,9 +271,8 @@ function formatArchiveInspectText(report: InspectReport): string {
       `Source words: ${report.content.sourceWords}`,
       `Summary words: ${report.content.summaryWords}`,
       "",
-      "FTS Index",
+      "Index Cache",
       `Status: ${report.index.current ? "current" : "missing or outdated"}`,
-      `Storage: ${report.index.storage === "archive" ? "embedded in archive" : "local cache"}`,
       `Query support: ${report.index.querySupport ? "available" : "unavailable"}`,
       ...(report.index.current
         ? []
@@ -437,7 +431,7 @@ function formatRetrievalGuidance(input: {
   }
 
   const lines = [
-    `Query support: ${input.ftsCurrent ? "available" : "unavailable until the searchable index is enabled"}.`,
+    `Query cache: ${input.ftsCurrent ? "current" : "missing or outdated; archive query can sync it from artifacts"}.`,
   ];
 
   lines.push(
@@ -496,10 +490,10 @@ function createInspectImprovements(input: {
 
   if (!input.ftsCurrent) {
     improvements.push({
-      command: formatCliCommand([`${input.archiveUri}/index`, "enable"]),
+      command: formatCliCommand([`${input.archiveUri}/index`, "sync"]),
       recommendation:
-        "Enable the searchable FTS index so --query filtering is available for scopes, related results, and evidence.",
-      title: "Enable searchable index",
+        "Sync the index cache from chapter index artifacts so query starts without a lazy cache rebuild.",
+      title: "Sync index cache",
     });
   }
 

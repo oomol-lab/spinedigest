@@ -153,12 +153,12 @@ Use when:
 
 Usage:
   {{ commandName }} {{ uri }} [--json]
-  {{ commandName }} {{ uri }} enable [--indexes auto|fts|dense|fts,dense] [--jsonl]
-  {{ commandName }} {{ uri }} disable [--json]
+  {{ commandName }} {{ uri }} sync [--jsonl]
+  {{ commandName }} {{ uri }} clean [--json]
 
 Predicate commands:
-  - enable: rebuild this library index from registered present archives. Help: {{ commandName }} {{ uri }} enable --help
-  - disable: remove this library index materialization. Help: {{ commandName }} {{ uri }} disable --help
+  - sync: rebuild this library index cache from registered present archives' artifacts. Help: {{ commandName }} {{ uri }} sync --help
+  - clean: remove this library index cache. Help: {{ commandName }} {{ uri }} clean --help
 
 Related help:
   - Library registry, membership, path binding, and aggregate index concepts: {{ commandName }} help library
@@ -170,7 +170,7 @@ Default behavior:
   - Use `{{ commandName }} wikg://lib/registry` to list all library registries.
   - `{{ commandName }} {{ uri }} --query <query>` searches library-wide objects through the library index.
   - `{{ commandName }} {{ uri }}/arc scan` reconciles membership with `.wikg` files currently under the library folder.
-  - Library-wide object scopes such as `/entity` and `/triple` query one object type through the library index after it is enabled.
+  - Library-wide object scopes such as `/entity` and `/triple` query one object type through the library index after it is synced.
   - Archive object search must use an explicit lens such as `/entity`, `/triple`, `/chapter`, or `/chunk`.
 
 Use when:

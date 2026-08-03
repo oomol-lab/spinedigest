@@ -61,21 +61,20 @@ Library-wide query:
 
 Library index lifecycle:
   - `{{ commandName }} <library-uri>/index` reads library index status.
-  - `{{ commandName }} <library-uri>/index enable` rebuilds the aggregate index from registered present archives.
-  - Use `{{ commandName }} <library-uri>/index enable --help` for `--indexes auto|fts|dense|fts,dense`.
-  - `{{ commandName }} <library-uri>/index disable` removes the local library index materialization.
+  - `{{ commandName }} <library-uri>/index sync` rebuilds the aggregate index cache from registered present archives' artifacts.
+  - `{{ commandName }} <library-uri>/index clean` removes the local library index cache.
   - Library indexes are local derived state under Wiki Graph staging, not files inside the library folder.
-  - FTS is local-only. Dense requires `wikg://local/config/embeddings` and may call the configured embeddings provider during rebuild and Dense query.
+  - Sync does not build missing chapter artifacts and does not call an embeddings provider.
+  - Dense query still requires `wikg://local/config/embeddings` to embed the query text.
   - When both FTS and Dense exist, library query combines them automatically; there is no separate query mode flag.
   - `scan`, `add`, archive `path set`, archive `remove`, and archive writes can make the aggregate index dirty.
-  - Enable the library index again when library-wide query reports that the index is missing, dirty, or stale.
-  - Library indexes do not support archive-style `embed` or `external` modes.
+  - Sync the library index again when library-wide query reports that the index is missing, dirty, or stale.
 
 Concurrency:
   - Library registry and membership writes hold the library write lock.
-  - `arc scan`, `arc add`, library `path set`, library archive `path set`, library archive `remove`, and library index `enable` or `disable` cannot run concurrently for the same library.
+  - `arc scan`, `arc add`, library `path set`, library archive `path set`, library archive `remove`, and library index `sync` or `clean` cannot run concurrently for the same library.
   - Library-wide object `--query`, object scope enumeration, evidence, related, and pack commands read the current aggregate index.
-  - If a write marks the aggregate index dirty, rebuild it with `{{ commandName }} <library-uri>/index enable` before relying on library-wide query results.
+  - If a write marks the aggregate index dirty, rebuild it with `{{ commandName }} <library-uri>/index sync` before relying on library-wide query results.
 
 Upgrade and cleanup:
   - Upgrade a whole library with `{{ commandName }} maintenance upgrade wikg://lib` or `{{ commandName }} maintenance upgrade wikg://lib/<lib-id>`.

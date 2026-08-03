@@ -217,14 +217,14 @@ Use when:
   - You need to redirect or pipe the cover resource.
 {% elif target.name == "index-object" %}
 URI type:
-  Index object
+  Index cache object
 
 Default behavior:
-  - `{{ commandName }} {{ uri }}` reads archive index status, readiness, storage policy, and materialization state.
-  - Use this page when `inspect`, `--query`, `related`, or `evidence` reports missing, stale, or unavailable index support.
+  - `{{ commandName }} {{ uri }}` reads index cache status and capabilities.
+  - Chapter-level `/index/...` URIs manage index artifacts. Archive and library `/index` URIs manage derived cache.
 
 Use when:
-  - You need to inspect currentness, enable, disable, embed, or externalize searchable index support.
+  - You need to inspect, sync, or clean query cache materialization.
 {% elif target.name == "job-collection-scope" %}
 URI type:
   Local job collection scope
@@ -379,18 +379,14 @@ Predicate commands:
 {% else %}
   - delete: delete a config key. Help: {{ commandName }} {{ uri }} delete --help
 {% endif %}
-{% elif predicate == "disable" %}
-  - disable: disable searchable index support and remove index materialization. Help: {{ commandName }} {{ uri }} disable --help
-{% elif predicate == "embed" %}
-  - embed: use archive-embedded searchable index storage. Help: {{ commandName }} {{ uri }} embed --help
-{% elif predicate == "enable" %}
-  - enable: enable searchable index support and bring it to current. Help: {{ commandName }} {{ uri }} enable --help
+{% elif predicate == "clean" %}
+  - clean: remove derived index cache materialization. Help: {{ commandName }} {{ uri }} clean --help
 {% elif predicate == "evidence" %}
   - evidence: trace this object to source-backed evidence; supports `--reverse` without `--query`. Help: {{ commandName }} {{ uri }} evidence --help
 {% elif predicate == "export" %}
   - export: export an archive projection. Help: {{ commandName }} {{ uri }} export --help
-{% elif predicate == "external" %}
-  - external: use local-cache searchable index storage. Help: {{ commandName }} {{ uri }} external --help
+{% elif predicate == "sync" %}
+  - sync: rebuild derived index cache from chapter index artifacts. Help: {{ commandName }} {{ uri }} sync --help
 {% elif predicate == "inspect" %}
   - inspect: inspect archive readiness. Help: {{ commandName }} {{ uri }} inspect --help
 {% elif predicate == "move" %}

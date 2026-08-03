@@ -379,22 +379,22 @@ describe("cli/args/help", () => {
       "Library index readiness:",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "Without a current index",
+      "Archive query needs chapter index artifacts",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "`wg <archive-uri>/index enable` enables the searchable index as local cache outside the `.wikg` archive",
+      "`wg <archive-uri>/index sync` builds or repairs local `index.db` cache from artifacts",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "CLI archive writes keep it synchronized automatically",
+      "Free archive query can lazy-sync the cache on first use",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "wg <archive-uri>/index enable --help",
+      "wg <archive-uri>/index sync --help",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "wg <archive-uri>/index embed --help",
+      "wg <archive-uri>/index clean --help",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "wg wikg://lib/index enable --help",
+      "wg wikg://lib/index sync --help",
     );
     expect(renderHelpTopicText("readiness")).toContain("LLM readiness:");
     expect(renderHelpTopicText("readiness")).toContain("WikiSpine readiness:");
@@ -529,10 +529,10 @@ describe("cli/args/help", () => {
     );
     expect(
       renderUriHelpText("index-object", "wikg://book.wikg/index"),
-    ).toContain("status, readiness, storage policy, and materialization state");
+    ).toContain("reads index cache status and capabilities");
     expect(
       renderUriPredicateHelpText("index-object", "sync", "wikg://lib/index"),
-    ).toContain("Build or rebuild this library's aggregate search index");
+    ).toContain("Sync this library index cache");
     expect(
       renderUriPredicateHelpText("index-object", "sync", "wikg://lib/index"),
     ).not.toContain(
@@ -544,7 +544,7 @@ describe("cli/args/help", () => {
         "clean",
         "wikg://book.wikg/index",
       ),
-    ).toContain("does not guarantee a current local materialization");
+    ).toContain("Delete this index cache");
     expect(
       renderUriHelpText("local-config-namespace", "wikg://local/config"),
     ).toContain("Local config namespace");
@@ -822,7 +822,7 @@ describe("cli/args/help", () => {
         { isDefault: true, kind: "scope", objectUri: "wikg://index" },
         "sync",
       ),
-    ).toContain("Rebuild holds the library write lock");
+    ).toContain("Sync holds the library write lock");
     expect(
       renderLibraryPredicateHelpText(
         "wikg://lib/index",

@@ -231,7 +231,7 @@ describe("cli/archive/object", () => {
       "Summary: 1/2 chapters, 800/1200 words, 66.7%",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Command: wg wikg:///tmp/book.wikg/index enable",
+      "Command: wg wikg:///tmp/book.wikg/index sync",
     );
     expect(archiveMockState.textWrites[0]).toContain(
       "Command: wg wikg://local/job add --input wikg:///tmp/book.wikg --task reading-graph --accept-cost",
@@ -285,7 +285,7 @@ describe("cli/archive/object", () => {
       "URI: wikg://lib/arc/archive123",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Command: wg wikg://lib/arc/archive123/index enable",
+      "Command: wg wikg://lib/arc/archive123/index sync",
     );
     expect(archiveMockState.textWrites[0]).toContain(
       "--input wikg://lib/arc/archive123 --task reading-graph",
@@ -332,7 +332,7 @@ describe("cli/archive/object", () => {
     ]);
     expect(output.uri).toBe("wikg://lib/arc/archive123");
     expect(output.index?.fixCommand).toBe(
-      "wg wikg://lib/arc/archive123/index enable",
+      "wg wikg://lib/arc/archive123/index sync",
     );
     expect(archiveMockState.textWrites[0]).not.toContain(
       "/tmp/library/archive123.wikg",
@@ -409,7 +409,7 @@ describe("cli/archive/object", () => {
     });
 
     expect(archiveMockState.textWrites[0]).toContain(
-      "Command: wg 'wikg:///tmp/My Book.wikg/index' enable",
+      "Command: wg 'wikg:///tmp/My Book.wikg/index' sync",
     );
     expect(archiveMockState.textWrites[0]).toContain(
       "Command: wg wikg://local/job add --input 'wikg:///tmp/My Book.wikg' --task reading-graph --accept-cost",
@@ -447,10 +447,9 @@ describe("cli/archive/object", () => {
       },
       index: {
         current: false,
-        fixCommand: "wg wikg:///tmp/book.wikg/index enable",
-        querySupport: false,
+        fixCommand: "wg wikg:///tmp/book.wikg/index sync",
+        querySupport: true,
         status: "missing-or-outdated",
-        storage: "cache",
       },
       coverage: {
         knowledgeGraph: {
@@ -479,16 +478,16 @@ describe("cli/archive/object", () => {
     });
     expect(output.retrievalGuidance).toEqual(
       expect.arrayContaining([
-        "Query support: unavailable until the searchable index is enabled.",
+        "Query cache: missing or outdated; archive query can sync it from artifacts.",
       ]),
     );
     expect(output.improvements).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          command: "wg wikg:///tmp/book.wikg/index enable",
+          command: "wg wikg:///tmp/book.wikg/index sync",
           recommendation:
-            "Enable the searchable FTS index so --query filtering is available for scopes, related results, and evidence.",
-          title: "Enable searchable index",
+            "Sync the index cache from chapter index artifacts so query starts without a lazy cache rebuild.",
+          title: "Sync index cache",
         }),
         expect.objectContaining({
           command:

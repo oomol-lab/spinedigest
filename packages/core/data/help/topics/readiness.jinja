@@ -11,58 +11,52 @@ Start with inspect:
   {{ commandName }} <archive-uri> inspect
 
 Archive index readiness:
-  Archive `--query` uses that archive's current search index. Without a current index, retrieval is unavailable for archive scopes, evidence, and related results.
+  Archive query needs chapter index artifacts. For each content chapter, at least one of these must be current:
+  - FTS artifact: `<chapter-uri>/index/fts`
+  - Source embedding artifact: `<chapter-uri>/index/embedding/source`
 
-  Default behavior:
-    `{{ commandName }} <archive-uri>/index enable` enables the searchable index as local cache outside the `.wikg` archive.
-    By default this builds FTS and also builds Dense semantic segments when embeddings are configured.
-    This keeps the archive smaller, but the index does not travel with copied archive files.
-    If another user receives the `.wikg`, they usually need to enable their own local index.
-    After an index is enabled, CLI archive writes keep it synchronized automatically.
-    Do not enable the index again after every generation job.
+  Artifact behavior:
+    Chapter artifacts are stored inside the `.wikg` archive.
+    Build FTS artifacts with the chapter index URI or queue target `index-fts`.
+    Build source embedding artifacts with the chapter index URI or queue target `index-embedding-source`.
+    Building embedding artifacts requires `wikg://local/config/embeddings` and may call the configured provider.
 
-  Portable behavior:
-    `{{ commandName }} <archive-uri>/index embed` switches to an archive-embedded searchable index and ensures it is current.
-    This makes the archive more self-contained, but increases file size.
-    After embedding, CLI archive writes keep the embedded index synchronized automatically.
-    If you are unsure, enable the local index first and embed only when distribution convenience matters.
+  Cache behavior:
+    `{{ commandName }} <archive-uri>/index sync` builds or repairs local `index.db` cache from artifacts.
+    Sync does not build missing artifacts and does not call an embeddings provider.
+    Free archive query can lazy-sync the cache on first use, but explicit sync avoids the first-query delay.
+    `{{ commandName }} <archive-uri>/index clean` deletes only the local cache.
 
-  Index choices:
-    Use `{{ commandName }} <archive-uri>/index enable --help` for `--indexes`.
-    FTS is local-only and has no provider cost.
-    Dense requires `wikg://local/config/embeddings` and may call the configured embeddings provider during indexing and Dense query.
-    When both FTS and Dense exist, query combines them automatically; there is no separate query mode flag.
+  Query behavior:
+    FTS artifact only: FTS query.
+    Source embedding artifact only: semantic/Dense-only query.
+    Both artifacts: Hybrid query with automatic fusion.
+    Missing both for any content chapter: query fails in strict mode.
+    Summary embedding artifacts are for summary semantic retrieval and are not the minimum requirement for ordinary source query.
 
   Commands:
     {{ commandName }} <archive-uri>/index
-    {{ commandName }} <archive-uri>/index enable --help
-    {{ commandName }} <archive-uri>/index disable --help
-    {{ commandName }} <archive-uri>/index embed --help
-    {{ commandName }} <archive-uri>/index external --help
+    {{ commandName }} <archive-uri>/index sync --help
+    {{ commandName }} <archive-uri>/index clean --help
 
 Library index readiness:
-  Library-wide scopes use an aggregate library index instead of one standalone archive index.
-  Without a current library index, library-wide `--query`, evidence, related, pack, and scope enumeration may be unavailable.
+  Library-wide scopes use an aggregate library index cache built from member archives' artifacts.
+  Unlike a free archive, library query does not lazy-sync this cache. It must already be current.
 
   Default behavior:
-    `{{ commandName }} wikg://lib/index enable` rebuilds the default library index from registered present archives.
-    `{{ commandName }} wikg://lib/<lib-id>/index enable` rebuilds a non-default library index.
+    `{{ commandName }} wikg://lib/index sync` rebuilds the default library index cache from registered present archives.
+    `{{ commandName }} wikg://lib/<lib-id>/index sync` rebuilds a non-default library index cache.
     The index is local derived state under Wiki Graph staging, not a file inside the library folder.
-    It supports the same `--indexes auto|fts|dense|fts,dense` choices as archive index enable.
+    Sync does not build missing chapter artifacts and does not call an embeddings provider.
 
   Dirty behavior:
     `scan`, `add`, archive `path set`, archive `remove`, archive writes, and membership changes can mark the aggregate index dirty.
-    Re-enable the library index when library-wide query reports that it is missing, dirty, or stale.
-    Library indexes do not support archive-style `embed` or `external` modes.
-
-  Dense behavior:
-    Dense library indexes require `wikg://local/config/embeddings`.
-    Rebuild can call the configured embeddings provider for every present archive member that contributes Dense segments.
+    Sync the library index when library-wide query reports that it is missing, dirty, or stale.
 
   Commands:
     {{ commandName }} wikg://lib/index
-    {{ commandName }} wikg://lib/index enable --help
-    {{ commandName }} wikg://lib/index disable --help
+    {{ commandName }} wikg://lib/index sync --help
+    {{ commandName }} wikg://lib/index clean --help
     {{ commandName }} help library
 
 Generation readiness:
@@ -95,7 +89,7 @@ LLM readiness:
     {{ commandName }} wikg://local/config/llm test
 
 Embeddings readiness:
-  `wikg://local/config/embeddings` is required for Dense index builds and for querying an index that only has Dense.
+  `wikg://local/config/embeddings` is required for source or summary embedding artifact builds and for querying an index cache that includes Dense vectors.
   Hybrid query can still fall back to FTS if a Dense query embedding request fails.
 
   Minimum configuration:
@@ -136,15 +130,13 @@ WikiSpine readiness:
     https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
 
 How to choose:
-  - Need searchable retrieval on this machine: enable the archive index.
-  - Need searchable retrieval across a managed folder: enable the library index.
-  - Need local-only indexing with no provider calls: use `{{ commandName }} <archive-uri>/index enable --indexes fts`.
-  - Need semantic retrieval: configure embeddings, then use `{{ commandName }} <archive-uri>/index enable --indexes auto|dense|fts,dense`.
-  - Need to send a more self-contained `.wikg`: consider embedding the index.
-  - Need to intentionally drop query support or index materialization: disable index.
+  - Need lexical retrieval: build chapter FTS artifacts, then sync cache if you do not want lazy sync.
+  - Need semantic retrieval: configure embeddings, build source embedding artifacts, then sync cache.
+  - Need searchable retrieval across a managed folder: sync the library index cache.
+  - Need to intentionally drop local cache: clean index cache; artifacts remain in the archive.
   - Need generated Reading Graph or summaries: configure LLM and use local jobs.
   - Need Knowledge Graph: configure LLM and WikiSpine, then use local jobs.
-  - Not sure whether to embed index or generate missing data: keep the archive external/local first, inspect again, and decide later.
+  - Not sure what is missing: run inspect and check index artifact coverage before syncing cache.
 
 Where to go next:
   - Normal workflow:

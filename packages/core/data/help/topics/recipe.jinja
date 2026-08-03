@@ -50,15 +50,16 @@ After inspect:
     {{ commandName }} wikg:///Users/me/book.wikg --query "attention memory"
     {{ commandName }} wikg:///Users/me/book.wikg/chapter/part --query "attention"
 
-  - If inspect reports missing or unavailable index support, inspect the index target before enabling anything.
+  - If inspect reports missing index artifacts or cache, inspect the index targets before syncing cache.
     {{ commandName }} <archive-uri>/index --help
-    {{ commandName }} <archive-uri>/index enable --help
-    Read readiness before deciding whether to keep the index local or embed it:
+    {{ commandName }} <archive-uri>/chapter/<chapter-id>/index/fts --help
+    {{ commandName }} <archive-uri>/index sync --help
+    Read readiness before deciding whether artifacts or cache are missing:
       {{ commandName }} help readiness
 
-  - If library-wide query reports a missing or dirty index, inspect the library index target and rebuild it when appropriate.
+  - If library-wide query reports a missing or dirty index cache, inspect the library index target and sync it when appropriate.
     {{ commandName }} wikg://lib/index --help
-    {{ commandName }} wikg://lib/index enable --help
+    {{ commandName }} wikg://lib/index sync --help
     {{ commandName }} help library
 
   - If Reading Graph data is missing, chunk `--query`, related expansion, and pack may be unavailable or incomplete.
@@ -83,8 +84,8 @@ Finding material:
     {{ commandName }} wikg://book.wikg/chapter/part
 
   - Need to search across all archives in a managed library:
-    Use library-wide scopes after enabling the library index.
-      {{ commandName }} wikg://lib/index enable
+    Use library-wide scopes after syncing the library index cache.
+      {{ commandName }} wikg://lib/index sync
       {{ commandName }} wikg://lib/entity --query "attention" --evidence 2
       {{ commandName }} wikg://lib/triple --query "attention memory" --evidence 2
       {{ commandName }} wikg://lib/chunk --query "attention memory" --evidence 2

@@ -55,10 +55,11 @@ $ wg wikg://quickstart.wikg/chapter/tree
 └─ Second note  wikg://chapter/second-note
 ```
 
-Enable and build the FTS index. Full-text `--query` search is available after this step:
+Build FTS index artifacts, then sync the local index cache. Full-text `--query` search is available after this step:
 
 ```bash
-$ wg wikg://quickstart.wikg/index enable
+$ wg wikg://local/job add --input wikg://quickstart.wikg --task index-fts --accept-cost
+$ wg wikg://quickstart.wikg/index sync
 ```
 
 Search the content:

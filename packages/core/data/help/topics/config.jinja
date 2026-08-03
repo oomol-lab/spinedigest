@@ -74,10 +74,10 @@ Minimum Dense embedding configuration:
   - Provider credentials when required by the selected provider.
 
 Dense search notes:
-  - FTS indexing does not use this section.
-  - `--indexes dense` and `--indexes fts,dense` require this section.
-  - `--indexes auto` builds Dense only when this section is configured.
-  - Query uses this section when the current index includes Dense. If Dense query embedding fails, Hybrid query can still fall back to FTS.
+  - FTS artifact builds do not use this section.
+  - Source and summary embedding artifact builds require this section.
+  - Index cache sync does not call the embeddings provider; it uses vectors already stored in artifacts.
+  - Query uses this section when the current index cache includes Dense vectors. If Dense query embedding fails, Hybrid query can still fall back to FTS.
 
 One-run overrides:
   `--llm <json>` can provide an LLM object for one invocation.
