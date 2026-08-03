@@ -29,7 +29,7 @@ export default defineConfig([
     },
     bundle: true,
     clean: true,
-    dts: true,
+    dts: false,
     entry: ENTRY,
     format: ["cjs"],
     outExtension() {

@@ -53,7 +53,7 @@ export default defineConfig([
     },
     bundle: true,
     clean: true,
-    dts: true,
+    dts: false,
     entry: {
       index: "src/index.ts",
     },
