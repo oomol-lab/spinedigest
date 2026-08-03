@@ -147,6 +147,25 @@ export async function deleteOverlay(
   });
 }
 
+export async function refreshOverlayArchiveState(
+  archiveKey: string,
+  entryPath: string,
+): Promise<void> {
+  const overlay = await readOverlay(archiveKey, entryPath);
+
+  if (overlay?.workspacePath === undefined) {
+    return;
+  }
+
+  await upsertOverlay({
+    archiveKey,
+    archivePath: overlay.archivePath,
+    entryPath,
+    kind: overlay.kind,
+    workspacePath: overlay.workspacePath,
+  });
+}
+
 export async function resolveArchivePathFromKey(
   archiveKey: string,
 ): Promise<string | undefined> {

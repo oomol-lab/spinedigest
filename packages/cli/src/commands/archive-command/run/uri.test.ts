@@ -8,11 +8,10 @@ import {
   addWikiGraphLibraryArchive,
   createWikiGraphLibrary,
   parseWikiGraphLibraryUri,
-  readArchiveIndexSettings,
   readWikiGraphLibraryIndexState,
   rebuildArchiveSearchIndex,
   rebuildWikiGraphLibraryIndex,
-  setFtsIndexEmbedded,
+  replaceChapterFtsIndexArtifact,
   WikiGraphArchiveFile,
 } from "../../../../../core/src/index.js";
 import {
@@ -178,33 +177,27 @@ describe("archive-command URI runtime resolution", () => {
     );
   });
 
-  it("removes embedded FTS from library archive URI writes without changing the policy", async () => {
+  it("keeps index cache external during library archive URI writes", async () => {
     const target = parseWikiGraphLibraryUri("wikg://lib");
     expect(target).toBeDefined();
     const archive = await addTestArchiveToLibrary(target!);
 
     await new WikiGraphArchiveFile(archive.path).write(
       async (document) => {
-        await setFtsIndexEmbedded(document, true);
+        await replaceChapterFtsIndexArtifact(document, 1);
         await rebuildArchiveSearchIndex(document);
       },
       { searchIndexWritebackPolicy: "archive" },
     );
     await expect(
       readWikgArchiveEntry(archive.path, "index.db"),
-    ).resolves.toBeDefined();
+    ).resolves.toBeUndefined();
 
     await runArchiveChapterCommand({ action: "add", path: archive.uri });
 
     await expect(readWikgArchiveEntry(archive.path, "index.db")).resolves.toBe(
       undefined,
     );
-    await expect(
-      new WikiGraphArchiveFile(archive.path).readDocument(
-        async (document) =>
-          (await readArchiveIndexSettings(document)).ftsEmbedded,
-      ),
-    ).resolves.toBe(true);
     await expect(
       readWikiGraphLibraryIndexState(target!),
     ).resolves.toMatchObject({

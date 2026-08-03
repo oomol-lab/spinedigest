@@ -102,7 +102,7 @@ describe("wikg/archive", () => {
     });
   });
 
-  it("includes embedded FTS databases in new archives", async () => {
+  it("omits FTS databases even when old settings request embedded indexes", async () => {
     await withTempDir("wikigraph-archive-", async (path) => {
       const sourceDir = `${path}/source`;
       const archivePath = `${path}/book.wikg`;
@@ -128,7 +128,7 @@ describe("wikg/archive", () => {
 
       await expect(
         readWikgArchiveEntry(archivePath, "index.db"),
-      ).resolves.toEqual(Buffer.from("fts", "utf8"));
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -212,7 +212,7 @@ describe("wikg/archive", () => {
     });
   });
 
-  it("preserves legacy fts.db when unrelated overlays rewrite the archive", async () => {
+  it("drops legacy fts.db when unrelated overlays rewrite the archive", async () => {
     await withTempDir("wikigraph-archive-", async (path) => {
       const archivePath = `${path}/legacy.wikg`;
       const rewrittenPath = `${path}/rewritten.wikg`;
@@ -238,7 +238,7 @@ describe("wikg/archive", () => {
 
       await expect(
         readWikgArchiveEntry(rewrittenPath, "fts.db"),
-      ).resolves.toEqual(Buffer.from("legacy-index", "utf8"));
+      ).resolves.toBeUndefined();
     });
   });
 

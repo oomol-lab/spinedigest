@@ -8,7 +8,6 @@ import { ZipFile as YazlZipFile } from "yazl";
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 import {
   listDocumentFiles,
-  shouldEmbedSearchIndex,
   shouldWriteDocumentFile,
 } from "./document-files.js";
 import {
@@ -32,9 +31,6 @@ export async function writeWikgArchive(
 
   const zipFile = new YazlZipFile();
   const files = await listDocumentFiles(documentDirectoryPath);
-  const includeSearchIndex = await shouldEmbedSearchIndex(
-    documentDirectoryPath,
-  );
   const entries = sortArchiveEntriesForWrite([
     {
       archivePath: WIKG_MUTATION_TOKEN_PATH,
@@ -47,7 +43,6 @@ export async function writeWikgArchive(
     ...files.filter((file) =>
       shouldWriteDocumentFile({
         archivePath: file.archivePath,
-        includeSearchIndex,
       }),
     ),
   ]);

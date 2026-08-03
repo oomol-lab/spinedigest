@@ -13,6 +13,7 @@ import {
   findArchiveObjects,
   rebuildArchiveSearchIndex,
 } from "../../../../packages/core/src/retrieval/query/view.js";
+import { replaceChapterFtsIndexArtifact } from "../../../../packages/core/src/retrieval/index-artifact/index.js";
 import { isSearchIndexCurrent } from "../../../../packages/core/src/retrieval/search-index/index.js";
 import { WikiGraphArchive } from "../../../../packages/core/src/api/wiki-graph-archive.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
@@ -255,7 +256,7 @@ describe("wikg/wiki-graph-archive-file", () => {
 
         await expect(
           readWikgArchiveEntry(archivePath, "fts.db"),
-        ).resolves.toEqual(Buffer.from("legacy-index", "utf8"));
+        ).resolves.toBeUndefined();
 
         await new WikiGraphArchiveFile(archivePath).write(async (document) => {
           await document.createSerial();
@@ -286,28 +287,31 @@ describe("wikg/wiki-graph-archive-file", () => {
         await new WikiGraphArchiveFile(archivePath).readDocument(
           async (document) => {
             await expect(
-              findArchiveObjects(document, "Fresh Cache Title", {
+              findArchiveObjects(document, "fresh source sentence", {
                 archiveKey: archivePath,
               }),
-            ).resolves.toMatchObject({ items: [] });
+            ).resolves.toMatchObject({
+              items: [
+                expect.objectContaining({
+                  type: "source",
+                }),
+              ],
+            });
           },
         );
 
         await new WikiGraphArchiveFile(archivePath).write(async (document) => {
-          await document.replaceToc({
-            items: [
-              {
-                children: [],
-                key: "fresh-cache-title",
-                serialId: 1,
-                title: "Fresh Cache Title",
-              },
-            ],
-            version: 1,
+          await document.openSession(async (openedDocument) => {
+            const draft = await openedDocument
+              .getSerialFragments(1)
+              .createDraft();
+            draft.addSentence("Updated cache source sentence.", 4);
+            await draft.commit();
           });
         });
         await new WikiGraphArchiveFile(archivePath).write(
           async (document) => {
+            await replaceChapterFtsIndexArtifact(document, 1);
             await rebuildArchiveSearchIndex(document);
           },
           { searchIndexWritebackPolicy: "cache" },
@@ -316,13 +320,13 @@ describe("wikg/wiki-graph-archive-file", () => {
         await new WikiGraphArchiveFile(archivePath).readDocument(
           async (document) => {
             await expect(
-              findArchiveObjects(document, "Fresh Cache Title", {
+              findArchiveObjects(document, "updated cache source sentence", {
                 archiveKey: archivePath,
               }),
             ).resolves.toMatchObject({
               items: [
                 expect.objectContaining({
-                  id: "wikg://chapter/fresh-cache-title/title",
+                  type: "source",
                 }),
               ],
             });
@@ -579,6 +583,9 @@ describe("wikg/wiki-graph-archive-file", () => {
 async function seedDocument(document: DirectoryDocument): Promise<void> {
   await document.openSession(async (openedDocument) => {
     await openedDocument.createSerial();
+    const draft = await openedDocument.getSerialFragments(1).createDraft();
+    draft.addSentence("Fresh source sentence.", 3);
+    await draft.commit();
     await openedDocument.writeBookMeta({
       authors: ["Ari Lantern"],
       description: null,
@@ -610,6 +617,7 @@ async function createSeedArchive(path: string): Promise<string> {
 
   try {
     await seedDocument(document);
+    await replaceChapterFtsIndexArtifact(document, 1);
     await rebuildArchiveSearchIndex(document);
 
     const archivePath = `${path}/fixture/book.wikg`;

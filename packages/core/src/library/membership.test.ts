@@ -26,13 +26,11 @@ import {
   parseLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
   putWikiGraphLibraryMetadata,
-  readArchiveIndexSettings,
   queryWikiGraphLibrarySearchIndex,
   rebuildArchiveSearchIndex,
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
   rebindWikiGraphLibrary,
-  setFtsIndexEmbedded,
   listWikiGraphLibraryArchiveMembers,
   rebuildWikiGraphLibraryIndex,
   removeWikiGraphLibrary,
@@ -50,7 +48,6 @@ import {
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
   writeWikgArchive,
-  writeWikgArchiveWithOverlays,
 } from "../storage/wikg/index.js";
 import { acquireWikiGraphLibraryLock } from "./lock.js";
 import { listWikiGraphLibrarySearchIndex } from "./search-index.js";
@@ -259,113 +256,6 @@ describe("library archive membership", () => {
       });
       expect(removed.publicId).toBe(added.publicId);
       await expect(readFile(moved.path, "utf8")).rejects.toThrow();
-    });
-  });
-
-  it("removes embedded FTS entries on library add without changing the archive policy", async () => {
-    await withLibraryTestState(async (tempDir) => {
-      const target = parseWikiGraphLibraryUri("wikg://lib");
-      expect(target).toBeDefined();
-      const source = join(tempDir, "embedded.wikg");
-      await createEmbeddedSearchIndexArchive(tempDir, source);
-      const sourceToken = await readWikgArchiveMutationToken(source);
-
-      const added = await addWikiGraphLibraryArchive({
-        inputPath: source,
-        target: target!,
-        to: "embedded.wikg",
-      });
-
-      await expect(readWikgArchiveEntry(added.path, "index.db")).resolves.toBe(
-        undefined,
-      );
-      await expect(readArchiveFtsEmbedded(added.path)).resolves.toBe(true);
-      expect(added.lastSeenMutationToken).toBe(
-        await readWikgArchiveMutationToken(added.path),
-      );
-      expect(added.lastSeenMutationToken).not.toBe(sourceToken);
-    });
-  });
-
-  it("removes legacy embedded FTS entries on library add", async () => {
-    await withLibraryTestState(async (tempDir) => {
-      const target = parseWikiGraphLibraryUri("wikg://lib");
-      expect(target).toBeDefined();
-      const source = join(tempDir, "legacy-embedded.wikg");
-      await createLegacyEmbeddedSearchIndexArchive(tempDir, source);
-
-      const added = await addWikiGraphLibraryArchive({
-        inputPath: source,
-        target: target!,
-        to: "legacy-embedded.wikg",
-      });
-
-      await expect(readWikgArchiveEntry(added.path, "index.db")).resolves.toBe(
-        undefined,
-      );
-      await expect(readWikgArchiveEntry(added.path, "fts.db")).resolves.toBe(
-        undefined,
-      );
-      await expect(readArchiveFtsEmbedded(added.path)).resolves.toBe(true);
-    });
-  });
-
-  it("removes embedded FTS entries during scan and records refreshed archive state", async () => {
-    await withLibraryTestState(async (tempDir) => {
-      const library = await ensureDefaultWikiGraphLibrary();
-      const target = parseWikiGraphLibraryUri("wikg://lib");
-      expect(target).toBeDefined();
-      const archivePath = join(library.folderPath, "scanned.wikg");
-      await createEmbeddedSearchIndexArchive(tempDir, archivePath);
-      const before = await inspectFileState(archivePath);
-
-      const result = await scanWikiGraphLibrary(target!);
-      const scanned = result.archives.find(
-        (archive) => archive.relativePath === "scanned.wikg",
-      );
-
-      await expect(readWikgArchiveEntry(archivePath, "index.db")).resolves.toBe(
-        undefined,
-      );
-      await expect(readArchiveFtsEmbedded(archivePath)).resolves.toBe(true);
-      const after = await inspectFileState(archivePath);
-      expect(scanned).toMatchObject({
-        lastSeenMtimeMs: Math.round(after.mtimeMs),
-        lastSeenMutationToken: after.mutationToken,
-        lastSeenSize: after.size,
-      });
-      expect(after.mutationToken).not.toBe(before.mutationToken);
-    });
-  });
-
-  it("removes embedded FTS entries during rebind and records refreshed archive state", async () => {
-    await withLibraryTestState(async (tempDir) => {
-      await ensureDefaultWikiGraphLibrary();
-      const target = parseWikiGraphLibraryUri("wikg://lib");
-      expect(target).toBeDefined();
-      const newFolder = join(tempDir, "rebound-library");
-      await mkdir(newFolder);
-      const archivePath = join(newFolder, "rebound.wikg");
-      await createEmbeddedSearchIndexArchive(tempDir, archivePath);
-
-      const result = await rebindWikiGraphLibrary({
-        folderPath: newFolder,
-        target: target!,
-      });
-      const rebound = result.archives.find(
-        (archive) => archive.relativePath === "rebound.wikg",
-      );
-
-      await expect(readWikgArchiveEntry(archivePath, "index.db")).resolves.toBe(
-        undefined,
-      );
-      await expect(readArchiveFtsEmbedded(archivePath)).resolves.toBe(true);
-      const after = await inspectFileState(archivePath);
-      expect(rebound).toMatchObject({
-        lastSeenMtimeMs: Math.round(after.mtimeMs),
-        lastSeenMutationToken: after.mutationToken,
-        lastSeenSize: after.size,
-      });
     });
   });
 
@@ -1121,53 +1011,6 @@ async function createTestWikgArchive(
   await writeWikgArchive(sourceDir, path);
 }
 
-async function createEmbeddedSearchIndexArchive(
-  tempDir: string,
-  path: string,
-): Promise<void> {
-  const sourceDir = await mkdtemp(join(tempDir, "wikg-source-"));
-  const document = await DirectoryDocument.open(sourceDir);
-
-  try {
-    await setFtsIndexEmbedded(document, true);
-    await rebuildArchiveSearchIndex(document);
-  } finally {
-    await document.release();
-  }
-
-  await writeWikgArchive(sourceDir, path);
-  await expect(readWikgArchiveEntry(path, "index.db")).resolves.toBeDefined();
-}
-
-async function createLegacyEmbeddedSearchIndexArchive(
-  tempDir: string,
-  path: string,
-): Promise<void> {
-  const sourceDir = await mkdtemp(join(tempDir, "wikg-source-"));
-  const legacyIndexPath = join(tempDir, "legacy-index.db");
-  const document = await DirectoryDocument.open(sourceDir);
-
-  try {
-    await setFtsIndexEmbedded(document, true);
-  } finally {
-    await document.release();
-  }
-
-  await writeFile(legacyIndexPath, "legacy search index", "utf8");
-  await writeWikgArchive(sourceDir, path);
-  const temporaryPath = join(tempDir, "legacy-embedded.tmp.wikg");
-  await writeWikgArchiveWithOverlays(path, temporaryPath, [
-    {
-      entryPath: "fts.db",
-      kind: "file",
-      workspacePath: legacyIndexPath,
-    },
-  ]);
-  await rename(temporaryPath, path);
-  await expect(readWikgArchiveEntry(path, "fts.db")).resolves.toBeDefined();
-  await expect(readWikgArchiveEntry(path, "index.db")).resolves.toBeUndefined();
-}
-
 async function createSearchableArchiveWithoutSearchIndex(
   tempDir: string,
   path: string,
@@ -1201,12 +1044,6 @@ async function createSearchableArchiveWithoutSearchIndex(
 
   await writeWikgArchive(sourceDir, path);
   await expect(readWikgArchiveEntry(path, "index.db")).resolves.toBeUndefined();
-}
-
-async function readArchiveFtsEmbedded(path: string): Promise<boolean> {
-  return await new WikiGraphArchiveFile(path).readDocument(
-    async (document) => (await readArchiveIndexSettings(document)).ftsEmbedded,
-  );
 }
 
 async function inspectFileState(path: string): Promise<{

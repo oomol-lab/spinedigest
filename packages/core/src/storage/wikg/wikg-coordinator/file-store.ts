@@ -51,7 +51,6 @@ export class WikgDocumentFileStore implements DocumentFileStore {
       >
     | undefined;
   readonly #readonlyDatabase: boolean;
-  readonly #searchIndexWritebackPolicy: WorkspaceWritebackPolicy;
   readonly #sqliteLeaseOwnerId = createOwnerId();
 
   public constructor(
@@ -65,8 +64,6 @@ export class WikgDocumentFileStore implements DocumentFileStore {
     this.#archivePath = resolve(archivePath);
     this.#archiveKey = createArchiveKey(this.#archivePath);
     this.#readonlyDatabase = options.readonlyDatabase === true;
-    this.#searchIndexWritebackPolicy =
-      options.searchIndexWritebackPolicy ?? "archive";
     this.#session = options.session;
   }
 
@@ -169,12 +166,7 @@ export class WikgDocumentFileStore implements DocumentFileStore {
   }
 
   public markSearchIndexDatabaseDirty(): void {
-    if (
-      !this.#readonlyDatabase &&
-      this.#searchIndexWritebackPolicy === "archive"
-    ) {
-      this.#session?.observeDirtyEntry(SEARCH_INDEX_DATABASE_ENTRY_PATH);
-    }
+    return;
   }
 
   public openDatabaseReadonly(): boolean {

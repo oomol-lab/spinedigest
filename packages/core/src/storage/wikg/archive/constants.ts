@@ -7,8 +7,6 @@ export const WIKG_ARCHIVE_PATTERNS = [
   /^\.wikg-mutation-token$/u,
   /^manifest\.json$/u,
   /^database\.db$/u,
-  /^index\.db$/u,
-  /^fts\.db$/u,
   /^toc\.json$/u,
   /^cover\/(?:data\.bin|info\.json)$/u,
   /^texts\/(?:source|summary)\/\d+\.txt$/u,

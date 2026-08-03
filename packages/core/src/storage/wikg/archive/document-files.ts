@@ -1,7 +1,6 @@
 import { readdir } from "fs/promises";
 import { join, posix, relative, sep } from "path";
 
-import { Database } from "../../../document/database.js";
 import {
   LEGACY_SEARCH_INDEX_DATABASE_PATH,
   SEARCH_INDEX_DATABASE_PATH,
@@ -37,43 +36,8 @@ export async function listDocumentFiles(
   return files.filter((file) => isWikgArchivePath(file.archivePath));
 }
 
-export async function shouldEmbedSearchIndex(
-  documentDirectoryPath: string,
-): Promise<boolean> {
-  const database = await Database.open(
-    join(documentDirectoryPath, "database.db"),
-    "",
-    {
-      readonly: true,
-    },
-  ).catch(() => undefined);
-
-  if (database === undefined) {
-    return false;
-  }
-
-  try {
-    const row = await database.queryOne(
-      `
-        SELECT fts_embedded
-        FROM archive_index_settings
-        WHERE id = 1
-      `,
-      undefined,
-      (value) => Number(value.fts_embedded) !== 0,
-    );
-
-    return row ?? false;
-  } catch {
-    return false;
-  } finally {
-    await database.close();
-  }
-}
-
 export function shouldWriteDocumentFile(input: {
   readonly archivePath: string;
-  readonly includeSearchIndex: boolean;
 }): boolean {
   if (input.archivePath === "manifest.json") {
     return false;
@@ -84,10 +48,11 @@ export function shouldWriteDocumentFile(input: {
   if (input.archivePath === LEGACY_SEARCH_INDEX_DATABASE_PATH) {
     return false;
   }
+  if (input.archivePath === SEARCH_INDEX_DATABASE_PATH) {
+    return false;
+  }
 
-  return (
-    input.archivePath !== SEARCH_INDEX_DATABASE_PATH || input.includeSearchIndex
-  );
+  return true;
 }
 
 function compareDirEntryName(

@@ -18,6 +18,7 @@ import {
 import {
   deleteOverlay,
   listOverlays,
+  refreshOverlayArchiveState,
   resolveArchivePathFromKey,
   toArchiveOverlay,
 } from "./overlays.js";
@@ -53,8 +54,9 @@ export async function flushArchiveOverlays(
 ): Promise<void> {
   const overlays = (await listOverlays(archiveKey)).filter(
     (overlay) =>
-      requestedEntryPaths === undefined ||
-      requestedEntryPaths.has(overlay.entryPath),
+      overlay.entryPath !== SEARCH_INDEX_DATABASE_ENTRY_PATH &&
+      (requestedEntryPaths === undefined ||
+        requestedEntryPaths.has(overlay.entryPath)),
   );
   const archivePath = await resolveArchivePathFromKey(archiveKey);
 
@@ -123,6 +125,16 @@ export async function flushArchiveOverlays(
         ]);
         await mkdir(dirname(archivePath), { recursive: true });
         await rename(temporaryArchivePath, archivePath);
+        if (
+          currentOverlays.some(
+            (overlay) => overlay.entryPath === DATABASE_ENTRY_PATH,
+          )
+        ) {
+          await refreshOverlayArchiveState(
+            archiveKey,
+            SEARCH_INDEX_DATABASE_ENTRY_PATH,
+          );
+        }
       } finally {
         await rm(temporaryDirectoryPath, { force: true, recursive: true });
       }
