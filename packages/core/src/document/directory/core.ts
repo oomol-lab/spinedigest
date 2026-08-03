@@ -197,6 +197,7 @@ export class DirectoryDocument implements Document {
 
   public async clearSerialSource(serialId: number): Promise<void> {
     await this.clearSerialGraph(serialId);
+    await this.indexArtifacts.deleteBySerial(serialId);
     await this.#textStreams.getSerial(serialId).delete();
     await this.serials.bumpRevision(serialId);
   }
@@ -206,6 +207,7 @@ export class DirectoryDocument implements Document {
   }
 
   public async deleteSummary(serialId: number): Promise<void> {
+    await this.indexArtifacts.delete(serialId, "embedding-summary");
     await this.#textStreams.getSummarySerial(serialId).delete();
   }
 
@@ -440,6 +442,7 @@ export class DirectoryDocument implements Document {
   }
 
   async #deleteSerialResources(serialId: number): Promise<void> {
+    await this.indexArtifacts.deleteBySerial(serialId);
     await deleteSerialResources({
       database: this.#database,
       deleteSummary: async (targetSerialId) => {
