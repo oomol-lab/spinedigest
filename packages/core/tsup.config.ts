@@ -41,7 +41,9 @@ export default defineConfig([
   {
     ...SHARED_OPTIONS,
     bundle: false,
-    dts: true,
+    dts: {
+      entry: ENTRY,
+    },
     entry: ["src/**/*.ts", "!src/**/*.test.ts"],
     format: ["esm"],
   },
