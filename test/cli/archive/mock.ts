@@ -517,11 +517,36 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
 
   return {
     ...actual,
+    isArchiveSearchIndexCurrent: vi.fn(() =>
+      Promise.resolve(archiveMockState.ftsCurrent),
+    ),
+    rebuildArchiveSearchIndex: vi.fn(() => Promise.resolve()),
     resolveWikiGraphLibraryArchivePath: vi.fn((uri: string) => {
       const archiveId = uri.split("/").at(-1) ?? "archive";
 
       return Promise.resolve(`/tmp/library/${archiveId}.wikg`);
     }),
+    WikiGraphArchiveFile: class {
+      readonly #path: string;
+
+      public constructor(path: string) {
+        this.#path = path;
+      }
+
+      public async readDocument(
+        operation: (document: unknown) => Promise<unknown>,
+      ): Promise<unknown> {
+        archiveMockState.readCalls.push(this.#path);
+        return await operation(createArchiveMockDocument());
+      }
+
+      public async write(
+        operation: (document: unknown) => Promise<unknown>,
+      ): Promise<unknown> {
+        archiveMockState.writeCalls.push(this.#path);
+        return await operation(createArchiveMockDocument());
+      }
+    },
   };
 });
 

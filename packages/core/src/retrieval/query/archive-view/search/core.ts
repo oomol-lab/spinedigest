@@ -227,7 +227,7 @@ export async function findArchiveObjects(
   if (usesBucketedSearch) {
     if (!(await isArchiveSearchIndexCurrent(document))) {
       throw new Error(
-        "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index enable` before searching.",
+        "Wiki Graph index cache is missing or outdated. Run `<archive-uri>/index sync` before searching.",
       );
     }
     const sessionId = await createSearchSession({

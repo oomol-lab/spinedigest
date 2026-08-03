@@ -4,6 +4,7 @@ import {
   listRelatedArchiveObjects,
   findWikiGraphLibraryObjects,
   formatWikiGraphLibraryUri,
+  isArchiveSearchIndexCurrent,
   listRelatedWikiGraphLibraryObjects,
   listWikiGraphLibraryEvidence,
   listWikiGraphLibraryObjects,
@@ -14,6 +15,8 @@ import {
   readWikiGraphLibraryPage,
   resolveWikiGraphLibrary,
   findArchiveObjects,
+  rebuildArchiveSearchIndex,
+  WikiGraphArchiveFile,
   type ArchiveFindOptions,
   type ArchiveRelatedResult,
 } from "wiki-graph-core";
@@ -103,6 +106,7 @@ export async function runArchiveCommand(
       );
       return;
     case "search":
+      await ensureArchiveQueryIndexCache(args.archivePath);
       await readArchiveDocument(
         getArchivePath(args.archivePath),
         async (document) => {
@@ -136,6 +140,9 @@ export async function runArchiveCommand(
       );
       return;
     case "list":
+      if (args.query !== undefined) {
+        await ensureArchiveQueryIndexCache(args.archivePath);
+      }
       await readArchiveDocument(
         getArchivePath(args.archivePath),
         async (document) => {
@@ -221,6 +228,9 @@ export async function runArchiveCommand(
       );
       return;
     case "related":
+      if (args.query !== undefined) {
+        await ensureArchiveQueryIndexCache(args.archivePath);
+      }
       await readArchiveDocument(
         getArchivePath(args.archivePath),
         async (document) => {
@@ -264,6 +274,9 @@ export async function runArchiveCommand(
       );
       return;
     case "evidence":
+      if (args.query !== undefined) {
+        await ensureArchiveQueryIndexCache(args.archivePath);
+      }
       await readArchiveDocument(
         getArchivePath(args.archivePath),
         async (document) => {
@@ -326,6 +339,23 @@ export async function runArchiveCommand(
       );
       return;
   }
+}
+
+async function ensureArchiveQueryIndexCache(
+  archivePath: string,
+): Promise<void> {
+  const location = await resolveArchiveRuntimeLocation(archivePath);
+
+  await new WikiGraphArchiveFile(location.archivePath).write(
+    async (document) => {
+      if (await isArchiveSearchIndexCurrent(document)) {
+        return;
+      }
+
+      await rebuildArchiveSearchIndex(document);
+    },
+    { searchIndexWritebackPolicy: "cache" },
+  );
 }
 
 async function runLibraryIndexArchiveCommand(

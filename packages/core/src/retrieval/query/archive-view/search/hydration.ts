@@ -41,7 +41,7 @@ export async function findArchiveObjectsIndexed(
 > {
   if (!(await isArchiveSearchIndexCurrent(document))) {
     throw new Error(
-      "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index enable` before searching.",
+      "Wiki Graph index cache is missing or outdated. Run `<archive-uri>/index sync` before searching.",
     );
   }
   const result = await querySearchIndex(document, query, {
@@ -73,7 +73,7 @@ export async function queryRequiredSearchIndex(
 ): Promise<SearchIndexQueryResult | undefined> {
   if (!(await isArchiveSearchIndexCurrent(document))) {
     throw new Error(
-      "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index enable` before searching.",
+      "Wiki Graph index cache is missing or outdated. Run `<archive-uri>/index sync` before searching.",
     );
   }
 
