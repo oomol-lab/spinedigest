@@ -586,7 +586,7 @@ Library context:
 Related help:
   - {{ commandName }} {{ uri }} --help
   - {{ commandName }} help uri
-{% if predicate == "related" or predicate == "evidence" or predicate == "pack" or predicate == "enable" or predicate == "disable" or predicate == "embed" or predicate == "external" or target.name == "index-object" or target.name == "job-collection-scope" %}
+{% if predicate == "related" or predicate == "evidence" or predicate == "pack" or target.name == "index-object" or target.name == "job-collection-scope" %}
   - {{ commandName }} help readiness
 {% endif %}
 {% if predicate == "create" or predicate == "export" %}

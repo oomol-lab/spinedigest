@@ -1,7 +1,6 @@
 import { CLI_HELP_ROUTES, withHelpRoute } from "../../support/index.js";
 import { formatCliCommand } from "../../support/index.js";
 import type { ArchiveArgumentValues, CLIResultFormat } from "../types.js";
-import type { SearchIndexSelection } from "wiki-graph-core";
 import { isWikiGraphLocalConfigUri, isWikiGraphUri } from "./uri.js";
 
 export function parseWatchFrom(
@@ -44,30 +43,6 @@ export function parseResultFormat(values: {
   }
 
   return "text";
-}
-
-export function parseSearchIndexSelectionFlag(
-  value: string | undefined,
-  helpRoute: string,
-): SearchIndexSelection | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (
-    value === "auto" ||
-    value === "dense" ||
-    value === "fts" ||
-    value === "fts,dense"
-  ) {
-    return value;
-  }
-
-  throw new Error(
-    withHelpRoute(
-      `Invalid --indexes: ${value}. Expected auto, dense, fts, or fts,dense.`,
-      helpRoute,
-    ),
-  );
 }
 
 export function parseEvidenceFlag(
