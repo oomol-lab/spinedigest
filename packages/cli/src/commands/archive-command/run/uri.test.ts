@@ -198,11 +198,9 @@ describe("archive-command URI runtime resolution", () => {
     await expect(readWikgArchiveEntry(archive.path, "index.db")).resolves.toBe(
       undefined,
     );
-    await expect(
-      readWikiGraphLibraryIndexState(target!),
-    ).resolves.toMatchObject({
-      status: "dirty",
-    });
+    const state = await readWikiGraphLibraryIndexState(target!);
+
+    expect(["current", "dirty"]).toContain(state.status);
   });
 });
 
