@@ -26,6 +26,7 @@ import { WikiGraphArchiveFile } from "wiki-graph-core";
 import type {
   GuaranteedRequest,
   GuaranteedRequestController,
+  ReadonlyDocument,
 } from "wiki-graph-core";
 import type { LLMessage } from "wiki-graph-core";
 
@@ -73,7 +74,7 @@ async function executeBuildJobWithLogging(
   context: BuildJobExecutionContext,
 ): Promise<void> {
   if (isIndexArtifactBuildTarget(job.target)) {
-    await executeIndexArtifactBuildJob(job, reporter);
+    await executeIndexArtifactBuildJob(job, reporter, context);
     return;
   }
 
@@ -334,6 +335,7 @@ async function executeGenerationBuildJob(
 async function executeIndexArtifactBuildJob(
   job: BuildJob,
   reporter: BuildJobProgressReporter,
+  context: BuildJobExecutionContext,
 ): Promise<void> {
   await reporter.stepStarted(job.target);
   const snapshot = await readIndexArtifactJobSnapshot(job);
@@ -352,6 +354,7 @@ async function executeIndexArtifactBuildJob(
   if (job.target === "index-fts") {
     await new WikiGraphArchiveFile(job.archivePath).write(async (document) => {
       assertJobStillRunning(await getBuildJob(job.jobId));
+      await assertJobChapterExists(document, job.chapterId);
       await assertCurrentBuildInputRevision(job, document);
       await replaceChapterFtsIndexArtifact(document, job.chapterId);
     });
@@ -376,11 +379,13 @@ async function executeIndexArtifactBuildJob(
         : "embedding-summary",
     sentences: snapshot.sentences,
     serialId: job.chapterId,
+    signal: context.signal,
     sourceRevision: snapshot.revision,
   });
 
   await new WikiGraphArchiveFile(job.archivePath).write(async (document) => {
     assertJobStillRunning(await getBuildJob(job.jobId));
+    await assertJobChapterExists(document, job.chapterId);
     await assertCurrentBuildInputRevision(job, document);
     await document.indexArtifacts.replaceEmbedding(artifact);
   });
@@ -407,7 +412,11 @@ async function readIndexArtifactJobSnapshot(job: BuildJob): Promise<{
 }> {
   return await new WikiGraphArchiveFile(job.archivePath).readDocument(
     async (document) => {
+      await assertJobChapterExists(document, job.chapterId);
       const revision = await document.serials.getRevision(job.chapterId);
+      if (job.target === "index-fts") {
+        return { revision, sentences: [] };
+      }
       const stream =
         job.target === "index-embedding-summary"
           ? document.getSummaryFragments(job.chapterId)
@@ -430,6 +439,19 @@ async function readIndexArtifactJobSnapshot(job: BuildJob): Promise<{
         sentences: await stream.listSentences(),
       };
     },
+  );
+}
+
+async function assertJobChapterExists(
+  document: ReadonlyDocument,
+  chapterId: number,
+): Promise<void> {
+  if ((await document.serials.getById(chapterId)) !== undefined) {
+    return;
+  }
+
+  throw new Error(
+    `Chapter ${chapterId} no longer exists. Queue a new build job for an existing chapter.`,
   );
 }
 

@@ -92,12 +92,16 @@ export function buildSearchIndexEmbeddingProvider(
       : { dimensions: config.dimensions }),
     identity: createEmbeddingIdentity(provider, model, config),
     model,
-    embedTexts: async (texts) => {
+    embedTexts: async (texts, options) => {
       const embeddings: number[][] = [];
       let tokens = 0;
 
       for (const batch of chunkTexts(texts, EMBEDDING_BATCH_SIZE)) {
+        options?.signal?.throwIfAborted();
         const result = await embedMany({
+          ...(options?.signal === undefined
+            ? {}
+            : { abortSignal: options.signal }),
           model: embeddingModel,
           ...(providerOptions === undefined ? {} : { providerOptions }),
           values: [...batch],

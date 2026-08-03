@@ -206,6 +206,7 @@ export async function createEmbeddingIndexArtifactInput(input: {
   readonly kind: EmbeddingIndexArtifactKind;
   readonly sentences: readonly SentenceRecord[];
   readonly serialId: number;
+  readonly signal?: AbortSignal;
   readonly sourceRevision: number;
 }): Promise<ReplaceEmbeddingIndexArtifactInput> {
   const segments = createEmbeddingSegments(input.sentences);
@@ -215,6 +216,7 @@ export async function createEmbeddingIndexArtifactInput(input: {
       : (
           await input.embeddingProvider.embedTexts(
             segments.map((segment) => segment.text),
+            input.signal === undefined ? undefined : { signal: input.signal },
           )
         ).embeddings;
 
@@ -358,11 +360,12 @@ function collectTocItems(items: readonly TocItem[]): readonly TocItem[] {
 function createEmbeddingSegments(
   sentences: readonly SentenceRecord[],
 ): readonly Omit<IndexArtifactEmbeddingSegment, "vector">[] {
+  assertDenseSegmentConstants();
   const records = sentences
     .map((sentence, sentenceIndex) => ({
       sentenceIndex,
       text: sentence.text,
-      wordsCount: sentence.wordsCount,
+      wordsCount: requireNonNegativeWordsCount(sentence.wordsCount),
     }))
     .filter((record) => record.text.trim() !== "");
   const segments: Omit<IndexArtifactEmbeddingSegment, "vector">[] = [];
@@ -387,11 +390,6 @@ function createEmbeddingSegments(
       if (wordsCount >= DENSE_SEGMENT_TARGET_WORDS) {
         break;
       }
-    }
-
-    if (end <= start) {
-      end = start + 1;
-      wordsCount = Math.max(0, records[start]!.wordsCount);
     }
 
     const segmentRecords = records.slice(start, end);
@@ -423,6 +421,25 @@ function createEmbeddingSegments(
     ...segment,
     segmentIndex,
   }));
+}
+
+function assertDenseSegmentConstants(): void {
+  if (
+    DENSE_SEGMENT_MIN_WORDS < 0 ||
+    DENSE_SEGMENT_OVERLAP_WORDS < 0 ||
+    DENSE_SEGMENT_TARGET_WORDS < DENSE_SEGMENT_MIN_WORDS ||
+    DENSE_SEGMENT_MAX_WORDS < DENSE_SEGMENT_TARGET_WORDS
+  ) {
+    throw new Error("Invalid Dense segment word-count configuration.");
+  }
+}
+
+function requireNonNegativeWordsCount(wordsCount: number): number {
+  if (!Number.isFinite(wordsCount) || wordsCount < 0) {
+    throw new Error("Sentence word count must be non-negative.");
+  }
+
+  return wordsCount;
 }
 
 function createEmbeddingSegment(

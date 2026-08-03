@@ -25,6 +25,9 @@ const queueMockState = vi.hoisted(() => ({
   ftsArtifactCurrent: true,
   hasSummary: true,
   embeddingRequests: [] as string[][],
+  embeddingRequestSignals: [] as Array<AbortSignal | undefined>,
+  serialFragmentsSentenceListCalls: 0,
+  summaryFragmentsSentenceListCalls: 0,
   cliConfig: {} as {
     readonly concurrent?: {
       readonly job?: number;
@@ -67,10 +70,15 @@ const queueMockState = vi.hoisted(() => ({
   readChapterStageError: undefined as Error | undefined,
   openPaths: [] as string[],
   resolveJobIds: [] as string[],
+  serialExists: true,
   runWorkerOptions: undefined as
     | {
         readonly concurrency: number;
-        readonly executeJob: (job: unknown, reporter: unknown) => Promise<void>;
+        readonly executeJob: (
+          job: unknown,
+          reporter: unknown,
+          context?: { readonly signal: AbortSignal },
+        ) => Promise<void>;
       }
     | undefined,
   stepLog: [] as string[],
@@ -92,22 +100,26 @@ function createQueueMockDocument() {
         ]),
     },
     getSerialFragments: () => ({
-      listSentences: () =>
-        Promise.resolve([
+      listSentences: () => {
+        queueMockState.serialFragmentsSentenceListCalls += 1;
+        return Promise.resolve([
           {
             text: "Alpha beta.",
             wordsCount: 2,
           },
-        ]),
+        ]);
+      },
     }),
     getSummaryFragments: () => ({
-      listSentences: () =>
-        Promise.resolve([
+      listSentences: () => {
+        queueMockState.summaryFragmentsSentenceListCalls += 1;
+        return Promise.resolve([
           {
             text: "Summary text.",
             wordsCount: 2,
           },
-        ]),
+        ]);
+      },
     }),
     indexArtifacts: {
       get: () =>
@@ -144,6 +156,8 @@ function createQueueMockDocument() {
     readSummary: () =>
       Promise.resolve(queueMockState.hasSummary ? "Summary text." : undefined),
     serials: {
+      getById: () =>
+        Promise.resolve(queueMockState.serialExists ? { id: 12 } : undefined),
       getRevision: () => Promise.resolve(queueMockState.revision),
     },
   };
@@ -313,7 +327,15 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
   resumeBuildJob: vi.fn(),
   runBuildJobWorker: vi.fn(
     (options: typeof queueMockState.runWorkerOptions) => {
-      queueMockState.runWorkerOptions = options;
+      queueMockState.runWorkerOptions = {
+        ...options!,
+        executeJob: async (job, reporter, context) =>
+          await options!.executeJob(
+            job,
+            reporter,
+            context ?? { signal: new AbortController().signal },
+          ),
+      };
       return Promise.resolve();
     },
   ),
@@ -368,8 +390,12 @@ vi.mock("../../packages/cli/src/runtime/embedding.js", () => ({
     dimensions: 3,
     identity: "provider=test",
     model: "test-embedding",
-    embedTexts: (texts: readonly string[]) => {
+    embedTexts: (
+      texts: readonly string[],
+      options?: { readonly signal?: AbortSignal },
+    ) => {
       queueMockState.embeddingRequests.push([...texts]);
+      queueMockState.embeddingRequestSignals.push(options?.signal);
       return Promise.resolve({
         embeddings: texts.map(() => [1, 2, 3]),
       });
@@ -435,6 +461,9 @@ describe("cli/queue", () => {
     queueMockState.ftsArtifactCurrent = true;
     queueMockState.hasSummary = true;
     queueMockState.embeddingRequests.length = 0;
+    queueMockState.embeddingRequestSignals.length = 0;
+    queueMockState.serialFragmentsSentenceListCalls = 0;
+    queueMockState.summaryFragmentsSentenceListCalls = 0;
     queueMockState.cliConfig = {};
     queueMockState.loadRequiredStageConfigCalls.length = 0;
     queueMockState.loadRequiredStageConfigError = undefined;
@@ -461,6 +490,7 @@ describe("cli/queue", () => {
     queueMockState.revision = 1;
     queueMockState.resolveJobIds.length = 0;
     queueMockState.runWorkerOptions = undefined;
+    queueMockState.serialExists = true;
     queueMockState.stepLog.length = 0;
     queueMockState.textWrites.length = 0;
     queueMockState.writeCalls.length = 0;
@@ -900,6 +930,7 @@ describe("cli/queue", () => {
     await queueMockState.runWorkerOptions!.executeJob(
       queueMockState.job,
       reporter,
+      { signal: new AbortController().signal } as never,
     );
 
     expect(queueMockState.stepLog).toStrictEqual([
@@ -982,13 +1013,17 @@ describe("cli/queue", () => {
       updateWords: vi.fn(() => Promise.resolve()),
     };
 
+    const signal = new AbortController().signal;
     await queueMockState.runWorkerOptions!.executeJob(
       queueMockState.job,
       reporter,
+      { signal },
     );
 
     expect(queueMockState.loadRequiredStageConfigCalls).toStrictEqual([]);
     expect(queueMockState.embeddingRequests).toStrictEqual([]);
+    expect(queueMockState.serialFragmentsSentenceListCalls).toBe(1);
+    expect(queueMockState.summaryFragmentsSentenceListCalls).toBe(1);
     expect(queueMockState.stepLog).toStrictEqual([
       "read:start",
       "read:end",
@@ -1059,9 +1094,11 @@ describe("cli/queue", () => {
       updateWords: vi.fn(() => Promise.resolve()),
     };
 
+    const signal = new AbortController().signal;
     await queueMockState.runWorkerOptions!.executeJob(
       queueMockState.job,
       reporter,
+      { signal },
     );
 
     expect(queueMockState.stepLog).toStrictEqual([
@@ -1071,6 +1108,7 @@ describe("cli/queue", () => {
       "write:end",
     ]);
     expect(queueMockState.embeddingRequests).toStrictEqual([["Alpha beta."]]);
+    expect(queueMockState.embeddingRequestSignals[0]).toBe(signal);
     expect(queueMockState.indexArtifactWrites[0]).toMatchObject({
       artifact: {
         kind: "embedding-source",
@@ -1099,6 +1137,38 @@ describe("cli/queue", () => {
         ownerId: "owner-1",
       },
     ]);
+  });
+
+  it("rejects embedding index artifact jobs when the chapter is gone", async () => {
+    queueMockState.cliConfig = {
+      embedding: {
+        model: "test-embedding",
+        provider: "openai-compatible",
+      },
+    };
+    queueMockState.serialExists = false;
+    queueMockState.job = {
+      ...queueMockState.job,
+      state: "running",
+      target: "index-embedding-source",
+    };
+
+    await runQueueWorker();
+
+    const reporter = {
+      addOutputCharacters: vi.fn(() => Promise.resolve()),
+      setTotals: vi.fn(() => Promise.resolve()),
+      stepCompleted: vi.fn(() => Promise.resolve()),
+      stepStarted: vi.fn(() => Promise.resolve()),
+      updatePhase: vi.fn(() => Promise.resolve()),
+      updateWords: vi.fn(() => Promise.resolve()),
+    };
+
+    await expect(
+      queueMockState.runWorkerOptions!.executeJob(queueMockState.job, reporter),
+    ).rejects.toThrow("no longer exists");
+    expect(queueMockState.embeddingRequests).toStrictEqual([]);
+    expect(queueMockState.indexArtifactWrites).toStrictEqual([]);
   });
 
   it("uses default queue concurrency for worker slots", async () => {

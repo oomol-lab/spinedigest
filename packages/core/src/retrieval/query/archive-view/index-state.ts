@@ -516,7 +516,7 @@ function countSearchIndexBatchRecords(batch: SearchIndexWriteBatch): number {
   return batch.objectProperties.length + batch.textSentences.length;
 }
 
-async function readArchiveEmbeddingState(
+export async function readArchiveEmbeddingState(
   document: ReadonlyDocument,
 ): Promise<SearchIndexStoredEmbeddingState | undefined> {
   let state: SearchIndexStoredEmbeddingState | undefined;
@@ -550,7 +550,7 @@ async function readArchiveEmbeddingState(
           state.identity !== next.identity)
       ) {
         throw new Error(
-          "Embedding artifacts use different embedding providers or dimensions; rebuild them with one embeddings configuration.",
+          "Embedding artifacts use different embedding configurations; rebuild them with one embeddings configuration.",
         );
       }
       state = next;
@@ -566,7 +566,7 @@ function readWordsCount(metadata: Readonly<Record<string, unknown>>): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function readEmbeddingDimensions(
+export function readEmbeddingDimensions(
   metadata: Readonly<Record<string, unknown>>,
 ): number | undefined {
   const value = metadata.dimensions;
@@ -576,7 +576,7 @@ function readEmbeddingDimensions(
     : undefined;
 }
 
-function readEmbeddingIdentity(
+export function readEmbeddingIdentity(
   metadata: Readonly<Record<string, unknown>>,
 ): string | undefined {
   const value = metadata.identity;
@@ -584,7 +584,7 @@ function readEmbeddingIdentity(
   return typeof value === "string" && value !== "" ? value : undefined;
 }
 
-function readEmbeddingModel(
+export function readEmbeddingModel(
   metadata: Readonly<Record<string, unknown>>,
 ): string | undefined {
   const value = metadata.model;

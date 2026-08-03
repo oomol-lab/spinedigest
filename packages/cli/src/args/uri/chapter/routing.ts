@@ -198,7 +198,7 @@ function parseChapterIndexArtifactUriArguments(
       throw new Error(
         withHelpRoute(
           `The chapter index artifact does not support \`${action}\`. Use get, build, or delete.`,
-          "wg <chapter-uri>/index --help",
+          helpRoute,
         ),
       );
   }

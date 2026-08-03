@@ -9,7 +9,9 @@ import { openSharedStateDatabase } from "../document/index.js";
 import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
 import {
   assertArchiveIndexArtifactsReady,
-  buildArchiveIndexProjection,
+  readArchiveEmbeddingState,
+  readEmbeddingDimensions,
+  readEmbeddingModel,
   streamArchiveIndexProjection,
 } from "../retrieval/query/archive-view/index-state.js";
 import type {
@@ -478,11 +480,6 @@ async function replaceLibrarySearchIndex(
         async (archiveDocument) => {
           await assertArchiveIndexArtifactsReady(archiveDocument);
 
-          const archiveInput =
-            await buildArchiveIndexProjection(archiveDocument);
-          hasFts =
-            hasFts || archiveInput.textSentences.some((row) => row.text !== "");
-
           for await (const batch of streamArchiveIndexProjection(
             archiveDocument,
             archive.id,
@@ -491,6 +488,7 @@ async function replaceLibrarySearchIndex(
               const rowId = await insertTextSentenceRecord(database, record);
 
               if (record.text !== "") {
+                hasFts = true;
                 await insertFtsRecord(
                   database,
                   "text_sentence_fts",
@@ -604,39 +602,6 @@ function createLibraryIndexSearchFingerprint(
     .digest("hex");
 }
 
-async function readArchiveEmbeddingState(
-  document: Parameters<typeof assertArchiveIndexArtifactsReady>[0],
-): Promise<SearchIndexStoredEmbeddingState | undefined> {
-  let state: SearchIndexStoredEmbeddingState | undefined;
-
-  for (const artifactKind of [
-    "embedding-source",
-    "embedding-summary",
-  ] as const) {
-    for (const artifact of await document.indexArtifacts.list(artifactKind)) {
-      const dimensions = readEmbeddingDimensions(artifact.metadata);
-      const model = readEmbeddingModel(artifact.metadata);
-      const label = artifactKind === "embedding-source" ? "Source" : "Summary";
-
-      if (dimensions === undefined || model === undefined) {
-        throw new Error(
-          `${label} embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
-        );
-      }
-
-      state = mergeEmbeddingState(state, {
-        dimensions,
-        ...(readEmbeddingIdentity(artifact.metadata) === undefined
-          ? {}
-          : { identity: readEmbeddingIdentity(artifact.metadata)! }),
-        model,
-      });
-    }
-  }
-
-  return state;
-}
-
 function mergeEmbeddingState(
   current: SearchIndexStoredEmbeddingState | undefined,
   next: SearchIndexStoredEmbeddingState,
@@ -650,37 +615,11 @@ function mergeEmbeddingState(
     current.identity !== next.identity
   ) {
     throw new Error(
-      "Source embedding artifacts use different embedding providers or dimensions; rebuild them with one embeddings configuration.",
+      "Embedding artifacts use different embedding configurations; rebuild them with one embeddings configuration.",
     );
   }
 
   return current;
-}
-
-function readEmbeddingDimensions(
-  metadata: Readonly<Record<string, unknown>>,
-): number | undefined {
-  const value = metadata.dimensions;
-
-  return Number.isInteger(value) && Number(value) > 0
-    ? Number(value)
-    : undefined;
-}
-
-function readEmbeddingIdentity(
-  metadata: Readonly<Record<string, unknown>>,
-): string | undefined {
-  const value = metadata.identity;
-
-  return typeof value === "string" && value !== "" ? value : undefined;
-}
-
-function readEmbeddingModel(
-  metadata: Readonly<Record<string, unknown>>,
-): string | undefined {
-  const value = metadata.model;
-
-  return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 function formatLibraryHitSource(

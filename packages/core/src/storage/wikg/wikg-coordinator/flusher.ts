@@ -131,10 +131,19 @@ export async function flushArchiveOverlays(
             (overlay) => overlay.entryPath === DATABASE_ENTRY_PATH,
           )
         ) {
-          await refreshOverlayArchiveState(
+          const releaseSearchIndexLock = await acquireEntryLock(
             archiveKey,
             SEARCH_INDEX_DATABASE_ENTRY_PATH,
+            "state",
           );
+          try {
+            await refreshOverlayArchiveState(
+              archiveKey,
+              SEARCH_INDEX_DATABASE_ENTRY_PATH,
+            );
+          } finally {
+            await releaseSearchIndexLock();
+          }
         }
       } finally {
         await rm(temporaryDirectoryPath, { force: true, recursive: true });

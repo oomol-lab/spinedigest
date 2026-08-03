@@ -589,6 +589,7 @@ function createTextEmbeddingGroupKey(
 function createTextEmbeddingSegmentsForGroup(
   records: readonly TextSentenceEmbeddingInput[],
 ): readonly TextEmbeddingSegmentInput[] {
+  assertDenseSegmentConstants();
   const sorted = [...records].sort(
     (left, right) => left.sentenceIndex - right.sentenceIndex,
   );
@@ -600,7 +601,7 @@ function createTextEmbeddingSegmentsForGroup(
     let wordsCount = 0;
 
     while (end < sorted.length) {
-      const nextWords = Math.max(0, sorted[end]!.wordsCount);
+      const nextWords = requireNonNegativeWordsCount(sorted[end]!.wordsCount);
 
       if (
         end > start &&
@@ -614,11 +615,6 @@ function createTextEmbeddingSegmentsForGroup(
       if (wordsCount >= DENSE_SEGMENT_TARGET_WORDS) {
         break;
       }
-    }
-
-    if (end <= start) {
-      end = start + 1;
-      wordsCount = Math.max(0, sorted[start]!.wordsCount);
     }
 
     const segmentRecords = sorted.slice(start, end);
@@ -650,6 +646,25 @@ function createTextEmbeddingSegmentsForGroup(
   }
 
   return segments;
+}
+
+function assertDenseSegmentConstants(): void {
+  if (
+    DENSE_SEGMENT_MIN_WORDS < 0 ||
+    DENSE_SEGMENT_OVERLAP_WORDS < 0 ||
+    DENSE_SEGMENT_TARGET_WORDS < DENSE_SEGMENT_MIN_WORDS ||
+    DENSE_SEGMENT_MAX_WORDS < DENSE_SEGMENT_TARGET_WORDS
+  ) {
+    throw new Error("Invalid Dense segment word-count configuration.");
+  }
+}
+
+function requireNonNegativeWordsCount(wordsCount: number): number {
+  if (!Number.isFinite(wordsCount) || wordsCount < 0) {
+    throw new Error("Sentence word count must be non-negative.");
+  }
+
+  return wordsCount;
 }
 
 function createTextEmbeddingSegment(
@@ -746,7 +761,9 @@ async function writeStoredSearchIndexBuildState(
 ): Promise<void> {
   const indexes =
     input.embedding === undefined
-      ? "fts"
+      ? input.hasFts
+        ? "fts"
+        : "missing"
       : input.hasFts
         ? "fts,dense"
         : "dense";

@@ -566,9 +566,11 @@ vi.mock(
         return await operation(createArchiveMockDocument());
       }
 
-      public async write(operation: () => Promise<unknown>): Promise<unknown> {
+      public async write(
+        operation: (document: unknown) => Promise<unknown>,
+      ): Promise<unknown> {
         archiveMockState.writeCalls.push(this.#path);
-        return await operation();
+        return await operation(createArchiveMockDocument());
       }
     },
   }),

@@ -56,7 +56,10 @@ export interface SearchIndexEmbeddingProvider {
   readonly dimensions?: number;
   readonly identity?: string;
   readonly model: string;
-  embedTexts(texts: readonly string[]): Promise<{
+  embedTexts(
+    texts: readonly string[],
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<{
     readonly embeddings: readonly (readonly number[])[];
     readonly tokens?: number;
   }>;

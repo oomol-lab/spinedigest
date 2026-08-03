@@ -147,7 +147,7 @@ export async function runLibraryCommand(
       await writer.write({
         json: { type: "started" },
         kind: "lifecycle",
-        text: "library index cache sync started\nsteps: collecting -> clearing -> indexing-text -> indexing-dense -> finalizing",
+        text: "library index cache sync started\nsteps: collecting -> clearing -> indexing-text -> indexing-objects -> indexing-dense -> finalizing",
       });
       const state = await rebuildWikiGraphLibraryIndex(
         args.target,
