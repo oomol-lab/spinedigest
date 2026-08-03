@@ -21,10 +21,16 @@ const queueMockState = vi.hoisted(() => ({
   createStageLLMCalls: [] as unknown[],
   inputRevisionAssertions: [] as unknown[],
   inputRevisionRecords: [] as unknown[],
+  indexArtifactWrites: [] as unknown[],
+  embeddingRequests: [] as string[][],
   cliConfig: {} as {
     readonly concurrent?: {
       readonly job?: number;
       readonly request?: number;
+    };
+    readonly embedding?: {
+      readonly model?: string;
+      readonly provider?: "openai" | "openai-compatible";
     };
     readonly wikispine?: {
       readonly command?: string;
@@ -102,6 +108,24 @@ vi.mock(
         queueMockState.stepLog.push("read:start");
         try {
           return await operation({
+            getSerialFragments: () => ({
+              listSentences: () =>
+                Promise.resolve([
+                  {
+                    text: "Alpha beta.",
+                    wordsCount: 2,
+                  },
+                ]),
+            }),
+            getSummaryFragments: () => ({
+              listSentences: () =>
+                Promise.resolve([
+                  {
+                    text: "Summary text.",
+                    wordsCount: 2,
+                  },
+                ]),
+            }),
             serials: {
               getRevision: () => Promise.resolve(queueMockState.revision),
             },
@@ -118,6 +142,22 @@ vi.mock(
         queueMockState.stepLog.push("write:start");
         try {
           return await operation({
+            indexArtifacts: {
+              replaceEmbedding: (artifact: unknown) => {
+                queueMockState.indexArtifactWrites.push({
+                  artifact,
+                  kind: "embedding",
+                });
+                return Promise.resolve();
+              },
+              replaceFts: (artifact: unknown) => {
+                queueMockState.indexArtifactWrites.push({
+                  artifact,
+                  kind: "fts",
+                });
+                return Promise.resolve();
+              },
+            },
             serials: {
               getRevision: () => Promise.resolve(queueMockState.revision),
             },
@@ -292,6 +332,20 @@ vi.mock("../../packages/cli/src/runtime/config.js", () => ({
   loadCLIConfig: vi.fn(() => Promise.resolve(queueMockState.cliConfig)),
 }));
 
+vi.mock("../../packages/cli/src/runtime/embedding.js", () => ({
+  buildSearchIndexEmbeddingProvider: vi.fn(() => ({
+    dimensions: 3,
+    identity: "provider=test",
+    model: "test-embedding",
+    embedTexts: (texts: readonly string[]) => {
+      queueMockState.embeddingRequests.push([...texts]);
+      return Promise.resolve({
+        embeddings: texts.map(() => [1, 2, 3]),
+      });
+    },
+  })),
+}));
+
 vi.mock("../../packages/cli/src/runtime/index.js", async (importOriginal) => {
   const actual = await importOriginal<typeof CLIRuntime>();
 
@@ -346,6 +400,8 @@ describe("cli/queue", () => {
     queueMockState.getJobIds.length = 0;
     queueMockState.inputRevisionAssertions.length = 0;
     queueMockState.inputRevisionRecords.length = 0;
+    queueMockState.indexArtifactWrites.length = 0;
+    queueMockState.embeddingRequests.length = 0;
     queueMockState.cliConfig = {};
     queueMockState.loadRequiredStageConfigCalls.length = 0;
     queueMockState.loadRequiredStageConfigError = undefined;
@@ -869,6 +925,121 @@ describe("cli/queue", () => {
       },
       {
         currentRevision: 2,
+        jobId: "job-1",
+        ownerId: "owner-1",
+      },
+    ]);
+  });
+
+  it("runs FTS index artifact jobs without loading LLM config", async () => {
+    queueMockState.job = {
+      ...queueMockState.job,
+      state: "running",
+      target: "index-fts",
+    };
+
+    await runQueueWorker();
+
+    const reporter = {
+      addOutputCharacters: vi.fn(() => Promise.resolve()),
+      setTotals: vi.fn(() => Promise.resolve()),
+      stepCompleted: vi.fn(() => Promise.resolve()),
+      stepStarted: vi.fn(() => Promise.resolve()),
+      updatePhase: vi.fn(() => Promise.resolve()),
+      updateWords: vi.fn(() => Promise.resolve()),
+    };
+
+    await queueMockState.runWorkerOptions!.executeJob(
+      queueMockState.job,
+      reporter,
+    );
+
+    expect(queueMockState.loadRequiredStageConfigCalls).toStrictEqual([]);
+    expect(queueMockState.embeddingRequests).toStrictEqual([]);
+    expect(queueMockState.stepLog).toStrictEqual([
+      "read:start",
+      "read:end",
+      "write:start",
+      "write:end",
+    ]);
+    expect(queueMockState.indexArtifactWrites).toHaveLength(1);
+    expect(queueMockState.indexArtifactWrites[0]).toMatchObject({
+      artifact: {
+        lexicalRows: [
+          {
+            rowId: "source-sentence:0",
+            text: "Alpha beta.",
+          },
+        ],
+        serialId: 12,
+        sourceRevision: 1,
+      },
+      kind: "fts",
+    });
+    expect(reporter.stepStarted).toHaveBeenCalledWith("index-fts");
+    expect(reporter.stepCompleted).toHaveBeenCalledWith("index-fts");
+  });
+
+  it("runs embedding index artifact jobs outside archive read scopes", async () => {
+    queueMockState.cliConfig = {
+      embedding: {
+        model: "test-embedding",
+        provider: "openai-compatible",
+      },
+    };
+    queueMockState.job = {
+      ...queueMockState.job,
+      state: "running",
+      target: "index-embedding-source",
+    };
+
+    await runQueueWorker();
+
+    const reporter = {
+      addOutputCharacters: vi.fn(() => Promise.resolve()),
+      setTotals: vi.fn(() => Promise.resolve()),
+      stepCompleted: vi.fn(() => Promise.resolve()),
+      stepStarted: vi.fn(() => Promise.resolve()),
+      updatePhase: vi.fn(() => Promise.resolve()),
+      updateWords: vi.fn(() => Promise.resolve()),
+    };
+
+    await queueMockState.runWorkerOptions!.executeJob(
+      queueMockState.job,
+      reporter,
+    );
+
+    expect(queueMockState.stepLog).toStrictEqual([
+      "read:start",
+      "read:end",
+      "write:start",
+      "write:end",
+    ]);
+    expect(queueMockState.embeddingRequests).toStrictEqual([["Alpha beta."]]);
+    expect(queueMockState.indexArtifactWrites[0]).toMatchObject({
+      artifact: {
+        kind: "embedding-source",
+        segments: [
+          {
+            text: "Alpha beta.",
+            vector: [1, 2, 3],
+          },
+        ],
+        serialId: 12,
+        sourceRevision: 1,
+      },
+      kind: "embedding",
+    });
+    expect(queueMockState.inputRevisionRecords).toStrictEqual([
+      {
+        currentRevision: 1,
+        jobId: "job-1",
+        ownerId: "owner-1",
+      },
+    ]);
+    expect(queueMockState.inputRevisionAssertions).toStrictEqual([
+      {
+        currentRevision: 1,
         jobId: "job-1",
         ownerId: "owner-1",
       },

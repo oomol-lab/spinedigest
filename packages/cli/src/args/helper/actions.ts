@@ -122,6 +122,12 @@ export function parseBuildJobTarget(value: string | undefined): BuildJobTarget {
     case undefined:
     case "reading-summary":
       return "reading-summary";
+    case "index-fts":
+      return "index-fts";
+    case "index-embedding-source":
+      return "index-embedding-source";
+    case "index-embedding-summary":
+      return "index-embedding-summary";
     case "reading-graph":
       return "reading-graph";
     case "knowledge-graph":
@@ -129,7 +135,7 @@ export function parseBuildJobTarget(value: string | undefined): BuildJobTarget {
     default:
       throw new Error(
         withHelpRoute(
-          `Invalid queue task: ${value}. Expected reading-graph, reading-summary, or knowledge-graph.`,
+          `Invalid queue task: ${value}. Expected index-fts, index-embedding-source, index-embedding-summary, reading-graph, reading-summary, or knowledge-graph.`,
           "wg wikg://local/job add --help",
         ),
       );

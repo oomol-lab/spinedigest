@@ -66,16 +66,28 @@ export async function buildChapterFtsIndexArtifact(
     document.getSerialFragments(serialId),
   );
 
+  return createFtsIndexArtifactInput({
+    sentences,
+    serialId,
+    sourceRevision,
+  });
+}
+
+export function createFtsIndexArtifactInput(input: {
+  readonly sentences: readonly SentenceRecord[];
+  readonly serialId: number;
+  readonly sourceRevision: number;
+}): ReplaceFtsIndexArtifactInput {
   return {
-    lexicalRows: sentences.map((sentence, sentenceIndex) =>
-      createSourceSentenceLexicalRow(serialId, sentenceIndex, sentence),
+    lexicalRows: input.sentences.map((sentence, sentenceIndex) =>
+      createSourceSentenceLexicalRow(input.serialId, sentenceIndex, sentence),
     ),
     metadata: {
       source: "source",
       version: 1,
     },
-    serialId,
-    sourceRevision,
+    serialId: input.serialId,
+    sourceRevision: input.sourceRevision,
   };
 }
 
@@ -96,7 +108,23 @@ export async function buildChapterEmbeddingIndexArtifact(
       : await listTextStreamSentences(
           document.getSummaryFragments(input.serialId),
         );
-  const segments = createEmbeddingSegments(sentences);
+  return await createEmbeddingIndexArtifactInput({
+    embeddingProvider: input.embeddingProvider,
+    kind: input.kind,
+    sentences,
+    serialId: input.serialId,
+    sourceRevision,
+  });
+}
+
+export async function createEmbeddingIndexArtifactInput(input: {
+  readonly embeddingProvider: SearchIndexEmbeddingProvider;
+  readonly kind: EmbeddingIndexArtifactKind;
+  readonly sentences: readonly SentenceRecord[];
+  readonly serialId: number;
+  readonly sourceRevision: number;
+}): Promise<ReplaceEmbeddingIndexArtifactInput> {
+  const segments = createEmbeddingSegments(input.sentences);
   const embeddings =
     segments.length === 0
       ? []
@@ -144,7 +172,7 @@ export async function buildChapterEmbeddingIndexArtifact(
       };
     }),
     serialId: input.serialId,
-    sourceRevision,
+    sourceRevision: input.sourceRevision,
   };
 }
 

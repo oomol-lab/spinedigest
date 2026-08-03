@@ -1,6 +1,8 @@
 export {
   buildChapterEmbeddingIndexArtifact,
   buildChapterFtsIndexArtifact,
+  createEmbeddingIndexArtifactInput,
+  createFtsIndexArtifactInput,
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
   replaceChapterSummaryEmbeddingIndexArtifact,

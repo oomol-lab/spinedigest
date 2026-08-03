@@ -10,6 +10,9 @@ export const BUILD_JOB_STATES = [
 
 export type BuildJobState = (typeof BUILD_JOB_STATES)[number];
 export type BuildJobTarget =
+  | "index-embedding-source"
+  | "index-embedding-summary"
+  | "index-fts"
   | "knowledge-graph"
   | "reading-graph"
   | "reading-summary";
@@ -17,6 +20,7 @@ export type BuildJobProgressPhase =
   | "committing"
   | "enrichment"
   | "grounding"
+  | "indexing"
   | "matching"
   | "narrowing"
   | "relation-discovery"

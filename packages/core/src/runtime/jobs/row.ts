@@ -66,6 +66,9 @@ export function parseBuildJobTarget(
   field: string,
 ): BuildJobTarget {
   if (
+    value === "index-embedding-source" ||
+    value === "index-embedding-summary" ||
+    value === "index-fts" ||
     value === "reading-graph" ||
     value === "knowledge-graph" ||
     value === "reading-summary"
@@ -84,7 +87,14 @@ function parseOptionalBuildJobTarget(
 }
 
 export function formatBuildJobLane(target: BuildJobTarget): string {
-  return target === "knowledge-graph" ? "knowledge-graph" : "reading";
+  if (target === "knowledge-graph") {
+    return "knowledge-graph";
+  }
+  if (target.startsWith("index-")) {
+    return target;
+  }
+
+  return "reading";
 }
 
 export function getString(row: Record<string, unknown>, key: string): string {

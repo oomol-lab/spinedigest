@@ -138,6 +138,27 @@ function getGenerationPlanningProfile(task: BuildJobTarget): {
   readonly wordsPerCall: number;
 } {
   switch (task) {
+    case "index-fts":
+      return {
+        cacheableInputTokenPerWord: 0,
+        inputTokenPerWord: 0,
+        maxSecondsPerCall: 1,
+        minSecondsPerCall: 0,
+        outputTokenPerWord: 0,
+        secondsPerWord: 0.0005,
+        wordsPerCall: 100_000,
+      };
+    case "index-embedding-source":
+    case "index-embedding-summary":
+      return {
+        cacheableInputTokenPerWord: 0,
+        inputTokenPerWord: 0,
+        maxSecondsPerCall: 10,
+        minSecondsPerCall: 1,
+        outputTokenPerWord: 0,
+        secondsPerWord: 0.002,
+        wordsPerCall: 10_000,
+      };
     case "knowledge-graph":
       return {
         cacheableInputTokenPerWord: 60,

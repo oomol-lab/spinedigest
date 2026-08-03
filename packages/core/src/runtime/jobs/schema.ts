@@ -36,6 +36,15 @@ ON build_jobs(archive_key, chapter_id)
 WHERE target IN ('reading-graph', 'reading-summary')
   AND state IN ('queued', 'running', 'canceling', 'paused');
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_build_jobs_active_index_chapter_target
+ON build_jobs(archive_key, chapter_id, target)
+WHERE target IN (
+    'index-fts',
+    'index-embedding-source',
+    'index-embedding-summary'
+  )
+  AND state IN ('queued', 'running', 'canceling', 'paused');
+
 CREATE INDEX IF NOT EXISTS idx_build_jobs_queue
 ON build_jobs(state, queue_rank, updated_at);
 

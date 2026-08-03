@@ -79,6 +79,18 @@ function createQueueAddEstimateSteps(input: {
   readonly target: BuildJobTarget;
 }): readonly QueueAddEstimateStep[] {
   switch (input.target) {
+    case "index-fts":
+    case "index-embedding-source":
+    case "index-embedding-summary":
+      return [
+        createQueueAddEstimateStep({
+          chapters: input.chapters,
+          concurrent: input.concurrent,
+          model: input.model,
+          prerequisite: false,
+          task: input.target,
+        }),
+      ].filter((step) => step.chapters > 0);
     case "knowledge-graph":
       return [
         createQueueAddEstimateStep({

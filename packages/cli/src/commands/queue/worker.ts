@@ -7,6 +7,8 @@ import {
   commitChapterGraphArtifact,
   commitChapterKnowledgeGraphArtifact,
   commitChapterSummaryArtifact,
+  createEmbeddingIndexArtifactInput,
+  createFtsIndexArtifactInput,
   createDisambiguationProfileNormalizer,
   generateChapterKnowledgeGraphArtifactFromSnapshot,
   getBuildJob,
@@ -18,6 +20,7 @@ import {
   type BuildJob,
   type BuildJobExecutionContext,
   type BuildJobProgressReporter,
+  type SentenceRecord,
 } from "wiki-graph-core";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 import type {
@@ -34,6 +37,7 @@ import {
   resolveExtractionPrompt,
   resolveKnowledgeGraphRecallPrompt,
 } from "../../runtime/index.js";
+import { buildSearchIndexEmbeddingProvider } from "../../runtime/embedding.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "../../support/index.js";
 
 export async function runQueueWorker(): Promise<void> {
@@ -64,6 +68,19 @@ async function executeBuildJob(
 }
 
 async function executeBuildJobWithLogging(
+  job: BuildJob,
+  reporter: BuildJobProgressReporter,
+  context: BuildJobExecutionContext,
+): Promise<void> {
+  if (isIndexArtifactBuildTarget(job.target)) {
+    await executeIndexArtifactBuildJob(job, reporter);
+    return;
+  }
+
+  await executeGenerationBuildJob(job, reporter, context);
+}
+
+async function executeGenerationBuildJob(
   job: BuildJob,
   reporter: BuildJobProgressReporter,
   context: BuildJobExecutionContext,
@@ -299,6 +316,106 @@ async function executeBuildJobWithLogging(
   assertJobStillRunning(await getBuildJob(job.jobId));
 }
 
+async function executeIndexArtifactBuildJob(
+  job: BuildJob,
+  reporter: BuildJobProgressReporter,
+): Promise<void> {
+  await reporter.stepStarted(job.target);
+  const snapshot = await readIndexArtifactJobSnapshot(job);
+  await recordBuildJobInputRevision({
+    currentRevision: snapshot.revision,
+    jobId: job.jobId,
+    ownerId: requireRunningJobOwnerId(job),
+  });
+  await reporter.updatePhase({
+    done: 0,
+    phase: "indexing",
+    total: 1,
+    unit: "item",
+  });
+
+  if (job.target === "index-fts") {
+    const artifact = createFtsIndexArtifactInput({
+      sentences: snapshot.sentences,
+      serialId: job.chapterId,
+      sourceRevision: snapshot.revision,
+    });
+
+    await new WikiGraphArchiveFile(job.archivePath).write(async (document) => {
+      assertJobStillRunning(await getBuildJob(job.jobId));
+      await assertCurrentBuildInputRevision(job, document);
+      await document.indexArtifacts.replaceFts(artifact);
+    });
+    await completeIndexArtifactStep(job, reporter);
+    return;
+  }
+
+  const config = await loadCLIConfig();
+  if (config.embedding === undefined) {
+    throw new Error(
+      withHelpRoute(
+        "Missing embeddings configuration. Configure `wikg://local/config/embeddings` before building embedding index artifacts.",
+        CLI_HELP_ROUTES.config,
+      ),
+    );
+  }
+  const artifact = await createEmbeddingIndexArtifactInput({
+    embeddingProvider: buildSearchIndexEmbeddingProvider(config.embedding),
+    kind:
+      job.target === "index-embedding-source"
+        ? "embedding-source"
+        : "embedding-summary",
+    sentences: snapshot.sentences,
+    serialId: job.chapterId,
+    sourceRevision: snapshot.revision,
+  });
+
+  await new WikiGraphArchiveFile(job.archivePath).write(async (document) => {
+    assertJobStillRunning(await getBuildJob(job.jobId));
+    await assertCurrentBuildInputRevision(job, document);
+    await document.indexArtifacts.replaceEmbedding(artifact);
+  });
+  await completeIndexArtifactStep(job, reporter);
+}
+
+async function completeIndexArtifactStep(
+  job: BuildJob,
+  reporter: BuildJobProgressReporter,
+): Promise<void> {
+  await reporter.updatePhase({
+    done: 1,
+    phase: "indexing",
+    total: 1,
+    unit: "item",
+  });
+  await reporter.stepCompleted(job.target);
+  assertJobStillRunning(await getBuildJob(job.jobId));
+}
+
+async function readIndexArtifactJobSnapshot(job: BuildJob): Promise<{
+  readonly revision: number;
+  readonly sentences: readonly SentenceRecord[];
+}> {
+  return await new WikiGraphArchiveFile(job.archivePath).readDocument(
+    async (document) => {
+      const revision = await document.serials.getRevision(job.chapterId);
+      const stream =
+        job.target === "index-embedding-summary"
+          ? document.getSummaryFragments(job.chapterId)
+          : document.getSerialFragments(job.chapterId);
+
+      if (stream.listSentences === undefined) {
+        throw new Error("Text stream does not expose sentence listing.");
+      }
+
+      return {
+        revision,
+        sentences: await stream.listSentences(),
+      };
+    },
+  );
+}
+
 export function requireKnowledgeGraphWikispineConfig(
   config: CLIConfig,
 ): NonNullable<CLIConfig["wikispine"]> {
@@ -314,6 +431,14 @@ export function requireKnowledgeGraphWikispineConfig(
       ].join(" "),
       CLI_HELP_ROUTES.config,
     ),
+  );
+}
+
+function isIndexArtifactBuildTarget(target: BuildJob["target"]): boolean {
+  return (
+    target === "index-fts" ||
+    target === "index-embedding-source" ||
+    target === "index-embedding-summary"
   );
 }
 

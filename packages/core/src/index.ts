@@ -246,6 +246,8 @@ export {
 export {
   buildChapterEmbeddingIndexArtifact,
   buildChapterFtsIndexArtifact,
+  createEmbeddingIndexArtifactInput,
+  createFtsIndexArtifactInput,
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
   replaceChapterSummaryEmbeddingIndexArtifact,
@@ -261,6 +263,7 @@ export type {
   IndexArtifactKind,
   IndexArtifactLexicalRow,
   IndexArtifactRecord,
+  SentenceRecord,
 } from "./document/index.js";
 export type { EmbeddingIndexArtifactKind } from "./retrieval/index-artifact/index.js";
 export { migrateLegacySdpubToWikg } from "./storage/migration/legacy-sdpub/upgrade/index.js";
