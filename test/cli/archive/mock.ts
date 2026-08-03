@@ -141,6 +141,53 @@ const archiveMockState = vi.hoisted(() => ({
   ],
   ftsCurrent: false,
   ftsEmbedded: false,
+  indexArtifactCoverage: {
+    "embedding-source": [
+      {
+        current: false,
+        kind: "embedding-source",
+        serialId: 1,
+        serialRevision: 0,
+      },
+      {
+        current: true,
+        kind: "embedding-source",
+        serialId: 2,
+        serialRevision: 0,
+        sourceRevision: 0,
+      },
+    ],
+    "embedding-summary": [
+      {
+        current: true,
+        kind: "embedding-summary",
+        serialId: 1,
+        serialRevision: 0,
+        sourceRevision: 0,
+      },
+      {
+        current: false,
+        kind: "embedding-summary",
+        serialId: 2,
+        serialRevision: 0,
+      },
+    ],
+    fts: [
+      {
+        current: true,
+        kind: "fts",
+        serialId: 1,
+        serialRevision: 0,
+        sourceRevision: 0,
+      },
+      {
+        current: false,
+        kind: "fts",
+        serialId: 2,
+        serialRevision: 0,
+      },
+    ],
+  },
   inspectChapters: [
     {
       chapterId: 1,
@@ -670,6 +717,13 @@ function createArchiveMockDocument(): unknown {
           Promise.resolve(archiveMockState.serials.get(chapterId)),
       },
     },
+    indexArtifacts: {
+      value: {
+        listCoverage: (
+          kind: "embedding-source" | "embedding-summary" | "fts",
+        ) => Promise.resolve(archiveMockState.indexArtifactCoverage[kind]),
+      },
+    },
   });
 
   return document;
@@ -725,6 +779,53 @@ export function resetArchiveMockState(): void {
   vi.clearAllMocks();
   archiveMockState.ftsCurrent = false;
   archiveMockState.ftsEmbedded = false;
+  archiveMockState.indexArtifactCoverage = {
+    "embedding-source": [
+      {
+        current: false,
+        kind: "embedding-source",
+        serialId: 1,
+        serialRevision: 0,
+      },
+      {
+        current: true,
+        kind: "embedding-source",
+        serialId: 2,
+        serialRevision: 0,
+        sourceRevision: 0,
+      },
+    ],
+    "embedding-summary": [
+      {
+        current: true,
+        kind: "embedding-summary",
+        serialId: 1,
+        serialRevision: 0,
+        sourceRevision: 0,
+      },
+      {
+        current: false,
+        kind: "embedding-summary",
+        serialId: 2,
+        serialRevision: 0,
+      },
+    ],
+    fts: [
+      {
+        current: true,
+        kind: "fts",
+        serialId: 1,
+        serialRevision: 0,
+        sourceRevision: 0,
+      },
+      {
+        current: false,
+        kind: "fts",
+        serialId: 2,
+        serialRevision: 0,
+      },
+    ],
+  };
   archiveMockState.inspectChapters = createDefaultInspectChapters();
   archiveMockState.readCalls.length = 0;
   archiveMockState.serials = createDefaultInspectSerials();

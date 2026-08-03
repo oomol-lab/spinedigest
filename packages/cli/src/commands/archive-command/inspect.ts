@@ -4,6 +4,7 @@ import {
   listChapters,
   readArchiveIndexSettings,
   type ChapterEntry,
+  type IndexArtifactCoverageRecord,
   type ReadonlyDocument,
 } from "wiki-graph-core";
 
@@ -73,10 +74,14 @@ interface InspectReport {
     readonly storage: "archive" | "cache";
   };
   readonly coverage: {
+    readonly ftsIndexArtifact: InspectCoverage;
     readonly knowledgeGraph: InspectCoverage;
     readonly readingGraph: InspectCoverage;
     readonly summary: InspectCoverage;
+    readonly summaryEmbeddingIndexArtifact: InspectCoverage;
+    readonly sourceEmbeddingIndexArtifact: InspectCoverage;
   };
+  readonly queryBlockedChapters: readonly number[];
   readonly retrievalGuidance: readonly string[];
   readonly improvements: readonly InspectImprovement[];
   readonly performanceHints: readonly GenerationPerformanceHint[];
@@ -108,14 +113,25 @@ async function createArchiveInspectReport(
     args.chapterId === undefined
       ? archiveUri
       : `${archiveUri}/chapter/${args.chapterId}`;
-  const [chapters, summaryWords, ftsCurrent, indexSettings, config] =
-    await Promise.all([
-      readInspectChapters(document, args.chapterId),
-      readSummaryWords(document, args.chapterId),
-      isArchiveSearchIndexCurrent(document),
-      readArchiveIndexSettings(document),
-      loadCLIConfig(),
-    ]);
+  const [
+    chapters,
+    summaryWords,
+    ftsCurrent,
+    indexSettings,
+    config,
+    ftsArtifactCoverage,
+    sourceEmbeddingArtifactCoverage,
+    summaryEmbeddingArtifactCoverage,
+  ] = await Promise.all([
+    readInspectChapters(document, args.chapterId),
+    readSummaryWords(document, args.chapterId),
+    isArchiveSearchIndexCurrent(document),
+    readArchiveIndexSettings(document),
+    loadCLIConfig(),
+    readIndexArtifactCoverage(document, "fts", args.chapterId),
+    readIndexArtifactCoverage(document, "embedding-source", args.chapterId),
+    readIndexArtifactCoverage(document, "embedding-summary", args.chapterId),
+  ]);
   const concurrent = {
     job: config.concurrent?.job ?? DEFAULT_GENERATION_JOB_CONCURRENCY,
     request:
@@ -135,6 +151,25 @@ async function createArchiveInspectReport(
   const summaryCovered = contentChapters.filter(
     (chapter) => chapter.summaryReady,
   );
+  const ftsArtifactCovered = filterChaptersByCurrentIndexArtifact(
+    contentChapters,
+    ftsArtifactCoverage,
+  );
+  const sourceEmbeddingArtifactCovered = filterChaptersByCurrentIndexArtifact(
+    contentChapters,
+    sourceEmbeddingArtifactCoverage,
+  );
+  const summaryEmbeddingArtifactCovered = filterChaptersByCurrentIndexArtifact(
+    contentChapters,
+    summaryEmbeddingArtifactCoverage,
+  );
+  const queryBlockedChapters = contentChapters
+    .filter(
+      (chapter) =>
+        !ftsArtifactCovered.includes(chapter) &&
+        !sourceEmbeddingArtifactCovered.includes(chapter),
+    )
+    .map((chapter) => chapter.chapterId);
   const improvements = createInspectImprovements({
     archiveUri,
     concurrent,
@@ -187,13 +222,26 @@ async function createArchiveInspectReport(
       storage: indexSettings.ftsEmbedded ? "archive" : "cache",
     },
     coverage: {
+      ftsIndexArtifact: createInspectCoverage(
+        ftsArtifactCovered,
+        contentChapters,
+      ),
       knowledgeGraph: createInspectCoverage(
         knowledgeGraphCovered,
         contentChapters,
       ),
       readingGraph: createInspectCoverage(readingGraphCovered, contentChapters),
       summary: createInspectCoverage(summaryCovered, contentChapters),
+      sourceEmbeddingIndexArtifact: createInspectCoverage(
+        sourceEmbeddingArtifactCovered,
+        contentChapters,
+      ),
+      summaryEmbeddingIndexArtifact: createInspectCoverage(
+        summaryEmbeddingArtifactCovered,
+        contentChapters,
+      ),
     },
+    queryBlockedChapters,
     retrievalGuidance: formatRetrievalGuidance({
       ftsCurrent,
       knowledgeGraphCovered,
@@ -241,9 +289,26 @@ function formatArchiveInspectText(report: InspectReport): string {
           ]),
       "",
       "Coverage",
+      formatCoverageLine(
+        "FTS Index Artifact",
+        report.coverage.ftsIndexArtifact,
+      ),
+      formatCoverageLine(
+        "Source Embedding Index Artifact",
+        report.coverage.sourceEmbeddingIndexArtifact,
+      ),
+      formatCoverageLine(
+        "Summary Embedding Index Artifact",
+        report.coverage.summaryEmbeddingIndexArtifact,
+      ),
       formatCoverageLine("Reading Graph", report.coverage.readingGraph),
       formatCoverageLine("Knowledge Graph", report.coverage.knowledgeGraph),
       formatCoverageLine("Summary", report.coverage.summary),
+      ...(report.queryBlockedChapters.length === 0
+        ? []
+        : [
+            `Query blockers: chapters ${report.queryBlockedChapters.join(", ")} have neither FTS nor source embedding index artifacts.`,
+          ]),
       "",
       "Retrieval Guidance",
       ...report.retrievalGuidance,
@@ -308,6 +373,29 @@ async function readSummaryWords(
         (row) => Number(row.words),
       )) ?? 0,
   );
+}
+
+async function readIndexArtifactCoverage(
+  document: ReadonlyDocument,
+  kind: "embedding-source" | "embedding-summary" | "fts",
+  chapterId: number | undefined,
+): Promise<readonly IndexArtifactCoverageRecord[]> {
+  const coverage = await document.indexArtifacts.listCoverage(kind);
+
+  return chapterId === undefined
+    ? coverage
+    : coverage.filter((item) => item.serialId === chapterId);
+}
+
+function filterChaptersByCurrentIndexArtifact(
+  chapters: readonly InspectChapter[],
+  coverage: readonly IndexArtifactCoverageRecord[],
+): readonly InspectChapter[] {
+  const currentChapterIds = new Set(
+    coverage.filter((item) => item.current).map((item) => item.serialId),
+  );
+
+  return chapters.filter((chapter) => currentChapterIds.has(chapter.chapterId));
 }
 
 function createInspectCoverage(

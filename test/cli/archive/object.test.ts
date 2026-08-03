@@ -219,6 +219,12 @@ describe("cli/archive/object", () => {
       "Reading Graph: 1/2 chapters, 800/1200 words, 66.7%",
     );
     expect(archiveMockState.textWrites[0]).toContain(
+      "FTS Index Artifact: 1/2 chapters, 800/1200 words, 66.7%",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Source Embedding Index Artifact: 1/2 chapters, 400/1200 words, 33.3%",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
       "Knowledge Graph: 1/2 chapters, 800/1200 words, 66.7%",
     );
     expect(archiveMockState.textWrites[0]).toContain(
