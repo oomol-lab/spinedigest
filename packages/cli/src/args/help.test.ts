@@ -379,7 +379,10 @@ describe("cli/args/help", () => {
       "Library index readiness:",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "Archive query needs chapter index artifacts",
+      "Ordinary archive source query needs chapter index artifacts",
+    );
+    expect(renderHelpTopicText("readiness")).toContain(
+      "Summary embedding alone does not satisfy ordinary archive source query readiness",
     );
     expect(renderHelpTopicText("readiness")).toContain(
       "`wg <archive-uri>/index sync` builds or repairs local `index.db` cache from artifacts",
@@ -688,6 +691,27 @@ describe("cli/args/help", () => {
         "wikg://local/job",
       ),
     ).toContain("does not update `wikg://local/config/llm`");
+    expect(
+      renderUriPredicateHelpText(
+        "job-collection-scope",
+        "add",
+        "wikg://local/job",
+      ),
+    ).toContain("index-fts|index-embedding-source|index-embedding-summary");
+    expect(
+      renderUriPredicateHelpText(
+        "job-collection-scope",
+        "add",
+        "wikg://local/job",
+      ),
+    ).toContain("wikg://local/config/embeddings");
+    expect(
+      renderUriPredicateHelpText(
+        "job-collection-scope",
+        "add",
+        "wikg://local/job",
+      ),
+    ).toContain("require a current FTS artifact");
     expect(renderHelpTopicText("runtime")).toContain("Local state map:");
     expect(renderHelpTopicText("runtime")).toContain(
       "~/.wikigraph/cache/continuation-cursors.sqlite",

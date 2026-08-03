@@ -170,6 +170,16 @@ Default behavior:
 
 Use when:
   - You need to know whether source, Reading Graph, Reading Summary, or Knowledge Graph data exists for a chapter.
+{% elif target.name == "chapter-index-artifact" %}
+URI type:
+  Chapter index artifact object
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` reads this chapter index artifact status and summary.
+
+Use when:
+  - You need to build or delete one chapter-level index artifact stored in the `.wikg` archive.
+  - Use `/index/fts` for lexical retrieval, `/index/embedding/source` for Dense source retrieval, or `/index/embedding/summary` for Dense summary retrieval.
 {% elif target.name == "chunk-object" %}
 URI type:
   Chunk object
@@ -361,10 +371,16 @@ Predicate commands:
 {% endif %}
 {% elif predicate == "boost" %}
   - boost: move a waiting job forward. Help: {{ commandName }} {{ uri }} boost --help
+{% elif predicate == "build" %}
+  - build: build or replace this chapter index artifact. Help: {{ commandName }} {{ uri }} build --help
 {% elif predicate == "cancel" %}
   - cancel: cancel a local job. Help: {{ commandName }} {{ uri }} cancel --help
 {% elif predicate == "clean" %}
+{% if target.name == "index-object" %}
+  - clean: remove derived index cache materialization. Help: {{ commandName }} {{ uri }} clean --help
+{% else %}
   - clean: remove completed local jobs. Help: {{ commandName }} {{ uri }} clean --help
+{% endif %}
 {% elif predicate == "clear" %}
 {% if target.name == "metadata-object" %}
   - clear: clear this metadata map. Help: {{ commandName }} {{ uri }} clear --help
@@ -374,13 +390,13 @@ Predicate commands:
 {% elif predicate == "create" %}
   - create: create the archive; use `--replace` only when discarding an existing archive. Help: {{ commandName }} {{ uri }} create --help
 {% elif predicate == "delete" %}
-{% if target.name == "metadata-object" %}
+{% if target.name == "chapter-index-artifact" %}
+  - delete: delete this chapter index artifact. Help: {{ commandName }} {{ uri }} delete --help
+{% elif target.name == "metadata-object" %}
   - delete: delete one metadata key. Help: {{ commandName }} {{ uri }} delete --help
 {% else %}
   - delete: delete a config key. Help: {{ commandName }} {{ uri }} delete --help
 {% endif %}
-{% elif predicate == "clean" %}
-  - clean: remove derived index cache materialization. Help: {{ commandName }} {{ uri }} clean --help
 {% elif predicate == "evidence" %}
   - evidence: trace this object to source-backed evidence; supports `--reverse` without `--query`. Help: {{ commandName }} {{ uri }} evidence --help
 {% elif predicate == "export" %}

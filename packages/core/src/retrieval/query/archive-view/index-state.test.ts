@@ -8,6 +8,7 @@ import { getNumber } from "../../../document/database.js";
 import {
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
+  replaceChapterSummaryEmbeddingIndexArtifact,
 } from "../../index-artifact/index.js";
 import {
   querySearchIndex,
@@ -16,6 +17,7 @@ import {
 } from "../../search-index/index.js";
 import {
   assertArchiveIndexArtifactsReady,
+  isArchiveSearchIndexCurrent,
   rebuildArchiveSearchIndex,
 } from "./index-state.js";
 
@@ -153,6 +155,64 @@ describe("archive search index state", () => {
             chapterId: 1,
             kind: TEXT_SENTENCE_KIND.source,
             sentenceIndex: 1,
+          },
+        ],
+      });
+    });
+  });
+
+  it("marks cache dirty when index artifacts change after sync", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await rebuildArchiveSearchIndex(document);
+
+      await document.openSession(async (openedDocument) => {
+        const draft = await openedDocument.getSerialFragments(1).createDraft();
+        draft.addSentence("Replacement artifact text.", 3);
+        await draft.commit();
+      });
+      await replaceChapterFtsIndexArtifact(document, 1);
+
+      await expect(isArchiveSearchIndexCurrent(document)).resolves.toBe(false);
+    });
+  });
+
+  it("syncs summary embedding artifacts into dense cache", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await document.writeSummary(1, "Summary semantic sentence.");
+      const provider = createFakeEmbeddingProvider();
+
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await replaceChapterSummaryEmbeddingIndexArtifact(document, 1, provider);
+      await rebuildArchiveSearchIndex(document);
+
+      await expect(
+        document.readSearchIndexDatabase(
+          async (database) =>
+            await database.queryOne(
+              `
+                SELECT kind
+                FROM text_embedding_segments
+                WHERE kind = ?
+              `,
+              [TEXT_SENTENCE_KIND.summary],
+              (row) => getNumber(row, "kind"),
+            ),
+        ),
+      ).resolves.toBe(TEXT_SENTENCE_KIND.summary);
+      await expect(
+        querySearchIndex(document, "semantic summary", {
+          embeddingProvider: provider,
+          types: ["summary"],
+        }),
+      ).resolves.toMatchObject({
+        textHits: [
+          {
+            archiveId: 0,
+            chapterId: 1,
+            kind: TEXT_SENTENCE_KIND.summary,
           },
         ],
       });

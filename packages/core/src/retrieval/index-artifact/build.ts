@@ -29,6 +29,17 @@ export async function replaceChapterFtsIndexArtifact(
   await document.indexArtifacts.replaceFts(artifact);
 }
 
+export async function refreshChapterFtsIndexArtifactIfPresent(
+  document: Document,
+  serialId: number,
+): Promise<void> {
+  if ((await document.indexArtifacts.get(serialId, "fts")) === undefined) {
+    return;
+  }
+
+  await replaceChapterFtsIndexArtifact(document, serialId);
+}
+
 export async function replaceChapterSourceEmbeddingIndexArtifact(
   document: Document,
   serialId: number,
@@ -65,25 +76,84 @@ export async function buildChapterFtsIndexArtifact(
   const sentences = await listTextStreamSentences(
     document.getSerialFragments(serialId),
   );
+  const summarySentences = await listTextStreamSentences(
+    document.getSummaryFragments(serialId),
+  );
 
   return createFtsIndexArtifactInput({
+    chunks: await document.chunks.listBySerial(serialId),
+    mentions: await document.mentions.listByChapter(serialId),
     sentences,
     serialId,
     sourceRevision,
+    summarySentences,
   });
 }
 
 export function createFtsIndexArtifactInput(input: {
+  readonly chunks?: readonly {
+    readonly content: string;
+    readonly id: number;
+    readonly label: string;
+    readonly wordsCount: number;
+  }[];
+  readonly mentions?: readonly {
+    readonly id: string;
+    readonly qid: string;
+    readonly surface: string;
+  }[];
   readonly sentences: readonly SentenceRecord[];
   readonly serialId: number;
   readonly sourceRevision: number;
+  readonly summarySentences?: readonly SentenceRecord[];
 }): ReplaceFtsIndexArtifactInput {
   return {
-    lexicalRows: input.sentences.map((sentence, sentenceIndex) =>
-      createSourceSentenceLexicalRow(input.serialId, sentenceIndex, sentence),
-    ),
+    lexicalRows: [
+      ...input.sentences.map((sentence, sentenceIndex) =>
+        createTextSentenceLexicalRow({
+          objectKind: "source-sentence",
+          rowPrefix: "source-sentence",
+          sentence,
+          sentenceIndex,
+          serialId: input.serialId,
+        }),
+      ),
+      ...(input.summarySentences ?? []).map((sentence, sentenceIndex) =>
+        createTextSentenceLexicalRow({
+          objectKind: "summary-sentence",
+          rowPrefix: "summary-sentence",
+          sentence,
+          sentenceIndex,
+          serialId: input.serialId,
+        }),
+      ),
+      ...(input.chunks ?? []).flatMap((chunk) => [
+        createObjectLexicalRow({
+          metadata: { wordsCount: chunk.wordsCount },
+          objectId: String(chunk.id),
+          objectKind: "chunk-label",
+          rowId: `chunk-label:${chunk.id}`,
+          text: chunk.label,
+        }),
+        createObjectLexicalRow({
+          metadata: { wordsCount: chunk.wordsCount },
+          objectId: String(chunk.id),
+          objectKind: "chunk-content",
+          rowId: `chunk-content:${chunk.id}`,
+          text: chunk.content,
+        }),
+      ]),
+      ...(input.mentions ?? []).map((mention) =>
+        createObjectLexicalRow({
+          objectId: mention.qid,
+          objectKind: "mention-surface",
+          rowId: `mention-surface:${mention.id}`,
+          text: mention.surface,
+        }),
+      ),
+    ],
     metadata: {
-      source: "source",
+      source: "chapter-lexical",
       version: 1,
     },
     serialId: input.serialId,
@@ -176,11 +246,14 @@ export async function createEmbeddingIndexArtifactInput(input: {
   };
 }
 
-function createSourceSentenceLexicalRow(
-  serialId: number,
-  sentenceIndex: number,
-  sentence: SentenceRecord,
-): IndexArtifactLexicalRow {
+function createTextSentenceLexicalRow(input: {
+  readonly objectKind: "source-sentence" | "summary-sentence";
+  readonly rowPrefix: string;
+  readonly sentence: SentenceRecord;
+  readonly sentenceIndex: number;
+  readonly serialId: number;
+}): IndexArtifactLexicalRow {
+  const sentence = input.sentence;
   const plan = createSearchTokenPlan(sentence.text);
   const tiers = {
     tier1: plan.tier1.map((token) => token.encoded),
@@ -190,11 +263,35 @@ function createSourceSentenceLexicalRow(
 
   return {
     metadata: { tiers, wordsCount: sentence.wordsCount },
-    objectId: `${serialId}:${sentenceIndex}`,
-    objectKind: "source-sentence",
-    rowId: `source-sentence:${sentenceIndex}`,
-    sentenceIndex,
+    objectId: `${input.serialId}:${input.sentenceIndex}`,
+    objectKind: input.objectKind,
+    rowId: `${input.rowPrefix}:${input.sentenceIndex}`,
+    sentenceIndex: input.sentenceIndex,
     text: sentence.text,
+    tokens: [...tiers.tier1, ...tiers.tier2, ...tiers.tier3],
+  };
+}
+
+function createObjectLexicalRow(input: {
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly objectId: string;
+  readonly objectKind: string;
+  readonly rowId: string;
+  readonly text: string;
+}): IndexArtifactLexicalRow {
+  const plan = createSearchTokenPlan(input.text);
+  const tiers = {
+    tier1: plan.tier1.map((token) => token.encoded),
+    tier2: plan.tier2.map((token) => token.encoded),
+    tier3: plan.tier3.map((token) => token.encoded),
+  };
+
+  return {
+    metadata: { ...(input.metadata ?? {}), tiers },
+    objectId: input.objectId,
+    objectKind: input.objectKind,
+    rowId: input.rowId,
+    text: input.text,
     tokens: [...tiers.tier1, ...tiers.tier2, ...tiers.tier3],
   };
 }

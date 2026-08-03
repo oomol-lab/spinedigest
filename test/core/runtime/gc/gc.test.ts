@@ -20,6 +20,7 @@ import {
   createSearchSession,
   rebuildArchiveSearchIndex,
 } from "../../../../packages/core/src/retrieval/query/index.js";
+import { replaceChapterFtsIndexArtifact } from "../../../../packages/core/src/retrieval/index-artifact/index.js";
 import { writeWikgArchive } from "../../../../packages/core/src/storage/wikg/archive/index.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/index.js";
 import { WikipageCache } from "../../../../packages/core/src/external/wikipage/index.js";
@@ -531,6 +532,7 @@ async function createArchiveWithExternalSearchIndex(path: string): Promise<{
   await writeWikgArchive(documentPath, archivePath);
   await new WikiGraphArchiveFile(archivePath).write(
     async (openedDocument) => {
+      await replaceChapterFtsIndexArtifact(openedDocument, 1);
       await rebuildArchiveSearchIndex(openedDocument);
     },
     { searchIndexWritebackPolicy: "cache" },

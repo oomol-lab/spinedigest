@@ -213,10 +213,7 @@ async function findActiveBuildJobInLane(
     readonly target: BuildJobTarget;
   },
 ): Promise<BuildJob | undefined> {
-  const laneFilter =
-    input.target === "knowledge-graph"
-      ? "target = 'knowledge-graph'"
-      : "target IN ('reading-graph', 'reading-summary')";
+  const laneFilter = createBuildJobLaneFilter(input.target);
 
   return await state.queryOne(
     `
@@ -232,6 +229,22 @@ LIMIT 1
     [input.archiveKey, input.chapterId],
     mapBuildJob,
   );
+}
+
+function createBuildJobLaneFilter(target: BuildJobTarget): string {
+  switch (target) {
+    case "knowledge-graph":
+      return "target = 'knowledge-graph'";
+    case "reading-graph":
+    case "reading-summary":
+      return "target IN ('reading-graph', 'reading-summary')";
+    case "index-fts":
+      return "target = 'index-fts'";
+    case "index-embedding-source":
+      return "target = 'index-embedding-source'";
+    case "index-embedding-summary":
+      return "target = 'index-embedding-summary'";
+  }
 }
 
 async function mergeActiveBuildJob(

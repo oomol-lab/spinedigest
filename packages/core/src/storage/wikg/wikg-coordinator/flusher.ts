@@ -126,6 +126,7 @@ export async function flushArchiveOverlays(
         await mkdir(dirname(archivePath), { recursive: true });
         await rename(temporaryArchivePath, archivePath);
         if (
+          requestedEntryPaths?.has(SEARCH_INDEX_DATABASE_ENTRY_PATH) === true &&
           currentOverlays.some(
             (overlay) => overlay.entryPath === DATABASE_ENTRY_PATH,
           )

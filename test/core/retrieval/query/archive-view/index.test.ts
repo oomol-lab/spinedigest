@@ -13,8 +13,8 @@ import {
   listRelatedArchiveObjects,
   markDirtySearchIndexChapters,
   querySearchIndex,
-  readArchiveIndexSettings,
   rebuildArchiveSearchIndex,
+  replaceChapterFtsIndexArtifact,
   seedSourcedDocument,
   setupArchiveViewTestState,
   streamArchiveIndexProjection,
@@ -85,7 +85,7 @@ describe("archive/query/archive-view/index", () => {
           false,
         );
         await expect(findArchiveObjects(document, "Wiki")).rejects.toThrow(
-          "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index enable` before searching.",
+          "Wiki Graph index cache is missing or outdated. Run `<archive-uri>/index sync` before searching.",
         );
         await expect(querySearchIndex(document, "Wiki")).rejects.toThrow(
           "Archive search index is dirty; rebuild the index before querying.",
@@ -111,11 +111,6 @@ describe("archive/query/archive-view/index", () => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
-        await expect(readArchiveIndexSettings(document)).resolves.toStrictEqual(
-          {
-            ftsEmbedded: false,
-          },
-        );
         await expect(isSearchIndexCurrent(document)).resolves.toBe(false);
 
         await rebuildArchiveSearchIndex(document);
@@ -148,6 +143,7 @@ describe("archive/query/archive-view/index", () => {
             version: 1,
           });
         });
+        await replaceChapterFtsIndexArtifact(document, 1);
 
         const batches = [];
         for await (const batch of streamArchiveIndexProjection(document, 7)) {
@@ -167,7 +163,8 @@ describe("archive/query/archive-view/index", () => {
               archiveId: record.archiveId,
               chapterId: record.chapterId,
               sentenceIndex: record.sentenceIndex,
-            })),
+            }))
+            .sort((left, right) => left.sentenceIndex - right.sentenceIndex),
         ).toEqual(
           Array.from({ length: 1100 }, (_, index) => ({
             archiveId: 7,
@@ -290,6 +287,7 @@ describe("archive/query/archive-view/index", () => {
             version: 1,
           });
         });
+        await replaceChapterFtsIndexArtifact(document, 1);
         await rebuildArchiveSearchIndex(document);
 
         await expect(isArchiveSearchIndexCurrent(document)).resolves.toBe(true);
@@ -322,7 +320,7 @@ describe("archive/query/archive-view/index", () => {
 
       try {
         await expect(findArchiveObjects(document, "missing")).rejects.toThrow(
-          "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index enable` before searching.",
+          "Wiki Graph index cache is missing or outdated. Run `<archive-uri>/index sync` before searching.",
         );
       } finally {
         await document.release();
@@ -381,7 +379,7 @@ describe("archive/query/archive-view/index", () => {
             query: "Alpha",
           }),
         ).rejects.toThrow(
-          "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index enable` before searching.",
+          "Wiki Graph index cache is missing or outdated. Run `<archive-uri>/index sync` before searching.",
         );
         await expect(
           listRelatedArchiveObjects(document, "wikg://entity/Q1", {
@@ -389,7 +387,7 @@ describe("archive/query/archive-view/index", () => {
             role: "subject",
           }),
         ).rejects.toThrow(
-          "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index enable` before searching.",
+          "Wiki Graph index cache is missing or outdated. Run `<archive-uri>/index sync` before searching.",
         );
       } finally {
         await document.release();

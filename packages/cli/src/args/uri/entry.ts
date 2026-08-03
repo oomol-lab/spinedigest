@@ -214,6 +214,8 @@ function classifyArchiveUriHelpTarget(uri: string): UriHelpTargetName {
         return "chapter-tree-object";
       case "chapter-state":
         return "chapter-state-object";
+      case "chapter-index-artifact":
+        return "chapter-index-artifact";
       case "chapter-resource":
         switch (chapterTarget.resource) {
           case "source":

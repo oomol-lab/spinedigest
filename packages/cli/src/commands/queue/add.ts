@@ -59,6 +59,33 @@ export async function addArchiveJobs(
           });
           continue;
         }
+        const target = args.target ?? "reading-summary";
+        if (target === "index-embedding-summary") {
+          const summary = await document.readSummary(chapter.chapterId);
+          if (summary === undefined || summary.trim() === "") {
+            skipped.push({
+              chapterId: chapter.chapterId,
+              reason: "missing summary",
+            });
+            continue;
+          }
+        }
+        if (target === "knowledge-graph" || target === "reading-graph") {
+          const artifact = await document.indexArtifacts.get(
+            chapter.chapterId,
+            "fts",
+          );
+          const revision = await document.serials.getRevision(
+            chapter.chapterId,
+          );
+          if (artifact?.sourceRevision !== revision) {
+            skipped.push({
+              chapterId: chapter.chapterId,
+              reason: "missing current FTS index artifact",
+            });
+            continue;
+          }
+        }
 
         try {
           created.push({
@@ -105,17 +132,47 @@ export async function assertQueueAddReady(
   );
 
   if (chapter === undefined) {
-    throw new Error(`Chapter does not exist.`);
+    throw new Error(`Chapter ${chapterId} does not exist.`);
   }
-  const chapterUri = chapter.uri;
 
   await new WikiGraphArchiveFile(args.archivePath!).read(async (digest) => {
     if ((await digest.readChapterStage(chapterId)) === "planned") {
       throw new Error(
-        `Chapter ${chapterUri} is planned. Set source before queueing a build job.`,
+        `Chapter ${chapter!.uri} is planned. Set source before queueing a build job.`,
       );
     }
   });
+
+  const target = args.target ?? "reading-summary";
+  if (
+    target !== "index-embedding-summary" &&
+    target !== "knowledge-graph" &&
+    target !== "reading-graph"
+  ) {
+    return;
+  }
+
+  await new WikiGraphArchiveFile(args.archivePath!).readDocument(
+    async (document) => {
+      if (target === "index-embedding-summary") {
+        const summary = await document.readSummary(chapterId);
+        if (summary === undefined || summary.trim() === "") {
+          throw new Error(
+            `Chapter ${chapter!.uri} has no summary. Build a reading summary before queueing a summary embedding index artifact job.`,
+          );
+        }
+      }
+      if (target === "knowledge-graph" || target === "reading-graph") {
+        const artifact = await document.indexArtifacts.get(chapterId, "fts");
+        const revision = await document.serials.getRevision(chapterId);
+        if (artifact?.sourceRevision !== revision) {
+          throw new Error(
+            `Chapter ${chapter!.uri} needs a current FTS index artifact before queueing ${target}.`,
+          );
+        }
+      }
+    },
+  );
 }
 
 export async function readQueueAddChapter(

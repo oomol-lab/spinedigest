@@ -69,7 +69,7 @@ Common command shapes:
   {{ commandName }} wikg://lib/entity --query <query>
   {{ commandName }} wikg://lib/arc/<archive-id>/entity --query <query>
   {{ commandName }} wikg://local/job
-  {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
+  {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task <index-fts|index-embedding-source|index-embedding-summary|reading-graph|reading-summary|knowledge-graph> [--accept-cost]
   {{ commandName }} wikg://local/job/<job-id>
 
 Scope URIs:
@@ -178,6 +178,8 @@ Recovery hints:
     {{ commandName }} <archive-uri>/chapter/tree
     {{ commandName }} help readiness
   - Missing generated objects: start the relevant generation job for the chapter.
+    {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task index-fts
+    {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task index-embedding-source --accept-cost
     {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost
     {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task reading-summary --accept-cost
     {{ commandName }} help readiness

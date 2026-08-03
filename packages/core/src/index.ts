@@ -244,15 +244,13 @@ export {
   type WikiGraphLibraryUpgradeResult,
   type WikiGraphMaintenanceUpgradeResult,
 } from "./maintenance/upgrade.js";
-export {
-  readArchiveIndexSettings,
-  readSearchIndexCapabilityStatus,
-} from "./retrieval/search-index/index.js";
+export { readSearchIndexCapabilityStatus } from "./retrieval/search-index/index.js";
 export {
   buildChapterEmbeddingIndexArtifact,
   buildChapterFtsIndexArtifact,
   createEmbeddingIndexArtifactInput,
   createFtsIndexArtifactInput,
+  refreshChapterFtsIndexArtifactIfPresent,
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
   replaceChapterSummaryEmbeddingIndexArtifact,
@@ -331,7 +329,6 @@ export type {
   QueryIndexScope,
   QueryScope,
 } from "./api/index.js";
-export { setFtsIndexEmbedded } from "./retrieval/search-index/index.js";
 export {
   addBuildJob,
   assertBuildJobInputRevision,

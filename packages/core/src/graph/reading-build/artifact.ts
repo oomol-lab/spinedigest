@@ -18,6 +18,7 @@ import {
   readWikgObjectsFromJsonl,
   writeWikgObjectsToJsonl,
 } from "../../object-stream.js";
+import { replaceChapterFtsIndexArtifact } from "../../retrieval/index-artifact/index.js";
 import {
   createGraphBuildParameterInput,
   createTopologyOptions,
@@ -97,6 +98,9 @@ export async function commitChapterGraphArtifact(
 
   await document.openSession(async (openedDocument) => {
     await requireStage(openedDocument, artifact.chapterId, "sourced");
+    const hadFtsArtifact =
+      (await openedDocument.indexArtifacts.get(artifact.chapterId, "fts")) !==
+      undefined;
     await openedDocument.clearSerialGraph(artifact.chapterId);
     await openedDocument.serials.ensure(artifact.chapterId);
 
@@ -183,6 +187,9 @@ export async function commitChapterGraphArtifact(
       true,
       parameter.hash,
     );
+    if (hadFtsArtifact) {
+      await replaceChapterFtsIndexArtifact(openedDocument, artifact.chapterId);
+    }
   });
 
   return await getChapterDetails(document, artifact.chapterId);

@@ -15,6 +15,7 @@ import {
 } from "wiki-graph-core";
 
 import type { CLIQueueArguments } from "../../args/index.js";
+import { loadCLIConfig } from "../../runtime/config.js";
 import { loadRequiredStageConfig } from "../../runtime/index.js";
 import { writeTextToStdout } from "../../support/index.js";
 import {
@@ -42,10 +43,26 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
       if (singleChapterId !== undefined) {
         await assertQueueAddReady(args, singleChapterId);
       }
-      assertBuildCostAccepted(args);
-      const config = await loadRequiredStageConfig({
-        ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-      });
+      const target = args.target ?? "reading-summary";
+      if (target !== "index-fts") {
+        assertBuildCostAccepted(args);
+      }
+      const config = requiresLLMConfig(target)
+        ? await loadRequiredStageConfig({
+            ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+          })
+        : await loadCLIConfig({
+            ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+          });
+      if (
+        (target === "index-embedding-source" ||
+          target === "index-embedding-summary") &&
+        config.embedding === undefined
+      ) {
+        throw new Error(
+          "Missing embeddings configuration. Configure `wikg://local/config/embeddings` before queueing embedding index artifact jobs.",
+        );
+      }
       if (args.target === "knowledge-graph") {
         requireKnowledgeGraphWikispineConfig(config);
       }
@@ -129,6 +146,14 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
       await writeTextToStdout(`Cleaned ${await cleanBuildJobs()} jobs.\n`);
       return;
   }
+}
+
+function requiresLLMConfig(target: NonNullable<CLIQueueArguments["target"]>) {
+  return (
+    target === "knowledge-graph" ||
+    target === "reading-graph" ||
+    target === "reading-summary"
+  );
 }
 
 async function resolveQueueJobId(args: CLIQueueArguments): Promise<string> {

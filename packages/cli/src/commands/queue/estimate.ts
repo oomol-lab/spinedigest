@@ -97,12 +97,28 @@ function createQueueAddEstimateSteps(input: {
           chapters: input.chapters,
           concurrent: input.concurrent,
           model: input.model,
+          prerequisite: true,
+          task: "index-fts",
+        }),
+        createQueueAddEstimateStep({
+          chapters: input.chapters,
+          concurrent: input.concurrent,
+          model: input.model,
           prerequisite: false,
           task: "knowledge-graph",
         }),
       ].filter((step) => step.chapters > 0);
     case "reading-graph":
       return [
+        createQueueAddEstimateStep({
+          chapters: input.chapters.filter(
+            (chapter) => chapter.stage === "sourced",
+          ),
+          concurrent: input.concurrent,
+          model: input.model,
+          prerequisite: true,
+          task: "index-fts",
+        }),
         createQueueAddEstimateStep({
           chapters: input.chapters.filter(
             (chapter) => chapter.stage === "sourced",

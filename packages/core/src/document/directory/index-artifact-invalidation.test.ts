@@ -39,7 +39,7 @@ describe("DirectoryDocument index artifact invalidation", () => {
     });
   });
 
-  it("deletes only summary embedding when summary changes", async () => {
+  it("deletes FTS and summary embedding when summary changes", async () => {
     await withDocument(async (document) => {
       await document.openSession(async (openedDocument) => {
         const serialId = await openedDocument.createSerial();
@@ -50,7 +50,7 @@ describe("DirectoryDocument index artifact invalidation", () => {
 
         expect(
           await openedDocument.indexArtifacts.get(serialId, "fts"),
-        ).toBeDefined();
+        ).toBeUndefined();
         expect(
           await openedDocument.indexArtifacts.get(serialId, "embedding-source"),
         ).toBeDefined();

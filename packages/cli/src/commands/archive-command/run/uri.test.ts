@@ -89,7 +89,7 @@ describe("archive-command URI runtime resolution", () => {
     });
   });
 
-  it("marks a library index dirty after successful archive writes through a library locator", async () => {
+  it("requires library index sync after unsynced archive writes through a library locator", async () => {
     const target = await createTestLibraryTarget();
     const archive = await addTestArchiveToLibrary(target);
 
@@ -109,7 +109,7 @@ describe("archive-command URI runtime resolution", () => {
     );
   });
 
-  it("marks the explicit library index dirty after successful archive writes through a library locator", async () => {
+  it("requires explicit library index sync after unsynced archive writes through a library locator", async () => {
     const library = await createWikiGraphLibrary({
       folderPath: join(tempDir, "team-library"),
     });
@@ -133,7 +133,7 @@ describe("archive-command URI runtime resolution", () => {
     });
   });
 
-  it("does not dirty a library index for filesystem archive URI writes", async () => {
+  it("does not stale a library index for filesystem archive URI writes", async () => {
     const target = await createTestLibraryTarget();
     const archive = await addTestArchiveToLibrary(target);
 

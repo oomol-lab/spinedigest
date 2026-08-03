@@ -101,6 +101,22 @@ Notes:
 {% if libraryContext.isArchiveShortcut %}
   - This library archive shortcut inspects one managed archive's readiness; it is not a library-level health report.
 {% endif %}
+{% elif predicate == "build" and target.name == "chapter-index-artifact" %}
+Purpose:
+  Build or replace this chapter index artifact.
+
+Usage:
+  {{ commandName }} {{ uri }} build [--json]
+
+Notes:
+  - FTS artifacts are local compilation work and do not call a provider.
+  - Source and summary embedding artifacts require `wikg://local/config/embeddings` and may call the configured provider.
+  - Direct artifact build is an explicit build request; it does not use `--accept-cost`.
+  - Building an embedding artifact can immediately enqueue or run provider-backed work and may incur provider cost.
+{% if "/index/embedding/summary" in uri %}
+  - Summary embedding artifacts require an existing non-empty chapter summary.
+{% endif %}
+  - After artifacts change, sync the archive or library index cache before library query; free archive query can lazy-sync on first use.
 {% elif predicate == "add" and target.name == "chapter-collection-scope" %}
 Purpose:
   Add a chapter to the archive.
@@ -115,13 +131,17 @@ Notes:
   - Source input must not be empty when `--input` is used.
 {% elif predicate == "add" and target.name == "job-collection-scope" %}
 Purpose:
-  Add a local generation job.
+  Add a local build job.
 
 Usage:
-  {{ commandName }} {{ uri }} add --input <archive-uri|chapter-uri> --task reading-graph|reading-summary|knowledge-graph --accept-cost [--depth <N>] [--boost] [--llm <json>] [--prompt <text>]
+  {{ commandName }} {{ uri }} add --input <archive-uri|chapter-uri> --task index-fts|index-embedding-source|index-embedding-summary|reading-graph|reading-summary|knowledge-graph [--accept-cost] [--depth <N>] [--boost] [--llm <json>] [--prompt <text>]
 
 Notes:
-  - Generation jobs may call an LLM provider and incur cost.
+  - `index-fts` builds chapter FTS artifacts locally and does not require `--accept-cost`.
+  - `index-embedding-source` and `index-embedding-summary` build Dense artifacts with `wikg://local/config/embeddings` and require `--accept-cost`.
+  - Reading Graph, Reading Summary, and Knowledge Graph jobs may call an LLM provider and require `--accept-cost`.
+  - Reading Graph and Knowledge Graph jobs require a current FTS artifact for the chapter.
+  - Summary embedding jobs require an existing non-empty summary.
   - Archive input adds jobs for all eligible chapters; chapter input expands to the chapter subtree by default.
   - Use `--depth <N>` with archive or chapter input to limit affected chapters. For archive input, depth is measured from the archive's root chapters; for chapter input, it is measured from the specified chapter. `--depth 0` means only the relevant root chapters or specified chapter.
   - `--llm <json>` stores a job-local LLM object; it does not update `wikg://local/config/llm`.
@@ -400,7 +420,6 @@ Notes:
   - This removes local `index.db` cache data only.
   - It does not delete chapter index artifacts, Knowledge Graph, Reading Graph, Summary, source text, or library membership.
   - Free archive query can recreate an archive cache from artifacts.
-  - Library query requires running `{{ commandName }} {{ uri }} sync` again after clean.
 {% elif predicate == "clean" %}
 Purpose:
   Remove completed local generation jobs.
@@ -508,7 +527,17 @@ Notes:
 {% endif %}
 {% endif %}
 {% elif predicate == "delete" %}
-{% if target.name == "metadata-object" %}
+{% if target.name == "chapter-index-artifact" %}
+Purpose:
+  Delete this chapter index artifact.
+
+Usage:
+  {{ commandName }} {{ uri }} delete [--json]
+
+Notes:
+  - This deletes the stored artifact from the `.wikg` archive.
+  - It does not clean external `index.db` cache by itself; sync or clean the archive/library index cache after deleting artifacts.
+{% elif target.name == "metadata-object" %}
 Purpose:
   Delete one metadata key.
 
@@ -565,7 +594,7 @@ Notes:
 Library context:
   - This predicate runs through a library URI, not a standalone `.wikg` locator.
 {% if libraryContext.isLibraryWide %}
-  - Library-wide object predicates use the aggregate library index and may fail when that index is missing, dirty, or stale.
+  - Library-wide object predicates use the aggregate library index and may fail when that index is missing, stale, or not ready.
   - Interpret results with the returned archive/member provenance; cite the specific returned evidence or member.
 {% endif %}
 {% if target.name == "chapter-collection-scope" or target.name == "chapter-scope" or target.name == "chapter-source-object" or target.name == "chapter-summary-object" or target.name == "chapter-title-object" or target.name == "chapter-tree-object" or target.name == "chapter-state-object" %}
@@ -586,7 +615,7 @@ Library context:
 Related help:
   - {{ commandName }} {{ uri }} --help
   - {{ commandName }} help uri
-{% if predicate == "related" or predicate == "evidence" or predicate == "pack" or target.name == "index-object" or target.name == "job-collection-scope" %}
+{% if predicate == "related" or predicate == "evidence" or predicate == "pack" or target.name == "index-object" or target.name == "chapter-index-artifact" or target.name == "job-collection-scope" %}
   - {{ commandName }} help readiness
 {% endif %}
 {% if predicate == "create" or predicate == "export" %}

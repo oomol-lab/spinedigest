@@ -73,7 +73,16 @@ export async function isArchiveSearchIndexCurrent(
 export async function readArchiveSearchIndexStatus(
   document: ReadonlyDocument,
 ): Promise<"current" | "dirty" | "missing"> {
-  return await readSearchIndexStatus(document);
+  try {
+    await assertArchiveIndexArtifactsReady(document);
+  } catch {
+    return "dirty";
+  }
+
+  return await readSearchIndexStatus(
+    document,
+    await buildArchiveIndexProjection(document),
+  );
 }
 
 export async function clearDirtyArchiveSearchIndex(
@@ -114,6 +123,9 @@ export async function buildArchiveIndexProjection(
 export async function assertArchiveIndexArtifactsReady(
   document: ReadonlyDocument,
 ): Promise<void> {
+  const chapterIds = new Set(
+    (await listChapters(document)).map((chapter) => chapter.chapterId),
+  );
   const [ftsCoverage, sourceEmbeddingCoverage] = await Promise.all([
     document.indexArtifacts.listCoverage("fts"),
     document.indexArtifacts.listCoverage("embedding-source"),
@@ -123,6 +135,7 @@ export async function assertArchiveIndexArtifactsReady(
   );
   const blocked = ftsCoverage.filter(
     (record) =>
+      chapterIds.has(record.serialId) &&
       !record.current &&
       sourceEmbeddingBySerial.get(record.serialId)?.current !== true,
   );
@@ -194,64 +207,73 @@ export async function writeArchiveIndexProjectionFromArtifacts(
       }
     }
 
-    for (const artifact of await document.indexArtifacts.list(
+    for (const artifactKind of [
       "embedding-source",
-    )) {
-      const segments = await document.indexArtifacts.listEmbeddingSegments(
-        artifact.serialId,
-        "embedding-source",
-      );
-      const dimensions = readEmbeddingDimensions(artifact.metadata);
-      const model = readEmbeddingModel(artifact.metadata);
-
-      if (
-        segments.length > 0 &&
-        (dimensions === undefined || model === undefined)
-      ) {
-        throw new Error(
-          `Source embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
+      "embedding-summary",
+    ] as const) {
+      for (const artifact of await document.indexArtifacts.list(artifactKind)) {
+        const segments = await document.indexArtifacts.listEmbeddingSegments(
+          artifact.serialId,
+          artifactKind,
         );
-      }
+        const dimensions = readEmbeddingDimensions(artifact.metadata);
+        const model = readEmbeddingModel(artifact.metadata);
+        const label =
+          artifactKind === "embedding-source" ? "Source" : "Summary";
+        const textKind =
+          artifactKind === "embedding-source"
+            ? TEXT_SENTENCE_KIND.source
+            : TEXT_SENTENCE_KIND.summary;
 
-      for (const segment of segments) {
-        const vectorDimensions = dimensions ?? segment.vector.length;
-
-        if (segment.vector.length !== vectorDimensions) {
+        if (
+          segments.length > 0 &&
+          (dimensions === undefined || model === undefined)
+        ) {
           throw new Error(
-            `Source embedding artifact for chapter ${artifact.serialId} has ${segment.vector.length} dimensions; expected ${vectorDimensions}.`,
+            `${label} embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
           );
         }
-        for (
-          let sentenceIndex = segment.startSentenceIndex;
-          sentenceIndex <= segment.endSentenceIndex;
-          sentenceIndex += 1
-        ) {
-          await insertTextSentenceRecord(database, {
+
+        for (const segment of segments) {
+          const vectorDimensions = dimensions ?? segment.vector.length;
+
+          if (segment.vector.length !== vectorDimensions) {
+            throw new Error(
+              `${label} embedding artifact for chapter ${artifact.serialId} has ${segment.vector.length} dimensions; expected ${vectorDimensions}.`,
+            );
+          }
+          for (
+            let sentenceIndex = segment.startSentenceIndex;
+            sentenceIndex <= segment.endSentenceIndex;
+            sentenceIndex += 1
+          ) {
+            await insertTextSentenceRecord(database, {
+              archiveId: SINGLE_ARCHIVE_INDEX_ID,
+              chapterId: artifact.serialId,
+              kind: textKind,
+              sentenceIndex,
+              text: "",
+              wordsCount: 0,
+            });
+          }
+          await insertTextEmbeddingSegment(database, {
             archiveId: SINGLE_ARCHIVE_INDEX_ID,
             chapterId: artifact.serialId,
-            kind: TEXT_SENTENCE_KIND.source,
-            sentenceIndex,
-            text: "",
-            wordsCount: 0,
+            dimensions: vectorDimensions,
+            endSentenceIndex: segment.endSentenceIndex,
+            kind: textKind,
+            model: model ?? "",
+            startSentenceIndex: segment.startSentenceIndex,
+            vector: segment.vector,
+            wordsCount: segment.wordsCount,
+          });
+          vectorDone += 1;
+          await progress?.({
+            done: vectorDone,
+            phase: "indexing-dense",
+            unit: "vector",
           });
         }
-        await insertTextEmbeddingSegment(database, {
-          archiveId: SINGLE_ARCHIVE_INDEX_ID,
-          chapterId: artifact.serialId,
-          dimensions: vectorDimensions,
-          endSentenceIndex: segment.endSentenceIndex,
-          kind: TEXT_SENTENCE_KIND.source,
-          model: model ?? "",
-          startSentenceIndex: segment.startSentenceIndex,
-          vector: segment.vector,
-          wordsCount: segment.wordsCount,
-        });
-        vectorDone += 1;
-        await progress?.({
-          done: vectorDone,
-          phase: "indexing-dense",
-          unit: "vector",
-        });
       }
     }
 
@@ -499,36 +521,40 @@ async function readArchiveEmbeddingState(
 ): Promise<SearchIndexStoredEmbeddingState | undefined> {
   let state: SearchIndexStoredEmbeddingState | undefined;
 
-  for (const artifact of await document.indexArtifacts.list(
+  for (const artifactKind of [
     "embedding-source",
-  )) {
-    const dimensions = readEmbeddingDimensions(artifact.metadata);
-    const model = readEmbeddingModel(artifact.metadata);
+    "embedding-summary",
+  ] as const) {
+    for (const artifact of await document.indexArtifacts.list(artifactKind)) {
+      const dimensions = readEmbeddingDimensions(artifact.metadata);
+      const model = readEmbeddingModel(artifact.metadata);
+      const label = artifactKind === "embedding-source" ? "Source" : "Summary";
 
-    if (dimensions === undefined || model === undefined) {
-      throw new Error(
-        `Source embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
-      );
+      if (dimensions === undefined || model === undefined) {
+        throw new Error(
+          `${label} embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
+        );
+      }
+
+      const identity = readEmbeddingIdentity(artifact.metadata);
+      const next: SearchIndexStoredEmbeddingState = {
+        dimensions,
+        ...(identity === undefined ? {} : { identity }),
+        model,
+      };
+
+      if (
+        state !== undefined &&
+        (state.dimensions !== next.dimensions ||
+          state.model !== next.model ||
+          state.identity !== next.identity)
+      ) {
+        throw new Error(
+          "Embedding artifacts use different embedding providers or dimensions; rebuild them with one embeddings configuration.",
+        );
+      }
+      state = next;
     }
-
-    const identity = readEmbeddingIdentity(artifact.metadata);
-    const next: SearchIndexStoredEmbeddingState = {
-      dimensions,
-      ...(identity === undefined ? {} : { identity }),
-      model,
-    };
-
-    if (
-      state !== undefined &&
-      (state.dimensions !== next.dimensions ||
-        state.model !== next.model ||
-        state.identity !== next.identity)
-    ) {
-      throw new Error(
-        "Source embedding artifacts use different embedding providers or dimensions; rebuild them with one embeddings configuration.",
-      );
-    }
-    state = next;
   }
 
   return state;

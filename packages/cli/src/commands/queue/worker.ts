@@ -8,10 +8,10 @@ import {
   commitChapterKnowledgeGraphArtifact,
   commitChapterSummaryArtifact,
   createEmbeddingIndexArtifactInput,
-  createFtsIndexArtifactInput,
   createDisambiguationProfileNormalizer,
   generateChapterKnowledgeGraphArtifactFromSnapshot,
   getBuildJob,
+  replaceChapterFtsIndexArtifact,
   readChapterBuildInput,
   recordBuildJobInputRevision,
   runBuildJobWorker,
@@ -151,6 +151,21 @@ async function executeGenerationBuildJob(
   if (details.stage === "planned") {
     throw new Error(
       `Chapter ${job.chapterId} is planned. Set source before queueing a build job.`,
+    );
+  }
+  if (job.target === "knowledge-graph" || job.target === "reading-graph") {
+    await new WikiGraphArchiveFile(job.archivePath).readDocument(
+      async (document) => {
+        const artifact = await document.indexArtifacts.get(
+          job.chapterId,
+          "fts",
+        );
+        if (artifact?.sourceRevision !== buildInput.revision) {
+          throw new Error(
+            `Chapter ${job.chapterId} needs a current FTS index artifact before running ${job.target}.`,
+          );
+        }
+      },
     );
   }
   if (job.target === "knowledge-graph") {
@@ -335,16 +350,10 @@ async function executeIndexArtifactBuildJob(
   });
 
   if (job.target === "index-fts") {
-    const artifact = createFtsIndexArtifactInput({
-      sentences: snapshot.sentences,
-      serialId: job.chapterId,
-      sourceRevision: snapshot.revision,
-    });
-
     await new WikiGraphArchiveFile(job.archivePath).write(async (document) => {
       assertJobStillRunning(await getBuildJob(job.jobId));
       await assertCurrentBuildInputRevision(job, document);
-      await document.indexArtifacts.replaceFts(artifact);
+      await replaceChapterFtsIndexArtifact(document, job.chapterId);
     });
     await completeIndexArtifactStep(job, reporter);
     return;
@@ -403,6 +412,14 @@ async function readIndexArtifactJobSnapshot(job: BuildJob): Promise<{
         job.target === "index-embedding-summary"
           ? document.getSummaryFragments(job.chapterId)
           : document.getSerialFragments(job.chapterId);
+      if (job.target === "index-embedding-summary") {
+        const summary = await document.readSummary(job.chapterId);
+        if (summary === undefined || summary.trim() === "") {
+          throw new Error(
+            `Chapter ${job.chapterId} has no summary. Build a reading summary before building a summary embedding index artifact.`,
+          );
+        }
+      }
 
       if (stream.listSentences === undefined) {
         throw new Error("Text stream does not expose sentence listing.");

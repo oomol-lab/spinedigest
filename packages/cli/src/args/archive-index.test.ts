@@ -208,18 +208,18 @@ describe("cli/args/archive index", () => {
       parseCLIArguments(["wikg://lib/index", "sync", "--to", "x.wikg"]),
     ).toThrow("The `sync` command does not support --to.");
     expect(() => parseCLIArguments(["wikg://lib/index", "embed"])).toThrow(
-      "The library index wikg://lib/index does not support `embed`.\nSee: wg wikg://lib/index embed --help",
+      "The library index wikg://lib/index does not support `embed`.\nSee: wg wikg://lib/index --help",
     );
     expect(() => parseCLIArguments(["wikg://lib/index", "external"])).toThrow(
-      "The library index wikg://lib/index does not support `external`.\nSee: wg wikg://lib/index external --help",
+      "The library index wikg://lib/index does not support `external`.\nSee: wg wikg://lib/index --help",
     );
     expect(() => parseCLIArguments(["wikg://lib/team/index", "embed"])).toThrow(
-      "The library index wikg://lib/team/index does not support `embed`.\nSee: wg wikg://lib/team/index embed --help",
+      "The library index wikg://lib/team/index does not support `embed`.\nSee: wg wikg://lib/team/index --help",
     );
     expect(() =>
       parseCLIArguments(["wikg://lib/team/index", "external"]),
     ).toThrow(
-      "The library index wikg://lib/team/index does not support `external`.\nSee: wg wikg://lib/team/index external --help",
+      "The library index wikg://lib/team/index does not support `external`.\nSee: wg wikg://lib/team/index --help",
     );
   });
 

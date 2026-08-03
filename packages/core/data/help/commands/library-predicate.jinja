@@ -149,7 +149,7 @@ Notes:
   - `--to` must be a relative `.wikg` path inside the library folder.
   - Parent directories for `--to` are created as needed.
   - Existing target files are not overwritten.
-  - Adding an archive marks the library index dirty.
+  - Adding an archive can make an existing library index cache stale.
   - The command holds the library write lock and cannot run concurrently with `arc scan`, library `path set`, archive path changes/removes, or index rebuild for the same library.
 {% elif target.kind == "scope" and predicate == "scan" %}
 Purpose:
@@ -162,7 +162,7 @@ Notes:
   - Scan recursively discovers `.wikg` files in the bound library folder.
   - Registered files that are no longer present remain visible as missing/stale instead of being deleted silently.
   - When a moved archive can be matched by its stable mutation token, scan preserves its archive id and updates the relative path.
-  - Scan marks the library index dirty when membership changes.
+  - Scan can make an existing library index cache stale when membership changes.
   - Scan holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
 {% elif target.kind == "scope" and predicate == "get" %}
 Purpose:
@@ -220,7 +220,7 @@ Notes:
   - `--confirm` is required.
   - If the registered file is already missing, the command can still clean the registry entry.
   - This does not delete empty parent directories.
-  - Removing an archive marks the library index dirty.
+  - Removing an archive can make an existing library index cache stale.
   - Remove holds the library write lock and cannot run concurrently with library scan, add, path binding, archive path changes, or index rebuild for the same library.
 {% elif target.kind == "metadata" and predicate == "set" %}
 Purpose:

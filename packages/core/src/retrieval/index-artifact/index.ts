@@ -3,6 +3,7 @@ export {
   buildChapterFtsIndexArtifact,
   createEmbeddingIndexArtifactInput,
   createFtsIndexArtifactInput,
+  refreshChapterFtsIndexArtifactIfPresent,
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
   replaceChapterSummaryEmbeddingIndexArtifact,

@@ -7,7 +7,6 @@ export {
   markDirtySearchIndexChapters,
   prepareSearchIndexReplacement,
   querySearchIndex,
-  readArchiveIndexSettings,
   readSearchIndexCapabilityStatus,
   readSearchIndexFingerprintFromDatabase,
   readSearchIndexStatus,
@@ -20,7 +19,6 @@ export {
   SEARCH_OBJECT_PROPERTY_KIND,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
   SINGLE_ARCHIVE_INDEX_ID,
-  setFtsIndexEmbedded,
   TEXT_SENTENCE_KIND,
   insertFtsRecord,
   insertSearchObjectPropertyRecord,
@@ -30,7 +28,6 @@ export {
   writeSearchIndexDenseSegments,
 } from "./search/index.js";
 export type {
-  ArchiveIndexSettings,
   SearchIndexInput,
   SearchIndexBuildOptions,
   SearchIndexCapabilityStatus,

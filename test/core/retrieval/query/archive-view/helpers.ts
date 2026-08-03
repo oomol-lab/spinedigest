@@ -28,9 +28,9 @@ import {
   isSearchIndexCurrent,
   markDirtySearchIndexChapters,
   querySearchIndex,
-  readArchiveIndexSettings,
   SEARCH_INDEX_FTS_HIT_LIMIT,
 } from "../../../../../packages/core/src/retrieval/search-index/index.js";
+import { replaceChapterFtsIndexArtifact } from "../../../../../packages/core/src/retrieval/index-artifact/index.js";
 import { deleteArchiveSearchSessions } from "../../../../../packages/core/src/retrieval/query/search-cache/index.js";
 import { withTempDir } from "../../../../helpers/temp.js";
 
@@ -65,7 +65,7 @@ export {
   markDirtySearchIndexChapters,
   packArchiveContext,
   querySearchIndex,
-  readArchiveIndexSettings,
+  replaceChapterFtsIndexArtifact,
   readArchivePage,
   readArchiveText,
   rebuildArchiveSearchIndex,
@@ -155,6 +155,7 @@ export async function seedSourcedDocument(
       version: 1,
     });
   });
+  await replaceChapterFtsIndexArtifact(document, 1);
   await rebuildArchiveSearchIndex(document);
 }
 

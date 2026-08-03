@@ -1,6 +1,7 @@
 import {
   finalizeWikiGraphLibraryArchiveWrite,
-  markWikiGraphLibraryIndexDirty,
+  readWikiGraphLibraryIndexState,
+  rebuildWikiGraphLibraryIndex,
   WikiGraphArchiveFile,
   type DirectoryDocument,
   type ReadonlyDocument,
@@ -37,21 +38,26 @@ export async function writeArchiveDocument<T>(
     }
 
     try {
-      await markWikiGraphLibraryIndexDirty(location.libraryDirtyTarget);
+      const state = await readWikiGraphLibraryIndexState(
+        location.libraryDirtyTarget,
+      );
+      if (state.status !== "missing") {
+        await rebuildWikiGraphLibraryIndex(location.libraryDirtyTarget);
+      }
     } catch (error) {
-      reportLibraryDirtyMarkFailure(error);
+      reportLibraryIndexSyncFailure(error);
     }
   }
 
   return result;
 }
 
-function reportLibraryDirtyMarkFailure(error: unknown): void {
+function reportLibraryIndexSyncFailure(error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
 
   try {
     process.stderr.write(
-      `Warning: failed to mark library index dirty after archive write: ${message}\n`,
+      `Warning: failed to sync library index cache after archive write: ${message}\n`,
     );
   } catch {
     // The archive write already succeeded; diagnostics must not turn it into a

@@ -207,6 +207,7 @@ export class DirectoryDocument implements Document {
   }
 
   public async deleteSummary(serialId: number): Promise<void> {
+    await this.indexArtifacts.delete(serialId, "fts");
     await this.indexArtifacts.delete(serialId, "embedding-summary");
     await this.#textStreams.getSummarySerial(serialId).delete();
   }

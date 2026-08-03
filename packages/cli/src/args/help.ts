@@ -42,6 +42,7 @@ export type UriHelpTargetName =
   | "chapter-title-object"
   | "chapter-tree-object"
   | "chapter-state-object"
+  | "chapter-index-artifact"
   | "chunk-scope"
   | "chunk-object"
   | "cover-object"
@@ -62,6 +63,7 @@ export type UriHelpTargetName =
 export type UriHelpPredicateName =
   | "add"
   | "boost"
+  | "build"
   | "cancel"
   | "clear"
   | "clean"
@@ -110,6 +112,7 @@ const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
   { name: "chapter-title-object", predicates: ["clear", "set"] },
   { name: "chapter-tree-object", predicates: ["set"] },
   { name: "chapter-state-object", predicates: [] },
+  { name: "chapter-index-artifact", predicates: ["build", "delete"] },
   { name: "chunk-scope", predicates: [] },
   { name: "chunk-object", predicates: ["evidence", "pack", "related"] },
   { name: "cover-object", predicates: [] },

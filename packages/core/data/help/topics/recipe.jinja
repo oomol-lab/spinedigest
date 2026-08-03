@@ -53,11 +53,13 @@ After inspect:
   - If inspect reports missing index artifacts or cache, inspect the index targets before syncing cache.
     {{ commandName }} <archive-uri>/index --help
     {{ commandName }} <archive-uri>/chapter/<chapter-id>/index/fts --help
+    {{ commandName }} <archive-uri>/chapter/<chapter-id>/index/embedding/source --help
+    {{ commandName }} <archive-uri>/chapter/<chapter-id>/index/embedding/summary --help
     {{ commandName }} <archive-uri>/index sync --help
     Read readiness before deciding whether artifacts or cache are missing:
       {{ commandName }} help readiness
 
-  - If library-wide query reports a missing or dirty index cache, inspect the library index target and sync it when appropriate.
+  - If library-wide query reports a missing, stale, or not-ready index cache, inspect the library index target and sync it when appropriate.
     {{ commandName }} wikg://lib/index --help
     {{ commandName }} wikg://lib/index sync --help
     {{ commandName }} help library

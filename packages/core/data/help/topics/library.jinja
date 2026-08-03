@@ -67,14 +67,15 @@ Library index lifecycle:
   - Sync does not build missing chapter artifacts and does not call an embeddings provider.
   - Dense query still requires `wikg://local/config/embeddings` to embed the query text.
   - When both FTS and Dense exist, library query combines them automatically; there is no separate query mode flag.
-  - `scan`, `add`, archive `path set`, archive `remove`, and archive writes can make the aggregate index dirty.
-  - Sync the library index again when library-wide query reports that the index is missing, dirty, or stale.
+  - Library membership changes can make the aggregate index stale.
+  - Managed archive writes try to sync an existing library index cache immediately; if sync cannot complete, library-wide query reports the cache as stale or not ready.
+  - Sync the library index again when library-wide query reports that the index is missing, stale, or not ready.
 
 Concurrency:
   - Library registry and membership writes hold the library write lock.
   - `arc scan`, `arc add`, library `path set`, library archive `path set`, library archive `remove`, and library index `sync` or `clean` cannot run concurrently for the same library.
   - Library-wide object `--query`, object scope enumeration, evidence, related, and pack commands read the current aggregate index.
-  - If a write marks the aggregate index dirty, rebuild it with `{{ commandName }} <library-uri>/index sync` before relying on library-wide query results.
+  - If a write cannot resync the aggregate index, rebuild it with `{{ commandName }} <library-uri>/index sync` before relying on library-wide query results.
 
 Upgrade and cleanup:
   - Upgrade a whole library with `{{ commandName }} maintenance upgrade wikg://lib` or `{{ commandName }} maintenance upgrade wikg://lib/<lib-id>`.

@@ -188,7 +188,7 @@ async function writeIndexOutput(
 
   await writeTextToStdout(
     [
-      `Status: ${payload.current ? "current" : "missing"}`,
+      `Status: ${formatArchiveIndexStatus(payload)}`,
       `Enabled indexes: ${payload.capabilities.indexes}`,
       `Dense current: ${payload.capabilities.dense.current ? "yes" : "no"}`,
       ...(payload.capabilities.dense.model === undefined
@@ -200,4 +200,19 @@ async function writeIndexOutput(
       "",
     ].join("\n"),
   );
+}
+
+function formatArchiveIndexStatus(input: {
+  readonly capabilities: Awaited<
+    ReturnType<typeof readSearchIndexCapabilityStatus>
+  >;
+  readonly current: boolean;
+}): "current" | "missing" | "outdated" {
+  if (input.current) {
+    return "current";
+  }
+  if (input.capabilities.indexes === "missing") {
+    return "missing";
+  }
+  return "outdated";
 }

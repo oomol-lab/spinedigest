@@ -535,38 +535,49 @@ async function replaceLibrarySearchIndex(
               archiveEmbeddingState,
             );
           }
-          for (const artifact of await archiveDocument.indexArtifacts.list(
+          for (const artifactKind of [
             "embedding-source",
-          )) {
-            const model = readEmbeddingModel(artifact.metadata);
-            const dimensions = readEmbeddingDimensions(artifact.metadata);
-
-            if (model === undefined || dimensions === undefined) {
-              throw new Error(
-                `Source embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
-              );
-            }
-            for (const segment of await archiveDocument.indexArtifacts.listEmbeddingSegments(
-              artifact.serialId,
-              "embedding-source",
+            "embedding-summary",
+          ] as const) {
+            for (const artifact of await archiveDocument.indexArtifacts.list(
+              artifactKind,
             )) {
-              await insertTextEmbeddingSegment(database, {
-                archiveId: archive.id,
-                chapterId: artifact.serialId,
-                dimensions,
-                endSentenceIndex: segment.endSentenceIndex,
-                kind: TEXT_SENTENCE_KIND.source,
-                model,
-                startSentenceIndex: segment.startSentenceIndex,
-                vector: segment.vector,
-                wordsCount: segment.wordsCount,
-              });
-              vectorDone += 1;
-              await progress?.({
-                done: vectorDone,
-                phase: "indexing-dense",
-                unit: "vector",
-              });
+              const model = readEmbeddingModel(artifact.metadata);
+              const dimensions = readEmbeddingDimensions(artifact.metadata);
+              const label =
+                artifactKind === "embedding-source" ? "Source" : "Summary";
+              const textKind =
+                artifactKind === "embedding-source"
+                  ? TEXT_SENTENCE_KIND.source
+                  : TEXT_SENTENCE_KIND.summary;
+
+              if (model === undefined || dimensions === undefined) {
+                throw new Error(
+                  `${label} embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
+                );
+              }
+              for (const segment of await archiveDocument.indexArtifacts.listEmbeddingSegments(
+                artifact.serialId,
+                artifactKind,
+              )) {
+                await insertTextEmbeddingSegment(database, {
+                  archiveId: archive.id,
+                  chapterId: artifact.serialId,
+                  dimensions,
+                  endSentenceIndex: segment.endSentenceIndex,
+                  kind: textKind,
+                  model,
+                  startSentenceIndex: segment.startSentenceIndex,
+                  vector: segment.vector,
+                  wordsCount: segment.wordsCount,
+                });
+                vectorDone += 1;
+                await progress?.({
+                  done: vectorDone,
+                  phase: "indexing-dense",
+                  unit: "vector",
+                });
+              }
             }
           }
         },
@@ -598,25 +609,29 @@ async function readArchiveEmbeddingState(
 ): Promise<SearchIndexStoredEmbeddingState | undefined> {
   let state: SearchIndexStoredEmbeddingState | undefined;
 
-  for (const artifact of await document.indexArtifacts.list(
+  for (const artifactKind of [
     "embedding-source",
-  )) {
-    const dimensions = readEmbeddingDimensions(artifact.metadata);
-    const model = readEmbeddingModel(artifact.metadata);
+    "embedding-summary",
+  ] as const) {
+    for (const artifact of await document.indexArtifacts.list(artifactKind)) {
+      const dimensions = readEmbeddingDimensions(artifact.metadata);
+      const model = readEmbeddingModel(artifact.metadata);
+      const label = artifactKind === "embedding-source" ? "Source" : "Summary";
 
-    if (dimensions === undefined || model === undefined) {
-      throw new Error(
-        `Source embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
-      );
+      if (dimensions === undefined || model === undefined) {
+        throw new Error(
+          `${label} embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
+        );
+      }
+
+      state = mergeEmbeddingState(state, {
+        dimensions,
+        ...(readEmbeddingIdentity(artifact.metadata) === undefined
+          ? {}
+          : { identity: readEmbeddingIdentity(artifact.metadata)! }),
+        model,
+      });
     }
-
-    state = mergeEmbeddingState(state, {
-      dimensions,
-      ...(readEmbeddingIdentity(artifact.metadata) === undefined
-        ? {}
-        : { identity: readEmbeddingIdentity(artifact.metadata)! }),
-      model,
-    });
   }
 
   return state;

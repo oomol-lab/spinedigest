@@ -873,7 +873,7 @@ function parseLibraryIndexArguments(
     throw new Error(
       withHelpRoute(
         `The library index ${uri} does not support \`${action}\`.`,
-        helpRoute,
+        formatWikiGraphHelpCommand(uri),
       ),
     );
   }

@@ -140,7 +140,6 @@ const archiveMockState = vi.hoisted(() => ({
     },
   ],
   ftsCurrent: false,
-  ftsEmbedded: false,
   indexArtifactCoverage: {
     "embedding-source": [
       {
@@ -664,12 +663,6 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
   ),
 }));
 
-vi.mock("../../../packages/core/src/retrieval/search-index/index.js", () => ({
-  readArchiveIndexSettings: vi.fn(() =>
-    Promise.resolve({ ftsEmbedded: archiveMockState.ftsEmbedded }),
-  ),
-}));
-
 vi.mock("../../../packages/core/src/retrieval/query/index.js", () => ({
   isArchiveSearchIndexCurrent: vi.fn(() =>
     Promise.resolve(archiveMockState.ftsCurrent),
@@ -803,7 +796,6 @@ function createDefaultInspectSerials(): typeof archiveMockState.serials {
 export function resetArchiveMockState(): void {
   vi.clearAllMocks();
   archiveMockState.ftsCurrent = false;
-  archiveMockState.ftsEmbedded = false;
   archiveMockState.indexArtifactCoverage = {
     "embedding-source": [
       {

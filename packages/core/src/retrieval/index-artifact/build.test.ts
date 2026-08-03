@@ -31,7 +31,7 @@ async function withDocument(
 }
 
 describe("index artifact builders", () => {
-  it("builds and stores an FTS artifact from source sentences", async () => {
+  it("builds and stores an FTS artifact from chapter lexical content", async () => {
     await withDocument(async (document) => {
       await document.openSession(async (openedDocument) => {
         const serialId = await openedDocument.createSerial();
@@ -39,23 +39,62 @@ describe("index artifact builders", () => {
         await openedDocument
           .getSerialFragments(serialId)
           .writeTextStream("Alpha beta. 山海之间。");
+        await openedDocument.writeSummary(serialId, "Summary row.");
+        await openedDocument.chunks.save({
+          content: "Chunk content row.",
+          generation: 0,
+          id: 10,
+          label: "Chunk label",
+          sentenceId: [serialId, 0],
+          sentenceIds: [[serialId, 0]],
+          weight: 1,
+          wordsCount: 3,
+        });
+        await openedDocument.mentions.saveMany([
+          {
+            chapterId: serialId,
+            id: "mention-alpha",
+            qid: "Q1",
+            rangeEnd: 5,
+            rangeStart: 0,
+            sentenceIndex: 0,
+            surface: "Alpha",
+          },
+        ]);
 
         await replaceChapterFtsIndexArtifact(openedDocument, serialId);
 
         const rows =
           await openedDocument.indexArtifacts.listLexicalRows(serialId);
 
-        expect(rows).toHaveLength(2);
+        expect(rows.map((row) => row.objectKind)).toStrictEqual([
+          "chunk-content",
+          "chunk-label",
+          "mention-surface",
+          "source-sentence",
+          "source-sentence",
+          "summary-sentence",
+        ]);
         expect(rows[0]).toMatchObject({
+          objectKind: "chunk-content",
+          rowId: "chunk-content:10",
+          text: "Chunk content row.",
+        });
+        expect(rows[3]).toMatchObject({
           objectKind: "source-sentence",
           rowId: "source-sentence:0",
           sentenceIndex: 0,
           text: "Alpha beta.",
         });
-        expect(rows[0]?.tokens.some((token) => token.startsWith("le"))).toBe(
+        expect(rows[3]?.tokens.some((token) => token.startsWith("le"))).toBe(
           true,
         );
-        expect(rows[1]?.tokens.length).toBeGreaterThan(0);
+        expect(rows[5]).toMatchObject({
+          objectKind: "summary-sentence",
+          rowId: "summary-sentence:0",
+          sentenceIndex: 0,
+          text: "Summary row.",
+        });
       });
     });
   });

@@ -22,6 +22,8 @@ const queueMockState = vi.hoisted(() => ({
   inputRevisionAssertions: [] as unknown[],
   inputRevisionRecords: [] as unknown[],
   indexArtifactWrites: [] as unknown[],
+  ftsArtifactCurrent: true,
+  hasSummary: true,
   embeddingRequests: [] as string[][],
   cliConfig: {} as {
     readonly concurrent?: {
@@ -76,6 +78,77 @@ const queueMockState = vi.hoisted(() => ({
   writeCalls: [] as string[],
 }));
 
+function createQueueMockDocument() {
+  return {
+    chunks: {
+      listBySerial: () =>
+        Promise.resolve([
+          {
+            content: "Chunk content.",
+            id: 123,
+            label: "Chunk label",
+            wordsCount: 2,
+          },
+        ]),
+    },
+    getSerialFragments: () => ({
+      listSentences: () =>
+        Promise.resolve([
+          {
+            text: "Alpha beta.",
+            wordsCount: 2,
+          },
+        ]),
+    }),
+    getSummaryFragments: () => ({
+      listSentences: () =>
+        Promise.resolve([
+          {
+            text: "Summary text.",
+            wordsCount: 2,
+          },
+        ]),
+    }),
+    indexArtifacts: {
+      get: () =>
+        Promise.resolve(
+          queueMockState.ftsArtifactCurrent
+            ? { sourceRevision: queueMockState.revision }
+            : undefined,
+        ),
+      replaceEmbedding: (artifact: unknown) => {
+        queueMockState.indexArtifactWrites.push({
+          artifact,
+          kind: "embedding",
+        });
+        return Promise.resolve();
+      },
+      replaceFts: (artifact: unknown) => {
+        queueMockState.indexArtifactWrites.push({
+          artifact,
+          kind: "fts",
+        });
+        return Promise.resolve();
+      },
+    },
+    mentions: {
+      listByChapter: () =>
+        Promise.resolve([
+          {
+            id: "mention-1",
+            qid: "Q1",
+            surface: "Alpha",
+          },
+        ]),
+    },
+    readSummary: () =>
+      Promise.resolve(queueMockState.hasSummary ? "Summary text." : undefined),
+    serials: {
+      getRevision: () => Promise.resolve(queueMockState.revision),
+    },
+  };
+}
+
 vi.mock(
   "../../packages/core/src/storage/wikg/wiki-graph-archive-file.js",
   () => ({
@@ -107,29 +180,7 @@ vi.mock(
         queueMockState.readDocumentCalls.push(this.#path);
         queueMockState.stepLog.push("read:start");
         try {
-          return await operation({
-            getSerialFragments: () => ({
-              listSentences: () =>
-                Promise.resolve([
-                  {
-                    text: "Alpha beta.",
-                    wordsCount: 2,
-                  },
-                ]),
-            }),
-            getSummaryFragments: () => ({
-              listSentences: () =>
-                Promise.resolve([
-                  {
-                    text: "Summary text.",
-                    wordsCount: 2,
-                  },
-                ]),
-            }),
-            serials: {
-              getRevision: () => Promise.resolve(queueMockState.revision),
-            },
-          });
+          return await operation(createQueueMockDocument());
         } finally {
           queueMockState.stepLog.push("read:end");
         }
@@ -141,27 +192,7 @@ vi.mock(
         queueMockState.writeCalls.push(this.#path);
         queueMockState.stepLog.push("write:start");
         try {
-          return await operation({
-            indexArtifacts: {
-              replaceEmbedding: (artifact: unknown) => {
-                queueMockState.indexArtifactWrites.push({
-                  artifact,
-                  kind: "embedding",
-                });
-                return Promise.resolve();
-              },
-              replaceFts: (artifact: unknown) => {
-                queueMockState.indexArtifactWrites.push({
-                  artifact,
-                  kind: "fts",
-                });
-                return Promise.resolve();
-              },
-            },
-            serials: {
-              getRevision: () => Promise.resolve(queueMockState.revision),
-            },
-          });
+          return await operation(createQueueMockDocument());
         } finally {
           queueMockState.stepLog.push("write:end");
         }
@@ -401,6 +432,8 @@ describe("cli/queue", () => {
     queueMockState.inputRevisionAssertions.length = 0;
     queueMockState.inputRevisionRecords.length = 0;
     queueMockState.indexArtifactWrites.length = 0;
+    queueMockState.ftsArtifactCurrent = true;
+    queueMockState.hasSummary = true;
     queueMockState.embeddingRequests.length = 0;
     queueMockState.cliConfig = {};
     queueMockState.loadRequiredStageConfigCalls.length = 0;
@@ -965,17 +998,39 @@ describe("cli/queue", () => {
     expect(queueMockState.indexArtifactWrites).toHaveLength(1);
     expect(queueMockState.indexArtifactWrites[0]).toMatchObject({
       artifact: {
-        lexicalRows: [
-          {
-            rowId: "source-sentence:0",
-            text: "Alpha beta.",
-          },
-        ],
         serialId: 12,
         sourceRevision: 1,
       },
       kind: "fts",
     });
+    expect(
+      (
+        queueMockState.indexArtifactWrites[0] as {
+          readonly artifact: { readonly lexicalRows: readonly unknown[] };
+        }
+      ).artifact.lexicalRows,
+    ).toMatchObject([
+      {
+        rowId: "source-sentence:0",
+        text: "Alpha beta.",
+      },
+      {
+        rowId: "summary-sentence:0",
+        text: "Summary text.",
+      },
+      {
+        rowId: "chunk-label:123",
+        text: "Chunk label",
+      },
+      {
+        rowId: "chunk-content:123",
+        text: "Chunk content.",
+      },
+      {
+        rowId: "mention-surface:mention-1",
+        text: "Alpha",
+      },
+    ]);
     expect(reporter.stepStarted).toHaveBeenCalledWith("index-fts");
     expect(reporter.stepCompleted).toHaveBeenCalledWith("index-fts");
   });
@@ -1093,6 +1148,8 @@ describe("cli/queue", () => {
     );
 
     expect(queueMockState.stepLog).toStrictEqual([
+      "read:start",
+      "read:end",
       "read:start",
       "read:end",
       "read:start",

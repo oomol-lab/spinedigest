@@ -27,6 +27,7 @@ import {
   readWikgObjectsFromJsonl,
   writeWikgObjectsToJsonl,
 } from "../../object-stream.js";
+import { replaceChapterFtsIndexArtifact } from "../../retrieval/index-artifact/index.js";
 import type {
   BuildChapterSummaryArtifactOptions,
   ChapterSummaryInputSnapshot,
@@ -103,7 +104,13 @@ export async function commitChapterSummaryArtifact(
 ): Promise<ChapterDetails> {
   await document.openSession(async (openedDocument) => {
     await requireStage(openedDocument, chapterId, "graphed");
+    const hadFtsArtifact =
+      (await openedDocument.indexArtifacts.get(chapterId, "fts")) !==
+      undefined;
     await openedDocument.writeSummary(chapterId, summary);
+    if (hadFtsArtifact) {
+      await replaceChapterFtsIndexArtifact(openedDocument, chapterId);
+    }
   });
 
   return await getChapterDetails(document, chapterId);

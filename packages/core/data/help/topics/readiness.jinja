@@ -11,14 +11,19 @@ Start with inspect:
   {{ commandName }} <archive-uri> inspect
 
 Archive index readiness:
-  Archive query needs chapter index artifacts. For each content chapter, at least one of these must be current:
+  Ordinary archive source query needs chapter index artifacts. For each content chapter, at least one of these must be current:
   - FTS artifact: `<chapter-uri>/index/fts`
   - Source embedding artifact: `<chapter-uri>/index/embedding/source`
+
+  Summary semantic retrieval is separate:
+  - Summary embedding artifact: `<chapter-uri>/index/embedding/summary`
+  - Summary embedding alone does not satisfy ordinary archive source query readiness.
 
   Artifact behavior:
     Chapter artifacts are stored inside the `.wikg` archive.
     Build FTS artifacts with the chapter index URI or queue target `index-fts`.
     Build source embedding artifacts with the chapter index URI or queue target `index-embedding-source`.
+    Build summary embedding artifacts with the chapter index URI or queue target `index-embedding-summary`.
     Building embedding artifacts requires `wikg://local/config/embeddings` and may call the configured provider.
 
   Cache behavior:
@@ -31,11 +36,14 @@ Archive index readiness:
     FTS artifact only: FTS query.
     Source embedding artifact only: semantic/Dense-only query.
     Both artifacts: Hybrid query with automatic fusion.
-    Missing both for any content chapter: query fails in strict mode.
+    Missing both FTS and source embedding for any content chapter: ordinary query fails in strict mode.
     Summary embedding artifacts are for summary semantic retrieval and are not the minimum requirement for ordinary source query.
 
   Commands:
     {{ commandName }} <archive-uri>/index
+    {{ commandName }} <chapter-uri>/index/fts --help
+    {{ commandName }} <chapter-uri>/index/embedding/source --help
+    {{ commandName }} <chapter-uri>/index/embedding/summary --help
     {{ commandName }} <archive-uri>/index sync --help
     {{ commandName }} <archive-uri>/index clean --help
 
@@ -49,9 +57,10 @@ Library index readiness:
     The index is local derived state under Wiki Graph staging, not a file inside the library folder.
     Sync does not build missing chapter artifacts and does not call an embeddings provider.
 
-  Dirty behavior:
-    `scan`, `add`, archive `path set`, archive `remove`, archive writes, and membership changes can mark the aggregate index dirty.
-    Sync the library index when library-wide query reports that it is missing, dirty, or stale.
+  Stale behavior:
+    Library membership changes can make the aggregate index stale.
+    Managed archive writes try to sync an existing library index cache immediately.
+    Sync the library index when library-wide query reports that it is missing, stale, or not ready.
 
   Commands:
     {{ commandName }} wikg://lib/index

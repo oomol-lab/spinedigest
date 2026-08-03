@@ -141,7 +141,3 @@ export const DENSE_SEGMENT_TARGET_WORDS = 300;
 export const DENSE_SEGMENT_MAX_WORDS = 420;
 export const DENSE_SEGMENT_OVERLAP_WORDS = 80;
 export const DENSE_SEGMENT_MIN_WORDS = 80;
-
-export interface ArchiveIndexSettings {
-  readonly ftsEmbedded: boolean;
-}

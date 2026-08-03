@@ -166,7 +166,9 @@ export class WikgDocumentFileStore implements DocumentFileStore {
   }
 
   public markSearchIndexDatabaseDirty(): void {
-    return;
+    if (!this.#readonlyDatabase) {
+      this.#session?.observeDirtyEntry(SEARCH_INDEX_DATABASE_ENTRY_PATH);
+    }
   }
 
   public openDatabaseReadonly(): boolean {

@@ -3,6 +3,7 @@ import {
   collectChapterKnowledgeGraphObjects,
   readWikgObjectsFromJsonl,
 } from "../../object-stream.js";
+import { refreshChapterFtsIndexArtifactIfPresent } from "../../retrieval/index-artifact/index.js";
 import { validateChapterKnowledgeGraphArtifact } from "./artifact-io.js";
 import type { ChapterKnowledgeGraphBuildArtifact } from "./types.js";
 
@@ -46,6 +47,10 @@ export async function commitChapterKnowledgeGraphArtifact(
       true,
       savedParameter.hash,
     );
+    await refreshChapterFtsIndexArtifactIfPresent(
+      openedDocument,
+      artifact.chapterId,
+    );
   });
 }
 
@@ -58,5 +63,6 @@ export async function clearChapterKnowledgeGraph(
     await openedDocument.mentions.deleteByChapter(chapterId);
     await openedDocument.serials.setKnowledgeGraphReady(chapterId, false);
     await openedDocument.graphBuildParameters.deleteUnreferenced();
+    await refreshChapterFtsIndexArtifactIfPresent(openedDocument, chapterId);
   });
 }
