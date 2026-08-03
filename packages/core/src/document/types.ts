@@ -83,6 +83,64 @@ export interface GraphBuildParameterRecord {
   readonly prompt: string;
 }
 
+export const INDEX_ARTIFACT_KINDS = [
+  "fts",
+  "embedding-source",
+  "embedding-summary",
+] as const;
+
+export type IndexArtifactKind = (typeof INDEX_ARTIFACT_KINDS)[number];
+
+export interface IndexArtifactRecord {
+  readonly createdAt: string;
+  readonly kind: IndexArtifactKind;
+  readonly metadata: Readonly<Record<string, unknown>>;
+  readonly serialId: number;
+  readonly sourceRevision: number;
+}
+
+export interface IndexArtifactCoverageRecord {
+  readonly current: boolean;
+  readonly kind: IndexArtifactKind;
+  readonly serialId: number;
+  readonly serialRevision: number;
+  readonly sourceRevision?: number;
+}
+
+export interface IndexArtifactLexicalRow {
+  readonly metadata: Readonly<Record<string, unknown>>;
+  readonly objectId: string;
+  readonly objectKind: string;
+  readonly rowId: string;
+  readonly sentenceIndex?: number;
+  readonly text: string;
+  readonly tokens: readonly string[];
+}
+
+export interface IndexArtifactEmbeddingSegment {
+  readonly endSentenceIndex: number;
+  readonly segmentIndex: number;
+  readonly startSentenceIndex: number;
+  readonly text: string;
+  readonly vector: readonly number[];
+  readonly wordsCount: number;
+}
+
+export interface ReplaceFtsIndexArtifactInput {
+  readonly lexicalRows: readonly IndexArtifactLexicalRow[];
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly serialId: number;
+  readonly sourceRevision: number;
+}
+
+export interface ReplaceEmbeddingIndexArtifactInput {
+  readonly kind: "embedding-source" | "embedding-summary";
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly segments: readonly IndexArtifactEmbeddingSegment[];
+  readonly serialId: number;
+  readonly sourceRevision: number;
+}
+
 export interface ChunkRecord {
   readonly id: number;
   readonly generation: number;

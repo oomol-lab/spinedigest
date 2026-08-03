@@ -33,6 +33,49 @@ export const SCHEMA_SQL = `
     created_at TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS index_artifacts (
+    serial_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    source_revision INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY (serial_id, kind),
+    FOREIGN KEY (serial_id) REFERENCES serials(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_index_artifacts_kind
+  ON index_artifacts(kind, serial_id);
+
+  CREATE TABLE IF NOT EXISTS index_artifact_lexical_rows (
+    serial_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    row_id TEXT NOT NULL,
+    object_kind TEXT NOT NULL,
+    object_id TEXT NOT NULL,
+    sentence_index INTEGER,
+    text TEXT NOT NULL,
+    tokens_json TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY (serial_id, kind, row_id),
+    FOREIGN KEY (serial_id, kind) REFERENCES index_artifacts(serial_id, kind)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_index_artifact_lexical_rows_object
+  ON index_artifact_lexical_rows(serial_id, kind, object_kind, object_id);
+
+  CREATE TABLE IF NOT EXISTS index_artifact_embedding_segments (
+    serial_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    segment_index INTEGER NOT NULL,
+    start_sentence_index INTEGER NOT NULL,
+    end_sentence_index INTEGER NOT NULL,
+    words_count INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    vector_json TEXT NOT NULL,
+    PRIMARY KEY (serial_id, kind, segment_index),
+    FOREIGN KEY (serial_id, kind) REFERENCES index_artifacts(serial_id, kind)
+  );
+
   CREATE TABLE IF NOT EXISTS chunks (
     id INTEGER PRIMARY KEY,
     generation INTEGER NOT NULL,

@@ -10,6 +10,7 @@ import type {
   ChunkStore,
   FragmentGroupStore,
   GraphBuildParameterStore,
+  IndexArtifactStore,
   MentionLinkStore,
   MentionStore,
   ObjectMetadataStore,
@@ -17,6 +18,7 @@ import type {
   ReadonlyChunkStore,
   ReadonlyFragmentGroupStore,
   ReadonlyGraphBuildParameterStore,
+  ReadonlyIndexArtifactStore,
   ReadonlyMentionLinkStore,
   ReadonlyMentionStore,
   ReadonlyObjectMetadataStore,
@@ -56,6 +58,7 @@ export interface ReadonlyDocument {
   readonly chunks: ReadonlyChunkStore;
   readonly fragmentGroups: ReadonlyFragmentGroupStore;
   readonly graphBuildParameters: ReadonlyGraphBuildParameterStore;
+  readonly indexArtifacts: ReadonlyIndexArtifactStore;
   readonly readingEdges: ReadonlyReadingEdgeStore;
   readonly mentionLinks: ReadonlyMentionLinkStore;
   readonly mentions: ReadonlyMentionStore;
@@ -95,6 +98,7 @@ export interface Document extends ReadonlyDocument {
   readonly chunks: ChunkStore;
   readonly fragmentGroups: FragmentGroupStore;
   readonly graphBuildParameters: GraphBuildParameterStore;
+  readonly indexArtifacts: IndexArtifactStore;
   readonly readingEdges: ReadingEdgeStore;
   readonly mentionLinks: MentionLinkStore;
   readonly mentions: MentionStore;

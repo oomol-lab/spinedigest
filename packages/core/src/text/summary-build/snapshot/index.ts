@@ -11,6 +11,7 @@ import type { SummaryInputSnapshotData } from "../types.js";
 import { SnapshotChunkStore } from "./chunk-store.js";
 import {
   EmptySnapshotGraphBuildParameterStore,
+  EmptySnapshotIndexArtifactStore,
   EmptySnapshotMentionLinkStore,
   EmptySnapshotMentionStore,
   EmptySnapshotObjectMetadataStore,
@@ -31,6 +32,7 @@ export class SummaryInputSnapshotDocument implements ReadonlyDocument {
   public readonly chunks: SnapshotChunkStore;
   public readonly fragmentGroups: SnapshotFragmentGroupStore;
   public readonly graphBuildParameters: ReadonlyGraphBuildParameterStore;
+  public readonly indexArtifacts: EmptySnapshotIndexArtifactStore;
   public readonly readingEdges: SnapshotReadingEdgeStore;
   public readonly mentionLinks: ReadonlyMentionLinkStore;
   public readonly mentions: ReadonlyMentionStore;
@@ -49,6 +51,7 @@ export class SummaryInputSnapshotDocument implements ReadonlyDocument {
       snapshot.fragmentGroups,
     );
     this.graphBuildParameters = new EmptySnapshotGraphBuildParameterStore();
+    this.indexArtifacts = new EmptySnapshotIndexArtifactStore();
     this.readingEdges = new SnapshotReadingEdgeStore(
       snapshot.readingEdges,
       snapshot.chunks,

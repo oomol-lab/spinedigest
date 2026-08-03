@@ -1,10 +1,18 @@
 import type {
   MentionLinkRecord,
   MentionRecord,
+  ReadonlyIndexArtifactStore,
   ReadonlyGraphBuildParameterStore,
   ReadonlyMentionLinkStore,
   ReadonlyMentionStore,
   ReadonlyObjectMetadataStore,
+} from "../../../document/index.js";
+import type {
+  IndexArtifactCoverageRecord,
+  IndexArtifactEmbeddingSegment,
+  IndexArtifactKind,
+  IndexArtifactLexicalRow,
+  IndexArtifactRecord,
 } from "../../../document/index.js";
 
 export class EmptySnapshotMentionStore implements ReadonlyMentionStore {
@@ -105,5 +113,35 @@ export class EmptySnapshotObjectMetadataStore implements ReadonlyObjectMetadataS
 export class EmptySnapshotGraphBuildParameterStore implements ReadonlyGraphBuildParameterStore {
   public getByHash(_hash: string): Promise<undefined> {
     return Promise.resolve(undefined);
+  }
+}
+
+export class EmptySnapshotIndexArtifactStore implements ReadonlyIndexArtifactStore {
+  public get(_serialId: number, _kind: IndexArtifactKind): Promise<undefined> {
+    return Promise.resolve(undefined);
+  }
+
+  public list(_kind?: IndexArtifactKind): Promise<IndexArtifactRecord[]> {
+    return Promise.resolve([]);
+  }
+
+  public listCoverage(
+    _kind: IndexArtifactKind,
+  ): Promise<IndexArtifactCoverageRecord[]> {
+    return Promise.resolve([]);
+  }
+
+  public listLexicalRows(
+    _serialId: number,
+    _kind?: "fts",
+  ): Promise<IndexArtifactLexicalRow[]> {
+    return Promise.resolve([]);
+  }
+
+  public listEmbeddingSegments(
+    _serialId: number,
+    _kind: "embedding-source" | "embedding-summary",
+  ): Promise<IndexArtifactEmbeddingSegment[]> {
+    return Promise.resolve([]);
   }
 }

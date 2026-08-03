@@ -1,6 +1,11 @@
 import type {
   ChunkRecord,
   GraphBuildParameterRecord,
+  IndexArtifactCoverageRecord,
+  IndexArtifactEmbeddingSegment,
+  IndexArtifactKind,
+  IndexArtifactLexicalRow,
+  IndexArtifactRecord,
   MentionLinkRecord,
   MentionRecord,
   ReadingEdgeRecord,
@@ -25,6 +30,23 @@ export interface ReadonlySerialStore {
 
 export interface ReadonlyGraphBuildParameterStore {
   getByHash(hash: string): Promise<GraphBuildParameterRecord | undefined>;
+}
+
+export interface ReadonlyIndexArtifactStore {
+  get(
+    serialId: number,
+    kind: IndexArtifactKind,
+  ): Promise<IndexArtifactRecord | undefined>;
+  list(kind?: IndexArtifactKind): Promise<IndexArtifactRecord[]>;
+  listCoverage(kind: IndexArtifactKind): Promise<IndexArtifactCoverageRecord[]>;
+  listLexicalRows(
+    serialId: number,
+    kind?: "fts",
+  ): Promise<IndexArtifactLexicalRow[]>;
+  listEmbeddingSegments(
+    serialId: number,
+    kind: "embedding-source" | "embedding-summary",
+  ): Promise<IndexArtifactEmbeddingSegment[]>;
 }
 
 export interface ReadonlyChunkStore {
