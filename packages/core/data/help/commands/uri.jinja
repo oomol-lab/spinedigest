@@ -12,7 +12,7 @@ URI type:
 
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates archive-level objects.
-  - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval across archive scopes.
+  - `{{ commandName }} {{ uri }} --query <query>` applies search index retrieval across archive scopes.
 
 Use when:
   - You need the archive entry point before narrowing to chapters, chunks, entities, triples, source, or summaries.
@@ -28,7 +28,7 @@ URI type:
 
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates chapters.
-  - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval to chapter objects.
+  - `{{ commandName }} {{ uri }} --query <query>` applies search index retrieval to chapter objects.
   - Chapter collection scope covers the full chapter tree by default; use `--depth 0` for root-level chapters only.
   - Chapter path URIs are the public CLI handles; internal chapter ids are not command targets.
 
@@ -40,7 +40,7 @@ URI type:
 
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates objects inside this chapter subtree.
-  - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval inside this chapter subtree.
+  - `{{ commandName }} {{ uri }} --query <query>` applies search index retrieval inside this chapter subtree.
   - Use `--depth 0` to restrict the scope to this chapter only; `--depth 1` includes direct children.
   - The path in this URI is the public CLI handle for the chapter; internal chapter ids are not command targets.
 
@@ -52,7 +52,7 @@ URI type:
 
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates Reading Graph chunks.
-  - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval to chunks in this scope.
+  - `{{ commandName }} {{ uri }} --query <query>` applies search index retrieval to chunks in this scope.
 {% if uriContext.isChapterQualified %}
   - This chapter-qualified scope covers the selected chapter subtree by default.
   - Use `--depth 0` for only the selected chapter, or `--depth 1` for the selected chapter plus direct children.
@@ -69,7 +69,7 @@ URI type:
 
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates Knowledge Graph entities.
-  - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval to entities in this scope.
+  - `{{ commandName }} {{ uri }} --query <query>` applies search index retrieval to entities in this scope.
 {% if uriContext.isChapterQualified %}
   - This chapter-qualified scope covers the selected chapter subtree by default.
   - Use `--depth 0` for only the selected chapter, or `--depth 1` for the selected chapter plus direct children.
@@ -86,7 +86,7 @@ URI type:
 
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates Knowledge Graph triples matching this scope or pattern.
-  - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval to triples in this scope.
+  - `{{ commandName }} {{ uri }} --query <query>` applies search index retrieval to triples in this scope.
 {% if uriContext.isChapterQualified %}
   - This chapter-qualified scope covers the selected chapter subtree by default.
   - Use `--depth 0` for only the selected chapter, or `--depth 1` for the selected chapter plus direct children.
@@ -280,6 +280,9 @@ Default behavior:
 
 Use when:
   - You need to read, replace, edit, clear, or test local configuration.
+{% if "/embeddings" in uri %}
+  - This section is used by Dense search index builds and Dense query embeddings.
+{% endif %}
 {% if "/wikispine" in uri %}
 
 WikiSpine runtime guide:

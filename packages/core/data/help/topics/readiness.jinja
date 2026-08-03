@@ -10,11 +10,12 @@ Purpose:
 Start with inspect:
   {{ commandName }} <archive-uri> inspect
 
-Archive FTS readiness:
-  Archive `--query` uses that archive's FTS index. Without a current index, keyword retrieval is unavailable for archive scopes, evidence, and related results.
+Archive index readiness:
+  Archive `--query` uses that archive's current search index. Without a current index, retrieval is unavailable for archive scopes, evidence, and related results.
 
   Default behavior:
     `{{ commandName }} <archive-uri>/index enable` enables the searchable index as local cache outside the `.wikg` archive.
+    By default this builds FTS and also builds Dense semantic segments when embeddings are configured.
     This keeps the archive smaller, but the index does not travel with copied archive files.
     If another user receives the `.wikg`, they usually need to enable their own local index.
     After an index is enabled, CLI archive writes keep it synchronized automatically.
@@ -25,6 +26,12 @@ Archive FTS readiness:
     This makes the archive more self-contained, but increases file size.
     After embedding, CLI archive writes keep the embedded index synchronized automatically.
     If you are unsure, enable the local index first and embed only when distribution convenience matters.
+
+  Index choices:
+    Use `{{ commandName }} <archive-uri>/index enable --help` for `--indexes`.
+    FTS is local-only and has no provider cost.
+    Dense requires `wikg://local/config/embeddings` and may call the configured embeddings provider during indexing and Dense query.
+    When both FTS and Dense exist, query combines them automatically; there is no separate query mode flag.
 
   Commands:
     {{ commandName }} <archive-uri>/index
@@ -41,11 +48,16 @@ Library index readiness:
     `{{ commandName }} wikg://lib/index enable` rebuilds the default library index from registered present archives.
     `{{ commandName }} wikg://lib/<lib-id>/index enable` rebuilds a non-default library index.
     The index is local derived state under Wiki Graph staging, not a file inside the library folder.
+    It supports the same `--indexes auto|fts|dense|fts,dense` choices as archive index enable.
 
   Dirty behavior:
     `scan`, `add`, archive `path set`, archive `remove`, archive writes, and membership changes can mark the aggregate index dirty.
     Re-enable the library index when library-wide query reports that it is missing, dirty, or stale.
     Library indexes do not support archive-style `embed` or `external` modes.
+
+  Dense behavior:
+    Dense library indexes require `wikg://local/config/embeddings`.
+    Rebuild can call the configured embeddings provider for every present archive member that contributes Dense segments.
 
   Commands:
     {{ commandName }} wikg://lib/index
@@ -82,6 +94,22 @@ LLM readiness:
     {{ commandName }} wikg://local/config/llm put apiKey --secret
     {{ commandName }} wikg://local/config/llm test
 
+Embeddings readiness:
+  `wikg://local/config/embeddings` is required for Dense index builds and for querying an index that only has Dense.
+  Hybrid query can still fall back to FTS if a Dense query embedding request fails.
+
+  Minimum configuration:
+    provider
+    model
+    baseURL when using openai-compatible
+    provider credentials when required
+
+  Common path:
+    {{ commandName }} wikg://local/config/embeddings put provider openai
+    {{ commandName }} wikg://local/config/embeddings put model text-embedding-3-small
+    {{ commandName }} wikg://local/config/embeddings put apiKey --secret
+    {{ commandName }} wikg://local/config/embeddings test
+
 WikiSpine readiness:
   Knowledge Graph generation also requires WikiSpine.
   WikiSpine provides entity candidate lookup for Knowledge Graph construction.
@@ -108,8 +136,10 @@ WikiSpine readiness:
     https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
 
 How to choose:
-  - Need keyword retrieval on this machine: enable local index.
-  - Need keyword retrieval across a managed folder: enable the library index.
+  - Need searchable retrieval on this machine: enable the archive index.
+  - Need searchable retrieval across a managed folder: enable the library index.
+  - Need local-only indexing with no provider calls: use `--indexes fts`.
+  - Need semantic retrieval: configure embeddings, then use `--indexes auto`, `dense`, or `fts,dense`.
   - Need to send a more self-contained `.wikg`: consider embedding the index.
   - Need to intentionally drop query support or index materialization: disable index.
   - Need generated Reading Graph or summaries: configure LLM and use local jobs.

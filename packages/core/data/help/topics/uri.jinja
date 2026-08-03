@@ -48,7 +48,7 @@ Short and located URIs:
 
 Command routing:
   - `{{ commandName }} <scope-uri>` enumerates objects.
-  - `{{ commandName }} <scope-uri> --query <query>` applies keyword retrieval within that scope.
+  - `{{ commandName }} <scope-uri> --query <query>` applies search index retrieval within that scope.
   - `{{ commandName }} <object-uri>` reads one object.
   - `{{ commandName }} <uri> --help` explains that URI target and its supported predicates.
   - `{{ commandName }} <uri> <predicate> --help` explains a URI-bound predicate.
@@ -73,7 +73,7 @@ Common command shapes:
   {{ commandName }} wikg://local/job/<job-id>
 
 Scope URIs:
-  Scope URIs enumerate objects by default. With `--query <query>`, they apply keyword retrieval within that scope.
+  Scope URIs enumerate objects by default. With `--query <query>`, they apply search index retrieval within that scope.
   A chapter URI used as a scope covers that chapter's full subtree by default.
   Add `--depth <N>` to limit chapter subtree expansion:
     - no `--depth`: full subtree

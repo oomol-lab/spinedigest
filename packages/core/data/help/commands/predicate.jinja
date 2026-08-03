@@ -19,7 +19,7 @@ Usage:
 Notes:
   - Chunk targets return nearby Reading Graph chunks.
   - Entity targets return Knowledge Graph triples involving the entity.
-  - `--query` filters and ranks related results with the current FTS index.
+  - `--query` filters and ranks related results with the current search index.
   - Without `--query`, `--reverse` reads Document Flow order backward. See `{{ commandName }} help uri`.
   - `--role` only applies to entity targets.
   - Use `{{ commandName }} {{ uri }} evidence --help` when source grounding is the main goal.
@@ -32,7 +32,7 @@ Usage:
 
 Notes:
   - Evidence is for grounding, verification, and citation support.
-  - `--query` filters and ranks evidence with the current FTS index.
+  - `--query` filters and ranks evidence with the current search index.
   - Without `--query`, `--reverse` reads Document Flow order backward. See `{{ commandName }} help uri`.
   - Evidence previews include nearby source context by default; use `--context 0` for exact cited ranges.
   - Source and scope URIs are not evidence targets.
@@ -96,7 +96,7 @@ Usage:
 
 Notes:
   - Run this before broad Reading Graph, Reading Summary, or Knowledge Graph work.
-  - The report includes content counts, FTS index readiness, generation coverage, retrieval guidance, recommended next commands, planning estimates, and concurrency hints.
+  - The report includes content counts, search index readiness, generation coverage, retrieval guidance, recommended next commands, planning estimates, and concurrency hints.
   - Use `--json` for a machine-readable report with the same recommendations.
 {% if libraryContext.isArchiveShortcut %}
   - This library archive shortcut inspects one managed archive's readiness; it is not a library-level health report.
@@ -372,6 +372,7 @@ Notes:
   - `--indexes fts` builds only FTS and does not call an embeddings provider.
   - `--indexes dense` builds only Dense semantic segments.
   - `--indexes fts,dense` requires embeddings and fails if Dense cannot be built.
+  - Dense indexing requires `wikg://local/config/embeddings`; test it before expensive rebuilds.
   - Missing or unreadable library archive members are skipped and reported.
   - Progress is emitted as text by default, or line-delimited events with `--jsonl`.
   - `--json` is not supported for enable because progress is streamed.
@@ -391,6 +392,7 @@ Notes:
   - `--indexes fts` builds only FTS and does not call an embeddings provider.
   - `--indexes dense` builds only Dense semantic segments.
   - `--indexes fts,dense` requires embeddings and fails if Dense cannot be built.
+  - Dense indexing requires `wikg://local/config/embeddings`; test it before expensive rebuilds.
   - After the index is enabled, CLI archive writes keep it synchronized automatically.
   - Do not run this after every generation job; run it when `inspect` says query support is unavailable or the index needs repair.
   - By default the index is stored as local cache outside the `.wikg` archive. Use `embed` when the index should travel with the archive.
@@ -414,7 +416,7 @@ Notes:
   - Disable holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
 {% else %}
 Purpose:
-  Disable searchable FTS index support for this archive and remove the current index materialization.
+  Disable searchable index support for this archive and remove the current index materialization.
 
 Usage:
   {{ commandName }} {{ uri }} disable [--json]
@@ -437,7 +439,7 @@ Notes:
   - Use `enable` to build the library index or `disable` to remove it.
 {% else %}
 Purpose:
-  Use an archive-embedded searchable FTS index.
+  Use an archive-embedded searchable index.
 
 Usage:
   {{ commandName }} {{ uri }} embed [--json]
@@ -446,7 +448,7 @@ Notes:
   - This switches the index storage policy to the `.wikg` archive and ensures the embedded index is current.
   - After embedding, CLI archive writes keep the embedded index synchronized automatically.
   - This makes the archive more portable, but increases archive size.
-  - Use it when distributing a `.wikg` with keyword retrieval ready for another machine.
+  - Use it when distributing a `.wikg` with query support ready for another machine.
 {% endif %}
 {% elif predicate == "external" %}
 {% if target.name == "index-object" and libraryContext.isLibraryWide %}
@@ -461,7 +463,7 @@ Notes:
   - Use `enable` to build the library index or `disable` to remove it.
 {% else %}
 Purpose:
-  Use external local-cache storage for the searchable FTS index.
+  Use external local-cache storage for the searchable index.
 
 Usage:
   {{ commandName }} {{ uri }} external [--json]
@@ -621,7 +623,7 @@ Notes:
   - This does not contact an external service.
 {% else %}
   - For `llm`, this sends a small request to the configured model.
-  - For `embedding`, this sends a small embedding request and reports the returned vector dimensions.
+  - For `embeddings`, this sends a small embedding request and reports the returned vector dimensions.
   - For `wikispine`, this checks the built-in fetch service or local `wikispine` command.
 {% endif %}
   - Text success output is intentionally short.

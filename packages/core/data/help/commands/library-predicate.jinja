@@ -122,6 +122,7 @@ Notes:
   - `--indexes fts` builds only FTS and does not call an embeddings provider.
   - `--indexes dense` builds only Dense semantic segments.
   - `--indexes fts,dense` requires embeddings and fails if Dense cannot be built.
+  - Dense indexing requires `wikg://local/config/embeddings`; test it before expensive rebuilds.
   - Missing or unreadable library archive members are skipped and reported.
   - Progress is emitted as text by default, or line-delimited events with `--jsonl`.
   - `--json` is not supported for enable because progress is streamed.

@@ -12,7 +12,7 @@ Sections:
     LLM provider, model, optional base URL, client name, and API key.
 
   `wikg://local/config/embeddings`
-    Embedding provider for Dense query vectors:
+    Embedding provider for Dense search index vectors and Dense query vectors:
       - `provider`: `openai` or `openai-compatible`.
       - `model`: embedding model name.
       - `dimensions`: optional positive integer when the provider/model supports dimension control.
@@ -67,11 +67,17 @@ Minimum LLM-backed operation configuration:
   - `llm.model`
   - Provider credentials when required by the selected provider.
 
-Minimum Dense query embedding configuration:
+Minimum Dense embedding configuration:
   - `embeddings.provider`
   - `embeddings.model`
   - `embeddings.baseURL` when using `openai-compatible`
   - Provider credentials when required by the selected provider.
+
+Dense search notes:
+  - FTS indexing does not use this section.
+  - `--indexes dense` and `--indexes fts,dense` require this section.
+  - `--indexes auto` builds Dense only when this section is configured.
+  - Query uses this section when the current index includes Dense. If Dense query embedding fails, Hybrid query can still fall back to FTS.
 
 One-run overrides:
   `--llm <json>` can provide an LLM object for one invocation.

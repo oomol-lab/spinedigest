@@ -339,7 +339,7 @@ describe("cli/args/help", () => {
     expect(rootHelpText).toContain("Reading Graph: attention chunks");
     expect(rootHelpText).toContain("Summaries: compressed reading outputs");
     expect(rootHelpText).toContain("Source text: original chapter content");
-    expect(rootHelpText).toContain("retrieved efficiently with keywords");
+    expect(rootHelpText).toContain("retrieved through the search index");
     expect(rootHelpText).toContain("Scope: a URI target");
     expect(rootHelpText).toContain("Object: a URI target");
     expect(rootHelpText).toContain("Predicate: an operation bound to a URI");
@@ -372,8 +372,9 @@ describe("cli/args/help", () => {
     );
     expect(renderHelpTopicText("config")).toContain("Configuration");
     expect(renderHelpTopicText("readiness")).toContain(
-      "Archive FTS readiness:",
+      "Archive index readiness:",
     );
+    expect(renderHelpTopicText("readiness")).toContain("Embeddings readiness:");
     expect(renderHelpTopicText("readiness")).toContain(
       "Library index readiness:",
     );
