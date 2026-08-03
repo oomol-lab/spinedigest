@@ -5,6 +5,7 @@ const chapterMockState = vi.hoisted(() => ({
   activeConflictChecks: [] as unknown[],
   activeJobChecks: [] as unknown[],
   addCalls: [] as unknown[],
+  buildJobCalls: [] as unknown[],
   readCalls: [] as string[],
   writeCalls: [] as string[],
   inputFileContent: "file content",
@@ -117,6 +118,14 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
       uri: "wikg://chapter/c3d4e5f6a1b2",
     });
   }),
+  addBuildJob: vi.fn((options: unknown) => {
+    chapterMockState.buildJobCalls.push(options);
+    return Promise.resolve({
+      ...(typeof options === "object" && options !== null ? options : {}),
+      jobId: "job-index-1",
+      state: "queued",
+    });
+  }),
   assertNoActiveBuildJobs: vi.fn((input: unknown) => {
     chapterMockState.activeJobChecks.push(input);
     return Promise.resolve();
@@ -187,6 +196,17 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
 
     return Promise.resolve(chapterIds.get(chapterPath));
   }),
+  resolveChapterPathReadonly: vi.fn(
+    (_document: unknown, chapterPath: string) => {
+      const chapterIds = new Map<string, number>([
+        ["a1b2c3d4e5f6", 1],
+        ["a1b2c3d4e5f6/b2c3d4e5f6a1", 2],
+        ["c3d4e5f6a1b2", 3],
+      ]);
+
+      return Promise.resolve(chapterIds.get(chapterPath));
+    },
+  ),
   resetChapter: vi.fn(
     (_document: unknown, chapterId: number, stage: string) => {
       chapterMockState.resetCalls.push({
@@ -292,6 +312,7 @@ describe("cli/archive-chapter", () => {
     chapterMockState.activeConflictChecks.length = 0;
     chapterMockState.activeJobChecks.length = 0;
     chapterMockState.addCalls.length = 0;
+    chapterMockState.buildJobCalls.length = 0;
     chapterMockState.readCalls.length = 0;
     chapterMockState.writeCalls.length = 0;
     chapterMockState.moveCalls.length = 0;
@@ -381,6 +402,27 @@ describe("cli/archive-chapter", () => {
       title: "New Chapter",
       uri: "wikg://chapter/c3d4e5f6a1b2",
     });
+  });
+
+  it("queues a chapter index artifact build job", async () => {
+    await runArchiveChapterCommand({
+      action: "build-index-artifact",
+      chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
+      indexArtifactKind: "embedding-source",
+      indexArtifactTarget: "index-embedding-source",
+      path: "/tmp/book.wikg",
+    });
+
+    expect(chapterMockState.buildJobCalls).toStrictEqual([
+      {
+        archivePath: "/tmp/book.wikg",
+        chapterId: 2,
+        target: "index-embedding-source",
+      },
+    ]);
+    expect(chapterMockState.textWrites).toStrictEqual([
+      "Queued index-embedding-source job job-index-1 for chapter 2.\n",
+    ]);
   });
 
   it("adds a sourced chapter from --input", async () => {

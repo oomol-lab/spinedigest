@@ -969,6 +969,36 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
     expect(
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/part/index/embedding/source",
+        "build",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "build-index-artifact",
+        chapterPath: "part",
+        indexArtifactKind: "embedding-source",
+        indexArtifactTarget: "index-embedding-source",
+        json: true,
+        path: archivePath,
+      },
+      help: false,
+      kind: "chapter",
+    });
+    expect(
+      parseCLIArguments(["wikg://book.wikg/chapter/part/index/fts", "delete"]),
+    ).toStrictEqual({
+      args: {
+        action: "delete-index-artifact",
+        chapterPath: "part",
+        indexArtifactKind: "fts",
+        path: archivePath,
+      },
+      help: false,
+      kind: "chapter",
+    });
+    expect(
       parseCLIArguments(["wikg://book.wikg/chapter/part", "--query", "agent"]),
     ).toStrictEqual({
       args: {

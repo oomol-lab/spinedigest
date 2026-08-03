@@ -51,6 +51,7 @@ export function isArchiveUriAction(
   value: string | undefined,
 ): value is CLIArchiveUriAction {
   return (
+    value === "build" ||
     isArchiveAction(value) ||
     isArchiveChapterAction(value) ||
     isArchiveIndexAction(value) ||

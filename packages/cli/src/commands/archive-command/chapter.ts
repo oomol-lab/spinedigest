@@ -1,8 +1,9 @@
 import { readFile } from "fs/promises";
 import { Readable } from "stream";
 
-import type { DirectoryDocument } from "wiki-graph-core";
+import type { DirectoryDocument, ReadonlyDocument } from "wiki-graph-core";
 import {
+  addBuildJob,
   addChapter,
   applyChapterTree,
   assertNoActiveBuildJobConflicts,
@@ -13,14 +14,16 @@ import {
   parseChapterTreeInput,
   removeChapter,
   resetChapter,
-  resolveChapterPath,
+  resolveChapterPathReadonly,
   setChapterSource,
   setChapterSummary,
   setChapterTitle,
+  type BuildJobTarget,
   type ChapterTree,
   type ChapterTreeApplyResult,
   type ChapterDetails,
   type ChapterEntry,
+  type IndexArtifactKind,
 } from "wiki-graph-core";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 
@@ -71,6 +74,65 @@ export async function runArchiveChapterCommand(
         await writeChapterList(
           await listChapters(document),
           args.json ?? false,
+        );
+      });
+      return;
+    case "get-index-artifact":
+      await readArchiveDocument(args.path, async (document) => {
+        const chapterId = await resolveRequiredChapterPath(
+          document,
+          args.chapterPath,
+        );
+        await writeIndexArtifactStatus(
+          document,
+          chapterId,
+          requireIndexArtifactKind(args.indexArtifactKind),
+          args.json ?? false,
+        );
+      });
+      return;
+    case "build-index-artifact": {
+      const chapterId = await readArchiveDocument(
+        args.path,
+        async (document) =>
+          await resolveRequiredChapterPath(document, args.chapterPath),
+      );
+      const job = await addBuildJob({
+        archivePath: args.path,
+        chapterId,
+        target: requireIndexArtifactTarget(args.indexArtifactTarget),
+      });
+
+      if (args.json === true) {
+        await writeTextToStdout(formatCLIJSON(job));
+        return;
+      }
+      await writeTextToStdout(
+        `Queued ${job.target} job ${job.jobId} for chapter ${job.chapterId}.\n`,
+      );
+      return;
+    }
+    case "delete-index-artifact":
+      await writeArchiveDocument(args.path, async (document) => {
+        const chapterId = await resolveRequiredChapterPath(
+          document,
+          args.chapterPath,
+        );
+        const kind = requireIndexArtifactKind(args.indexArtifactKind);
+
+        await document.indexArtifacts.delete(chapterId, kind);
+        if (args.json === true) {
+          await writeTextToStdout(
+            formatCLIJSON({
+              chapterId,
+              deleted: true,
+              kind,
+            }),
+          );
+          return;
+        }
+        await writeTextToStdout(
+          `Deleted ${formatIndexArtifactKind(kind)} index artifact for chapter ${chapterId}.\n`,
         );
       });
       return;
@@ -255,22 +317,107 @@ export async function runArchiveChapterCommand(
 }
 
 async function resolveRequiredChapterPath(
-  document: DirectoryDocument,
+  document: ReadonlyDocument,
   chapterPath: string | undefined,
 ): Promise<number> {
   if (chapterPath === undefined) {
     throw new Error("Missing chapter path.");
   }
-  return await resolveChapterPath(document, chapterPath);
+  return await resolveChapterPathReadonly(document, chapterPath);
 }
 
 async function resolveOptionalChapterPath(
-  document: DirectoryDocument,
+  document: ReadonlyDocument,
   chapterPath: string | undefined,
 ): Promise<number | undefined> {
   return chapterPath === undefined
     ? undefined
-    : await resolveChapterPath(document, chapterPath);
+    : await resolveChapterPathReadonly(document, chapterPath);
+}
+
+function requireIndexArtifactKind(
+  kind: IndexArtifactKind | undefined,
+): IndexArtifactKind {
+  if (kind === undefined) {
+    throw new Error("Missing index artifact kind.");
+  }
+
+  return kind;
+}
+
+function requireIndexArtifactTarget(
+  target: BuildJobTarget | undefined,
+): BuildJobTarget {
+  if (target === undefined) {
+    throw new Error("Missing index artifact build target.");
+  }
+
+  return target;
+}
+
+async function writeIndexArtifactStatus(
+  document: ReadonlyDocument,
+  chapterId: number,
+  kind: IndexArtifactKind,
+  json: boolean,
+): Promise<void> {
+  const [artifact, revision] = await Promise.all([
+    document.indexArtifacts.get(chapterId, kind),
+    document.serials.getRevision(chapterId),
+  ]);
+  const status = {
+    chapterId,
+    current: artifact?.sourceRevision === revision,
+    kind,
+    missing: artifact === undefined,
+    revision,
+    ...(artifact === undefined
+      ? {}
+      : {
+          artifact: {
+            createdAt: artifact.createdAt,
+            metadata: artifact.metadata,
+            sourceRevision: artifact.sourceRevision,
+          },
+        }),
+  };
+
+  if (json) {
+    await writeTextToStdout(formatCLIJSON(status));
+    return;
+  }
+
+  const state =
+    artifact === undefined
+      ? "missing"
+      : artifact.sourceRevision === revision
+        ? "current"
+        : "outdated";
+
+  await writeTextToStdout(
+    [
+      `Chapter: ${chapterId}`,
+      `Index artifact: ${formatIndexArtifactKind(kind)}`,
+      `State: ${state}`,
+      ...(artifact === undefined
+        ? []
+        : [
+            `Source revision: ${artifact.sourceRevision}`,
+            `Current revision: ${revision}`,
+          ]),
+    ].join("\n") + "\n",
+  );
+}
+
+function formatIndexArtifactKind(kind: IndexArtifactKind): string {
+  switch (kind) {
+    case "fts":
+      return "FTS";
+    case "embedding-source":
+      return "source embedding";
+    case "embedding-summary":
+      return "summary embedding";
+  }
 }
 
 async function runEditableCommand(

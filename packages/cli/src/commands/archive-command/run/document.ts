@@ -11,9 +11,11 @@ import { resolveArchiveRuntimeLocation } from "./uri.js";
 export async function readArchiveDocument<T>(
   path: string,
   operation: (document: ReadonlyDocument) => Promise<T> | T,
-): Promise<void> {
+): Promise<T> {
   const location = await resolveArchiveRuntimeLocation(path);
-  await new WikiGraphArchiveFile(location.archivePath).readDocument(operation);
+  return await new WikiGraphArchiveFile(location.archivePath).readDocument(
+    operation,
+  );
 }
 
 export async function writeArchiveDocument<T>(

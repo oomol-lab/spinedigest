@@ -1,4 +1,8 @@
-import { parseChapterPath, type ArchiveTriplePattern } from "wiki-graph-core";
+import {
+  parseChapterPath,
+  type ArchiveTriplePattern,
+  type IndexArtifactKind,
+} from "wiki-graph-core";
 
 import type { ArchiveUriLens, ChapterStateUriTarget } from "../../types.js";
 import {
@@ -30,6 +34,11 @@ export type ChapterUriTarget =
       readonly chapterPath: string;
       readonly kind: "chapter-state";
       readonly target?: ChapterStateUriTarget;
+    }
+  | {
+      readonly chapterPath: string;
+      readonly indexArtifactKind: IndexArtifactKind;
+      readonly kind: "chapter-index-artifact";
     }
   | {
       readonly chapterPath: string;
@@ -93,6 +102,16 @@ export function parseChapterTarget(
     };
   }
 
+  const indexArtifactKind = parseChapterIndexArtifactSuffix(suffix);
+
+  if (indexArtifactKind !== undefined) {
+    return {
+      chapterPath,
+      indexArtifactKind,
+      kind: "chapter-index-artifact",
+    };
+  }
+
   const resource = parseChapterResourceSuffix(suffix);
 
   if (suffix !== undefined && resource === undefined) {
@@ -124,6 +143,7 @@ function parseChapterPathAndSuffix(
     [
       "chunk",
       "entity",
+      "index",
       "source",
       "state",
       "summary",
@@ -139,6 +159,21 @@ function parseChapterPathAndSuffix(
     chapterPath,
     ...(suffixParts.length === 0 ? {} : { suffix: suffixParts.join("/") }),
   };
+}
+
+function parseChapterIndexArtifactSuffix(
+  suffix: string | undefined,
+): IndexArtifactKind | undefined {
+  switch (suffix) {
+    case "index/fts":
+      return "fts";
+    case "index/embedding/source":
+      return "embedding-source";
+    case "index/embedding/summary":
+      return "embedding-summary";
+    default:
+      return undefined;
+  }
 }
 
 function parseChapterStateSuffix(

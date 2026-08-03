@@ -60,6 +60,15 @@ export function normalizeArchiveChapterArguments(
     values.to === undefined ? undefined : parseResetStage(values.to, helpRoute);
 
   switch (action) {
+    case "build-index-artifact":
+    case "delete-index-artifact":
+    case "get-index-artifact":
+      throw new Error(
+        withHelpRoute(
+          "Internal chapter index artifact actions are only available through chapter index artifact URIs.",
+          helpRoute,
+        ),
+      );
     case "set":
       throw new Error(
         withHelpRoute(

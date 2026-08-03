@@ -4,6 +4,7 @@ import type {
   ArchiveTriplePattern,
   BuildJobTarget,
   ChapterStage,
+  IndexArtifactKind,
   ParsedWikiGraphLibraryUri,
   SearchIndexSelection,
 } from "wiki-graph-core";
@@ -52,6 +53,9 @@ export interface ArchiveMetaPatch {
 
 export type CLIArchiveChapterAction =
   | "add"
+  | "build-index-artifact"
+  | "delete-index-artifact"
+  | "get-index-artifact"
   | "list"
   | "move"
   | "remove"
@@ -75,6 +79,8 @@ export interface CLIArchiveChapterArguments {
   readonly first?: boolean;
   readonly inputPath?: string;
   readonly inputValue?: string;
+  readonly indexArtifactKind?: IndexArtifactKind;
+  readonly indexArtifactTarget?: BuildJobTarget;
   readonly json?: boolean;
   readonly last?: boolean;
   readonly llmJSON?: string;
@@ -240,6 +246,7 @@ export type CLIArchiveRootAction = CLIArchiveAction;
 export type CLIArchiveUriAction =
   | CLIArchiveRootAction
   | CLIArchiveChapterAction
+  | "build"
   | CLIArchiveIndexAction
   | CLIMetadataAction;
 export type CLIJobAction =

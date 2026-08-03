@@ -3,6 +3,8 @@ import {
   formatLocatedChapterSourceCollectionUri,
   formatLocatedChapterUri,
   type ArchiveTriplePattern,
+  type BuildJobTarget,
+  type IndexArtifactKind,
 } from "wiki-graph-core";
 
 import { renderArchiveMaintenanceChapterActionHelpText } from "../../help.js";
@@ -98,6 +100,16 @@ export function parseArchiveChapterUriArguments(
         values,
         helpRoute,
       );
+    case "chapter-index-artifact":
+      return parseChapterIndexArtifactUriArguments(
+        archivePath,
+        target.chapterPath,
+        target.indexArtifactKind,
+        action,
+        tail,
+        values,
+        helpRoute,
+      );
     case "chapter-state":
       return parseChapterStateUriArguments(
         uri,
@@ -117,6 +129,91 @@ export function parseArchiveChapterUriArguments(
         values,
         helpRoute,
       );
+  }
+}
+
+function parseChapterIndexArtifactUriArguments(
+  archivePath: string,
+  chapterPath: string,
+  indexArtifactKind: IndexArtifactKind,
+  action: CLIArchiveUriAction,
+  tail: readonly string[],
+  values: ArchiveArgumentValues,
+  helpRoute: string,
+): ParsedCLIArguments {
+  rejectArchiveChapterMetaFlags(values, helpRoute);
+  rejectArchiveChapterFlag("input", values.input, helpRoute);
+  rejectArchiveChapterFlag("import", values.import, helpRoute);
+  rejectArchiveChapterFlag("to", values.to, helpRoute);
+
+  if (tail.length > 0) {
+    throw new Error(
+      withHelpRoute(
+        `Unexpected argument for chapter index artifact: ${tail[0]}`,
+        helpRoute,
+      ),
+    );
+  }
+
+  switch (action) {
+    case "get":
+      return {
+        args: {
+          action: "get-index-artifact",
+          chapterPath,
+          indexArtifactKind,
+          path: archivePath,
+          ...(values.json === undefined ? {} : { json: values.json }),
+        },
+        help: false,
+        kind: "chapter",
+      };
+    case "build":
+      return {
+        args: {
+          action: "build-index-artifact",
+          chapterPath,
+          indexArtifactKind,
+          indexArtifactTarget:
+            mapIndexArtifactKindToBuildTarget(indexArtifactKind),
+          path: archivePath,
+          ...(values.json === undefined ? {} : { json: values.json }),
+        },
+        help: false,
+        kind: "chapter",
+      };
+    case "delete":
+      return {
+        args: {
+          action: "delete-index-artifact",
+          chapterPath,
+          indexArtifactKind,
+          path: archivePath,
+          ...(values.json === undefined ? {} : { json: values.json }),
+        },
+        help: false,
+        kind: "chapter",
+      };
+    default:
+      throw new Error(
+        withHelpRoute(
+          `The chapter index artifact does not support \`${action}\`. Use get, build, or delete.`,
+          "wg <chapter-uri>/index --help",
+        ),
+      );
+  }
+}
+
+function mapIndexArtifactKindToBuildTarget(
+  kind: IndexArtifactKind,
+): BuildJobTarget {
+  switch (kind) {
+    case "fts":
+      return "index-fts";
+    case "embedding-source":
+      return "index-embedding-source";
+    case "embedding-summary":
+      return "index-embedding-summary";
   }
 }
 
