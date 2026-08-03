@@ -13,14 +13,18 @@ describe("runtime/config", () => {
 
     try {
       await withWikiGraphStateDirectoryPathForTesting(tempDir, async () => {
-        await putLocalConfigValue("embedding", "provider", "openai-compatible");
-        await putLocalConfigValue("embedding", "model", "embedding-model");
         await putLocalConfigValue(
-          "embedding",
+          "embeddings",
+          "provider",
+          "openai-compatible",
+        );
+        await putLocalConfigValue("embeddings", "model", "embedding-model");
+        await putLocalConfigValue(
+          "embeddings",
           "baseURL",
           "https://api.example.com/v1",
         );
-        await putLocalConfigValue("embedding", "dimensions", 1536);
+        await putLocalConfigValue("embeddings", "dimensions", 1536);
 
         await expect(loadCLIConfig()).resolves.toMatchObject({
           embedding: {

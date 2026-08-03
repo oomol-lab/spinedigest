@@ -87,12 +87,12 @@ async function runConfigTest(args: CLILocalConfigArguments): Promise<void> {
     case "wikispine":
       await runWikispineConfigTest(args);
       return;
-    case "embedding":
+    case "embeddings":
       await runEmbeddingConfigTest(args);
       return;
     default:
       throw new Error(
-        "Only wikg://local/config/llm, wikg://local/config/embedding, and wikg://local/config/wikispine support test.",
+        "Only wikg://local/config/llm, wikg://local/config/embeddings, and wikg://local/config/wikispine support test.",
       );
   }
 }
@@ -342,7 +342,7 @@ export function mergeMaskedSecretsForSet(
   current: LocalConfigObject,
 ): LocalConfigObject {
   if (
-    (section !== "llm" && section !== "embedding") ||
+    (section !== "llm" && section !== "embeddings") ||
     input.apiKey === undefined
   ) {
     return input;

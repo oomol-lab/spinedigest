@@ -48,7 +48,7 @@ describe("cli/args/local config", () => {
     });
     expect(
       parseCLIArguments([
-        "wikg://local/config/embedding",
+        "wikg://local/config/embeddings",
         "put",
         "model",
         "text-embedding-3-small",
@@ -58,7 +58,7 @@ describe("cli/args/local config", () => {
         action: "put",
         inputValue: "text-embedding-3-small",
         key: "model",
-        section: "embedding",
+        section: "embeddings",
       },
       help: false,
       kind: "local-config",

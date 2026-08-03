@@ -63,13 +63,13 @@ describe("runtime/embedding", () => {
       "Query text cannot be empty",
     );
     await expect(embedQueryText("hello")).rejects.toThrow(
-      "Missing embedding configuration",
+      "Missing embeddings configuration",
     );
     await expect(
       embedQueryText("hello", {
         provider: "openai-compatible",
       }),
-    ).rejects.toThrow("Missing embedding.model");
+    ).rejects.toThrow("Missing embeddings.model");
   });
 });
 

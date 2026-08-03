@@ -261,7 +261,7 @@ Notes:
   - If current output shows `"apiKey":"****"`, passing the same masked value preserves the existing secret.
   - To add or replace the secret, use `{{ commandName }} {{ uri }} put apiKey --secret`.
   - To remove the secret, use `{{ commandName }} {{ uri }} delete apiKey`.
-{% elif "/embedding" in uri %}
+{% elif "/embeddings" in uri %}
 Schema:
   {
     "provider": "openai|openai-compatible",
@@ -304,7 +304,7 @@ Examples:
   {{ commandName }} {{ uri }} set '{"provider":"openai","model":"gpt-4.1"}'
   {{ commandName }} {{ uri }} set --json-input '{"provider":"openai-compatible","model":"model-name"}'
   {{ commandName }} {{ uri }} set '{"provider":"google","model":"gemini-2.5-pro"}' --json
-{% elif "/embedding" in uri %}
+{% elif "/embeddings" in uri %}
   {{ commandName }} {{ uri }} set '{"provider":"openai","model":"text-embedding-3-small"}'
   {{ commandName }} {{ uri }} set --json-input '{"provider":"openai-compatible","model":"embedding-model","baseURL":"https://api.example.com/v1"}'
   {{ commandName }} {{ uri }} put dimensions 1536
@@ -543,7 +543,7 @@ Keys:
   - baseURL: non-empty provider base URL string
   - name: non-empty display name
   - apiKey: secret; use `--secret`
-{% elif "/embedding" in uri %}
+{% elif "/embeddings" in uri %}
 Keys:
   - provider: openai or openai-compatible
   - model: non-empty embedding model name
@@ -564,7 +564,7 @@ Notes:
   - Positional `<value>` is stored as a string.
   - `--json-input` stores a JSON value and is useful for numeric config sections.
   - `--json` controls output shape; it is not JSON input.
-{% if "/llm" in uri or "/embedding" in uri %}
+{% if "/llm" in uri or "/embeddings" in uri %}
   - `--secret` reads the value from an interactive terminal without echoing it; use it for `apiKey`.
 {% endif %}
   - Success output is the full section JSON with sensitive values masked.

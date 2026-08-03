@@ -66,7 +66,7 @@ export async function loadCLIConfig(options?: {
   readonly llmJSON?: string;
 }): Promise<CLIConfig> {
   const [embedding, localLLM, concurrent, wikispine] = await Promise.all([
-    readLocalConfigSection("embedding"),
+    readLocalConfigSection("embeddings"),
     readLocalConfigSection("llm"),
     readLocalConfigSection("concurrent"),
     readLocalConfigSection("wikispine"),

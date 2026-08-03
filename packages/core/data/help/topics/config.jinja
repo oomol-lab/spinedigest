@@ -11,7 +11,7 @@ Sections:
   `wikg://local/config/llm`
     LLM provider, model, optional base URL, client name, and API key.
 
-  `wikg://local/config/embedding`
+  `wikg://local/config/embeddings`
     Embedding provider for Dense query vectors:
       - `provider`: `openai` or `openai-compatible`.
       - `model`: embedding model name.
@@ -31,21 +31,21 @@ Sections:
 Operations:
   Read a section:
     {{ commandName }} wikg://local/config/llm
-    {{ commandName }} wikg://local/config/embedding
+    {{ commandName }} wikg://local/config/embeddings
     {{ commandName }} wikg://local/config/concurrent
     {{ commandName }} wikg://local/config/wikispine
 
   Replace a section with a JSON object:
     {{ commandName }} wikg://local/config/llm set '{"provider":"openai","model":"gpt-4.1"}'
-    {{ commandName }} wikg://local/config/embedding set '{"provider":"openai","model":"text-embedding-3-small"}'
+    {{ commandName }} wikg://local/config/embeddings set '{"provider":"openai","model":"text-embedding-3-small"}'
     {{ commandName }} wikg://local/config/concurrent set '{"job":3,"request":6}'
     {{ commandName }} wikg://local/config/wikispine set '{"provider":"fetch"}'
 
   Update one key:
     {{ commandName }} wikg://local/config/llm put provider openai
     {{ commandName }} wikg://local/config/llm put model gpt-4.1
-    {{ commandName }} wikg://local/config/embedding put provider openai
-    {{ commandName }} wikg://local/config/embedding put model text-embedding-3-small
+    {{ commandName }} wikg://local/config/embeddings put provider openai
+    {{ commandName }} wikg://local/config/embeddings put model text-embedding-3-small
     {{ commandName }} wikg://local/config/concurrent put job 3
     {{ commandName }} wikg://local/config/concurrent put request 6
     {{ commandName }} wikg://local/config/wikispine put provider cli
@@ -53,7 +53,7 @@ Operations:
 
   Store the API key:
     {{ commandName }} wikg://local/config/llm put apiKey --secret
-    {{ commandName }} wikg://local/config/embedding put apiKey --secret
+    {{ commandName }} wikg://local/config/embeddings put apiKey --secret
 
 Secret handling:
   - `apiKey` is read through an interactive hidden prompt.
@@ -68,9 +68,9 @@ Minimum LLM-backed operation configuration:
   - Provider credentials when required by the selected provider.
 
 Minimum Dense query embedding configuration:
-  - `embedding.provider`
-  - `embedding.model`
-  - `embedding.baseURL` when using `openai-compatible`
+  - `embeddings.provider`
+  - `embeddings.model`
+  - `embeddings.baseURL` when using `openai-compatible`
   - Provider credentials when required by the selected provider.
 
 One-run overrides:
@@ -85,10 +85,10 @@ Examples:
   {{ commandName }} wikg://local/config/llm put model gpt-4.1
   {{ commandName }} wikg://local/config/llm put apiKey --secret
   {{ commandName }} wikg://local/config/llm test
-  {{ commandName }} wikg://local/config/embedding put provider openai
-  {{ commandName }} wikg://local/config/embedding put model text-embedding-3-small
-  {{ commandName }} wikg://local/config/embedding put apiKey --secret
-  {{ commandName }} wikg://local/config/embedding test
+  {{ commandName }} wikg://local/config/embeddings put provider openai
+  {{ commandName }} wikg://local/config/embeddings put model text-embedding-3-small
+  {{ commandName }} wikg://local/config/embeddings put apiKey --secret
+  {{ commandName }} wikg://local/config/embeddings test
   {{ commandName }} wikg://local/config/wikispine put provider fetch
   {{ commandName }} wikg://local/config/wikispine test
 

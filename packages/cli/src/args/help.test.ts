@@ -670,7 +670,7 @@ describe("cli/args/help", () => {
     expect(uriHelpText).not.toContain("wg ls");
     expect(renderHelpTopicText("config")).toContain("wikg://local/config/llm");
     expect(renderHelpTopicText("config")).toContain(
-      "wikg://local/config/embedding",
+      "wikg://local/config/embeddings",
     );
     expect(renderHelpTopicText("config")).toContain(
       "wikg://local/config/concurrent",
@@ -733,7 +733,7 @@ describe("cli/args/help", () => {
       renderUriPredicateHelpText(
         "local-config-section",
         "test",
-        "wikg://local/config/embedding",
+        "wikg://local/config/embeddings",
       ),
     ).toContain("reports the returned vector dimensions");
   });

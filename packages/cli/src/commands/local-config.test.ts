@@ -6,7 +6,7 @@ describe("commands/local-config", () => {
   it("preserves masked embedding api keys on section set", () => {
     expect(
       mergeMaskedSecretsForSet(
-        "embedding",
+        "embeddings",
         {
           apiKey: "****",
           model: "text-embedding-3-small",

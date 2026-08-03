@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const configMockState = vi.hoisted(() => ({
   sections: {
     concurrent: {} as Record<string, unknown>,
-    embedding: {} as Record<string, unknown>,
+    embeddings: {} as Record<string, unknown>,
     llm: {} as Record<string, unknown>,
     wikispine: {} as Record<string, unknown>,
   },
@@ -11,7 +11,7 @@ const configMockState = vi.hoisted(() => ({
 
 vi.mock("../../packages/cli/src/runtime/local-config.js", () => ({
   readLocalConfigSection: vi.fn(
-    (section: "concurrent" | "embedding" | "llm" | "wikispine") =>
+    (section: "concurrent" | "embeddings" | "llm" | "wikispine") =>
       Promise.resolve(configMockState.sections[section]),
   ),
 }));
@@ -22,7 +22,7 @@ describe("cli/config", () => {
   beforeEach(() => {
     configMockState.sections = {
       concurrent: {},
-      embedding: {},
+      embeddings: {},
       llm: {},
       wikispine: {},
     };
@@ -34,7 +34,7 @@ describe("cli/config", () => {
         job: 3,
         request: 6,
       },
-      embedding: {},
+      embeddings: {},
       llm: {
         apiKey: "local-key",
         baseURL: "https://local.example/v1",
@@ -66,7 +66,7 @@ describe("cli/config", () => {
   it("lets inline llm json override local llm values", async () => {
     configMockState.sections = {
       concurrent: {},
-      embedding: {},
+      embeddings: {},
       llm: {
         apiKey: "local-key",
         baseURL: "https://local.example/v1",

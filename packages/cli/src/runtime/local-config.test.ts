@@ -3,13 +3,18 @@ import { describe, expect, it } from "vitest";
 import {
   maskLocalConfigSection,
   normalizeLocalConfigKey,
+  parseLocalConfigSection,
   validateLocalConfigSection,
 } from "./local-config.js";
 
 describe("runtime/local config", () => {
-  it("validates embedding config", () => {
+  it("accepts the legacy singular embedding section as an alias", () => {
+    expect(parseLocalConfigSection("embedding")).toBe("embeddings");
+  });
+
+  it("validates embeddings config", () => {
     expect(
-      validateLocalConfigSection("embedding", {
+      validateLocalConfigSection("embeddings", {
         apiKey: " sk-test ",
         baseURL: " https://api.example.com/v1 ",
         dimensions: "1536",
@@ -25,22 +30,22 @@ describe("runtime/local config", () => {
     });
 
     expect(() =>
-      validateLocalConfigSection("embedding", {
+      validateLocalConfigSection("embeddings", {
         provider: "anthropic",
       }),
-    ).toThrow("Unknown embedding.provider");
+    ).toThrow("Unknown embeddings.provider");
     expect(() =>
-      validateLocalConfigSection("embedding", {
+      validateLocalConfigSection("embeddings", {
         dimensions: 0,
       }),
-    ).toThrow("embedding.dimensions must be a positive integer");
+    ).toThrow("embeddings.dimensions must be a positive integer");
   });
 
-  it("normalizes and masks embedding config secrets", () => {
-    expect(normalizeLocalConfigKey("embedding", "api-key")).toBe("apiKey");
-    expect(normalizeLocalConfigKey("embedding", "base-url")).toBe("baseURL");
+  it("normalizes and masks embeddings config secrets", () => {
+    expect(normalizeLocalConfigKey("embeddings", "api-key")).toBe("apiKey");
+    expect(normalizeLocalConfigKey("embeddings", "base-url")).toBe("baseURL");
     expect(
-      maskLocalConfigSection("embedding", {
+      maskLocalConfigSection("embeddings", {
         apiKey: "sk-test",
         model: "text-embedding-3-small",
       }),

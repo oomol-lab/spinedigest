@@ -27,7 +27,7 @@ export interface QueryEmbeddingResult {
 }
 
 export async function readEmbeddingConfig(): Promise<CLIEmbeddingConfig> {
-  const config = await readLocalConfigSection("embedding");
+  const config = await readLocalConfigSection("embeddings");
 
   return {
     ...(typeof config.apiKey === "string" ? { apiKey: config.apiKey } : {}),
@@ -91,7 +91,7 @@ function createEmbeddingModel(
       if (config.baseURL !== undefined) {
         throw new Error(
           withHelpRoute(
-            "openai does not accept embedding.baseURL. Use openai-compatible for third-party OpenAI-style embedding APIs.",
+            "openai does not accept embeddings.baseURL. Use openai-compatible for third-party OpenAI-style embeddings APIs.",
             CLI_HELP_ROUTES.config,
           ),
         );
@@ -106,7 +106,7 @@ function createEmbeddingModel(
       if (config.baseURL === undefined) {
         throw new Error(
           withHelpRoute(
-            "openai-compatible requires embedding.baseURL.",
+            "openai-compatible requires embeddings.baseURL.",
             CLI_HELP_ROUTES.config,
           ),
         );
@@ -155,7 +155,7 @@ function requireEmbeddingProvider(
 
   throw new Error(
     withHelpRoute(
-      "Missing embedding configuration. Configure `wikg://local/config/embedding` with provider and model.",
+      "Missing embeddings configuration. Configure `wikg://local/config/embeddings` with provider and model.",
       CLI_HELP_ROUTES.config,
     ),
   );
@@ -168,7 +168,7 @@ function requireEmbeddingModel(model: string | undefined): string {
 
   throw new Error(
     withHelpRoute(
-      "Missing embedding.model. Configure `wikg://local/config/embedding` before using Dense search.",
+      "Missing embeddings.model. Configure `wikg://local/config/embeddings` before using Dense search.",
       CLI_HELP_ROUTES.config,
     ),
   );
@@ -181,7 +181,7 @@ function parseEmbeddingProvider(value: string): CLIEmbeddingProvider {
       return value;
     default:
       throw new Error(
-        `Invalid embedding.provider: ${value}. Expected openai or openai-compatible.`,
+        `Invalid embeddings.provider: ${value}. Expected openai or openai-compatible.`,
       );
   }
 }
