@@ -243,11 +243,26 @@ export {
   readArchiveIndexSettings,
   readSearchIndexCapabilityStatus,
 } from "./retrieval/search-index/index.js";
+export {
+  buildChapterEmbeddingIndexArtifact,
+  buildChapterFtsIndexArtifact,
+  replaceChapterFtsIndexArtifact,
+  replaceChapterSourceEmbeddingIndexArtifact,
+  replaceChapterSummaryEmbeddingIndexArtifact,
+} from "./retrieval/index-artifact/index.js";
 export type {
   SearchIndexBuildOptions,
   SearchIndexEmbeddingProvider,
   SearchIndexSelection,
 } from "./retrieval/search-index/index.js";
+export type {
+  IndexArtifactCoverageRecord,
+  IndexArtifactEmbeddingSegment,
+  IndexArtifactKind,
+  IndexArtifactLexicalRow,
+  IndexArtifactRecord,
+} from "./document/index.js";
+export type { EmbeddingIndexArtifactKind } from "./retrieval/index-artifact/index.js";
 export { migrateLegacySdpubToWikg } from "./storage/migration/legacy-sdpub/upgrade/index.js";
 export type {
   GuaranteedRequest,
