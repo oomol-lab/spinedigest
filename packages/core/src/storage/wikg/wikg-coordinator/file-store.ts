@@ -296,67 +296,77 @@ export class WikgDocumentFileStore implements DocumentFileStore {
       await ensureWikiGraphHomeSchemaCurrent();
     }
 
-    return await withEntryLock(
-      this.#archiveKey,
+    await acquireSqliteLease({
+      archiveKey: this.#archiveKey,
       entryPath,
-      "state",
-      async () => {
-        let overlay = await this.#readOverlay(entryPath);
+      mode: options.readonly ? "read" : "write",
+      ownerId: this.#sqliteLeaseOwnerId,
+    });
 
-        if (
-          entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH &&
-          overlay?.kind !== "file"
-        ) {
-          await tryAdoptSearchIndexCacheOverlay({
-            targetArchiveKey: this.#archiveKey,
-            targetArchivePath: this.#archivePath,
-          });
-          overlay = await this.#readOverlay(entryPath);
-        }
+    try {
+      return await withEntryLock(
+        this.#archiveKey,
+        entryPath,
+        "state",
+        async () => {
+          let overlay = await this.#readOverlay(entryPath);
 
-        if (overlay?.kind !== "file") {
-          const content =
-            (await readWikgArchiveEntry(this.#archivePath, entryPath)) ??
-            (entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH
-              ? await readWikgArchiveEntry(
-                  this.#archivePath,
-                  LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
-                )
-              : undefined);
-
-          if (content === undefined && !options.createIfMissing) {
-            throw new Error(`Archive SQLite entry is missing: ${entryPath}`);
+          if (
+            entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH &&
+            overlay?.kind !== "file"
+          ) {
+            await tryAdoptSearchIndexCacheOverlay({
+              targetArchiveKey: this.#archiveKey,
+              targetArchivePath: this.#archivePath,
+            });
+            overlay = await this.#readOverlay(entryPath);
           }
-          const workspacePath = await createWorkspaceFilePath(
-            this.#archiveKey,
-            entryPath,
-          );
 
-          await mkdir(dirname(workspacePath), { recursive: true });
-          await writeFile(workspacePath, content ?? new Uint8Array());
-          await upsertOverlay({
-            archiveKey: this.#archiveKey,
-            archivePath: this.#archivePath,
-            entryPath,
-            kind: "file",
-            workspacePath,
-          });
-          overlay = await this.#readOverlay(entryPath);
-        }
+          if (overlay?.kind !== "file") {
+            const content =
+              (await readWikgArchiveEntry(this.#archivePath, entryPath)) ??
+              (entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH
+                ? await readWikgArchiveEntry(
+                    this.#archivePath,
+                    LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
+                  )
+                : undefined);
 
-        if (overlay?.workspacePath === undefined) {
-          throw new Error("Could not materialize SQLite database.");
-        }
+            if (content === undefined && !options.createIfMissing) {
+              throw new Error(`Archive SQLite entry is missing: ${entryPath}`);
+            }
+            const workspacePath = await createWorkspaceFilePath(
+              this.#archiveKey,
+              entryPath,
+            );
 
-        await acquireSqliteLease({
-          archiveKey: this.#archiveKey,
-          entryPath,
-          mode: options.readonly ? "read" : "write",
-          ownerId: this.#sqliteLeaseOwnerId,
-        });
-        return overlay.workspacePath;
-      },
-    );
+            await mkdir(dirname(workspacePath), { recursive: true });
+            await writeFile(workspacePath, content ?? new Uint8Array());
+            await upsertOverlay({
+              archiveKey: this.#archiveKey,
+              archivePath: this.#archivePath,
+              entryPath,
+              kind: "file",
+              workspacePath,
+            });
+            overlay = await this.#readOverlay(entryPath);
+          }
+
+          if (overlay?.workspacePath === undefined) {
+            throw new Error("Could not materialize SQLite database.");
+          }
+
+          return overlay.workspacePath;
+        },
+      );
+    } catch (error) {
+      await releaseSqliteLease({
+        archiveKey: this.#archiveKey,
+        entryPath,
+        ownerId: this.#sqliteLeaseOwnerId,
+      });
+      throw error;
+    }
   }
 
   public async writeFile(

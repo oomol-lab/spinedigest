@@ -245,7 +245,7 @@ async function readObjectBucketPage(
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
   if (!session.objectCachesPopulated) {
-    await populateObjectBucketCaches(document, session, limit, options);
+    await populateObjectBucketCaches(document, session, options);
   }
   const page = await readSearchSessionObjectBucketPage(
     session.sessionId,
@@ -279,7 +279,6 @@ async function readObjectBucketPage(
 async function populateObjectBucketCaches(
   document: ReadonlyDocument,
   session: SearchSessionDescriptor,
-  limit: number,
   options: ArchiveFindOptions,
 ): Promise<void> {
   const search = createLexicalQuery(session.query);
@@ -299,7 +298,7 @@ async function populateObjectBucketCaches(
         : { embeddingProvider: options.embeddingProvider }),
       match: parseFindMatch(session.match),
       objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
-      textHitLimit: createBucketQueryWindow(limit),
+      textHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
       types: null,
     }),
   ]);

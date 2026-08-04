@@ -204,11 +204,12 @@ describe("wikg/wiki-graph-archive-file", () => {
             });
           },
         );
+        let writer: Promise<void> | undefined;
 
         try {
           await readerEntered;
 
-          const writer = new WikiGraphArchiveFile(archivePath).write(
+          writer = new WikiGraphArchiveFile(archivePath).write(
             async (document) => {
               await document.writeSearchIndexDatabase(() => {
                 writerEntered = true;
@@ -227,6 +228,7 @@ describe("wikg/wiki-graph-archive-file", () => {
         } catch (error) {
           releaseReader?.();
           await reader.catch(() => undefined);
+          await writer?.catch(() => undefined);
           throw error;
         }
       } finally {

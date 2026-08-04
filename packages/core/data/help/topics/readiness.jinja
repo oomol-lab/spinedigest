@@ -146,7 +146,7 @@ WikiSpine readiness:
 How to choose:
   - Need lexical retrieval: build chapter FTS artifacts, then sync cache if you do not want lazy sync.
   - Need semantic retrieval: configure embeddings, build source embedding artifacts, then sync cache.
-  - Need both lexical and semantic retrieval: build both FTS and source embedding artifacts; query chooses Hybrid automatically.
+  - Need both lexical and semantic retrieval: build both FTS and source embedding artifacts, then sync the archive index cache if it already exists or query reports it outdated; query can create a missing archive cache and chooses Hybrid automatically once the cache is current.
   - Need searchable retrieval across a managed folder: sync the library index cache.
   - Need to intentionally drop local cache: clean index cache; artifacts remain in the archive.
   - Need generated Reading Graph or summaries: configure LLM and use local jobs.

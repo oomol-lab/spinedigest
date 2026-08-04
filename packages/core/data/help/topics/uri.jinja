@@ -77,7 +77,7 @@ Scope URIs:
   A chapter URI used as a scope covers that chapter's full subtree by default.
   Query is strict by default: every chapter in scope must have a current FTS artifact or source embedding artifact.
   Add `--skip-unindexed` only when you intentionally want to search indexed chapters and ignore uncovered chapters.
-  Broad query is grouped by result type before ranking within each group. Use `/chunk`, `/entity`, `/triple`, `/source`, or `/summary` lenses when you want one object family instead of the mixed broad result.
+  Broad query is grouped by result type before ranking within each group. Use `/chunk`, `/entity`, or `/triple` lenses when you want one object family instead of the mixed broad result. Query an archive or chapter scope to find source or summary text, then read the returned `/source` or `/summary` object.
   Search uses FTS-only, Dense-only, or Hybrid automatically from the current artifacts and index cache; use `{{ commandName }} help readiness` to inspect what must exist.
   Add `--depth <N>` to limit chapter subtree expansion:
     - no `--depth`: full subtree

@@ -170,6 +170,8 @@ export async function acquireSqliteLease(input: {
   readonly mode: SqliteLeaseMode;
   readonly ownerId: string;
 }): Promise<void> {
+  const deadline = Date.now() + LOCK_STALE_TIMEOUT_MS;
+
   while (true) {
     const acquired = await withStateDatabase(async (state) => {
       await cleanupStaleState(state);
@@ -238,6 +240,11 @@ INSERT OR REPLACE INTO entry_sqlite_leases (
       return;
     }
 
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `Timed out waiting for SQLite ${input.mode} lease: ${input.entryPath}.`,
+      );
+    }
     await delay(LOCK_POLL_INTERVAL_MS);
   }
 }
@@ -263,6 +270,8 @@ export async function waitForSqliteLeasesToDrain(
   entryPath: string,
   options: { readonly exceptOwnerId?: string } = {},
 ): Promise<void> {
+  const deadline = Date.now() + LOCK_STALE_TIMEOUT_MS;
+
   while (true) {
     const count = await withStateDatabase(async (state) => {
       await cleanupStaleState(state);
@@ -295,6 +304,9 @@ WHERE lease.archive_key = ?
       return;
     }
 
+    if (Date.now() >= deadline) {
+      throw new Error(`Timed out waiting for SQLite leases: ${entryPath}.`);
+    }
     await delay(LOCK_POLL_INTERVAL_MS);
   }
 }
@@ -315,7 +327,7 @@ function sqliteLeasesConflict(
 }
 
 function getSqliteLeaseMode(row: Record<string, unknown>): SqliteLeaseMode {
-  const mode = String(row.mode);
+  const mode = getString(row, "mode");
 
   if (mode === "read" || mode === "write") {
     return mode;

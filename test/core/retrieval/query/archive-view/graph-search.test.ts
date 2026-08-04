@@ -129,15 +129,18 @@ describe("archive/query/archive-view/graph search", () => {
             .getSerialFragments(1)
             .createDraft();
 
-          draft.addSentence("alpha beta appears beside an unnamed person.", 7);
+          for (let index = 0; index < 120; index += 1) {
+            draft.addSentence(`alpha beta filler candidate ${index}.`, 5);
+          }
+          draft.addSentence("alpha beta mentions unnamed person.", 5);
           await draft.commit();
           await openedDocument.mentions.save({
             chapterId: 1,
             id: "mention-gamma",
             qid: "QGamma",
-            rangeEnd: 31,
-            rangeStart: 17,
-            sentenceIndex: 0,
+            rangeEnd: 34,
+            rangeStart: 20,
+            sentenceIndex: 120,
             surface: "unnamed person",
           });
           await openedDocument.writeBookMeta({
@@ -166,7 +169,7 @@ describe("archive/query/archive-view/graph search", () => {
 
         const result = await findArchiveObjects(document, "alpha beta", {
           evidenceLimit: 3,
-          limit: 3,
+          limit: 1,
         });
 
         expect(result.items[0]).toMatchObject({
