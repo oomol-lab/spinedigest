@@ -1,3 +1,4 @@
+import { countTextWords } from "../../utils/text-word-count.js";
 import type { SentenceRecord } from "../types.js";
 
 export function splitTextIntoSentences(
@@ -9,12 +10,6 @@ export function splitTextIntoSentences(
     .filter((sentence) => sentence !== "")
     .map((sentence) => ({
       text: sentence,
-      wordsCount: countWords(sentence),
+      wordsCount: countTextWords(sentence),
     }));
-}
-
-function countWords(text: string): number {
-  const trimmed = text.trim();
-
-  return trimmed === "" ? 0 : trimmed.split(/\s+/u).length;
 }

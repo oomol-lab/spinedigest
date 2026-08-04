@@ -2,6 +2,7 @@ import type {
   ReadonlyDocument,
   ReadonlySerialTextStream,
 } from "../../../document/index.js";
+import { countTextWords } from "../../../utils/text-word-count.js";
 
 import { createSnippet } from "./helpers.js";
 import {
@@ -246,7 +247,5 @@ export async function createTextStreamIndex(
 }
 
 export function countWords(text: string): number {
-  const trimmed = text.trim();
-
-  return trimmed === "" ? 0 : trimmed.split(/\s+/u).length;
+  return countTextWords(text);
 }

@@ -3,19 +3,14 @@ import type {
   SentenceStreamItem,
   TextStream,
 } from "./types.js";
+import { countTextWords } from "../../../utils/text-word-count.js";
 
 const SENTENCE_BOUNDARY_PATTERN =
   /(?:[.!?。！？…]+|(?:\r?\n)\s*(?:\r?\n)?|[.!?。！？…]+["'”’」』】）》〉〕〗]*)$/u;
 
 class IntlSegmenterSentenceStreamAdapter implements SentenceStreamAdapter {
-  readonly #graphemeSegmenter = new Intl.Segmenter(undefined, {
-    granularity: "grapheme",
-  });
   readonly #sentenceSegmenter = new Intl.Segmenter(undefined, {
     granularity: "sentence",
-  });
-  readonly #wordSegmenter = new Intl.Segmenter(undefined, {
-    granularity: "word",
   });
 
   public async *pipe(stream: TextStream): AsyncIterable<SentenceStreamItem> {
@@ -36,7 +31,7 @@ class IntlSegmenterSentenceStreamAdapter implements SentenceStreamAdapter {
         yield {
           offset,
           text: sentenceText,
-          wordsCount: this.#countWords(sentenceText),
+          wordsCount: countTextWords(sentenceText),
         };
         offset += sentenceText.length;
       }
@@ -48,7 +43,7 @@ class IntlSegmenterSentenceStreamAdapter implements SentenceStreamAdapter {
       yield {
         offset,
         text: sentenceText,
-        wordsCount: this.#countWords(sentenceText),
+        wordsCount: countTextWords(sentenceText),
       };
       offset += sentenceText.length;
     }
@@ -102,32 +97,6 @@ class IntlSegmenterSentenceStreamAdapter implements SentenceStreamAdapter {
         .map((segment) => segment.segment.trim())
         .filter((segment) => segment !== ""),
     };
-  }
-
-  #countWords(text: string): number {
-    let wordsCount = 0;
-
-    for (const segment of this.#wordSegmenter.segment(text)) {
-      if ("isWordLike" in segment && segment.isWordLike) {
-        wordsCount += 1;
-      }
-    }
-
-    if (wordsCount > 0) {
-      return wordsCount;
-    }
-
-    return this.#countGraphemes(text);
-  }
-
-  #countGraphemes(text: string): number {
-    let unitCount = 0;
-
-    for (const _segment of this.#graphemeSegmenter.segment(text)) {
-      unitCount += 1;
-    }
-
-    return unitCount;
   }
 
   #endsWithSentenceBoundary(buffer: string): boolean {

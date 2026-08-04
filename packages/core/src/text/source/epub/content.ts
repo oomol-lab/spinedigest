@@ -2,6 +2,7 @@ import type { Readable } from "stream";
 
 import { Parser } from "htmlparser2";
 
+import { countTextWords } from "../../../utils/text-word-count.js";
 import type { SourceTextStream } from "../types.js";
 import type { EpubArchive } from "./archive.js";
 
@@ -110,7 +111,7 @@ export async function analyzeSectionTargets(
 
       analyses.set(target.id, {
         hasContent: text.trim() !== "",
-        wordsCount: countWords(text),
+        wordsCount: countTextWords(text),
       });
     }
   }
@@ -258,22 +259,4 @@ function toTextChunk(chunk: unknown): string {
   }
 
   throw new Error("Unexpected HTML stream chunk type");
-}
-
-function countWords(text: string): number {
-  return [...createWordSegmenter().segment(text)].filter(
-    (segment) => segment.isWordLike,
-  ).length;
-}
-
-let WORD_SEGMENTER: Intl.Segmenter | undefined;
-
-function createWordSegmenter(): Intl.Segmenter {
-  if (WORD_SEGMENTER === undefined) {
-    WORD_SEGMENTER = new Intl.Segmenter(undefined, {
-      granularity: "word",
-    });
-  }
-
-  return WORD_SEGMENTER;
 }

@@ -1,3 +1,4 @@
+import { countTextWords } from "../../utils/text-word-count.js";
 import { Sentence, type SentenceRecord } from "../types.js";
 import type { TextStreamSentenceSegmenter } from "./types.js";
 
@@ -29,7 +30,7 @@ export async function splitTextIntoSentenceSpans(
     if (rawText.trim() === "") {
       continue;
     }
-    const sentence = new Sentence(rawText, countWords(rawText));
+    const sentence = new Sentence(rawText, countTextWords(rawText));
 
     Object.assign(sentence, {
       byteLength: Buffer.byteLength(rawText, "utf8"),
@@ -98,12 +99,6 @@ function createSentenceSegmenter(): Intl.Segmenter {
   });
 
   return SENTENCE_SEGMENTER;
-}
-
-function countWords(text: string): number {
-  const trimmed = text.trim();
-
-  return trimmed === "" ? 0 : trimmed.split(/\s+/u).length;
 }
 
 export function getSentenceByteOffset(sentence: SentenceRecord): number {
