@@ -538,6 +538,13 @@ describe("cli/args/help", () => {
       renderUriPredicateHelpText("index-object", "sync", "wikg://lib/index"),
     ).toContain("Sync this library index cache");
     expect(
+      renderUriPredicateHelpText(
+        "index-object",
+        "sync",
+        "wikg://book.wikg/index",
+      ),
+    ).toContain("[--skip-unindexed]");
+    expect(
       renderUriPredicateHelpText("index-object", "sync", "wikg://lib/index"),
     ).not.toContain(
       "Use `embed` when the index should travel with the archive",

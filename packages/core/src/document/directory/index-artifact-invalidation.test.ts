@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Document } from "./index.js";
 import { DirectoryDocument } from "./index.js";
+import { writeSerialSource } from "../../text/serial/source.js";
 
 async function withDocument(
   operation: (document: DirectoryDocument) => Promise<void>,
@@ -30,11 +31,25 @@ describe("DirectoryDocument index artifact invalidation", () => {
       await document.openSession(async (openedDocument) => {
         const serialId = await openedDocument.createSerial();
 
+        await seedKnowledgeGraph(openedDocument, serialId);
+        await seedReadingGraph(openedDocument, serialId);
+        await openedDocument.writeSummary(serialId, "Summary.");
         await saveAllArtifactKinds(openedDocument, serialId);
+        const revision = await openedDocument.serials.getRevision(serialId);
 
         await openedDocument.clearSerialSource(serialId);
 
         expect(await openedDocument.indexArtifacts.list()).toStrictEqual([]);
+        expect(
+          await openedDocument.mentions.listByChapter(serialId),
+        ).toStrictEqual([]);
+        expect(
+          await openedDocument.readingEdges.listBySerial(serialId),
+        ).toStrictEqual([]);
+        expect(await openedDocument.readSummary(serialId)).toBeUndefined();
+        expect(await openedDocument.serials.getRevision(serialId)).toBe(
+          revision + 1,
+        );
       });
     });
   });
@@ -45,6 +60,9 @@ describe("DirectoryDocument index artifact invalidation", () => {
         const serialId = await openedDocument.createSerial();
 
         await saveAllArtifactKinds(openedDocument, serialId);
+        await seedKnowledgeGraph(openedDocument, serialId);
+        await seedReadingGraph(openedDocument, serialId);
+        const revision = await openedDocument.serials.getRevision(serialId);
 
         await openedDocument.writeSummary(serialId, "A new summary.");
 
@@ -60,6 +78,121 @@ describe("DirectoryDocument index artifact invalidation", () => {
             "embedding-summary",
           ),
         ).toBeUndefined();
+        expect(
+          await openedDocument.mentions.listByChapter(serialId),
+        ).toHaveLength(1);
+        expect(
+          await openedDocument.readingEdges.listBySerial(serialId),
+        ).toHaveLength(1);
+        expect(await openedDocument.serials.getRevision(serialId)).toBe(
+          revision,
+        );
+      });
+    });
+  });
+
+  it("keeps knowledge graph when reading graph is cleared", async () => {
+    await withDocument(async (document) => {
+      await document.openSession(async (openedDocument) => {
+        const serialId = await openedDocument.createSerial();
+
+        await seedKnowledgeGraph(openedDocument, serialId);
+        await seedReadingGraph(openedDocument, serialId);
+        await openedDocument.writeSummary(serialId, "Summary.");
+        await saveAllArtifactKinds(openedDocument, serialId);
+        const revision = await openedDocument.serials.getRevision(serialId);
+
+        await openedDocument.clearSerialReadingGraph(serialId);
+
+        expect(
+          await openedDocument.indexArtifacts.get(serialId, "fts"),
+        ).toBeUndefined();
+        expect(
+          await openedDocument.indexArtifacts.get(serialId, "embedding-source"),
+        ).toBeDefined();
+        expect(
+          await openedDocument.indexArtifacts.get(
+            serialId,
+            "embedding-summary",
+          ),
+        ).toBeUndefined();
+        expect(
+          await openedDocument.mentions.listByChapter(serialId),
+        ).toHaveLength(1);
+        expect(
+          await openedDocument.readingEdges.listBySerial(serialId),
+        ).toStrictEqual([]);
+        expect(await openedDocument.readSummary(serialId)).toBeUndefined();
+        expect(await openedDocument.serials.getRevision(serialId)).toBe(
+          revision,
+        );
+      });
+    });
+  });
+
+  it("keeps reading graph and summary when knowledge graph is cleared", async () => {
+    await withDocument(async (document) => {
+      await document.openSession(async (openedDocument) => {
+        const serialId = await openedDocument.createSerial();
+
+        await seedKnowledgeGraph(openedDocument, serialId);
+        await seedReadingGraph(openedDocument, serialId);
+        await openedDocument.writeSummary(serialId, "Summary.");
+        await saveAllArtifactKinds(openedDocument, serialId);
+        const revision = await openedDocument.serials.getRevision(serialId);
+
+        await openedDocument.clearSerialKnowledgeGraph(serialId);
+
+        expect(
+          await openedDocument.indexArtifacts.get(serialId, "fts"),
+        ).toBeUndefined();
+        expect(
+          await openedDocument.indexArtifacts.get(serialId, "embedding-source"),
+        ).toBeDefined();
+        expect(
+          await openedDocument.indexArtifacts.get(
+            serialId,
+            "embedding-summary",
+          ),
+        ).toBeDefined();
+        expect(
+          await openedDocument.mentions.listByChapter(serialId),
+        ).toStrictEqual([]);
+        expect(
+          await openedDocument.readingEdges.listBySerial(serialId),
+        ).toHaveLength(1);
+        expect(await openedDocument.readSummary(serialId)).toBe("Summary.");
+        expect(await openedDocument.serials.getRevision(serialId)).toBe(
+          revision,
+        );
+      });
+    });
+  });
+
+  it("deletes derived artifacts and bumps revision when source is replaced", async () => {
+    await withDocument(async (document) => {
+      await document.openSession(async (openedDocument) => {
+        const serialId = await openedDocument.createSerial();
+
+        await saveAllArtifactKinds(openedDocument, serialId);
+        await seedKnowledgeGraph(openedDocument, serialId);
+        await seedReadingGraph(openedDocument, serialId);
+        await openedDocument.writeSummary(serialId, "Summary.");
+        const revision = await openedDocument.serials.getRevision(serialId);
+
+        await writeSerialSource(openedDocument, serialId, ["Replacement."]);
+
+        expect(await openedDocument.indexArtifacts.list()).toStrictEqual([]);
+        expect(
+          await openedDocument.mentions.listByChapter(serialId),
+        ).toStrictEqual([]);
+        expect(
+          await openedDocument.readingEdges.listBySerial(serialId),
+        ).toStrictEqual([]);
+        expect(await openedDocument.readSummary(serialId)).toBeUndefined();
+        expect(await openedDocument.serials.getRevision(serialId)).toBe(
+          revision + 1,
+        );
       });
     });
   });
@@ -100,4 +233,52 @@ async function saveAllArtifactKinds(
     serialId,
     sourceRevision: 0,
   });
+}
+
+async function seedKnowledgeGraph(
+  document: Document,
+  serialId: number,
+): Promise<void> {
+  await document.mentions.save({
+    chapterId: serialId,
+    id: `mention-${serialId}`,
+    qid: `entity-${serialId}`,
+    rangeEnd: 5,
+    rangeStart: 0,
+    sentenceIndex: 0,
+    surface: "Entity",
+  });
+  await document.serials.setKnowledgeGraphReady(serialId, true);
+}
+
+async function seedReadingGraph(
+  document: Document,
+  serialId: number,
+): Promise<void> {
+  await document.chunks.save({
+    content: "Reading chunk",
+    generation: 0,
+    id: serialId * 100,
+    label: "Chunk",
+    sentenceId: [serialId, 0],
+    sentenceIds: [[serialId, 0]],
+    wordsCount: 2,
+    weight: 1,
+  });
+  await document.chunks.save({
+    content: "Next chunk",
+    generation: 0,
+    id: serialId * 100 + 1,
+    label: "Next",
+    sentenceId: [serialId, 1],
+    sentenceIds: [[serialId, 1]],
+    wordsCount: 2,
+    weight: 1,
+  });
+  await document.readingEdges.save({
+    fromId: serialId * 100,
+    toId: serialId * 100 + 1,
+    weight: 1,
+  });
+  await document.serials.setTopologyReady(serialId, true);
 }

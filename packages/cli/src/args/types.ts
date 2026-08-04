@@ -298,6 +298,7 @@ export interface CLIArchiveIndexArguments {
   readonly archivePath: string;
   readonly json?: boolean;
   readonly jsonl?: boolean;
+  readonly skipUnindexed?: boolean;
 }
 
 export interface ArchiveMetaFlagValues {

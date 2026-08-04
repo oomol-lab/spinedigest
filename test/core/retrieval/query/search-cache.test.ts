@@ -8,6 +8,8 @@ import {
   createSearchSession,
   deleteArchiveSearchSessions,
   readEntitySearchSessionPage,
+  readSearchSessionDescriptor,
+  readSearchSessionMetadataForCursor,
   readSearchSessionObjectBucketPage,
 } from "../../../../packages/core/src/retrieval/query/search-cache/index.js";
 import { getObjectBucketCursorId } from "../../../../packages/core/src/retrieval/query/archive-view/search/bucket-order.js";
@@ -137,6 +139,88 @@ describe("archive/query/search-cache", () => {
       await deleteArchiveSearchSessions("archive-a");
 
       await expect(listPredicates(path)).resolves.toStrictEqual(["mentions"]);
+    });
+  });
+
+  it("preserves cursor creation time when recreating the same search session", async () => {
+    await withTempDir("wikigraph-search-cache-", async (path) => {
+      setWikiGraphStateDirectoryPathForTesting(path);
+
+      const input = {
+        archiveKey: "archive-key",
+        chapters: null,
+        items: [],
+        lens: "broad",
+        match: "any",
+        order: "rank",
+        query: "query",
+        revisionScope: JSON.stringify({ chaptersRevision: 0, scope: "all" }),
+        terms: ["query"],
+        types: null,
+      } as const;
+      const sessionId = await createSearchSession(input);
+      const first = await readSearchSessionDescriptor(sessionId, "archive-key");
+
+      await createSearchSession(input);
+
+      await expect(
+        readSearchSessionMetadataForCursor(
+          sessionId,
+          "archive-key",
+          first.createdAt,
+        ),
+      ).resolves.toMatchObject({
+        createdAt: first.createdAt,
+        sessionId,
+      });
+    });
+  });
+
+  it("does not revive an expired cursor when recreating the same search session", async () => {
+    await withTempDir("wikigraph-search-cache-", async (path) => {
+      setWikiGraphStateDirectoryPathForTesting(path);
+
+      const input = {
+        archiveKey: "archive-key",
+        chapters: null,
+        items: [],
+        lens: "broad",
+        match: "any",
+        order: "rank",
+        query: "query",
+        revisionScope: JSON.stringify({ chaptersRevision: 0, scope: "all" }),
+        terms: ["query"],
+        types: null,
+      } as const;
+      const sessionId = await createSearchSession(input);
+      const first = await readSearchSessionDescriptor(sessionId, "archive-key");
+      const database = await Database.open(
+        join(path, "cache", "search-sessions.sqlite"),
+        "",
+      );
+
+      try {
+        await database.run(
+          `
+            UPDATE search_sessions
+            SET expires_at = 0
+            WHERE session_id = ?
+          `,
+          [sessionId],
+        );
+      } finally {
+        await database.close();
+      }
+
+      await createSearchSession(input);
+
+      await expect(
+        readSearchSessionMetadataForCursor(
+          sessionId,
+          "archive-key",
+          first.createdAt,
+        ),
+      ).rejects.toThrow("Search cursor expired. Run the search again.");
     });
   });
 

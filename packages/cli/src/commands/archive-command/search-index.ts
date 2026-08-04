@@ -1,6 +1,7 @@
 import {
   deleteArchiveSearchSessions,
   isArchiveSearchIndexCurrent,
+  listArchiveQueryableChapterIds,
   readSearchIndexCapabilityStatus,
   rebuildArchiveSearchIndex,
   WikiGraphArchiveFile,
@@ -65,32 +66,46 @@ async function syncIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
         kind: "status",
         phase: "checking",
       });
+      const options =
+        args.skipUnindexed === true
+          ? { chapters: await listArchiveQueryableChapterIds(document) }
+          : {};
 
-      if (await isArchiveSearchIndexCurrent(document)) {
+      if (options.chapters?.length === 0) {
+        throw new Error(
+          "Wiki Graph index cache is not ready. No chapters have a current FTS artifact or source embedding artifact.",
+        );
+      }
+
+      if (await isArchiveSearchIndexCurrent(document, options)) {
         await writer.write({
           json: { type: "already-current" },
           kind: "lifecycle",
           text: "already current",
         });
       } else {
-        await rebuildArchiveSearchIndex(document, async (event) => {
-          await writer.write({
-            counters:
-              event.done === undefined || event.total === undefined
-                ? []
-                : [formatIndexCounter(event)],
-            json: {
+        await rebuildArchiveSearchIndex(
+          document,
+          async (event) => {
+            await writer.write({
               counters:
                 event.done === undefined || event.total === undefined
                   ? []
                   : [formatIndexCounter(event)],
+              json: {
+                counters:
+                  event.done === undefined || event.total === undefined
+                    ? []
+                    : [formatIndexCounter(event)],
+                phase: event.phase,
+                type: "status_snapshot",
+              },
+              kind: "status",
               phase: event.phase,
-              type: "status_snapshot",
-            },
-            kind: "status",
-            phase: event.phase,
-          });
-        });
+            });
+          },
+          options,
+        );
       }
 
       await writer.write({

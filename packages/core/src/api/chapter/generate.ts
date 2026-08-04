@@ -31,7 +31,7 @@ export async function generateChapterGraph(
         ? {}
         : { logDirPath: options.logDirPath }),
     });
-    await openedDocument.clearSerialGraph(chapterId);
+    await openedDocument.clearSerialReadingGraph(chapterId);
 
     await generation.buildTopologyInto(
       chapterId,

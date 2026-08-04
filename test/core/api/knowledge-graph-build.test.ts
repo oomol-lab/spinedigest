@@ -565,6 +565,15 @@ describe("facade/knowledge-graph-build", () => {
           },
         ]);
 
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.writeSummary(1, "Keep this summary.");
+          await openedDocument.indexArtifacts.replaceFts({
+            lexicalRows: [],
+            serialId: 1,
+            sourceRevision: await openedDocument.serials.getRevision(1),
+          });
+        });
+
         await clearChapterKnowledgeGraph(document, 1);
 
         expect((await document.serials.getById(1))?.knowledgeGraphReady).toBe(
@@ -579,6 +588,12 @@ describe("facade/knowledge-graph-build", () => {
           ),
         ).resolves.toBeUndefined();
         expect(await document.mentions.listByChapter(1)).toStrictEqual([]);
+        await expect(
+          document.indexArtifacts.get(1, "fts"),
+        ).resolves.toBeUndefined();
+        await expect(document.readSummary(1)).resolves.toBe(
+          "Keep this summary.",
+        );
       } finally {
         await document.release();
       }

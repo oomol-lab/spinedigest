@@ -3,7 +3,7 @@ import {
   collectChapterKnowledgeGraphObjects,
   readWikgObjectsFromJsonl,
 } from "../../object-stream.js";
-import { refreshChapterFtsIndexArtifactIfPresent } from "../../retrieval/index-artifact/index.js";
+import { replaceChapterFtsIndexArtifact } from "../../retrieval/index-artifact/index.js";
 import { validateChapterKnowledgeGraphArtifact } from "./artifact-io.js";
 import type { ChapterKnowledgeGraphBuildArtifact } from "./types.js";
 
@@ -29,6 +29,9 @@ export async function commitChapterKnowledgeGraphArtifact(
     const existingLinks = await openedDocument.mentionLinks.listByChapter(
       artifact.chapterId,
     );
+    const hadFtsArtifact =
+      (await openedDocument.indexArtifacts.get(artifact.chapterId, "fts")) !==
+      undefined;
 
     if (existingLinks.length > 0 && mentionLinks.length === 0) {
       throw new Error(
@@ -36,8 +39,7 @@ export async function commitChapterKnowledgeGraphArtifact(
       );
     }
 
-    await openedDocument.mentionLinks.deleteByChapter(artifact.chapterId);
-    await openedDocument.mentions.deleteByChapter(artifact.chapterId);
+    await openedDocument.clearSerialKnowledgeGraph(artifact.chapterId);
     await openedDocument.mentions.saveMany(mentions);
     await openedDocument.mentionLinks.saveMany(mentionLinks);
     const savedParameter =
@@ -47,10 +49,9 @@ export async function commitChapterKnowledgeGraphArtifact(
       true,
       savedParameter.hash,
     );
-    await refreshChapterFtsIndexArtifactIfPresent(
-      openedDocument,
-      artifact.chapterId,
-    );
+    if (hadFtsArtifact) {
+      await replaceChapterFtsIndexArtifact(openedDocument, artifact.chapterId);
+    }
   });
 }
 
@@ -59,10 +60,6 @@ export async function clearChapterKnowledgeGraph(
   chapterId: number,
 ): Promise<void> {
   await document.openSession(async (openedDocument) => {
-    await openedDocument.mentionLinks.deleteByChapter(chapterId);
-    await openedDocument.mentions.deleteByChapter(chapterId);
-    await openedDocument.serials.setKnowledgeGraphReady(chapterId, false);
-    await openedDocument.graphBuildParameters.deleteUnreferenced();
-    await refreshChapterFtsIndexArtifactIfPresent(openedDocument, chapterId);
+    await openedDocument.clearSerialKnowledgeGraph(chapterId);
   });
 }

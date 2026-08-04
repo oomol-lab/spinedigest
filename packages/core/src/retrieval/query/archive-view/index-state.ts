@@ -1,5 +1,6 @@
 import type {
   Document,
+  IndexArtifactRecord,
   IndexArtifactLexicalRow,
   ReadonlyDocument,
 } from "../../../document/index.js";
@@ -39,11 +40,19 @@ export async function rebuildArchiveSearchIndex(
 ): Promise<void> {
   for (let attempt = 0; attempt < SEARCH_INDEX_REBUILD_ATTEMPTS; attempt += 1) {
     await assertArchiveIndexArtifactsReady(document, options);
-    const input = await buildArchiveIndexProjection(document, progress);
+    const input = await buildArchiveIndexProjection(
+      document,
+      progress,
+      options,
+    );
     const fingerprint = createSearchIndexFingerprint(input);
 
     if ((await readSearchIndexStatus(document, input)) === "dirty") {
-      const beforeDeleteInput = await buildArchiveIndexProjection(document);
+      const beforeDeleteInput = await buildArchiveIndexProjection(
+        document,
+        undefined,
+        options,
+      );
 
       if (createSearchIndexFingerprint(beforeDeleteInput) !== fingerprint) {
         continue;
@@ -52,9 +61,13 @@ export async function rebuildArchiveSearchIndex(
       await document.deleteSearchIndexDatabase();
     }
 
-    await writeArchiveIndexProjectionFromArtifacts(document, progress);
+    await writeArchiveIndexProjectionFromArtifacts(document, progress, options);
 
-    const verifiedInput = await buildArchiveIndexProjection(document);
+    const verifiedInput = await buildArchiveIndexProjection(
+      document,
+      undefined,
+      options,
+    );
     if (
       createSearchIndexFingerprint(verifiedInput) === fingerprint &&
       (await readSearchIndexStatus(document, verifiedInput)) === "current"
@@ -87,7 +100,7 @@ export async function readArchiveSearchIndexStatus(
 
   return await readSearchIndexStatus(
     document,
-    await buildArchiveIndexProjection(document),
+    await buildArchiveIndexProjection(document, undefined, options),
   );
 }
 
@@ -110,6 +123,7 @@ export async function createArchiveSearchIndexFingerprint(
 export async function buildArchiveIndexProjection(
   document: ReadonlyDocument,
   progress?: SearchIndexProgressReporter,
+  options: ArchiveSearchIndexScopeOptions = {},
 ): Promise<SearchIndexInput> {
   const objectProperties: SearchIndexInput["objectProperties"][number][] = [];
   const textSentences: SearchIndexInput["textSentences"][number][] = [];
@@ -118,6 +132,7 @@ export async function buildArchiveIndexProjection(
     document,
     SINGLE_ARCHIVE_INDEX_ID,
     progress,
+    options,
   )) {
     objectProperties.push(...batch.objectProperties);
     textSentences.push(...batch.textSentences);
@@ -192,13 +207,18 @@ async function resolveArchiveQueryChapterIds(
 export async function writeArchiveIndexProjectionFromArtifacts(
   document: Document,
   progress?: SearchIndexProgressReporter,
+  options: ArchiveSearchIndexScopeOptions = {},
 ): Promise<void> {
   const chaptersRevision = await document.serials.getChaptersRevision();
+  const chapterIds = await resolveArchiveQueryChapterIds(document, options);
   const fingerprint = createSearchIndexFingerprint(
-    await buildArchiveIndexProjection(document),
+    await buildArchiveIndexProjection(document, undefined, options),
   );
-  const embeddingState = await readArchiveEmbeddingState(document);
-  const hasFts = (await document.indexArtifacts.list("fts")).length > 0;
+  const embeddingState = await readArchiveEmbeddingState(document, options);
+  const ftsCoverage = await document.indexArtifacts.listCoverage("fts");
+  const hasFts = ftsCoverage.some(
+    (artifact) => chapterIds.has(artifact.serialId) && artifact.current,
+  );
 
   await document.writeSearchIndexDatabase(async (database) => {
     await prepareSearchIndexReplacement(database, progress);
@@ -207,6 +227,9 @@ export async function writeArchiveIndexProjectionFromArtifacts(
     let vectorDone = 0;
 
     for (const chapter of await listChapters(document)) {
+      if (!chapterIds.has(chapter.chapterId)) {
+        continue;
+      }
       for (const record of await streamIndexArtifactProjectionRecords(
         document,
         SINGLE_ARCHIVE_INDEX_ID,
@@ -251,6 +274,12 @@ export async function writeArchiveIndexProjectionFromArtifacts(
       "embedding-summary",
     ] as const) {
       for (const artifact of await document.indexArtifacts.list(artifactKind)) {
+        if (!chapterIds.has(artifact.serialId)) {
+          continue;
+        }
+        if (!(await isCurrentIndexArtifact(document, artifact))) {
+          continue;
+        }
         const segments = await document.indexArtifacts.listEmbeddingSegments(
           artifact.serialId,
           artifactKind,
@@ -330,12 +359,17 @@ export async function* streamArchiveIndexProjection(
   document: ReadonlyDocument,
   archiveId: number,
   progress?: SearchIndexProgressReporter,
+  options: ArchiveSearchIndexScopeOptions = {},
 ): AsyncIterable<SearchIndexWriteBatch> {
   const chapters = await listChapters(document);
+  const chapterIds = await resolveArchiveQueryChapterIds(document, options);
   let chapterDone = 0;
   let batch = createEmptySearchIndexBatch();
 
   for (const chapter of chapters) {
+    if (!chapterIds.has(chapter.chapterId)) {
+      continue;
+    }
     for (const record of await streamIndexArtifactProjectionRecords(
       document,
       archiveId,
@@ -355,7 +389,7 @@ export async function* streamArchiveIndexProjection(
     await progress?.({
       done: chapterDone,
       phase: "collecting",
-      total: chapters.length,
+      total: chapterIds.size,
       unit: "chapter",
     });
   }
@@ -391,25 +425,31 @@ async function streamIndexArtifactProjectionRecords(
         readonly value: SearchIndexWriteBatch["textSentences"][number];
       }
   )[] = [];
+  const ftsArtifact = await document.indexArtifacts.get(serialId, "fts");
 
-  for (const row of await document.indexArtifacts.listLexicalRows(
-    serialId,
-    "fts",
-  )) {
-    const textRecord = mapLexicalRowToTextSentence(archiveId, serialId, row);
-
-    if (textRecord !== undefined) {
-      records.push({ kind: "text", value: textRecord });
-      continue;
-    }
-
-    const objectRecord = mapLexicalRowToObjectProperty(
-      archiveId,
+  if (
+    ftsArtifact !== undefined &&
+    (await isCurrentIndexArtifact(document, ftsArtifact))
+  ) {
+    for (const row of await document.indexArtifacts.listLexicalRows(
       serialId,
-      row,
-    );
-    if (objectRecord !== undefined) {
-      records.push({ kind: "object", value: objectRecord });
+      "fts",
+    )) {
+      const textRecord = mapLexicalRowToTextSentence(archiveId, serialId, row);
+
+      if (textRecord !== undefined) {
+        records.push({ kind: "text", value: textRecord });
+        continue;
+      }
+
+      const objectRecord = mapLexicalRowToObjectProperty(
+        archiveId,
+        serialId,
+        row,
+      );
+      if (objectRecord !== undefined) {
+        records.push({ kind: "object", value: objectRecord });
+      }
     }
   }
 
@@ -419,6 +459,9 @@ async function streamIndexArtifactProjectionRecords(
   ] as const) {
     const artifact = await document.indexArtifacts.get(serialId, artifactKind);
     if (artifact === undefined) {
+      continue;
+    }
+    if (!(await isCurrentIndexArtifact(document, artifact))) {
       continue;
     }
     const textKind =
@@ -557,14 +600,22 @@ function countSearchIndexBatchRecords(batch: SearchIndexWriteBatch): number {
 
 export async function readArchiveEmbeddingState(
   document: ReadonlyDocument,
+  options: ArchiveSearchIndexScopeOptions = {},
 ): Promise<SearchIndexStoredEmbeddingState | undefined> {
   let state: SearchIndexStoredEmbeddingState | undefined;
+  const chapterIds = await resolveArchiveQueryChapterIds(document, options);
 
   for (const artifactKind of [
     "embedding-source",
     "embedding-summary",
   ] as const) {
     for (const artifact of await document.indexArtifacts.list(artifactKind)) {
+      if (!chapterIds.has(artifact.serialId)) {
+        continue;
+      }
+      if (!(await isCurrentIndexArtifact(document, artifact))) {
+        continue;
+      }
       const dimensions = readEmbeddingDimensions(artifact.metadata);
       const model = readEmbeddingModel(artifact.metadata);
       const label = artifactKind === "embedding-source" ? "Source" : "Summary";
@@ -597,6 +648,16 @@ export async function readArchiveEmbeddingState(
   }
 
   return state;
+}
+
+async function isCurrentIndexArtifact(
+  document: ReadonlyDocument,
+  artifact: IndexArtifactRecord,
+): Promise<boolean> {
+  return (
+    artifact.sourceRevision ===
+    (await document.serials.getRevision(artifact.serialId))
+  );
 }
 
 function readWordsCount(metadata: Readonly<Record<string, unknown>>): number {

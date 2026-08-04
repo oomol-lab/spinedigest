@@ -194,6 +194,12 @@ export function parseArchiveIndexUriArguments(
   } else {
     rejectArchiveFlag(action, "--indexes", values.indexes, helpRoute);
     rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
+    rejectArchiveBooleanFlag(
+      action,
+      "--skip-unindexed",
+      values["skip-unindexed"],
+      helpRoute,
+    );
   }
   rejectArchiveBooleanFlag(action, "--last", values.last, helpRoute);
   rejectArchiveBooleanFlag(action, "--reverse", values.reverse, helpRoute);
@@ -207,6 +213,7 @@ export function parseArchiveIndexUriArguments(
       archivePath,
       ...(values.json === undefined ? {} : { json: values.json }),
       ...(values.jsonl === undefined ? {} : { jsonl: values.jsonl }),
+      ...(values["skip-unindexed"] === true ? { skipUnindexed: true } : {}),
     },
     help: false,
     kind: "archive-index",

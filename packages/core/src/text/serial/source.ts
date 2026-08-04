@@ -11,6 +11,7 @@ export async function writeSerialSource(
 ): Promise<void> {
   const serialFragments = document.getSerialFragments(serialId);
 
+  await document.clearSerialDerivedArtifacts(serialId);
   await serialFragments.writeTextStream(await collectTextStream(stream), {
     ...(options.segmenter === undefined
       ? {}

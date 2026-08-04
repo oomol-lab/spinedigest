@@ -108,6 +108,16 @@ export async function deleteSearchSession(
   database: Database,
   sessionId: string,
 ): Promise<void> {
+  await deleteSearchSessionRows(database, sessionId);
+  await database.run("DELETE FROM search_sessions WHERE session_id = ?", [
+    sessionId,
+  ]);
+}
+
+export async function deleteSearchSessionRows(
+  database: Database,
+  sessionId: string,
+): Promise<void> {
   await database.run("DELETE FROM search_results WHERE session_id = ?", [
     sessionId,
   ]);
@@ -122,9 +132,6 @@ export async function deleteSearchSession(
     sessionId,
   ]);
   await database.run("DELETE FROM search_chunk_hits WHERE session_id = ?", [
-    sessionId,
-  ]);
-  await database.run("DELETE FROM search_sessions WHERE session_id = ?", [
     sessionId,
   ]);
 }

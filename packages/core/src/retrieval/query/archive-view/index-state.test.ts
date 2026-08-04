@@ -274,6 +274,49 @@ describe("archive search index state", () => {
     });
   });
 
+  it("does not write stale artifact rows during scoped cache sync", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      const provider = createFakeEmbeddingProvider();
+
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await document.openSession(async (openedDocument) => {
+        await openedDocument.serials.bumpRevision(1);
+      });
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 1, provider);
+
+      await rebuildArchiveSearchIndex(document, undefined, { chapters: [1] });
+
+      await expect(
+        readSearchIndexCapabilityStatus(document),
+      ).resolves.toStrictEqual({
+        dense: {
+          current: true,
+          dimensions: 3,
+          model: "test-embedding",
+        },
+        indexes: "dense",
+      });
+      await expect(
+        document.readSearchIndexDatabase(async (database) => ({
+          objectFtsRows: await database.queryOne(
+            "SELECT COUNT(*) AS count FROM search_object_properties_fts",
+            undefined,
+            (row) => getNumber(row, "count"),
+          ),
+          textFtsRows: await database.queryOne(
+            "SELECT COUNT(*) AS count FROM text_sentence_fts",
+            undefined,
+            (row) => getNumber(row, "count"),
+          ),
+        })),
+      ).resolves.toStrictEqual({
+        objectFtsRows: 0,
+        textFtsRows: 0,
+      });
+    });
+  });
+
   it("does not report dense current when the cache is dirty", async () => {
     await withTempDocument(async (document) => {
       await writeSourceChapter(document);

@@ -71,6 +71,17 @@ export async function deleteSerialGraphRecords(input: {
   readonly serialId: number;
 }): Promise<void> {
   await input.database.transaction(async () => {
+    await deleteSerialKnowledgeGraphRecords(input);
+    await deleteSerialReadingGraphRecords(input);
+  });
+}
+
+export async function deleteSerialKnowledgeGraphRecords(input: {
+  readonly database: Database;
+  readonly metadata: ObjectMetadataStore;
+  readonly serialId: number;
+}): Promise<void> {
+  await input.database.transaction(async () => {
     await input.database.run(
       `
         DELETE FROM mention_link_evidence_sentences
@@ -109,6 +120,16 @@ export async function deleteSerialGraphRecords(input: {
       `,
       [input.serialId],
     );
+    await input.metadata.deleteDeletedEntitiesAndTriples();
+  });
+}
+
+export async function deleteSerialReadingGraphRecords(input: {
+  readonly database: Database;
+  readonly metadata: ObjectMetadataStore;
+  readonly serialId: number;
+}): Promise<void> {
+  await input.database.transaction(async () => {
     await input.database.run(
       `
         DELETE FROM snake_edges
@@ -179,7 +200,6 @@ export async function deleteSerialGraphRecords(input: {
       [input.serialId],
     );
     await input.metadata.deleteDeletedChunks();
-    await input.metadata.deleteDeletedEntitiesAndTriples();
   });
 }
 

@@ -258,7 +258,6 @@ export class SerialGeneration {
     await this.#writeSemaphore.use(async () => {
       await topology.finalize();
       await this.#serials.setTopologyReady(serialId);
-      await this.#serials.bumpRevision(serialId);
     });
   }
 

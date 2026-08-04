@@ -101,7 +101,7 @@ export async function commitChapterGraphArtifact(
     const hadFtsArtifact =
       (await openedDocument.indexArtifacts.get(artifact.chapterId, "fts")) !==
       undefined;
-    await openedDocument.clearSerialGraph(artifact.chapterId);
+    await openedDocument.clearSerialReadingGraph(artifact.chapterId);
     await openedDocument.serials.ensure(artifact.chapterId);
 
     const chunkIdMap = new Map<string, number>();

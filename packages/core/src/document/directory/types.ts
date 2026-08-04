@@ -112,7 +112,10 @@ export interface Document extends ReadonlyDocument {
   getSerialFragments(serialId: number): SerialTextStream;
   getSummaryFragments(serialId: number): SerialTextStream;
   createSerial(): Promise<number>;
+  clearSerialDerivedArtifacts(serialId: number): Promise<void>;
   clearSerialGraph(serialId: number): Promise<void>;
+  clearSerialKnowledgeGraph(serialId: number): Promise<void>;
+  clearSerialReadingGraph(serialId: number): Promise<void>;
   clearSerialSource(serialId: number): Promise<void>;
   deleteSerial(serialId: number): Promise<void>;
   deleteSearchIndexDatabase(): Promise<void>;

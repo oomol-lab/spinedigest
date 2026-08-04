@@ -403,12 +403,13 @@ Purpose:
   Sync this archive index cache from chapter index artifacts.
 
 Usage:
-  {{ commandName }} {{ uri }} sync [--jsonl]
+  {{ commandName }} {{ uri }} sync [--jsonl] [--skip-unindexed]
 
 Notes:
   - This initializes or repairs the local `index.db` cache outside the `.wikg` archive.
   - It reads chapter index artifacts from the archive and does not call an embeddings provider.
   - If required chapter artifacts are missing, sync reports that artifact readiness problem instead of building them.
+  - Add `--skip-unindexed` only when you intentionally want the cache to include indexed chapters and ignore uncovered chapters.
   - Free archive query can lazy-sync this cache, but explicit sync avoids the first-query delay.
   - With `--jsonl`, progress is emitted as line-delimited event records.
 {% endif %}

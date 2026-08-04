@@ -28,6 +28,30 @@ describe("cli/args/archive index", () => {
       help: false,
       kind: "archive-index",
     });
+    expect(
+      parseCLIArguments([
+        "wikg:///tmp/book.wikg/index",
+        "sync",
+        "--jsonl",
+        "--skip-unindexed",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "sync",
+        archivePath: "/tmp/book.wikg",
+        jsonl: true,
+        skipUnindexed: true,
+      },
+      help: false,
+      kind: "archive-index",
+    });
+    expect(() =>
+      parseCLIArguments([
+        "wikg:///tmp/book.wikg/index",
+        "clean",
+        "--skip-unindexed",
+      ]),
+    ).toThrow("The `clean` command does not support --skip-unindexed.");
     expect(() =>
       parseCLIArguments([
         "wikg:///tmp/book.wikg/index",

@@ -181,7 +181,7 @@ export async function resetChapter(
         await openedDocument.clearSerialSource(chapterId);
         break;
       case "sourced":
-        await openedDocument.clearSerialGraph(chapterId);
+        await openedDocument.clearSerialDerivedArtifacts(chapterId);
         break;
       case "graphed":
         await openedDocument.deleteSummary(chapterId);

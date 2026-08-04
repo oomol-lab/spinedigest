@@ -40,6 +40,8 @@ import {
 import { openSearchIndexDatabase } from "./search-index.js";
 import {
   deleteSerialGraphRecords,
+  deleteSerialKnowledgeGraphRecords,
+  deleteSerialReadingGraphRecords,
   deleteSerialResources,
   rollbackDocumentContext,
 } from "./serial-cleanup.js";
@@ -183,6 +185,11 @@ export class DirectoryDocument implements Document {
   }
 
   public async clearSerialGraph(serialId: number): Promise<void> {
+    await this.clearSerialDerivedArtifacts(serialId);
+  }
+
+  public async clearSerialDerivedArtifacts(serialId: number): Promise<void> {
+    await this.indexArtifacts.deleteBySerial(serialId);
     await this.deleteSummary(serialId);
     await deleteSerialGraphRecords({
       database: this.#database,
@@ -191,13 +198,33 @@ export class DirectoryDocument implements Document {
     });
     await this.serials.setTopologyReady(serialId, false);
     await this.serials.setKnowledgeGraphReady(serialId, false);
-    await this.serials.bumpRevision(serialId);
+    await this.graphBuildParameters.deleteUnreferenced();
+  }
+
+  public async clearSerialKnowledgeGraph(serialId: number): Promise<void> {
+    await this.indexArtifacts.delete(serialId, "fts");
+    await deleteSerialKnowledgeGraphRecords({
+      database: this.#database,
+      metadata: this.metadata,
+      serialId,
+    });
+    await this.serials.setKnowledgeGraphReady(serialId, false);
+    await this.graphBuildParameters.deleteUnreferenced();
+  }
+
+  public async clearSerialReadingGraph(serialId: number): Promise<void> {
+    await this.deleteSummary(serialId);
+    await deleteSerialReadingGraphRecords({
+      database: this.#database,
+      metadata: this.metadata,
+      serialId,
+    });
+    await this.serials.setTopologyReady(serialId, false);
     await this.graphBuildParameters.deleteUnreferenced();
   }
 
   public async clearSerialSource(serialId: number): Promise<void> {
-    await this.clearSerialGraph(serialId);
-    await this.indexArtifacts.deleteBySerial(serialId);
+    await this.clearSerialDerivedArtifacts(serialId);
     await this.#textStreams.getSerial(serialId).delete();
     await this.serials.bumpRevision(serialId);
   }
@@ -367,7 +394,6 @@ export class DirectoryDocument implements Document {
   public async writeSummary(serialId: number, summary: string): Promise<void> {
     await this.deleteSummary(serialId);
     await this.#textStreams.getSummarySerial(serialId).writeTextStream(summary);
-    await this.serials.bumpRevision(serialId);
   }
 
   public async writeToc(toc: TocFile): Promise<void> {

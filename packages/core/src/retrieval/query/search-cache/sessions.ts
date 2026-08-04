@@ -13,7 +13,7 @@ import { createEntitySearchSessionId, createSearchSessionId } from "./ids.js";
 import { parseSearchResultItem } from "./parsing.js";
 import { SEARCH_SESSION_TTL_MS } from "./schema.js";
 import {
-  deleteSearchSession,
+  deleteSearchSessionRows,
   hasSearchSession,
   readSearchSessionMetadata,
   touchSearchSession,
@@ -85,7 +85,7 @@ export async function createSearchSession(
     });
 
     await database.transaction(async () => {
-      await deleteSearchSession(database, sessionId);
+      await deleteSearchSessionRows(database, sessionId);
       await database.run(
         `
           INSERT INTO search_sessions (
@@ -93,6 +93,20 @@ export async function createSearchSession(
             match, created_at, expires_at, accessed_at
           )
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(session_id) DO UPDATE SET
+            archive_key = excluded.archive_key,
+            query = excluded.query,
+            options_json = excluded.options_json,
+            terms_json = excluded.terms_json,
+            lens = excluded.lens,
+            match = excluded.match,
+            created_at = CASE
+              WHEN search_sessions.expires_at >= ? THEN search_sessions.created_at
+              ELSE excluded.created_at
+            END,
+            expires_at = excluded.expires_at,
+            accessed_at = excluded.accessed_at,
+            object_caches_populated = 0
         `,
         [
           sessionId,
@@ -104,6 +118,7 @@ export async function createSearchSession(
           input.match,
           now,
           now + SEARCH_SESSION_TTL_MS,
+          now,
           now,
         ],
       );
@@ -152,7 +167,7 @@ export async function createEntitySearchSession(
     });
 
     await database.transaction(async () => {
-      await deleteSearchSession(database, sessionId);
+      await deleteSearchSessionRows(database, sessionId);
       await database.run(
         `
           INSERT INTO search_sessions (
@@ -160,6 +175,20 @@ export async function createEntitySearchSession(
             match, created_at, expires_at, accessed_at
           )
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(session_id) DO UPDATE SET
+            archive_key = excluded.archive_key,
+            query = excluded.query,
+            options_json = excluded.options_json,
+            terms_json = excluded.terms_json,
+            lens = excluded.lens,
+            match = excluded.match,
+            created_at = CASE
+              WHEN search_sessions.expires_at >= ? THEN search_sessions.created_at
+              ELSE excluded.created_at
+            END,
+            expires_at = excluded.expires_at,
+            accessed_at = excluded.accessed_at,
+            object_caches_populated = 0
         `,
         [
           sessionId,
@@ -171,6 +200,7 @@ export async function createEntitySearchSession(
           input.match,
           now,
           now + SEARCH_SESSION_TTL_MS,
+          now,
           now,
         ],
       );
