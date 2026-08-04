@@ -43,9 +43,18 @@ across query/list/search/evidence business paths.
 
 The v1 -> v2 archive upgrader removes embedded archive `index.db` and legacy
 `fts.db` as derived search index data and preserves important archive content
-and the mutation token. It must refuse active coordinator state for the target
-archive and non-search-index overlays, because those can represent uncommitted
-important data.
+and the mutation token.
+
+The v2 -> v3 archive upgrader separates index artifacts from index caches. It
+keeps important archive data, rebuilds chapter FTS index artifacts from the
+archive source/summary/object data already present in `database.db`, drops the
+old `archive_index_settings` table, and deletes embedded `index.db` / legacy
+`fts.db` caches. It does not create embedding artifacts, because older schemas
+never stored them as important data.
+
+Archive upgraders must refuse active coordinator state for the target archive
+and non-search-index overlays, because those can represent uncommitted important
+data.
 
 ## Home Gate
 
@@ -78,17 +87,24 @@ code and tests when adding new home SQLite files:
   - archive coordinator external search index cache workspace referenced by
     `entry_overlays(entry_path = 'index.db')`.
 
-For v1 -> v2, derived home data is deleted or invalidated: query/search caches,
-external cache, GC state, build queue SQLite/cache when safe, library aggregate
-indexes, external archive search index overlays/workspaces for `index.db` or
-legacy `fts.db`, and
-orphaned SQLite materialization cache overlays whose archive file no longer
-exists. The upgrader must block when active GC, build job, worker lease,
+For home schema upgrades, derived home data is deleted or invalidated:
+query/search caches, external cache, GC state, build queue SQLite/cache when
+safe, library aggregate indexes, external archive search index
+overlays/workspaces for `index.db` or legacy `fts.db`, and orphaned SQLite
+materialization cache overlays whose archive file no longer exists. The v2 -> v3
+home upgrader uses the same cleanup boundary because the index-cache semantics
+changed. The upgrader must block when active GC, build job, worker lease,
 coordinator owner/lock/sqlite lease/commit lock, or remaining non-derived
 overlay state is present.
 
 Pure information commands such as `wg --version` and help rendering must not open
 home SQLite and must not trigger schema upgrade.
+
+Search index caches also carry their own `search_index_state.version`. Opening a
+cache whose version is missing, unreadable, or different from the current search
+index version must delete that cache and treat it as missing. Write paths may
+then recreate the cache from artifacts; read paths must report the missing-cache
+state instead of querying stale SQLite.
 
 After a home `core.sqlite` file is confirmed current, the home gate may memoize
 that result inside the current process for hot gated access. The memo must be

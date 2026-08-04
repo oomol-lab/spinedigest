@@ -21,11 +21,6 @@ export const SCHEMA_SQL = `
     value INTEGER NOT NULL
   );
 
-  CREATE TABLE IF NOT EXISTS archive_index_settings (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    fts_embedded INTEGER NOT NULL DEFAULT 0
-  );
-
   CREATE TABLE IF NOT EXISTS graph_build_parameters (
     hash TEXT PRIMARY KEY,
     prompt TEXT NOT NULL,

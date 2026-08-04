@@ -8,12 +8,20 @@ const testingStateDirectoryPath = new AsyncLocalStorage<{
 const runtimeStateDirectoryPath = new AsyncLocalStorage<{
   readonly path: string | undefined;
 }>();
+let testingStateDirectoryPathOverride: string | undefined;
 
 export function resolveWikiGraphHomeDirectoryPath(): string {
   const testingStateDirPath = testingStateDirectoryPath.getStore()?.path;
 
   if (testingStateDirPath !== undefined && testingStateDirPath.trim() !== "") {
     return resolve(testingStateDirPath);
+  }
+
+  if (
+    testingStateDirectoryPathOverride !== undefined &&
+    testingStateDirectoryPathOverride.trim() !== ""
+  ) {
+    return resolve(testingStateDirectoryPathOverride);
   }
 
   const runtimeStateDirPath = runtimeStateDirectoryPath.getStore()?.path;
@@ -28,6 +36,7 @@ export function resolveWikiGraphHomeDirectoryPath(): string {
 export function setWikiGraphStateDirectoryPathForTesting(
   path: string | undefined,
 ): void {
+  testingStateDirectoryPathOverride = path;
   testingStateDirectoryPath.enterWith({ path });
 }
 
@@ -35,7 +44,14 @@ export async function withWikiGraphStateDirectoryPathForTesting<T>(
   path: string | undefined,
   operation: () => Promise<T> | T,
 ): Promise<T> {
-  return await testingStateDirectoryPath.run({ path }, operation);
+  const previous = testingStateDirectoryPathOverride;
+  testingStateDirectoryPathOverride = path;
+
+  try {
+    return await testingStateDirectoryPath.run({ path }, operation);
+  } finally {
+    testingStateDirectoryPathOverride = previous;
+  }
 }
 
 export async function withWikiGraphRuntimeStateDirectoryPath<T>(
@@ -57,7 +73,10 @@ export async function withWikiGraphRuntimeEnvironment<T>(
 }
 
 export function getWikiGraphStateDirectoryPathForTesting(): string | undefined {
-  return testingStateDirectoryPath.getStore()?.path;
+  return (
+    testingStateDirectoryPath.getStore()?.path ??
+    testingStateDirectoryPathOverride
+  );
 }
 
 export function resolveWikiGraphCoreDatabasePath(): string {

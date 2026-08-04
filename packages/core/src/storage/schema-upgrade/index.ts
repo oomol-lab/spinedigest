@@ -3,19 +3,21 @@ import { mkdtemp, rename, rm, stat, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { dirname, join, resolve } from "path";
 
-import { Database } from "../../document/database.js";
+import { Database, DirectoryDocument } from "../../document/index.js";
 import { ensureChapterKeys } from "../../document/chapter/toc.js";
 import type { MutableTocFile } from "../../document/chapter/tree.js";
 import { ensureWikiGraphHomeSchemaCurrent } from "../../document/home-schema-upgrade.js";
+import { replaceChapterFtsIndexArtifact } from "../../retrieval/index-artifact/index.js";
 import {
   resolveWikiGraphHomeDirectoryPath,
   resolveWikiGraphStagingDirectoryPath,
 } from "../../runtime/common/wiki-graph/dir.js";
 import {
-  LEGACY_SEARCH_INDEX_DATABASE_PATH,
   SEARCH_INDEX_DATABASE_PATH,
+  LEGACY_SEARCH_INDEX_DATABASE_PATH,
   WIKG_MANIFEST_PATH,
 } from "../wikg/archive/constants.js";
+import { extractWikgArchive } from "../wikg/archive/extract.js";
 import { parseWikgManifest } from "../wikg/archive/manifest.js";
 import { normalizeArchivePath } from "../wikg/archive/paths.js";
 import {
@@ -31,7 +33,7 @@ export {
   readWikiGraphHomeSchemaVersion,
 } from "../../document/home-schema-upgrade.js";
 
-export const CURRENT_ARCHIVE_SCHEMA_VERSION = 2;
+export const CURRENT_ARCHIVE_SCHEMA_VERSION = 3;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
 
 export interface WikiGraphArchiveSchemaUpgradeResult {
@@ -113,6 +115,12 @@ export async function upgradeWikiGraphArchiveSchema(
 
     const archiveKey = createArchiveKey(resolvedArchivePath);
     await assertArchiveUpgradeSafe(archiveKey);
+    const archiveDatabaseOverlay = schemaChanged
+      ? await createArchiveDatabaseUpgradeOverlay(
+          resolvedArchivePath,
+          temporaryDirectories,
+        )
+      : undefined;
 
     const temporaryPath = join(
       dirname(resolvedArchivePath),
@@ -135,6 +143,9 @@ export async function upgradeWikiGraphArchiveSchema(
               },
             ]
           : []),
+        ...(archiveDatabaseOverlay === undefined
+          ? []
+          : [archiveDatabaseOverlay]),
         ...(tocOverlay === undefined ? [] : [tocOverlay]),
       ],
       { preserveMutationToken: true },
@@ -215,6 +226,67 @@ async function createChapterTocUpgradeOverlay(
   } finally {
     zipFile.close();
   }
+}
+
+async function createArchiveDatabaseUpgradeOverlay(
+  archivePath: string,
+  temporaryDirectories: string[],
+): Promise<
+  | {
+      readonly entryPath: "database.db";
+      readonly kind: "file";
+      readonly workspacePath: string;
+    }
+  | undefined
+> {
+  const temporaryDirectory = await mkdtemp(
+    join(tmpdir(), "wikigraph-archive-upgrade-"),
+  );
+  temporaryDirectories.push(temporaryDirectory);
+  await extractWikgArchive(archivePath, temporaryDirectory);
+
+  const document = await DirectoryDocument.open(temporaryDirectory);
+
+  try {
+    await refreshChapterArtifacts(document);
+  } finally {
+    await document.release();
+  }
+
+  const databasePath = join(temporaryDirectory, "database.db");
+  if (!(await pathExists(databasePath))) {
+    return undefined;
+  }
+
+  return {
+    entryPath: "database.db",
+    kind: "file",
+    workspacePath: databasePath,
+  };
+}
+
+async function refreshChapterArtifacts(
+  document: DirectoryDocument,
+): Promise<void> {
+  const serialIds = await document.readDatabase(async (database) =>
+    database.queryAll(
+      `
+        SELECT id
+        FROM serials
+        ORDER BY document_order, id
+      `,
+      undefined,
+      (row) => Number(row.id),
+    ),
+  );
+
+  for (const serialId of serialIds) {
+    await replaceChapterFtsIndexArtifact(document, serialId);
+  }
+
+  await document.readDatabase(async (database) => {
+    await database.run("DROP TABLE IF EXISTS archive_index_settings");
+  });
 }
 
 async function cleanupArchiveDerivedData(archiveKey: string): Promise<void> {

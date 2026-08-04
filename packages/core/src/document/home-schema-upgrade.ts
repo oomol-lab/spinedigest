@@ -13,7 +13,7 @@ import { isNodeError } from "../utils/node-error.js";
 
 import { Database } from "./database.js";
 
-const CURRENT_HOME_SCHEMA_VERSION = 2;
+const CURRENT_HOME_SCHEMA_VERSION = 3;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
 const SEARCH_INDEX_DATABASE_PATH = "index.db";
 const LEGACY_SEARCH_INDEX_DATABASE_PATH = "fts.db";
