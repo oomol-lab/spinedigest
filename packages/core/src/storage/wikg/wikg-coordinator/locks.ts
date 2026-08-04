@@ -3,6 +3,7 @@ import { LOCK_POLL_INTERVAL_MS, LOCK_STALE_TIMEOUT_MS } from "./constants.js";
 import {
   cleanupStaleState,
   getNumber,
+  getString,
   mapArchiveCommitLock,
   mapEntryLock,
   withStateDatabase,
@@ -169,25 +170,76 @@ export async function acquireSqliteLease(input: {
   readonly mode: SqliteLeaseMode;
   readonly ownerId: string;
 }): Promise<void> {
-  await withStateDatabase(async (state) => {
-    await cleanupStaleState(state);
-    await state.run(
-      `
+  while (true) {
+    const acquired = await withStateDatabase(async (state) => {
+      await cleanupStaleState(state);
+      return await state.transaction(async () => {
+        const locks = await state.queryAll(
+          `
+SELECT *
+FROM entry_locks
+WHERE archive_key = ?
+  AND entry_path = ?
+`,
+          [input.archiveKey, input.entryPath],
+          mapEntryLock,
+        );
+        const requestedLockMode = sqliteLeaseToEntryLockMode(input.mode);
+
+        if (locks.some((lock) => locksConflict(requestedLockMode, lock.mode))) {
+          return false;
+        }
+
+        const leases = await state.queryAll(
+          `
+SELECT owner_id, mode
+FROM entry_sqlite_leases
+WHERE archive_key = ?
+  AND entry_path = ?
+`,
+          [input.archiveKey, input.entryPath],
+          (row) => ({
+            mode: getSqliteLeaseMode(row),
+            ownerId: getString(row, "owner_id"),
+          }),
+        );
+
+        if (
+          leases.some(
+            (lease) =>
+              lease.ownerId !== input.ownerId &&
+              sqliteLeasesConflict(input.mode, lease.mode),
+          )
+        ) {
+          return false;
+        }
+
+        await state.run(
+          `
 INSERT OR REPLACE INTO entry_sqlite_leases (
   archive_key, entry_path, mode, owner_id, owner_pid, heartbeat_at, created_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?)
 `,
-      [
-        input.archiveKey,
-        input.entryPath,
-        input.mode,
-        input.ownerId,
-        process.pid,
-        Date.now(),
-        Date.now(),
-      ],
-    );
-  });
+          [
+            input.archiveKey,
+            input.entryPath,
+            input.mode,
+            input.ownerId,
+            process.pid,
+            Date.now(),
+            Date.now(),
+          ],
+        );
+        return true;
+      });
+    });
+
+    if (acquired) {
+      return;
+    }
+
+    await delay(LOCK_POLL_INTERVAL_MS);
+  }
 }
 
 export async function releaseSqliteLease(input: {
@@ -209,6 +261,7 @@ WHERE archive_key = ? AND entry_path = ? AND owner_id = ?
 export async function waitForSqliteLeasesToDrain(
   archiveKey: string,
   entryPath: string,
+  options: { readonly exceptOwnerId?: string } = {},
 ): Promise<void> {
   while (true) {
     const count = await withStateDatabase(async (state) => {
@@ -222,12 +275,18 @@ LEFT JOIN archive_owners AS owner
  AND owner.owner_id = lease.owner_id
 WHERE lease.archive_key = ?
   AND lease.entry_path = ?
+  AND lease.owner_id <> ?
   AND (
     owner.owner_id IS NULL
     OR owner.heartbeat_at > ?
   )
 `,
-        [archiveKey, entryPath, Date.now() - LOCK_STALE_TIMEOUT_MS],
+        [
+          archiveKey,
+          entryPath,
+          options.exceptOwnerId ?? "",
+          Date.now() - LOCK_STALE_TIMEOUT_MS,
+        ],
         (row) => getNumber(row, "count"),
       );
     });
@@ -238,4 +297,29 @@ WHERE lease.archive_key = ?
 
     await delay(LOCK_POLL_INTERVAL_MS);
   }
+}
+
+function sqliteLeaseToEntryLockMode(mode: SqliteLeaseMode): EntryLockMode {
+  return mode === "read" ? "read" : "write";
+}
+
+function sqliteLeasesConflict(
+  requested: SqliteLeaseMode,
+  existing: SqliteLeaseMode,
+): boolean {
+  if (requested === "read" && existing === "read") {
+    return false;
+  }
+
+  return true;
+}
+
+function getSqliteLeaseMode(row: Record<string, unknown>): SqliteLeaseMode {
+  const mode = String(row.mode);
+
+  if (mode === "read" || mode === "write") {
+    return mode;
+  }
+
+  throw new Error(`Unsupported SQLite lease mode: ${mode}.`);
 }

@@ -19,6 +19,7 @@ import {
 import {
   acquireSqliteLease,
   releaseSqliteLease,
+  waitForSqliteLeasesToDrain,
   withEntryLock,
 } from "./locks.js";
 import {
@@ -116,6 +117,15 @@ export class WikgDocumentFileStore implements DocumentFileStore {
     const entryPath = this.#toEntryPath(path);
 
     await withEntryLock(this.#archiveKey, entryPath, "write", async () => {
+      if (
+        entryPath === DATABASE_ENTRY_PATH ||
+        entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH ||
+        entryPath === LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH
+      ) {
+        await waitForSqliteLeasesToDrain(this.#archiveKey, entryPath, {
+          exceptOwnerId: this.#sqliteLeaseOwnerId,
+        });
+      }
       await withEntryLock(this.#archiveKey, entryPath, "state", async () => {
         const overlay = await this.#readOverlay(entryPath);
 

@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { access, mkdir, readFile, rename, writeFile } from "fs/promises";
 import { dirname, resolve } from "path";
+import { setTimeout as sleep } from "timers/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -165,6 +166,69 @@ describe("wikg/wiki-graph-archive-file", () => {
               ),
           ),
         );
+      } finally {
+        restoreStateDir();
+      }
+    });
+  });
+
+  it("blocks search index cache writes while another session holds a read lease", async () => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
+      const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
+      try {
+        const archivePath = await createSeedArchive(path);
+        await new WikiGraphArchiveFile(archivePath).write(
+          async (document) => {
+            await rebuildArchiveSearchIndex(document);
+          },
+          { searchIndexWritebackPolicy: "cache" },
+        );
+        let releaseReader!: () => void;
+        let resolveReaderEntered!: () => void;
+        let writerEntered = false;
+        const readerEntered = new Promise<void>((resolveEntered) => {
+          resolveReaderEntered = resolveEntered;
+        });
+        const reader = new WikiGraphArchiveFile(archivePath).readDocument(
+          async (document) => {
+            await document.readSearchIndexDatabase(async (database) => {
+              await database.queryOne(
+                "SELECT value FROM search_index_state WHERE key = 'version'",
+                undefined,
+                (row) => expectString(row.value),
+              );
+              resolveReaderEntered();
+              await new Promise<void>((resolveReader) => {
+                releaseReader = resolveReader;
+              });
+            });
+          },
+        );
+
+        try {
+          await readerEntered;
+
+          const writer = new WikiGraphArchiveFile(archivePath).write(
+            async (document) => {
+              await document.writeSearchIndexDatabase(() => {
+                writerEntered = true;
+              });
+            },
+            { searchIndexWritebackPolicy: "cache" },
+          );
+
+          await sleep(250);
+          expect(writerEntered).toBe(false);
+
+          releaseReader();
+          await expect(writer).resolves.toBeUndefined();
+          await expect(reader).resolves.toBeUndefined();
+          expect(writerEntered).toBe(true);
+        } catch (error) {
+          releaseReader?.();
+          await reader.catch(() => undefined);
+          throw error;
+        }
       } finally {
         restoreStateDir();
       }
