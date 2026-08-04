@@ -1023,7 +1023,7 @@ describe("cli/queue", () => {
     expect(queueMockState.loadRequiredStageConfigCalls).toStrictEqual([]);
     expect(queueMockState.embeddingRequests).toStrictEqual([]);
     expect(queueMockState.serialFragmentsSentenceListCalls).toBe(1);
-    expect(queueMockState.summaryFragmentsSentenceListCalls).toBe(1);
+    expect(queueMockState.summaryFragmentsSentenceListCalls).toBe(0);
     expect(queueMockState.stepLog).toStrictEqual([
       "read:start",
       "read:end",
@@ -1048,22 +1048,6 @@ describe("cli/queue", () => {
       {
         rowId: "source-sentence:0",
         text: "Alpha beta.",
-      },
-      {
-        rowId: "summary-sentence:0",
-        text: "Summary text.",
-      },
-      {
-        rowId: "chunk-label:123",
-        text: "Chunk label",
-      },
-      {
-        rowId: "chunk-content:123",
-        text: "Chunk content.",
-      },
-      {
-        rowId: "mention-surface:mention-1",
-        text: "Alpha",
       },
     ]);
     expect(reporter.stepStarted).toHaveBeenCalledWith("index-fts");
@@ -1137,6 +1121,55 @@ describe("cli/queue", () => {
         ownerId: "owner-1",
       },
     ]);
+  });
+
+  it("runs summary embedding index artifact jobs through JSONL output", async () => {
+    queueMockState.cliConfig = {
+      embedding: {
+        model: "test-embedding",
+        provider: "openai-compatible",
+      },
+    };
+    queueMockState.job = {
+      ...queueMockState.job,
+      state: "running",
+      target: "index-embedding-summary",
+    };
+
+    await runQueueWorker();
+
+    const reporter = {
+      addOutputCharacters: vi.fn(() => Promise.resolve()),
+      setTotals: vi.fn(() => Promise.resolve()),
+      stepCompleted: vi.fn(() => Promise.resolve()),
+      stepStarted: vi.fn(() => Promise.resolve()),
+      updatePhase: vi.fn(() => Promise.resolve()),
+      updateWords: vi.fn(() => Promise.resolve()),
+    };
+
+    await queueMockState.runWorkerOptions!.executeJob(
+      queueMockState.job,
+      reporter,
+      { signal: new AbortController().signal },
+    );
+
+    expect(queueMockState.serialFragmentsSentenceListCalls).toBe(0);
+    expect(queueMockState.summaryFragmentsSentenceListCalls).toBe(1);
+    expect(queueMockState.embeddingRequests).toStrictEqual([["Summary text."]]);
+    expect(queueMockState.indexArtifactWrites[0]).toMatchObject({
+      artifact: {
+        kind: "embedding-summary",
+        segments: [
+          {
+            text: "Summary text.",
+            vector: [1, 2, 3],
+          },
+        ],
+        serialId: 12,
+        sourceRevision: 1,
+      },
+      kind: "embedding",
+    });
   });
 
   it("rejects embedding index artifact jobs when the chapter is gone", async () => {

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as CLIQueueAdd from "../../../packages/cli/src/commands/queue/add.js";
 import type * as CLISupport from "../../../packages/cli/src/support/index.js";
 
 const chapterMockState = vi.hoisted(() => ({
@@ -11,6 +12,7 @@ const chapterMockState = vi.hoisted(() => ({
   inputFileContent: "file content",
   moveCalls: [] as unknown[],
   treeApplyCalls: [] as unknown[],
+  workerStartCalls: 0,
   tree: {
     chapters: [
       {
@@ -104,6 +106,20 @@ vi.mock(
       }
     },
   }),
+);
+
+vi.mock(
+  "../../../packages/cli/src/commands/queue/add.js",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof CLIQueueAdd>();
+
+    return {
+      ...actual,
+      tryStartQueueWorker: vi.fn(() => {
+        chapterMockState.workerStartCalls += 1;
+      }),
+    };
+  },
 );
 
 vi.mock("../../../packages/core/src/api/index.js", () => ({
@@ -323,6 +339,7 @@ describe("cli/archive-chapter", () => {
     chapterMockState.setTitleCalls.length = 0;
     chapterMockState.treeApplyCalls.length = 0;
     chapterMockState.textWrites.length = 0;
+    chapterMockState.workerStartCalls = 0;
     setStdinTTY(false);
   });
 
@@ -423,6 +440,7 @@ describe("cli/archive-chapter", () => {
     expect(chapterMockState.textWrites).toStrictEqual([
       "Queued index-embedding-source job job-index-1 for chapter 2.\n",
     ]);
+    expect(chapterMockState.workerStartCalls).toBe(1);
   });
 
   it("adds a sourced chapter from --input", async () => {

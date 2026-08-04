@@ -251,10 +251,13 @@ export {
   createEmbeddingIndexArtifactInput,
   createFtsIndexArtifactInput,
   refreshChapterFtsIndexArtifactIfPresent,
+  readIndexArtifactOutput,
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
   replaceChapterSummaryEmbeddingIndexArtifact,
+  writeIndexArtifactOutput,
 } from "./retrieval/index-artifact/index.js";
+export type { IndexArtifactOutput } from "./retrieval/index-artifact/index.js";
 export type {
   SearchIndexBuildOptions,
   SearchIndexEmbeddingProvider,

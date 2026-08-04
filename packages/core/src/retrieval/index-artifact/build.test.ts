@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "fs/promises";
+import { mkdtemp, readFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
@@ -7,9 +7,13 @@ import { DirectoryDocument } from "../../document/index.js";
 import type { SearchIndexEmbeddingProvider } from "../search-index/index.js";
 import {
   buildChapterEmbeddingIndexArtifact,
+  createEmbeddingIndexArtifactInput,
+  createFtsIndexArtifactInput,
+  readIndexArtifactOutput,
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
   replaceChapterSummaryEmbeddingIndexArtifact,
+  writeIndexArtifactOutput,
 } from "./index.js";
 
 async function withDocument(
@@ -205,6 +209,79 @@ describe("index artifact builders", () => {
         ).toBeDefined();
       });
     });
+  });
+
+  it("writes commit-ready FTS index artifact JSONL outputs", async () => {
+    const path = await mkdtemp(join(tmpdir(), "wikigraph-index-output-"));
+
+    try {
+      const outputPath = join(path, "index-artifact-output.jsonl");
+      const artifact = createFtsIndexArtifactInput({
+        sentences: [{ text: "Alpha beta.", wordsCount: 2 }],
+        serialId: 12,
+        sourceRevision: 3,
+      });
+
+      await writeIndexArtifactOutput(outputPath, artifact);
+
+      const output = await readIndexArtifactOutput(outputPath);
+      const lines = (await readFile(outputPath, "utf8")).trim().split("\n");
+
+      expect(lines).toHaveLength(2);
+      expect(JSON.parse(lines[0]!)).toStrictEqual({
+        artifactKind: "fts",
+        chapterId: 12,
+        inputRevision: 3,
+        protocol: "wikg-index-output/v1",
+        type: "manifest",
+      });
+      expect(lines.join("\n")).not.toContain('"job"');
+      expect(lines.join("\n")).not.toContain('"final"');
+      expect(output).toStrictEqual({
+        lexicalRows: artifact.lexicalRows,
+        serialId: 12,
+        sourceRevision: 3,
+      });
+    } finally {
+      await rm(path, { force: true, recursive: true });
+    }
+  });
+
+  it("writes commit-ready embedding index artifact JSONL outputs", async () => {
+    const path = await mkdtemp(join(tmpdir(), "wikigraph-index-output-"));
+
+    try {
+      const outputPath = join(path, "index-artifact-output.jsonl");
+      const provider = createFakeEmbeddingProvider();
+      const artifact = await createEmbeddingIndexArtifactInput({
+        embeddingProvider: provider,
+        kind: "embedding-source",
+        sentences: [{ text: "Alpha beta.", wordsCount: 2 }],
+        serialId: 12,
+        sourceRevision: 3,
+      });
+
+      await writeIndexArtifactOutput(outputPath, artifact);
+
+      const output = await readIndexArtifactOutput(outputPath);
+      const lines = (await readFile(outputPath, "utf8")).trim().split("\n");
+
+      expect(JSON.parse(lines[0]!)).toStrictEqual({
+        artifactKind: "embedding-source",
+        chapterId: 12,
+        embedding: {
+          dimensions: 3,
+          identity: "provider=fake;model=test-embedding",
+          model: "test-embedding",
+        },
+        inputRevision: 3,
+        protocol: "wikg-index-output/v1",
+        type: "manifest",
+      });
+      expect(output).toStrictEqual(artifact);
+    } finally {
+      await rm(path, { force: true, recursive: true });
+    }
   });
 });
 

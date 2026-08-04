@@ -35,6 +35,7 @@ import {
   writeTextToStdout,
 } from "../../support/index.js";
 import { formatCLIJSON } from "../../support/index.js";
+import { tryStartQueueWorker } from "../queue/add.js";
 import { readArchiveDocument, writeArchiveDocument } from "./run/document.js";
 import { resolveArchiveRuntimeLocation } from "./run/uri.js";
 
@@ -103,6 +104,7 @@ export async function runArchiveChapterCommand(
         target: requireIndexArtifactTarget(args.indexArtifactTarget),
       });
 
+      tryStartQueueWorker();
       if (args.json === true) {
         await writeTextToStdout(formatCLIJSON(job));
         return;

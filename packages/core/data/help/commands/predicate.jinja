@@ -103,12 +103,13 @@ Notes:
 {% endif %}
 {% elif predicate == "build" and target.name == "chapter-index-artifact" %}
 Purpose:
-  Build or replace this chapter index artifact.
+  Queue a job to build or replace this chapter index artifact.
 
 Usage:
   {{ commandName }} {{ uri }} build [--json]
 
 Notes:
+  - This command returns after the job is queued. Use the returned job id with `wg wikg://local/job/<job-id> watch` to follow progress.
   - FTS artifacts are local compilation work and do not call a provider.
   - Source and summary embedding artifacts require `wikg://local/config/embeddings` and may call the configured provider.
   - Direct artifact build is an explicit build request; it does not use `--accept-cost`.

@@ -8,10 +8,11 @@ import {
   commitChapterKnowledgeGraphArtifact,
   commitChapterSummaryArtifact,
   createEmbeddingIndexArtifactInput,
+  createFtsIndexArtifactInput,
   createDisambiguationProfileNormalizer,
   generateChapterKnowledgeGraphArtifactFromSnapshot,
   getBuildJob,
-  replaceChapterFtsIndexArtifact,
+  readIndexArtifactOutput,
   readChapterBuildInput,
   recordBuildJobInputRevision,
   runBuildJobWorker,
@@ -20,7 +21,9 @@ import {
   type BuildJob,
   type BuildJobExecutionContext,
   type BuildJobProgressReporter,
+  type IndexArtifactOutput,
   type SentenceRecord,
+  writeIndexArtifactOutput,
 } from "wiki-graph-core";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 import type {
@@ -29,6 +32,7 @@ import type {
   ReadonlyDocument,
 } from "wiki-graph-core";
 import type { LLMessage } from "wiki-graph-core";
+import { join } from "path";
 
 import { loadCLIConfig, type CLIConfig } from "../../runtime/config.js";
 import {
@@ -352,11 +356,26 @@ async function executeIndexArtifactBuildJob(
   });
 
   if (job.target === "index-fts") {
+    const outputPath = resolveIndexArtifactOutputPath(job);
+    await writeIndexArtifactOutput(
+      outputPath,
+      createFtsIndexArtifactInput({
+        sentences: snapshot.sentences,
+        serialId: job.chapterId,
+        sourceRevision: snapshot.revision,
+      }),
+    );
+    const artifact = await readIndexArtifactOutput(outputPath);
+
+    assertIndexArtifactOutputMatchesJob(job, snapshot.revision, artifact);
+    if (!("lexicalRows" in artifact)) {
+      throw new Error("Index artifact output is not an FTS artifact.");
+    }
     await new WikiGraphArchiveFile(job.archivePath).write(async (document) => {
       assertJobStillRunning(await getBuildJob(job.jobId));
       await assertJobChapterExists(document, job.chapterId);
       await assertCurrentBuildInputRevision(job, document);
-      await replaceChapterFtsIndexArtifact(document, job.chapterId);
+      await document.indexArtifacts.replaceFts(artifact);
     });
     await completeIndexArtifactStep(job, reporter);
     return;
@@ -371,6 +390,7 @@ async function executeIndexArtifactBuildJob(
       ),
     );
   }
+  const outputPath = resolveIndexArtifactOutputPath(job);
   const artifact = await createEmbeddingIndexArtifactInput({
     embeddingProvider: buildSearchIndexEmbeddingProvider(config.embedding),
     kind:
@@ -382,12 +402,19 @@ async function executeIndexArtifactBuildJob(
     signal: context.signal,
     sourceRevision: snapshot.revision,
   });
+  await writeIndexArtifactOutput(outputPath, artifact);
+  const output = await readIndexArtifactOutput(outputPath);
+
+  assertIndexArtifactOutputMatchesJob(job, snapshot.revision, output);
+  if ("lexicalRows" in output) {
+    throw new Error("Index artifact output is not an embedding artifact.");
+  }
 
   await new WikiGraphArchiveFile(job.archivePath).write(async (document) => {
     assertJobStillRunning(await getBuildJob(job.jobId));
     await assertJobChapterExists(document, job.chapterId);
     await assertCurrentBuildInputRevision(job, document);
-    await document.indexArtifacts.replaceEmbedding(artifact);
+    await document.indexArtifacts.replaceEmbedding(output);
   });
   await completeIndexArtifactStep(job, reporter);
 }
@@ -414,9 +441,6 @@ async function readIndexArtifactJobSnapshot(job: BuildJob): Promise<{
     async (document) => {
       await assertJobChapterExists(document, job.chapterId);
       const revision = await document.serials.getRevision(job.chapterId);
-      if (job.target === "index-fts") {
-        return { revision, sentences: [] };
-      }
       const stream =
         job.target === "index-embedding-summary"
           ? document.getSummaryFragments(job.chapterId)
@@ -439,6 +463,51 @@ async function readIndexArtifactJobSnapshot(job: BuildJob): Promise<{
         sentences: await stream.listSentences(),
       };
     },
+  );
+}
+
+function resolveIndexArtifactOutputPath(job: BuildJob): string {
+  return join(job.workspacePath, "index-artifact-output.jsonl");
+}
+
+function assertIndexArtifactOutputMatchesJob(
+  job: BuildJob,
+  inputRevision: number,
+  artifact: IndexArtifactOutput,
+): void {
+  if (artifact.serialId !== job.chapterId) {
+    throw new Error(
+      `Index artifact output targets chapter ${artifact.serialId}, expected chapter ${job.chapterId}.`,
+    );
+  }
+  if (artifact.sourceRevision !== inputRevision) {
+    throw new Error(
+      `Index artifact output targets input revision ${artifact.sourceRevision}, expected revision ${inputRevision}.`,
+    );
+  }
+
+  if (job.target === "index-fts") {
+    if ("lexicalRows" in artifact) {
+      return;
+    }
+
+    throw new Error("Index artifact output is not an FTS artifact.");
+  }
+  if ("lexicalRows" in artifact) {
+    throw new Error("Index artifact output is not an embedding artifact.");
+  }
+
+  const expectedKind =
+    job.target === "index-embedding-source"
+      ? "embedding-source"
+      : "embedding-summary";
+
+  if (artifact.kind === expectedKind) {
+    return;
+  }
+
+  throw new Error(
+    `Index artifact output kind ${artifact.kind} does not match ${job.target}.`,
   );
 }
 
