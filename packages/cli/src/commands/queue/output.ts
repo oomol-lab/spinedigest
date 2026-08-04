@@ -94,6 +94,14 @@ function formatJobJSON(job: BuildJob): Record<string, unknown> {
   };
 }
 
+export function formatJobQueuedNotice(job: BuildJob): string | undefined {
+  if (job.state !== "queued") {
+    return undefined;
+  }
+
+  return "Job is queued; the requested artifact or generated data is not ready until the job succeeds.";
+}
+
 function formatJobLLMJSON(value: string): unknown {
   let parsed: unknown;
 
@@ -162,6 +170,9 @@ export async function writeJobSummary(
     await writeTextToStdout(
       formatCLIJSON({
         ...formatJobJSON(job),
+        ...(formatJobQueuedNotice(job) === undefined
+          ? {}
+          : { notice: formatJobQueuedNotice(job) }),
         ...(options.estimate === undefined
           ? {}
           : { estimate: formatQueueAddEstimateJSON(options.estimate) }),
@@ -181,6 +192,9 @@ export async function writeJobSummary(
   await writeTextToStdout(
     [
       `Job ${job.jobId} ${job.state} ${job.target} chapter ${job.chapterId} ${job.archivePath}`,
+      ...(formatJobQueuedNotice(job) === undefined
+        ? []
+        : [formatJobQueuedNotice(job)!]),
       ...(options.watch === true
         ? [
             `Watch: ${formatCliCommand([

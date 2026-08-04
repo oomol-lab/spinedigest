@@ -40,6 +40,33 @@ describe("cli/archive/related", () => {
     expect(archiveMockState.textWrites[0]).not.toContain("Q1 mentions Q2");
   });
 
+  it("warns when related query skips unindexed chapters", async () => {
+    await runArchiveCommand({
+      action: "related",
+      archivePath: "wikg:///tmp/book.wikg",
+      format: "json",
+      objectId: "wikg:///tmp/book.wikg/chunk/9",
+      query: "agent",
+      skipUnindexed: true,
+    });
+
+    expect(listRelatedArchiveObjects).toHaveBeenCalledWith(
+      {},
+      "wikg://chunk/9",
+      {
+        query: "agent",
+        skipUnindexed: true,
+      },
+    );
+    expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toMatchObject({
+      warnings: [
+        {
+          type: "skip-unindexed",
+        },
+      ],
+    });
+  });
+
   it("prints related triples as structured JSON", async () => {
     await runArchiveCommand({
       action: "related",

@@ -324,7 +324,7 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
     queueMockState.resolveJobIds.push(jobId);
     return Promise.resolve(jobId === "job-1-short" ? "job-1-full" : jobId);
   }),
-  resumeBuildJob: vi.fn(),
+  resumeBuildJob: vi.fn(() => Promise.resolve(queueMockState.job)),
   runBuildJobWorker: vi.fn(
     (options: typeof queueMockState.runWorkerOptions) => {
       queueMockState.runWorkerOptions = {
@@ -577,6 +577,9 @@ describe("cli/queue", () => {
     ]);
     expect(queueMockState.loadRequiredStageConfigCalls).toStrictEqual([{}]);
     expect(queueMockState.textWrites.join("")).toContain("Job job-1 queued");
+    expect(queueMockState.textWrites.join("")).toContain(
+      "Job is queued; the requested artifact or generated data is not ready until the job succeeds.",
+    );
     expect(queueMockState.textWrites.join("")).toContain("Estimate:");
     expect(queueMockState.textWrites.join("")).toContain(
       "Work: reading-graph over 1 chapter / 800 words",
@@ -612,6 +615,8 @@ describe("cli/queue", () => {
         words: 800,
       },
       jobId: "job-1",
+      notice:
+        "Job is queued; the requested artifact or generated data is not ready until the job succeeds.",
       state: "queued",
       target: "reading-summary",
       watchCommand: "wg wikg://local/job/job-1 watch",
@@ -908,6 +913,24 @@ describe("cli/queue", () => {
       },
       state: "succeeded",
     });
+  });
+
+  it("prints queued resume as resumable work", async () => {
+    queueMockState.job = {
+      ...queueMockState.job,
+      state: "queued",
+    };
+
+    await runQueueCommand({
+      action: "resume",
+      jobId: "job-1-short",
+    });
+
+    expect(queueMockState.resolveJobIds).toStrictEqual(["job-1-short"]);
+    expect(queueMockState.textWrites.join("")).toContain("Job job-1 queued");
+    expect(queueMockState.textWrites.join("")).toContain(
+      "Job is queued; the requested artifact or generated data is not ready until the job succeeds.",
+    );
   });
 
   it("runs LLM build work outside archive write scopes", async () => {

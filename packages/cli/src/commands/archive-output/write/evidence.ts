@@ -10,6 +10,11 @@ import {
 } from "../object/objects.js";
 import { createPageCursorObject } from "../object/page-cursor.js";
 import type { ArchiveOutputContext, ResultFormat } from "../object/types.js";
+import {
+  createOutputWarnings,
+  createWarningJSONLObject,
+  formatOutputWarnings,
+} from "./warnings.js";
 
 export async function writeEvidence(
   evidence: ArchiveEvidence,
@@ -21,33 +26,39 @@ export async function writeEvidence(
     evidence.nextCursor,
   );
   const objects = evidence.items.map(createSourceObject);
+  const warnings = createOutputWarnings(context);
 
   if (format === "json") {
     await writeTextToStdout(
       formatCLIJSON(
-        createObjectResultPage(objects, nextCursor, evidence.limit),
+        createObjectResultPage(objects, nextCursor, evidence.limit, warnings),
       ),
     );
     return;
   }
   if (format === "jsonl") {
-    await writeJSONL([...objects, createPageCursorObject(nextCursor)]);
+    await writeJSONL([
+      ...warnings.map(createWarningJSONLObject),
+      ...objects,
+      createPageCursorObject(nextCursor),
+    ]);
     return;
   }
 
   if (evidence.items.length === 0) {
-    await writeTextToStdout("No evidence.\n");
+    await writeTextToStdout(`${formatOutputWarnings(warnings)}No evidence.\n`);
     return;
   }
 
   await writeTextToStdout(
-    `${evidence.items.map(formatEvidenceItem).join("\n\n")}${formatEvidenceNextCursor(nextCursor)}\n`,
+    `${formatOutputWarnings(warnings)}${evidence.items.map(formatEvidenceItem).join("\n\n")}${formatEvidenceNextCursor(nextCursor)}\n`,
   );
 }
 
 export async function writeAllEvidence(
   readPage: (cursor: string | undefined) => Promise<ArchiveEvidence>,
   initialCursor: string | undefined,
+  context: ArchiveOutputContext,
   format: ResultFormat,
 ): Promise<void> {
   const pages: ArchiveEvidence[] = [];
@@ -57,7 +68,7 @@ export async function writeAllEvidence(
     const page = await readPage(cursor);
 
     if (format === "jsonl") {
-      await writeEvidenceWithoutContinuation(page, format);
+      await writeEvidenceWithoutContinuation(page, context, format);
     } else {
       pages.push(page);
     }
@@ -73,33 +84,41 @@ export async function writeAllEvidence(
     return;
   }
 
-  await writeEvidenceWithoutContinuation(mergeEvidencePages(pages), format);
+  await writeEvidenceWithoutContinuation(
+    mergeEvidencePages(pages),
+    context,
+    format,
+  );
 }
 
 export async function writeEvidenceWithoutContinuation(
   evidence: ArchiveEvidence,
+  context: ArchiveOutputContext,
   format: ResultFormat,
 ): Promise<void> {
   const objects = evidence.items.map(createSourceObject);
+  const warnings = createOutputWarnings(context);
 
   if (format === "json") {
     await writeTextToStdout(
-      formatCLIJSON(createObjectResultPage(objects, null, evidence.limit)),
+      formatCLIJSON(
+        createObjectResultPage(objects, null, evidence.limit, warnings),
+      ),
     );
     return;
   }
   if (format === "jsonl") {
-    await writeJSONL(objects);
+    await writeJSONL([...warnings.map(createWarningJSONLObject), ...objects]);
     return;
   }
 
   if (evidence.items.length === 0) {
-    await writeTextToStdout("No evidence.\n");
+    await writeTextToStdout(`${formatOutputWarnings(warnings)}No evidence.\n`);
     return;
   }
 
   await writeTextToStdout(
-    `${evidence.items.map(formatEvidenceItem).join("\n\n")}\n`,
+    `${formatOutputWarnings(warnings)}${evidence.items.map(formatEvidenceItem).join("\n\n")}\n`,
   );
 }
 

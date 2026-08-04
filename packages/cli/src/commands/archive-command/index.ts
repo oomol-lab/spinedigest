@@ -303,6 +303,7 @@ export async function runArchiveCommand(
                   },
                 ),
               args.cursor,
+              context,
               args.format ?? "text",
             );
             return;
@@ -638,6 +639,7 @@ async function runLibraryIndexArchiveCommand(
               ...createOptionalSourceContext(args),
             }),
           args.cursor,
+          evidenceContext,
           args.format ?? "text",
         );
         return;

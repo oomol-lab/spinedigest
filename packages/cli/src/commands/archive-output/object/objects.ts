@@ -17,6 +17,7 @@ import type {
   ArchiveOutputObject,
   ArchiveOutputResultPage,
   ArchiveOutputSource,
+  ArchiveOutputWarning,
 } from "./types.js";
 import {
   getTextStreamOutputType,
@@ -74,15 +75,18 @@ export function createObjectResultPage(
   objects: readonly ArchiveOutputObject[],
   nextCursor: string | null,
   limit: number,
+  warnings: readonly ArchiveOutputWarning[] = [],
 ): {
   readonly limit: number;
   readonly nextCursor: string | null;
   readonly objects: readonly ArchiveOutputObject[];
+  readonly warnings?: readonly ArchiveOutputWarning[];
 } {
   return {
     limit,
     nextCursor,
     objects,
+    ...(warnings.length === 0 ? {} : { warnings }),
   };
 }
 

@@ -53,6 +53,12 @@ export interface ArchiveOutputResultPage {
   readonly limit: number;
   readonly nextCursor: string | null;
   readonly objects: readonly ArchiveOutputObject[];
+  readonly warnings?: readonly ArchiveOutputWarning[];
+}
+
+export interface ArchiveOutputWarning {
+  readonly message: string;
+  readonly type: "skip-unindexed";
 }
 
 export interface ArchiveOutputEvidencePreview {

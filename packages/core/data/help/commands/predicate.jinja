@@ -111,7 +111,8 @@ Usage:
   {{ commandName }} {{ uri }} build [--json]
 
 Notes:
-  - This command returns after the job is queued. Use the returned job id with `wg wikg://local/job/<job-id> watch` to follow progress.
+  - This command enqueues work; it does not wait for the artifact to be built.
+  - A queued response means the artifact is not ready yet. Use the returned job id with `wg wikg://local/job/<job-id> watch` to follow progress.
   - FTS artifacts are local compilation work and do not call a provider.
   - Source and summary embedding artifacts require `wikg://local/config/embeddings` and may call the configured provider.
   - Direct artifact build is an explicit build request; it does not use `--accept-cost`.
@@ -456,6 +457,11 @@ Purpose:
 
 Usage:
   {{ commandName }} {{ uri }} resume
+
+Notes:
+  - Paused jobs move back to queued.
+  - Queued jobs are already resumable work; `resume` leaves them queued and asks the local worker to pick up the queue.
+  - Finished, failed, canceled, and canceling jobs cannot be resumed.
 {% elif predicate == "cancel" %}
 Purpose:
   Cancel this local job.

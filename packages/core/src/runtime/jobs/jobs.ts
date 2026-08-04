@@ -341,6 +341,19 @@ export async function pauseBuildJob(jobId: string): Promise<BuildJob> {
 }
 
 export async function resumeBuildJob(jobId: string): Promise<BuildJob> {
+  const state = await openBuildQueueDatabase();
+
+  try {
+    await recoverStaleBuildJobs(state);
+    const job = await requireBuildJobById(state, jobId);
+
+    if (job.state === "queued") {
+      return job;
+    }
+  } finally {
+    await state.close();
+  }
+
   return await updateBuildJobState(jobId, "queued", "resumed", {
     allowedStates: ["paused"],
     clearOwner: true,
@@ -491,7 +504,9 @@ async function updateBuildJobState(
       const job = await requireBuildJobById(state, jobId);
 
       if (!options.allowedStates.includes(job.state)) {
-        throw new Error(`Cannot ${eventType} ${job.state} job ${jobId}.`);
+        throw new Error(
+          `Cannot ${formatBuildJobAction(eventType)} ${job.state} job ${jobId}.`,
+        );
       }
 
       const now = Date.now();
@@ -526,4 +541,10 @@ WHERE job_id = ?
   } finally {
     await state.close();
   }
+}
+
+function formatBuildJobAction(
+  eventType: Extract<BuildJobEvent["type"], "paused" | "resumed">,
+): "pause" | "resume" {
+  return eventType === "paused" ? "pause" : "resume";
 }

@@ -519,6 +519,7 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
     isArchiveSearchIndexCurrent: vi.fn(() =>
       Promise.resolve(archiveMockState.ftsCurrent),
     ),
+    listArchiveQueryableChapterIds: vi.fn(() => Promise.resolve([1, 2])),
     rebuildArchiveSearchIndex: vi.fn(() => Promise.resolve()),
     resolveWikiGraphLibraryArchivePath: vi.fn((uri: string) => {
       const archiveId = uri.split("/").at(-1) ?? "archive";
@@ -620,6 +621,7 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
     },
   ),
   getArchiveIndex: vi.fn(() => Promise.resolve(archiveMockState.index)),
+  listArchiveQueryableChapterIds: vi.fn(() => Promise.resolve([1, 2])),
   listRelatedArchiveObjects: vi.fn(() =>
     Promise.resolve({
       items: archiveMockState.listItems,

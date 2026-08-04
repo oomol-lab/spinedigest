@@ -49,6 +49,64 @@ describe("cli/archive/query", () => {
     });
   });
 
+  it("warns when search skips unindexed chapters", async () => {
+    await runArchiveCommand({
+      action: "search",
+      archivePath: "wikg:///tmp/book.wikg",
+      format: "text",
+      kinds: ["chunk"],
+      query: "RAG",
+      skipUnindexed: true,
+    });
+
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Warning: --skip-unindexed was used; this command searched only chapters that already have a current FTS or source embedding index artifact.",
+    );
+    expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
+      archiveKey: "/tmp/book.wikg",
+      chapters: [1, 2],
+      skipUnindexed: true,
+      types: ["node"],
+    });
+  });
+
+  it("includes skip-unindexed warnings in JSON search output", async () => {
+    await runArchiveCommand({
+      action: "search",
+      archivePath: "wikg:///tmp/book.wikg",
+      format: "json",
+      kinds: ["chunk"],
+      query: "RAG",
+      skipUnindexed: true,
+    });
+
+    expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toMatchObject({
+      warnings: [
+        {
+          type: "skip-unindexed",
+        },
+      ],
+    });
+  });
+
+  it("includes skip-unindexed warnings in JSONL search output", async () => {
+    await runArchiveCommand({
+      action: "search",
+      archivePath: "wikg:///tmp/book.wikg",
+      format: "jsonl",
+      kinds: ["chunk"],
+      query: "RAG",
+      skipUnindexed: true,
+    });
+
+    expect(
+      JSON.parse(archiveMockState.textWrites[0]!.split("\n")[0]!),
+    ).toMatchObject({
+      type: "warning",
+      warning: "skip-unindexed",
+    });
+  });
+
   it("prints source search hits as citation blocks", async () => {
     await runArchiveCommand({
       action: "search",

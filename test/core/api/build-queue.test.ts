@@ -11,6 +11,7 @@ import {
   listBuildJobs,
   readBuildJobEvents,
   resolveBuildJobId,
+  resumeBuildJob,
   runBuildJobWorker,
   boostBuildJob,
   updateBuildJobTarget,
@@ -99,6 +100,24 @@ describe("facade/build-queue", () => {
         second.jobId,
         first.jobId,
       ]);
+    });
+  });
+
+  it("treats resume on an already queued job as an idempotent no-op", async () => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
+      useStateDir(`${path}/state`);
+
+      const job = await addBuildJob({
+        archivePath: `${path}/book.wikg`,
+        chapterId: 1,
+        target: "reading-summary",
+      });
+
+      await expect(resumeBuildJob(job.jobId)).resolves.toMatchObject({
+        jobId: job.jobId,
+        state: "queued",
+      });
+      await expect(readBuildJobEvents(job)).resolves.toHaveLength(1);
     });
   });
 

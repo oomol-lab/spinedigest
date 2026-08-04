@@ -228,7 +228,10 @@ describe("cli/archive/object", () => {
       "Knowledge Graph: 1/2 chapters, 800/1200 words, 66.7%",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Summary: 1/2 chapters, 800/1200 words, 66.7%",
+      "Summary Artifact: 1/2 chapters, 800/1200 words, 66.7%",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Summary note: Summary coverage means a current summary artifact exists for the chapter; it does not guarantee that every source topic is represented in the summary text.",
     );
     expect(archiveMockState.textWrites[0]).toContain(
       "Command: wg wikg:///tmp/book.wikg/index sync",
@@ -539,7 +542,7 @@ describe("cli/archive/object", () => {
       "Knowledge Graph: n/a, no source content",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Summary: n/a, no source content",
+      "Summary Artifact: n/a, no source content",
     );
     expect(archiveMockState.textWrites[0]).not.toContain("0%");
   });

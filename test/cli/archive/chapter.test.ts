@@ -438,7 +438,12 @@ describe("cli/archive-chapter", () => {
       },
     ]);
     expect(chapterMockState.textWrites).toStrictEqual([
-      "Queued index-embedding-source job job-index-1 for chapter 2.\n",
+      [
+        "Job job-index-1 queued index-embedding-source chapter 2 /tmp/book.wikg",
+        "Job is queued; the requested artifact or generated data is not ready until the job succeeds.",
+        "Watch: wg wikg://local/job/job-index-1 watch",
+        "",
+      ].join("\n"),
     ]);
     expect(chapterMockState.workerStartCalls).toBe(1);
   });

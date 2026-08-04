@@ -85,6 +85,7 @@ interface InspectReport {
   readonly performanceHints: readonly GenerationPerformanceHint[];
   readonly help: {
     readonly readiness: string;
+    readonly summaryCoverage: string;
   };
 }
 
@@ -246,7 +247,11 @@ async function createArchiveInspectReport(
     }),
     improvements,
     performanceHints,
-    help: { readiness: "wg help readiness" },
+    help: {
+      readiness: "wg help readiness",
+      summaryCoverage:
+        "Summary coverage means a current summary artifact exists for the chapter; it does not guarantee that every source topic is represented in the summary text.",
+    },
   };
 }
 
@@ -297,7 +302,8 @@ function formatArchiveInspectText(report: InspectReport): string {
       ),
       formatCoverageLine("Reading Graph", report.coverage.readingGraph),
       formatCoverageLine("Knowledge Graph", report.coverage.knowledgeGraph),
-      formatCoverageLine("Summary", report.coverage.summary),
+      formatCoverageLine("Summary Artifact", report.coverage.summary),
+      `Summary note: ${report.help.summaryCoverage}`,
       ...(report.queryBlockedChapters.length === 0
         ? []
         : [

@@ -95,6 +95,25 @@ describe("cli/archive/evidence pack", () => {
     expect(archiveMockState.textWrites[0]).toContain('"score": 2.5');
   });
 
+  it("warns when evidence query skips unindexed chapters", async () => {
+    await runArchiveCommand({
+      action: "evidence",
+      archivePath: "wikg:///tmp/book.wikg",
+      format: "text",
+      objectId: "wikg:///tmp/book.wikg/entity/Q1",
+      query: "paragraph",
+      skipUnindexed: true,
+    });
+
+    expect(listArchiveEvidence).toHaveBeenCalledWith({}, "wikg://entity/Q1", {
+      query: "paragraph",
+      skipUnindexed: true,
+    });
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Warning: --skip-unindexed was used; this command searched only chapters that already have a current FTS or source embedding index artifact.",
+    );
+  });
+
   it("creates evidence continuation cursors with the target URI", async () => {
     vi.mocked(listArchiveEvidence).mockResolvedValueOnce({
       ...archiveMockState.evidence,
