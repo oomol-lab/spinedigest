@@ -13,6 +13,7 @@ export {
   buildArchiveIndexProjection,
   createArchiveSearchIndexFingerprint,
   isArchiveSearchIndexCurrent,
+  listArchiveQueryableChapterIds,
   readArchiveSearchIndexStatus,
   rebuildArchiveSearchIndex,
   writeArchiveIndexProjectionFromArtifacts,

@@ -28,13 +28,17 @@ import { createSearchTokenPlan } from "../../search-index/search/tokenizer.js";
 const SEARCH_INDEX_REBUILD_ATTEMPTS = 2;
 const ARCHIVE_INDEX_BATCH_RECORDS = 512;
 
+export interface ArchiveSearchIndexScopeOptions {
+  readonly chapters?: readonly number[];
+}
+
 export async function rebuildArchiveSearchIndex(
   document: Document,
   progress?: SearchIndexProgressReporter,
-  _options: SearchIndexBuildOptions = {},
+  options: SearchIndexBuildOptions & ArchiveSearchIndexScopeOptions = {},
 ): Promise<void> {
   for (let attempt = 0; attempt < SEARCH_INDEX_REBUILD_ATTEMPTS; attempt += 1) {
-    await assertArchiveIndexArtifactsReady(document);
+    await assertArchiveIndexArtifactsReady(document, options);
     const input = await buildArchiveIndexProjection(document, progress);
     const fingerprint = createSearchIndexFingerprint(input);
 
@@ -66,15 +70,17 @@ export async function rebuildArchiveSearchIndex(
 
 export async function isArchiveSearchIndexCurrent(
   document: ReadonlyDocument,
+  options: ArchiveSearchIndexScopeOptions = {},
 ): Promise<boolean> {
-  return (await readArchiveSearchIndexStatus(document)) === "current";
+  return (await readArchiveSearchIndexStatus(document, options)) === "current";
 }
 
 export async function readArchiveSearchIndexStatus(
   document: ReadonlyDocument,
+  options: ArchiveSearchIndexScopeOptions = {},
 ): Promise<"current" | "dirty" | "missing"> {
   try {
-    await assertArchiveIndexArtifactsReady(document);
+    await assertArchiveIndexArtifactsReady(document, options);
   } catch {
     return "dirty";
   }
@@ -122,10 +128,9 @@ export async function buildArchiveIndexProjection(
 
 export async function assertArchiveIndexArtifactsReady(
   document: ReadonlyDocument,
+  options: ArchiveSearchIndexScopeOptions = {},
 ): Promise<void> {
-  const chapterIds = new Set(
-    (await listChapters(document)).map((chapter) => chapter.chapterId),
-  );
+  const chapterIds = await resolveArchiveQueryChapterIds(document, options);
   const [ftsCoverage, sourceEmbeddingCoverage] = await Promise.all([
     document.indexArtifacts.listCoverage("fts"),
     document.indexArtifacts.listCoverage("embedding-source"),
@@ -148,6 +153,40 @@ export async function assertArchiveIndexArtifactsReady(
   throw new Error(
     `Wiki Graph query is not ready. Chapters ${serials} need a current FTS artifact or source embedding artifact before query.`,
   );
+}
+
+export async function listArchiveQueryableChapterIds(
+  document: ReadonlyDocument,
+  options: ArchiveSearchIndexScopeOptions = {},
+): Promise<readonly number[]> {
+  const chapterIds = await resolveArchiveQueryChapterIds(document, options);
+  const [ftsCoverage, sourceEmbeddingCoverage] = await Promise.all([
+    document.indexArtifacts.listCoverage("fts"),
+    document.indexArtifacts.listCoverage("embedding-source"),
+  ]);
+  const sourceEmbeddingBySerial = new Map(
+    sourceEmbeddingCoverage.map((record) => [record.serialId, record]),
+  );
+
+  return ftsCoverage
+    .filter(
+      (record) =>
+        chapterIds.has(record.serialId) &&
+        (record.current ||
+          sourceEmbeddingBySerial.get(record.serialId)?.current === true),
+    )
+    .map((record) => record.serialId);
+}
+
+async function resolveArchiveQueryChapterIds(
+  document: ReadonlyDocument,
+  options: ArchiveSearchIndexScopeOptions,
+): Promise<ReadonlySet<number>> {
+  return options.chapters === undefined
+    ? new Set(
+        (await listChapters(document)).map((chapter) => chapter.chapterId),
+      )
+    : new Set(options.chapters);
 }
 
 export async function writeArchiveIndexProjectionFromArtifacts(

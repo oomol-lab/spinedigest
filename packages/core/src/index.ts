@@ -228,6 +228,7 @@ export {
   assertArchiveIndexArtifactsReady,
   buildArchiveIndexProjection,
   isArchiveSearchIndexCurrent,
+  listArchiveQueryableChapterIds,
   writeArchiveIndexProjectionFromArtifacts,
 } from "./retrieval/query/index.js";
 export {

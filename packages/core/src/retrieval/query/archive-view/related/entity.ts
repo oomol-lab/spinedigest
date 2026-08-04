@@ -96,6 +96,11 @@ export async function listRelatedEntityObjects(
       ),
       reference.qid,
       options.query,
+      {
+        ...(options.skipUnindexed === undefined
+          ? {}
+          : { skipUnindexed: options.skipUnindexed }),
+      },
     ),
     options,
   );

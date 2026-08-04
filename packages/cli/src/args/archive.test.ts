@@ -292,6 +292,24 @@ describe("cli/args/archive", () => {
       help: false,
       kind: "archive",
     });
+    expect(
+      parseCLIArguments([
+        "wikg://lib",
+        "--query",
+        "memory",
+        "--skip-unindexed",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: "wikg://lib",
+        format: "text",
+        query: "memory",
+        skipUnindexed: true,
+      },
+      help: false,
+      kind: "archive",
+    });
 
     expect(
       parseCLIArguments([
@@ -448,6 +466,26 @@ describe("cli/args/archive", () => {
       help: false,
       kind: "archive",
     });
+    expect(
+      parseCLIArguments([
+        "wikg://lib/entity/Q23",
+        "evidence",
+        "--query",
+        "memory",
+        "--skip-unindexed",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "evidence",
+        archivePath: "wikg://lib/entity/Q23",
+        format: "text",
+        objectId: "wikg://lib/entity/Q23",
+        query: "memory",
+        skipUnindexed: true,
+      },
+      help: false,
+      kind: "archive",
+    });
 
     expect(
       parseCLIArguments(["wikg://lib/entity/Q23", "related", "--cursor", "4"]),
@@ -458,6 +496,26 @@ describe("cli/args/archive", () => {
         cursor: "4",
         format: "text",
         objectId: "wikg://lib/entity/Q23",
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://lib/entity/Q23",
+        "related",
+        "--query",
+        "memory",
+        "--skip-unindexed",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "related",
+        archivePath: "wikg://lib/entity/Q23",
+        format: "text",
+        objectId: "wikg://lib/entity/Q23",
+        query: "memory",
+        skipUnindexed: true,
       },
       help: false,
       kind: "archive",
@@ -576,6 +634,26 @@ describe("cli/args/archive", () => {
       help: false,
       kind: "archive",
     });
+    expect(
+      parseCLIArguments([
+        "wikg://book.wikg/entity/Q1",
+        "related",
+        "--query",
+        "agents",
+        "--skip-unindexed",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "related",
+        archivePath: "wikg://book.wikg/entity/Q1",
+        format: "text",
+        objectId: "wikg://book.wikg/entity/Q1",
+        query: "agents",
+        skipUnindexed: true,
+      },
+      help: false,
+      kind: "archive",
+    });
 
     expect(
       parseCLIArguments([
@@ -614,6 +692,25 @@ describe("cli/args/archive", () => {
         format: "json",
         limit: 3,
         query: "RAG",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments([
+        "wikg:///Users/me/book.wikg",
+        "--query",
+        "RAG",
+        "--skip-unindexed",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: "wikg:///Users/me/book.wikg",
+        format: "text",
+        query: "RAG",
+        skipUnindexed: true,
       },
       help: false,
       kind: "archive",
@@ -709,6 +806,26 @@ describe("cli/args/archive", () => {
         format: "jsonl",
         objectId: "wikg://book.wikg/triple/Q1/mentions/Q2",
         query: "agents",
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://book.wikg/triple/Q1/mentions/Q2",
+        "evidence",
+        "--query",
+        "agents",
+        "--skip-unindexed",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "evidence",
+        archivePath: "wikg://book.wikg/triple/Q1/mentions/Q2",
+        format: "text",
+        objectId: "wikg://book.wikg/triple/Q1/mentions/Q2",
+        query: "agents",
+        skipUnindexed: true,
       },
       help: false,
       kind: "archive",
@@ -1006,6 +1123,24 @@ describe("cli/args/archive", () => {
         archivePath: `wikg://${archivePath}/chapter/part`,
         format: "text",
         query: "agent",
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/part",
+        "--query",
+        "agent",
+        "--skip-unindexed",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: `wikg://${archivePath}/chapter/part`,
+        format: "text",
+        query: "agent",
+        skipUnindexed: true,
       },
       help: false,
       kind: "archive",

@@ -42,6 +42,7 @@ export type ContinuationCursor =
       readonly format: "json" | "jsonl" | "text";
       readonly kind: "search";
       readonly query?: string;
+      readonly skipUnindexed?: boolean;
       readonly sourceContext?: number;
       readonly triplePattern?: {
         readonly objectQid?: string;
@@ -56,6 +57,7 @@ export type ContinuationCursor =
       readonly kind: "evidence";
       readonly order: "doc-asc" | "doc-desc";
       readonly query?: string;
+      readonly skipUnindexed?: boolean;
       readonly sourceContext?: number;
       readonly targetUri: string;
     })
@@ -67,6 +69,7 @@ export type ContinuationCursor =
       readonly order: "doc-asc" | "doc-desc";
       readonly query?: string;
       readonly role?: "any" | "object" | "self" | "subject";
+      readonly skipUnindexed?: boolean;
       readonly sourceContext?: number;
       readonly targetUri: string;
     });

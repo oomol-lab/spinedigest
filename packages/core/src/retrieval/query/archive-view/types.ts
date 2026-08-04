@@ -146,6 +146,7 @@ export interface ArchiveFindOptions {
   readonly limit?: number;
   readonly match?: ArchiveFindMatch;
   readonly order?: ArchiveFindOrder;
+  readonly skipUnindexed?: boolean;
   readonly sourceContext?: number;
   readonly triplePattern?: ArchiveTriplePattern;
   readonly types?: readonly ArchiveFindFilterType[];
@@ -376,6 +377,7 @@ export interface ArchiveRelatedOptions {
   readonly order?: ArchiveFindOrder;
   readonly query?: string;
   readonly role?: ArchiveRelatedRole;
+  readonly skipUnindexed?: boolean;
   readonly sourceContext?: number;
 }
 
@@ -461,5 +463,6 @@ export interface ArchiveEvidenceOptions {
   readonly limit?: number;
   readonly order?: ArchiveFindOrder;
   readonly query?: string;
+  readonly skipUnindexed?: boolean;
   readonly sourceContext?: number;
 }

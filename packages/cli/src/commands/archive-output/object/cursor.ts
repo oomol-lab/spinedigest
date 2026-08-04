@@ -29,6 +29,9 @@ export async function createOutputContinuationCursor(
       kind: "evidence",
       order: context.order ?? "doc-asc",
       ...(context.query === undefined ? {} : { query: context.query }),
+      ...(context.skipUnindexed === undefined
+        ? {}
+        : { skipUnindexed: context.skipUnindexed }),
       ...(context.sourceContext === undefined
         ? {}
         : { sourceContext: context.sourceContext }),
@@ -52,6 +55,9 @@ export async function createOutputContinuationCursor(
       order: context.order ?? "doc-asc",
       ...(context.query === undefined ? {} : { query: context.query }),
       ...(context.role === undefined ? {} : { role: context.role }),
+      ...(context.skipUnindexed === undefined
+        ? {}
+        : { skipUnindexed: context.skipUnindexed }),
       ...(context.sourceContext === undefined
         ? {}
         : { sourceContext: context.sourceContext }),
@@ -98,6 +104,9 @@ export async function createOutputContinuationCursor(
       kind: "search",
       ...(context.chapters === undefined ? {} : { chapters: context.chapters }),
       ...(context.query === undefined ? {} : { query: context.query }),
+      ...(context.skipUnindexed === undefined
+        ? {}
+        : { skipUnindexed: context.skipUnindexed }),
       ...(context.sourceContext === undefined
         ? {}
         : { sourceContext: context.sourceContext }),

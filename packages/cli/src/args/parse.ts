@@ -169,6 +169,9 @@ export function parseCLIArguments(
       reverse: {
         type: "boolean",
       },
+      "skip-unindexed": {
+        type: "boolean",
+      },
       stage: {
         type: "string",
       },

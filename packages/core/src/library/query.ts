@@ -51,6 +51,8 @@ import {
   type ParsedWikiGraphLibraryUri,
 } from "./registry.js";
 import {
+  assertWikiGraphLibraryHasQueryableArtifacts,
+  assertWikiGraphLibraryQueryArtifactsReady,
   assertWikiGraphLibraryIndexReady,
   listWikiGraphLibraryIndexArchiveIdsForObject,
   listWikiGraphLibrarySearchIndex,
@@ -68,6 +70,11 @@ export async function findWikiGraphLibraryObjects(
 ): Promise<ArchiveFindResult> {
   if (shouldUseLibraryBucketedSearch(options)) {
     return await findWikiGraphLibraryObjectsBucketed(target, query, options);
+  }
+  if (options.skipUnindexed !== true) {
+    await assertWikiGraphLibraryQueryArtifactsReady(target);
+  } else {
+    await assertWikiGraphLibraryHasQueryableArtifacts(target);
   }
 
   const indexHitLimit = createLibraryQueryIndexHitLimit(options);

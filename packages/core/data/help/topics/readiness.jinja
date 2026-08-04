@@ -36,7 +36,8 @@ Archive index readiness:
     FTS artifact only: FTS query.
     Source embedding artifact only: semantic/Dense-only query.
     Both artifacts: Hybrid query with automatic fusion.
-    Missing both FTS and source embedding for any content chapter: ordinary query fails.
+    Missing both FTS and source embedding for any content chapter in scope: ordinary query fails.
+    Add `--skip-unindexed` to a scope query, `related --query`, or `evidence --query` only when you want to search indexed chapters and ignore uncovered chapters.
     Summary embedding artifacts are for summary semantic retrieval and are not the minimum requirement for ordinary source query.
 
   Commands:

@@ -98,9 +98,11 @@ vi.mock("../../../packages/core/src/library/membership.js", () => ({
 }));
 
 vi.mock("../../../packages/core/src/library/search-index.js", () => ({
+  assertWikiGraphLibraryHasQueryableArtifacts: vi.fn(() => Promise.resolve()),
   assertWikiGraphLibraryIndexReady: vi.fn(() =>
     Promise.resolve({ status: "current" }),
   ),
+  assertWikiGraphLibraryQueryArtifactsReady: vi.fn(() => Promise.resolve()),
   listWikiGraphLibrarySearchIndex: vi.fn(() =>
     Promise.resolve(mocks.listIndexResult),
   ),
@@ -607,6 +609,37 @@ describe("wiki graph library object query aggregation", () => {
         types: ["source", "summary"],
       }),
     );
+  });
+
+  it("skips library query artifact readiness when requested explicitly", async () => {
+    const [{ findWikiGraphLibraryObjects }, searchIndex] = await Promise.all([
+      import("../../../packages/core/src/library/query.js"),
+      import("../../../packages/core/src/library/search-index.js"),
+    ]);
+    vi.mocked(
+      searchIndex.assertWikiGraphLibraryHasQueryableArtifacts,
+    ).mockClear();
+    vi.mocked(
+      searchIndex.assertWikiGraphLibraryQueryArtifactsReady,
+    ).mockClear();
+
+    mocks.listIndexResult = {
+      objectHits: [createIndexObjectHit(1, "1")],
+      terms: ["chapter"],
+      textHits: [],
+    };
+
+    await findWikiGraphLibraryObjects(target, "chapter", {
+      limit: 5,
+      skipUnindexed: true,
+    });
+
+    expect(
+      searchIndex.assertWikiGraphLibraryQueryArtifactsReady,
+    ).not.toHaveBeenCalled();
+    expect(
+      searchIndex.assertWikiGraphLibraryHasQueryableArtifacts,
+    ).toHaveBeenCalledWith(target);
   });
 
   it("keeps library bucket searches scoped to requested chapters", async () => {

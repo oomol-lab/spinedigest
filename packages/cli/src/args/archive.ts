@@ -74,6 +74,8 @@ export function parseArchiveArguments(
     );
   }
 
+  rejectNonQuerySkipUnindexedFlag(action, values, helpRoute);
+
   switch (action) {
     case "create": {
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
@@ -267,6 +269,7 @@ export function parseArchiveArguments(
                 ),
               }),
           query,
+          ...(values["skip-unindexed"] === true ? { skipUnindexed: true } : {}),
           ...(options.defaultKinds === undefined
             ? {}
             : { kinds: options.defaultKinds }),
@@ -405,6 +408,7 @@ export function parseArchiveArguments(
           objectId: archivePath,
           ...(values.query === undefined ? {} : { query: values.query }),
           ...(values.reverse === true ? { reverse: true } : {}),
+          ...(values["skip-unindexed"] === true ? { skipUnindexed: true } : {}),
           ...(relatedTarget === "entity"
             ? parseRelatedRoleFlag(values.role, helpRoute)
             : {}),
@@ -452,6 +456,7 @@ export function parseArchiveArguments(
           objectId: archivePath,
           ...(values.query === undefined ? {} : { query: values.query }),
           ...(values.reverse === true ? { reverse: true } : {}),
+          ...(values["skip-unindexed"] === true ? { skipUnindexed: true } : {}),
         },
         help: false,
         kind: "archive",
@@ -550,4 +555,28 @@ function rejectNonChapterDepthFlag(
   }
 
   rejectArchiveFlag(action, "--depth", depth, helpRoute);
+}
+
+function rejectNonQuerySkipUnindexedFlag(
+  action: CLIArchiveAction,
+  values: ArchiveArgumentValues,
+  helpRoute: string,
+): void {
+  if (values["skip-unindexed"] !== true) {
+    return;
+  }
+  if (
+    action === "search" ||
+    ((action === "related" || action === "evidence") &&
+      values.query !== undefined)
+  ) {
+    return;
+  }
+
+  rejectArchiveBooleanFlag(
+    action,
+    "--skip-unindexed",
+    values["skip-unindexed"],
+    helpRoute,
+  );
 }

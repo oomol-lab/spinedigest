@@ -15,10 +15,12 @@ import {
   readWikiGraphLibraryPage,
   resolveWikiGraphLibrary,
   findArchiveObjects,
+  listArchiveQueryableChapterIds,
   rebuildArchiveSearchIndex,
   WikiGraphArchiveFile,
   type ArchiveFindOptions,
   type ArchiveRelatedResult,
+  type ReadonlyDocument,
 } from "wiki-graph-core";
 
 import type { CLIArchiveArguments } from "../../args/index.js";
@@ -57,6 +59,7 @@ import {
   writeArchiveRoot,
 } from "./run/index.js";
 import { resolveArchiveChapterScope } from "./run/scope.js";
+import type { ChapterScopeResolution } from "./run/scope.js";
 
 export async function runArchiveCommand(
   args: CLIArchiveArguments,
@@ -106,15 +109,11 @@ export async function runArchiveCommand(
       );
       return;
     case "search":
-      await ensureArchiveQueryIndexCache(args.archivePath);
+      await ensureArchiveQueryIndexCache(args);
       await readArchiveDocument(
         getArchivePath(args.archivePath),
         async (document) => {
-          const scope = await resolveArchiveChapterScope(document, args);
-          const scopedArgs =
-            scope === undefined
-              ? args
-              : { ...args, chapters: scope.chapterIds };
+          const scopedArgs = await createScopedQueryArgs(document, args);
           const context = createArchiveOutputContext(scopedArgs);
           const findOptions = await createSearchFindOptions(scopedArgs);
 
@@ -141,7 +140,7 @@ export async function runArchiveCommand(
       return;
     case "list":
       if (args.query !== undefined) {
-        await ensureArchiveQueryIndexCache(args.archivePath);
+        await ensureArchiveQueryIndexCache(args);
       }
       await readArchiveDocument(
         getArchivePath(args.archivePath),
@@ -229,7 +228,7 @@ export async function runArchiveCommand(
       return;
     case "related":
       if (args.query !== undefined) {
-        await ensureArchiveQueryIndexCache(args.archivePath);
+        await ensureArchiveQueryIndexCache(args);
       }
       await readArchiveDocument(
         getArchivePath(args.archivePath),
@@ -251,6 +250,7 @@ export async function runArchiveCommand(
                 ...(args.reverse === true ? { order: "doc-desc" } : {}),
                 ...(args.query === undefined ? {} : { query: args.query }),
                 ...(args.role === undefined ? {} : { role: args.role }),
+                ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
                 ...createOptionalSourceContext(args),
               },
             );
@@ -275,7 +275,7 @@ export async function runArchiveCommand(
       return;
     case "evidence":
       if (args.query !== undefined) {
-        await ensureArchiveQueryIndexCache(args.archivePath);
+        await ensureArchiveQueryIndexCache(args);
       }
       await readArchiveDocument(
         getArchivePath(args.archivePath),
@@ -296,6 +296,9 @@ export async function runArchiveCommand(
                     ...(args.limit === undefined ? {} : { limit: args.limit }),
                     ...(args.reverse === true ? { order: "doc-desc" } : {}),
                     ...(args.query === undefined ? {} : { query: args.query }),
+                    ...(args.skipUnindexed === true
+                      ? { skipUnindexed: true }
+                      : {}),
                     ...createOptionalSourceContext(args),
                   },
                 ),
@@ -311,6 +314,7 @@ export async function runArchiveCommand(
               ...(args.limit === undefined ? {} : { limit: args.limit }),
               ...(args.reverse === true ? { order: "doc-desc" } : {}),
               ...(args.query === undefined ? {} : { query: args.query }),
+              ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
               ...createOptionalSourceContext(args),
             }),
             context,
@@ -342,20 +346,55 @@ export async function runArchiveCommand(
 }
 
 async function ensureArchiveQueryIndexCache(
-  archivePath: string,
+  args: CLIArchiveArguments,
 ): Promise<void> {
-  const location = await resolveArchiveRuntimeLocation(archivePath);
+  const location = await resolveArchiveRuntimeLocation(args.archivePath);
 
   await new WikiGraphArchiveFile(location.archivePath).write(
     async (document) => {
-      if (await isArchiveSearchIndexCurrent(document)) {
+      const scopedArgs = await createScopedQueryArgs(document, args);
+      const options =
+        scopedArgs.chapters === undefined
+          ? {}
+          : { chapters: scopedArgs.chapters };
+
+      if (await isArchiveSearchIndexCurrent(document, options)) {
         return;
       }
 
-      await rebuildArchiveSearchIndex(document);
+      await rebuildArchiveSearchIndex(document, undefined, options);
     },
     { searchIndexWritebackPolicy: "cache" },
   );
+}
+
+async function createScopedQueryArgs(
+  document: ReadonlyDocument,
+  args: CLIArchiveArguments,
+): Promise<CLIArchiveArguments> {
+  const scope = await resolveArchiveChapterScope(document, args);
+  if (args.skipUnindexed !== true) {
+    return applyChapterScope(args, scope);
+  }
+
+  const queryableChapters = await listArchiveQueryableChapterIds(document, {
+    ...(scope === undefined ? {} : { chapters: scope.chapterIds }),
+  });
+
+  if (queryableChapters.length === 0) {
+    throw new Error(
+      "Wiki Graph query is not ready. No chapters in this scope have a current FTS artifact or source embedding artifact.",
+    );
+  }
+
+  return { ...args, chapters: queryableChapters };
+}
+
+function applyChapterScope(
+  args: CLIArchiveArguments,
+  scope: ChapterScopeResolution | undefined,
+): CLIArchiveArguments {
+  return scope === undefined ? args : { ...args, chapters: scope.chapterIds };
 }
 
 async function runLibraryIndexArchiveCommand(
@@ -558,6 +597,7 @@ async function runLibraryIndexArchiveCommand(
           ...(args.reverse === true ? { order: "doc-desc" } : {}),
           ...(args.query === undefined ? {} : { query: args.query }),
           ...(args.role === undefined ? {} : { role: args.role }),
+          ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
           ...createOptionalSourceContext(args),
         });
 
@@ -594,6 +634,7 @@ async function runLibraryIndexArchiveCommand(
               ...(args.limit === undefined ? {} : { limit: args.limit }),
               ...(args.reverse === true ? { order: "doc-desc" } : {}),
               ...(args.query === undefined ? {} : { query: args.query }),
+              ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
               ...createOptionalSourceContext(args),
             }),
           args.cursor,
@@ -608,6 +649,7 @@ async function runLibraryIndexArchiveCommand(
           ...(args.limit === undefined ? {} : { limit: args.limit }),
           ...(args.reverse === true ? { order: "doc-desc" } : {}),
           ...(args.query === undefined ? {} : { query: args.query }),
+          ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
           ...createOptionalSourceContext(args),
         }),
         evidenceContext,

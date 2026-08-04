@@ -5,6 +5,7 @@ import type {
 } from "../../../../document/index.js";
 
 import { TEXT_SENTENCE_KIND } from "../../../search-index/search/index.js";
+import { listArchiveQueryableChapterIds } from "../index-state.js";
 import {
   DEFAULT_FIND_LIMIT,
   compareNumbers,
@@ -244,6 +245,7 @@ export async function createSourceEvidencePage(
     ranges,
     options.query,
     options.order ?? "doc-asc",
+    options.skipUnindexed,
   );
   const pageRanges = evidenceRanges.slice(start, start + limit);
   const nextOffset = start + pageRanges.length;
@@ -265,6 +267,7 @@ export async function filterAndSortSourceEvidenceRangesByFtsQuery(
   ranges: readonly SourceEvidenceRange[],
   queryText: string | undefined,
   order: ArchiveFindOrder,
+  skipUnindexed = false,
 ): Promise<readonly SourceEvidenceRange[]> {
   const documentOrders = await document.serials.listDocumentOrders();
 
@@ -274,8 +277,16 @@ export async function filterAndSortSourceEvidenceRangesByFtsQuery(
     );
   }
 
+  const queryRanges =
+    skipUnindexed === true
+      ? await filterQueryableSourceEvidenceRanges(document, ranges)
+      : ranges;
+  if (queryRanges.length === 0) {
+    return [];
+  }
+
   const indexResult = await queryRequiredSearchIndex(document, queryText, {
-    chapters: [...new Set(ranges.map((range) => range.chapterId))],
+    chapters: [...new Set(queryRanges.map((range) => range.chapterId))],
     types: ["source"],
   });
 
@@ -286,7 +297,7 @@ export async function filterAndSortSourceEvidenceRangesByFtsQuery(
   const matchedRanges = new Map<string, SourceEvidenceRange>();
   const rangesByChapterId = new Map<number, SourceEvidenceRange[]>();
 
-  for (const range of ranges) {
+  for (const range of queryRanges) {
     const chapterRanges = rangesByChapterId.get(range.chapterId) ?? [];
 
     chapterRanges.push(range);
@@ -335,8 +346,9 @@ export async function filterAndSortSourceEvidenceCandidatesByFtsQuery<T>(
   ) => Promise<readonly SourceEvidenceRange[]> | readonly SourceEvidenceRange[],
   stableIdentity: (candidate: T) => string,
   queryText: string,
+  skipUnindexed = false,
 ): Promise<readonly SourceEvidenceCandidateQueryMatch<T>[]> {
-  const keyed = await Promise.all(
+  let keyed: readonly SourceEvidenceCandidateQueryItem<T>[] = await Promise.all(
     candidates.map(async (candidate) => ({
       candidate,
       ranges: await createRanges(candidate),
@@ -344,6 +356,12 @@ export async function filterAndSortSourceEvidenceCandidatesByFtsQuery<T>(
       stableIdentity: stableIdentity(candidate),
     })),
   );
+  if (skipUnindexed === true) {
+    keyed = await filterQueryableSourceEvidenceCandidates(document, keyed);
+  }
+  if (keyed.length === 0) {
+    return [];
+  }
   const indexResult = await queryRequiredSearchIndex(document, queryText, {
     chapters: [
       ...new Set(
@@ -416,9 +434,55 @@ export async function filterAndSortSourceEvidenceCandidatesByFtsQuery<T>(
     .map((item) => ({ candidate: item.candidate, score: item.score }));
 }
 
+async function filterQueryableSourceEvidenceRanges(
+  document: ReadonlyDocument,
+  ranges: readonly SourceEvidenceRange[],
+): Promise<readonly SourceEvidenceRange[]> {
+  const queryableChapters = new Set(
+    await listArchiveQueryableChapterIds(document, {
+      chapters: [...new Set(ranges.map((range) => range.chapterId))],
+    }),
+  );
+
+  return ranges.filter((range) => queryableChapters.has(range.chapterId));
+}
+
+async function filterQueryableSourceEvidenceCandidates<T>(
+  document: ReadonlyDocument,
+  candidates: readonly SourceEvidenceCandidateQueryItem<T>[],
+): Promise<readonly SourceEvidenceCandidateQueryItem<T>[]> {
+  const queryableChapters = new Set(
+    await listArchiveQueryableChapterIds(document, {
+      chapters: [
+        ...new Set(
+          candidates.flatMap((item) =>
+            item.ranges.map((range) => range.chapterId),
+          ),
+        ),
+      ],
+    }),
+  );
+
+  return candidates
+    .map((item) => ({
+      ...item,
+      ranges: item.ranges.filter((range) =>
+        queryableChapters.has(range.chapterId),
+      ),
+    }))
+    .filter((item) => item.ranges.length > 0);
+}
+
 export interface SourceEvidenceCandidateQueryMatch<T> {
   readonly candidate: T;
   readonly score: number;
+}
+
+interface SourceEvidenceCandidateQueryItem<T> {
+  readonly candidate: T;
+  readonly ranges: readonly SourceEvidenceRange[];
+  readonly stableIdentity: string;
+  score: number;
 }
 
 function firstSourceEvidenceRange(

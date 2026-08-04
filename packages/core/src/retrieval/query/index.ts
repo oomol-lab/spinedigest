@@ -11,6 +11,7 @@ export {
   createArchiveSearchIndexFingerprint,
   clearDirtyArchiveSearchIndex,
   isArchiveSearchIndexCurrent,
+  listArchiveQueryableChapterIds,
   readArchiveSearchIndexStatus,
   listAllArchiveLinks,
   listArchiveCollection,

@@ -4,6 +4,7 @@ import type {
 } from "../../../../document/index.js";
 
 import { aggregateEvidenceScores } from "../helpers.js";
+import { listArchiveQueryableChapterIds } from "../index-state.js";
 import { parseArchiveReference } from "../references.js";
 import { queryRequiredSearchIndex } from "../search/hydration.js";
 import { createSentenceHitKey } from "../search/cache-input.js";
@@ -18,12 +19,21 @@ export async function filterAndSortChunkRelatedItemsByQuery(
   document: ReadonlyDocument,
   items: readonly ArchiveListItem[],
   query: string | undefined,
+  options: {
+    readonly chapters?: readonly number[];
+    readonly skipUnindexed?: boolean;
+  } = {},
 ): Promise<readonly ArchiveListItem[]> {
   if (query === undefined) {
     return items;
   }
+  const chapters = await resolveRelatedQueryableChapters(document, options);
+  if (chapters?.length === 0) {
+    return [];
+  }
 
   const indexResult = await queryRequiredSearchIndex(document, query, {
+    ...(chapters === undefined ? {} : { chapters }),
     types: ["node"],
   });
 
@@ -82,14 +92,24 @@ export async function filterAndSortEntityRelatedTriplesByQuery(
   items: readonly ArchiveListItem[],
   anchorQid: string,
   query: string | undefined,
+  options: { readonly skipUnindexed?: boolean } = {},
 ): Promise<readonly ArchiveListItem[]> {
   if (query === undefined) {
     return items;
   }
   const scope = await createEntityRelatedQueryScope(document, items, anchorQid);
+  const chapters = await resolveRelatedQueryableChapters(document, {
+    chapters: [...scope.chapterIds],
+    ...(options.skipUnindexed === undefined
+      ? {}
+      : { skipUnindexed: options.skipUnindexed }),
+  });
+  if (chapters?.length === 0) {
+    return [];
+  }
 
   const indexResult = await queryRequiredSearchIndex(document, query, {
-    chapters: [...scope.chapterIds],
+    ...(chapters === undefined ? {} : { chapters }),
     types: ["entity", "source"],
   });
 
@@ -152,6 +172,22 @@ export async function filterAndSortEntityRelatedTriplesByQuery(
         : [{ ...item, score: aggregateEvidenceScores(scores) }];
     })
     .sort(compareRelatedQueryItems);
+}
+
+async function resolveRelatedQueryableChapters(
+  document: ReadonlyDocument,
+  options: {
+    readonly chapters?: readonly number[];
+    readonly skipUnindexed?: boolean;
+  },
+): Promise<readonly number[] | undefined> {
+  if (options.skipUnindexed !== true) {
+    return options.chapters;
+  }
+
+  return await listArchiveQueryableChapterIds(document, {
+    ...(options.chapters === undefined ? {} : { chapters: options.chapters }),
+  });
 }
 
 async function createEntityRelatedQueryScope(

@@ -487,6 +487,7 @@ describe("cli/args/help", () => {
       "Do not pass a bare filesystem path as a command target.",
     );
     expect(uriHelpText).toContain('wg <archive-uri> --query "term"');
+    expect(uriHelpText).toContain("--skip-unindexed");
     expect(uriHelpText).toContain(
       String.raw`C:\Users\me\book.wikg -> wikg://C:/Users/me/book.wikg`,
     );
@@ -813,6 +814,7 @@ describe("cli/args/help", () => {
     ).toThrow("does not support `list`");
     expect(scopeHelpText).toContain("wg wikg://lib [--json]");
     expect(scopeHelpText).toContain("wg wikg://lib --query <query>");
+    expect(scopeHelpText).toContain("--skip-unindexed");
     expect(scopeHelpText).toContain("searches library-wide objects");
     expect(scopeHelpText).not.toContain("searches archive members");
     expect(scopeHelpText).not.toContain("broad library index search");
@@ -942,6 +944,24 @@ describe("cli/args/help", () => {
     );
     expect(archiveMemberInspectHelp.helpText).toContain(
       "not a library-level health report",
+    );
+    const relatedHelpText = renderUriPredicateHelpText(
+      "entity-object",
+      "related",
+      "wikg://book.wikg/entity/Q23",
+    );
+    const evidenceHelpText = renderUriPredicateHelpText(
+      "entity-object",
+      "evidence",
+      "wikg://book.wikg/entity/Q23",
+    );
+    expect(relatedHelpText).toContain("[--skip-unindexed]");
+    expect(relatedHelpText).toContain(
+      "Add `--skip-unindexed` only with `--query`",
+    );
+    expect(evidenceHelpText).toContain("[--skip-unindexed]");
+    expect(evidenceHelpText).toContain(
+      "Add `--skip-unindexed` only with `--query`",
     );
     const registryHelpText = renderLibraryUriHelpText("wikg://lib/registry", {
       isDefault: true,

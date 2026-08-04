@@ -85,6 +85,7 @@ export interface ArchiveOutputContext {
   readonly order?: "doc-asc" | "doc-desc";
   readonly query?: string;
   readonly role?: CLIArchiveArguments["role"];
+  readonly skipUnindexed?: boolean;
   readonly sourceContext?: number;
   readonly targetUri?: string;
   readonly triplePattern?: CLIArchiveArguments["triplePattern"];

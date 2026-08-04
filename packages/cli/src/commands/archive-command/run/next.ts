@@ -130,6 +130,9 @@ export async function runNextArchivePage(
             ? {}
             : { evidenceLimit: cursor.evidenceLimit }),
           limit,
+          ...(cursor.skipUnindexed === undefined
+            ? {}
+            : { skipUnindexed: cursor.skipUnindexed }),
           ...(cursor.sourceContext === undefined
             ? {}
             : { sourceContext: cursor.sourceContext }),
@@ -163,6 +166,9 @@ export async function runNextArchivePage(
             ...(cursor.sourceContext === undefined
               ? {}
               : { sourceContext: cursor.sourceContext }),
+            ...(cursor.skipUnindexed === undefined
+              ? {}
+              : { skipUnindexed: cursor.skipUnindexed }),
             ...(cursor.triplePattern === undefined
               ? {}
               : { triplePattern: cursor.triplePattern }),
@@ -179,6 +185,9 @@ export async function runNextArchivePage(
             limit,
             order: cursor.order,
             ...(cursor.query === undefined ? {} : { query: cursor.query }),
+            ...(cursor.skipUnindexed === undefined
+              ? {}
+              : { skipUnindexed: cursor.skipUnindexed }),
             ...(cursor.sourceContext === undefined
               ? {}
               : { sourceContext: cursor.sourceContext }),
@@ -192,6 +201,9 @@ export async function runNextArchivePage(
             limit,
             order: cursor.order,
             ...(cursor.query === undefined ? {} : { query: cursor.query }),
+            ...(cursor.skipUnindexed === undefined
+              ? {}
+              : { skipUnindexed: cursor.skipUnindexed }),
             ...(cursor.sourceContext === undefined
               ? {}
               : { sourceContext: cursor.sourceContext }),
@@ -212,6 +224,9 @@ export async function runNextArchivePage(
             order: cursor.order,
             ...(cursor.query === undefined ? {} : { query: cursor.query }),
             ...(cursor.role === undefined ? {} : { role: cursor.role }),
+            ...(cursor.skipUnindexed === undefined
+              ? {}
+              : { skipUnindexed: cursor.skipUnindexed }),
             ...(cursor.sourceContext === undefined
               ? {}
               : { sourceContext: cursor.sourceContext }),
@@ -229,6 +244,9 @@ export async function runNextArchivePage(
             order: cursor.order,
             ...(cursor.query === undefined ? {} : { query: cursor.query }),
             ...(cursor.role === undefined ? {} : { role: cursor.role }),
+            ...(cursor.skipUnindexed === undefined
+              ? {}
+              : { skipUnindexed: cursor.skipUnindexed }),
             ...(cursor.sourceContext === undefined
               ? {}
               : { sourceContext: cursor.sourceContext }),
@@ -322,6 +340,9 @@ async function runNextLibraryIndexPage(
           ? {}
           : { evidenceLimit: cursor.evidenceLimit }),
         limit,
+        ...(cursor.skipUnindexed === undefined
+          ? {}
+          : { skipUnindexed: cursor.skipUnindexed }),
         ...(cursor.sourceContext === undefined
           ? {}
           : { sourceContext: cursor.sourceContext }),
@@ -368,6 +389,9 @@ async function runNextLibraryIndexPage(
           limit,
           order: cursor.order,
           ...(cursor.query === undefined ? {} : { query: cursor.query }),
+          ...(cursor.skipUnindexed === undefined
+            ? {}
+            : { skipUnindexed: cursor.skipUnindexed }),
           ...(cursor.sourceContext === undefined
             ? {}
             : { sourceContext: cursor.sourceContext }),
@@ -377,6 +401,9 @@ async function runNextLibraryIndexPage(
           continuationKind: "evidence",
           order: cursor.order,
           ...(cursor.query === undefined ? {} : { query: cursor.query }),
+          ...(cursor.skipUnindexed === undefined
+            ? {}
+            : { skipUnindexed: cursor.skipUnindexed }),
           targetUri: cursor.targetUri,
         },
         format,
@@ -393,6 +420,9 @@ async function runNextLibraryIndexPage(
           order: cursor.order,
           ...(cursor.query === undefined ? {} : { query: cursor.query }),
           ...(cursor.role === undefined ? {} : { role: cursor.role }),
+          ...(cursor.skipUnindexed === undefined
+            ? {}
+            : { skipUnindexed: cursor.skipUnindexed }),
           ...(cursor.sourceContext === undefined
             ? {}
             : { sourceContext: cursor.sourceContext }),
@@ -406,6 +436,9 @@ async function runNextLibraryIndexPage(
           order: cursor.order,
           ...(cursor.query === undefined ? {} : { query: cursor.query }),
           ...(cursor.role === undefined ? {} : { role: cursor.role }),
+          ...(cursor.skipUnindexed === undefined
+            ? {}
+            : { skipUnindexed: cursor.skipUnindexed }),
           targetUri: cursor.targetUri,
         },
         format,
@@ -472,6 +505,9 @@ function createCursorOutputContext(
       ? cursor.query === undefined
         ? {}
         : { query: cursor.query }
+      : {}),
+    ...(cursor.kind === "search" && cursor.skipUnindexed !== undefined
+      ? { skipUnindexed: cursor.skipUnindexed }
       : {}),
   };
 }

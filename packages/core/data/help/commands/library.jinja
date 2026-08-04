@@ -169,6 +169,7 @@ Default behavior:
   - `{{ commandName }} {{ uri }}` reads the library-wide scope collection.
   - Use `{{ commandName }} wikg://lib/registry` to list all library registries.
   - `{{ commandName }} {{ uri }} --query <query>` searches library-wide objects through the library index.
+  - Query is strict by default; add `--skip-unindexed` only to intentionally search indexed chapters and ignore uncovered chapters.
   - `{{ commandName }} {{ uri }}/arc scan` reconciles membership with `.wikg` files currently under the library folder.
   - Library-wide object scopes such as `/entity` and `/triple` query one object type through the library index after it is synced.
   - Archive object search must use an explicit lens such as `/entity`, `/triple`, `/chapter`, or `/chunk`.
@@ -192,6 +193,7 @@ Usage:
 {% if target.isDefault %}
   {{ commandName }} wikg://lib [--json]
   {{ commandName }} wikg://lib --query <query> [--limit <n>] [--cursor <cursor>] [--json]
+  {{ commandName }} wikg://lib --query <query> --skip-unindexed
   {{ commandName }} wikg://lib/chapter --query <query>
   {{ commandName }} wikg://lib/chunk --query <query>
   {{ commandName }} wikg://lib/registry add --path <folder> [--json]
@@ -206,6 +208,7 @@ Usage:
 {% else %}
   {{ commandName }} {{ uri }} [--json]
   {{ commandName }} {{ uri }} --query <query> [--limit <n>] [--cursor <cursor>] [--json]
+  {{ commandName }} {{ uri }} --query <query> --skip-unindexed
   {{ commandName }} {{ uri }}/chapter --query <query>
   {{ commandName }} {{ uri }}/chunk --query <query>
   {{ commandName }} {{ uri }}/arc scan [--json|--jsonl]

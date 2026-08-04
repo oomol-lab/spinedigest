@@ -108,7 +108,17 @@ export async function listRelatedArchiveObjects(
 
   return await hydrateRelatedItemsEvidence(
     document,
-    await filterAndSortChunkRelatedItemsByQuery(document, items, options.query),
+    await filterAndSortChunkRelatedItemsByQuery(
+      document,
+      items,
+      options.query,
+      {
+        chapters: [chapterId],
+        ...(options.skipUnindexed === undefined
+          ? {}
+          : { skipUnindexed: options.skipUnindexed }),
+      },
+    ),
     options,
   );
 }
@@ -155,6 +165,12 @@ async function listRelatedWikiGraphObjects(
           document,
           items,
           options.query,
+          {
+            chapters: [chapterId],
+            ...(options.skipUnindexed === undefined
+              ? {}
+              : { skipUnindexed: options.skipUnindexed }),
+          },
         ),
         options,
       );

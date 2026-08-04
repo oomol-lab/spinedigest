@@ -49,6 +49,8 @@ import type {
 } from "../retrieval/query/archive-view/types.js";
 import type { ParsedWikiGraphLibraryUri } from "./registry.js";
 import {
+  assertWikiGraphLibraryHasQueryableArtifacts,
+  assertWikiGraphLibraryQueryArtifactsReady,
   assertWikiGraphLibraryIndexReady,
   queryWikiGraphLibrarySearchIndex,
 } from "./search-index.js";
@@ -88,6 +90,11 @@ export async function findWikiGraphLibraryObjectsBucketed(
     });
   }
 
+  if (options.skipUnindexed !== true) {
+    await assertWikiGraphLibraryQueryArtifactsReady(target);
+  } else {
+    await assertWikiGraphLibraryHasQueryableArtifacts(target);
+  }
   const state = await assertWikiGraphLibraryIndexReady(target);
   const archiveKey = createLibrarySearchArchiveKey(target);
   const types = options.types ?? null;

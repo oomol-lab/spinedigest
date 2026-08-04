@@ -75,6 +75,8 @@ Common command shapes:
 Scope URIs:
   Scope URIs enumerate objects by default. With `--query <query>`, they apply search index retrieval within that scope.
   A chapter URI used as a scope covers that chapter's full subtree by default.
+  Query is strict by default: every chapter in scope must have a current FTS artifact or source embedding artifact.
+  Add `--skip-unindexed` only when you intentionally want to search indexed chapters and ignore uncovered chapters.
   Add `--depth <N>` to limit chapter subtree expansion:
     - no `--depth`: full subtree
     - `--depth 0`: only the current chapter, or root-level chapters for `<archive-uri>/chapter`
@@ -156,6 +158,7 @@ Literal source passages:
   Use `--query` on the narrowest useful scope when the task is to find source wording or passages mentioning a literal term:
     {{ commandName }} <archive-uri> --query "term"
     {{ commandName }} <archive-uri>/chapter/<path> --query "term"
+    {{ commandName }} <archive-uri> --query "term" --skip-unindexed
     {{ commandName }} <archive-uri>/chapter/<path>/source#20..30
 
 Entity-grounded evidence:

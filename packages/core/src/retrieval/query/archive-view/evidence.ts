@@ -104,6 +104,7 @@ export async function listArchiveEvidence(
           await createMentionEvidenceRanges(document, [mention]),
         (mention) => mention.id,
         options.query,
+        options.skipUnindexed,
       );
 
       return await createSourceEvidenceCandidatePage(document, {
@@ -167,6 +168,7 @@ export async function listArchiveEvidence(
         (link) => createMentionLinkEvidenceRanges(document, [link]),
         (link) => link.id,
         options.query,
+        options.skipUnindexed,
       );
 
       return await createSourceEvidenceCandidatePage(document, {

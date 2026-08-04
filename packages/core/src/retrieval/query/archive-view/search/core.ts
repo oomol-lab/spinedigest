@@ -225,7 +225,13 @@ export async function findArchiveObjects(
   }
 
   if (usesBucketedSearch) {
-    if (!(await isArchiveSearchIndexCurrent(document))) {
+    if (
+      !(await isArchiveSearchIndexCurrent(document, {
+        ...(options.chapters === undefined
+          ? {}
+          : { chapters: options.chapters }),
+      }))
+    ) {
       throw new Error(
         "Wiki Graph index cache is missing or outdated. Run `<archive-uri>/index sync` before searching.",
       );

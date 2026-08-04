@@ -229,6 +229,51 @@ describe("archive search index state", () => {
     });
   });
 
+  it("checks query readiness against the requested chapter scope", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapters(document, ["Unindexed", "Indexed"]);
+      const provider = createFakeEmbeddingProvider();
+
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 2, provider);
+
+      await expect(assertArchiveIndexArtifactsReady(document)).rejects.toThrow(
+        "Wiki Graph query is not ready. Chapters 1 need a current FTS artifact or source embedding artifact before query.",
+      );
+      await expect(
+        assertArchiveIndexArtifactsReady(document, { chapters: [2] }),
+      ).resolves.toBeUndefined();
+
+      await rebuildArchiveSearchIndex(document, undefined, { chapters: [2] });
+
+      await expect(isArchiveSearchIndexCurrent(document)).resolves.toBe(false);
+      await expect(
+        isArchiveSearchIndexCurrent(document, { chapters: [2] }),
+      ).resolves.toBe(true);
+      await expect(
+        querySearchIndex(document, "semantic vectors", {
+          chapters: [2],
+          embeddingProvider: provider,
+          types: ["source"],
+        }),
+      ).resolves.toMatchObject({
+        textHits: [
+          {
+            archiveId: 0,
+            chapterId: 2,
+            kind: TEXT_SENTENCE_KIND.source,
+            sentenceIndex: 0,
+          },
+          {
+            archiveId: 0,
+            chapterId: 2,
+            kind: TEXT_SENTENCE_KIND.source,
+            sentenceIndex: 1,
+          },
+        ],
+      });
+    });
+  });
+
   it("does not report dense current when the cache is dirty", async () => {
     await withTempDocument(async (document) => {
       await writeSourceChapter(document);
@@ -278,14 +323,32 @@ function createFakeEmbeddingProvider() {
 }
 
 async function writeSourceChapter(document: DirectoryDocument): Promise<void> {
+  await writeSourceChapters(document, ["Dense"]);
+}
+
+async function writeSourceChapters(
+  document: DirectoryDocument,
+  titles: readonly string[],
+): Promise<void> {
   await document.openSession(async (openedDocument) => {
-    await openedDocument.createSerial();
-    const draft = await openedDocument.getSerialFragments(1).createDraft();
-    draft.addSentence("Dense indexing writes vectors.", 4);
-    draft.addSentence("FTS still indexes the same text.", 6);
-    await draft.commit();
+    const serialIds: number[] = [];
+
+    for (const title of titles) {
+      const serialId = await openedDocument.createSerial();
+      serialIds.push(serialId);
+      const draft = await openedDocument
+        .getSerialFragments(serialId)
+        .createDraft();
+      draft.addSentence(`${title} dense indexing writes vectors.`, 5);
+      draft.addSentence(`${title} FTS still indexes the same text.`, 7);
+      await draft.commit();
+    }
     await openedDocument.writeToc({
-      items: [{ children: [], serialId: 1, title: "Dense" }],
+      items: titles.map((title, index) => ({
+        children: [],
+        serialId: serialIds[index]!,
+        title,
+      })),
       version: 1,
     });
   });

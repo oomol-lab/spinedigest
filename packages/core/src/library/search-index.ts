@@ -9,6 +9,7 @@ import { openSharedStateDatabase } from "../document/index.js";
 import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
 import {
   assertArchiveIndexArtifactsReady,
+  listArchiveQueryableChapterIds,
   readArchiveEmbeddingState,
   readEmbeddingDimensions,
   readEmbeddingModel,
@@ -235,6 +236,55 @@ export async function assertWikiGraphLibraryIndexReady(
   }
 
   return state;
+}
+
+export async function assertWikiGraphLibraryQueryArtifactsReady(
+  target: ParsedWikiGraphLibraryUri,
+): Promise<void> {
+  const archives = await listWikiGraphLibraryArchives(target);
+
+  for (const archive of archives) {
+    if (!archive.exists || archive.status !== "present") {
+      continue;
+    }
+    await new WikiGraphArchiveFile(archive.path).readDocument(
+      async (archiveDocument) => {
+        try {
+          await assertArchiveIndexArtifactsReady(archiveDocument);
+        } catch (error) {
+          throw new Error(
+            `Wiki Graph library query is not ready. Archive ${archive.uri} has unindexed chapters. Build missing chapter index artifacts, or rerun with --skip-unindexed to search indexed chapters only.`,
+            { cause: error },
+          );
+        }
+      },
+    );
+  }
+}
+
+export async function assertWikiGraphLibraryHasQueryableArtifacts(
+  target: ParsedWikiGraphLibraryUri,
+): Promise<void> {
+  const archives = await listWikiGraphLibraryArchives(target);
+
+  for (const archive of archives) {
+    if (!archive.exists || archive.status !== "present") {
+      continue;
+    }
+    const queryableChapters = await new WikiGraphArchiveFile(
+      archive.path,
+    ).readDocument(
+      async (archiveDocument) =>
+        await listArchiveQueryableChapterIds(archiveDocument),
+    );
+    if (queryableChapters.length > 0) {
+      return;
+    }
+  }
+
+  throw new Error(
+    "Wiki Graph library query is not ready. No chapters in this library have a current FTS artifact or source embedding artifact.",
+  );
 }
 
 export async function queryWikiGraphLibrarySearchIndex(
@@ -478,8 +528,6 @@ async function replaceLibrarySearchIndex(
     for (const archive of archives) {
       await new WikiGraphArchiveFile(archive.path).readDocument(
         async (archiveDocument) => {
-          await assertArchiveIndexArtifactsReady(archiveDocument);
-
           for await (const batch of streamArchiveIndexProjection(
             archiveDocument,
             archive.id,
