@@ -17,6 +17,7 @@ import {
   LEGACY_SEARCH_INDEX_DATABASE_PATH,
   WIKG_MANIFEST_PATH,
 } from "../wikg/archive/constants.js";
+import { DATABASE_ENTRY_PATH } from "../wikg/wikg-coordinator/constants.js";
 import { extractWikgArchive } from "../wikg/archive/extract.js";
 import { parseWikgManifest } from "../wikg/archive/manifest.js";
 import { normalizeArchivePath } from "../wikg/archive/paths.js";
@@ -233,7 +234,7 @@ async function createArchiveDatabaseUpgradeOverlay(
   temporaryDirectories: string[],
 ): Promise<
   | {
-      readonly entryPath: "database.db";
+      readonly entryPath: typeof DATABASE_ENTRY_PATH;
       readonly kind: "file";
       readonly workspacePath: string;
     }
@@ -253,13 +254,13 @@ async function createArchiveDatabaseUpgradeOverlay(
     await document.release();
   }
 
-  const databasePath = join(temporaryDirectory, "database.db");
+  const databasePath = join(temporaryDirectory, DATABASE_ENTRY_PATH);
   if (!(await pathExists(databasePath))) {
     return undefined;
   }
 
   return {
-    entryPath: "database.db",
+    entryPath: DATABASE_ENTRY_PATH,
     kind: "file",
     workspacePath: databasePath,
   };

@@ -39,6 +39,11 @@ import {
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
 } from "../../../../packages/core/src/storage/wikg/index.js";
+import { isWikgArchivePath } from "../../../../packages/core/src/storage/wikg/archive/paths.js";
+import {
+  openIndexedArchive,
+  readArchiveEntryBuffer,
+} from "../../../../packages/core/src/storage/wikg/archive/zip.js";
 import { createArchiveKey } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/archive-key.js";
 import { withStateDatabase } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
 import {
@@ -93,9 +98,16 @@ describe("schema-upgrade", () => {
       const unpackedPath = join(root, "unpacked");
 
       await writeSourcedArchiveWithSchemaVersion(archivePath, 2);
+      const mutationTokenBefore = await readRawWikgArchiveEntry(
+        archivePath,
+        WIKG_MUTATION_TOKEN_PATH,
+      );
 
       await upgradeWikiGraphArchiveSchema(archivePath);
 
+      await expect(
+        readWikgArchiveEntry(archivePath, WIKG_MUTATION_TOKEN_PATH),
+      ).resolves.toEqual(mutationTokenBefore);
       await expect(
         readWikiGraphArchiveSchemaVersion(archivePath),
       ).resolves.toBe(3);
@@ -1205,11 +1217,24 @@ async function listTestArchiveFiles(
 }
 
 function isTestArchiveDocumentPath(archivePath: string): boolean {
-  return (
-    archivePath === "database.db" ||
-    archivePath === "toc.json" ||
-    /^texts\/(?:source|summary)\/\d+\.txt$/u.test(archivePath)
-  );
+  return isWikgArchivePath(archivePath);
+}
+
+async function readRawWikgArchiveEntry(
+  archivePath: string,
+  entryPath: string,
+): Promise<Buffer | undefined> {
+  const { entries, zipFile } = await openIndexedArchive(archivePath);
+
+  try {
+    const entry = entries.find((candidate) => candidate.fileName === entryPath);
+
+    return entry === undefined
+      ? undefined
+      : await readArchiveEntryBuffer(archivePath, entry);
+  } finally {
+    zipFile.close();
+  }
 }
 
 async function writeZipFile(

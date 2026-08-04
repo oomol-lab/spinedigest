@@ -1,5 +1,5 @@
 import { stat } from "fs/promises";
-import { join } from "path";
+import { join, resolve } from "path";
 
 import { isNodeError } from "../../utils/node-error.js";
 import { Database } from "../database.js";
@@ -10,7 +10,20 @@ import {
 import type { DocumentFileStore } from "./types.js";
 import { SEARCH_INDEX_VERSION } from "../../retrieval/search-index/search/types.js";
 
+const searchIndexLifecycleLocks = new Map<string, Promise<void>>();
+
 export async function openSearchIndexDatabase<T>(input: {
+  readonly documentPath: string;
+  readonly fileStore: DocumentFileStore;
+  readonly operation: (database: Database) => Promise<T> | T;
+  readonly readonly: boolean;
+}): Promise<T> {
+  return await withSearchIndexLifecycleLock(resolve(input.documentPath), () =>
+    openSearchIndexDatabaseLocked(input),
+  );
+}
+
+async function openSearchIndexDatabaseLocked<T>(input: {
   readonly documentPath: string;
   readonly fileStore: DocumentFileStore;
   readonly operation: (database: Database) => Promise<T> | T;
@@ -61,6 +74,30 @@ export async function openSearchIndexDatabase<T>(input: {
     return await input.operation(database);
   } finally {
     await database.close();
+  }
+}
+
+async function withSearchIndexLifecycleLock<T>(
+  key: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = searchIndexLifecycleLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const lock = new Promise<void>((resolveLock) => {
+    release = resolveLock;
+  });
+  const current = previous.then(() => lock);
+  searchIndexLifecycleLocks.set(key, current);
+
+  await previous;
+
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (searchIndexLifecycleLocks.get(key) === current) {
+      searchIndexLifecycleLocks.delete(key);
+    }
   }
 }
 
