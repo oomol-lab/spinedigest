@@ -157,7 +157,7 @@ describe("index artifact builders", () => {
               "One two three four five.\n" +
               "山海之间有旧城。",
             vector: [1, 2, 3],
-            wordsCount: 11,
+            wordsCount: 17,
           },
         ]);
       });

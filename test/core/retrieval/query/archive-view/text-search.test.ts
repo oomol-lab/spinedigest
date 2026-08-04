@@ -552,14 +552,14 @@ describe("archive/query/archive-view/text search", () => {
             version: 1,
           });
         });
-        await rebuildArchiveSearchIndex(document);
-
         const archiveKey = `${path}/book.wikg`;
+        await rebuildArchiveSearchIndex(document, { chapters: [1] });
         const chapterOne = await findArchiveObjects(document, "Cache Split", {
           archiveKey,
           chapters: [1],
           types: ["entity"],
         });
+        await rebuildArchiveSearchIndex(document, { chapters: [2] });
         const chapterTwo = await findArchiveObjects(document, "Cache Split", {
           archiveKey,
           chapters: [2],

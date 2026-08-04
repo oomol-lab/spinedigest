@@ -76,11 +76,12 @@ export {
 
 export async function rebuildArchiveSearchIndex(
   document: DirectoryDocument,
+  options: Parameters<typeof rebuildArchiveSearchIndexCore>[2] = {},
 ): Promise<void> {
   for (const serialId of listTocSerialIdsForTest(await document.readToc())) {
     await replaceChapterFtsIndexArtifact(document, serialId);
   }
-  await rebuildArchiveSearchIndexCore(document);
+  await rebuildArchiveSearchIndexCore(document, undefined, options);
 }
 
 export async function seedSourcedDocument(
