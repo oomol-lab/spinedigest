@@ -8,6 +8,7 @@ import {
   getCLIEnv,
   getCLIStateDir,
 } from "./context.js";
+import { DANGEROUS_RUNTIME_ENV_NAMES } from "./entry-context.js";
 
 export type InternalChildKind = "gc-worker" | "queue-worker";
 
@@ -29,9 +30,13 @@ export function spawnInternalChild(
   return spawn(command.command, command.args, {
     cwd: getCLICwd(),
     detached: options.detached === true,
-    env: getCLIEnv(),
+    env: createInternalChildEnvironment(),
     stdio: options.detached === true ? "ignore" : ["ignore", "pipe", "pipe"],
   });
+}
+
+export function createInternalChildEnvironmentForTesting(): NodeJS.ProcessEnv {
+  return createInternalChildEnvironment();
 }
 
 export async function runInternalChildJSON<T>(
@@ -108,6 +113,16 @@ function createInternalChildCommand(
     ],
     command: process.execPath,
   };
+}
+
+function createInternalChildEnvironment(): NodeJS.ProcessEnv {
+  const environment = { ...getCLIEnv() };
+
+  for (const name of DANGEROUS_RUNTIME_ENV_NAMES) {
+    delete environment[name];
+  }
+
+  return environment;
 }
 
 function resolveProductionEntryPath(kind: InternalChildKind): string {

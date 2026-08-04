@@ -16,7 +16,7 @@ export interface WikiGraphEntryRuntimeContext {
   readonly stateDir?: string | undefined;
 }
 
-const DANGEROUS_RUNTIME_ENV_NAMES = [
+export const DANGEROUS_RUNTIME_ENV_NAMES = [
   "WIKIGRAPH_DEV",
   "WIKIGRAPH_ENV_POLICY",
   "WIKIGRAPH_QUEUE_DISABLE_AUTOSTART",

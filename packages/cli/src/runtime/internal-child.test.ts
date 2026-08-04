@@ -5,7 +5,10 @@ import {
   withWikiGraphCLIRuntimeContext,
   type WikiGraphCLIRuntimeContext,
 } from "./context.js";
-import { createInternalChildCommandForTesting } from "./internal-child.js";
+import {
+  createInternalChildCommandForTesting,
+  createInternalChildEnvironmentForTesting,
+} from "./internal-child.js";
 
 describe("runtime/internal-child", () => {
   it("uses source worker entries from the development runtime context", async () => {
@@ -50,6 +53,30 @@ describe("runtime/internal-child", () => {
         join(process.cwd(), "packages", "cli", "dist", "gc-worker.js"),
       );
     });
+  });
+
+  it("does not pass parent runtime override env to internal children", async () => {
+    await withRuntimeContext(
+      {
+        env: {
+          ...process.env,
+          WIKIGRAPH_DEV: "/tmp/dev-state",
+          WIKIGRAPH_ENV_POLICY: "development",
+          WIKIGRAPH_QUEUE_DISABLE_AUTOSTART: "1",
+          WIKIGRAPH_STATE_DIR: "/tmp/state",
+          WIKIGRAPH_TEST_VALUE: "kept",
+        },
+      },
+      () => {
+        const environment = createInternalChildEnvironmentForTesting();
+
+        expect(environment.WIKIGRAPH_TEST_VALUE).toBe("kept");
+        expect(environment.WIKIGRAPH_DEV).toBeUndefined();
+        expect(environment.WIKIGRAPH_ENV_POLICY).toBeUndefined();
+        expect(environment.WIKIGRAPH_QUEUE_DISABLE_AUTOSTART).toBeUndefined();
+        expect(environment.WIKIGRAPH_STATE_DIR).toBeUndefined();
+      },
+    );
   });
 });
 
