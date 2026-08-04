@@ -2,6 +2,7 @@ import { createReadStream, createWriteStream } from "fs";
 import { mkdir } from "fs/promises";
 import { dirname } from "path";
 import { createInterface } from "readline";
+import type { Writable } from "stream";
 import { z } from "zod";
 
 import type {
@@ -69,13 +70,22 @@ export async function writeIndexArtifactOutput(
   await mkdir(dirname(path), { recursive: true });
   const stream = createWriteStream(path, { encoding: "utf8", flags: "w" });
 
+  await writeIndexArtifactOutputToStream(stream, artifact);
+}
+
+export async function writeIndexArtifactOutputToStream(
+  stream: Writable,
+  artifact: IndexArtifactOutput,
+): Promise<void> {
+  const streamErrors = createWritableStreamErrorTracker(stream);
+
   try {
     const manifest = createOutputManifest(artifact);
 
-    await writeJSONLRecord(stream, manifest);
+    await writeJSONLRecord(stream, streamErrors, manifest);
     if ("lexicalRows" in artifact) {
       for (const row of artifact.lexicalRows) {
-        await writeJSONLRecord(stream, {
+        await writeJSONLRecord(stream, streamErrors, {
           type: "lexical-row",
           ...omitEmptyMetadata(row),
         });
@@ -84,10 +94,18 @@ export async function writeIndexArtifactOutput(
     }
 
     for (const segment of artifact.segments) {
-      await writeJSONLRecord(stream, { type: "segment", ...segment });
+      await writeJSONLRecord(stream, streamErrors, {
+        type: "segment",
+        ...segment,
+      });
     }
   } finally {
-    await closeWritableStream(stream);
+    try {
+      await closeWritableStream(stream, streamErrors);
+    } finally {
+      await waitForPendingWritableStreamErrors();
+      streamErrors.dispose();
+    }
   }
 }
 
@@ -379,70 +397,164 @@ function omitEmptyMetadata<T extends { readonly metadata: unknown }>(
   return record;
 }
 
-async function closeWritableStream(
-  stream: NodeJS.WritableStream,
-): Promise<void> {
-  await new Promise<void>((resolveClose, rejectClose) => {
-    stream.end((error?: Error | null) => {
-      if (error !== undefined && error !== null) {
-        rejectClose(error);
-        return;
+function createWritableStreamErrorTracker(stream: Writable): {
+  readonly dispose: () => void;
+  readonly race: <T>(operation: Promise<T>) => Promise<T>;
+} {
+  let streamError: Error | undefined;
+  const waiters = new Set<(error: Error) => void>();
+  const onError = (error: Error) => {
+    streamError ??= error;
+    for (const reject of waiters) {
+      reject(streamError);
+    }
+  };
+
+  stream.on("error", onError);
+
+  return {
+    dispose() {
+      stream.off("error", onError);
+      waiters.clear();
+    },
+    race<T>(operation: Promise<T>): Promise<T> {
+      if (streamError !== undefined) {
+        return Promise.reject(streamError);
       }
 
-      resolveClose();
-    });
+      return new Promise<T>((resolve, reject) => {
+        const rejectOnStreamError = (error: Error) => reject(error);
+        const cleanup = () => {
+          waiters.delete(rejectOnStreamError);
+        };
+
+        waiters.add(rejectOnStreamError);
+        operation.then(
+          (value) => {
+            cleanup();
+            resolve(value);
+          },
+          (error: unknown) => {
+            cleanup();
+            reject(toError(error));
+          },
+        );
+      });
+    },
+  };
+}
+
+async function closeWritableStream(
+  stream: Writable,
+  streamErrors: ReturnType<typeof createWritableStreamErrorTracker>,
+): Promise<void> {
+  if (stream.closed) {
+    return;
+  }
+
+  const closePromise = waitForWritableStreamClose(stream);
+
+  if (stream.destroyed) {
+    await streamErrors.race(closePromise);
+    return;
+  }
+
+  await streamErrors.race(
+    new Promise<void>((resolveClose, rejectClose) => {
+      try {
+        stream.end((error?: Error | null) => {
+          if (error !== undefined && error !== null) {
+            rejectClose(error);
+            return;
+          }
+
+          resolveClose();
+        });
+      } catch (error) {
+        rejectClose(toError(error));
+      }
+    }),
+  );
+
+  await streamErrors.race(closePromise);
+}
+
+function waitForWritableStreamClose(stream: Writable): Promise<void> {
+  if (stream.closed) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    stream.once("close", resolve);
   });
 }
 
+function waitForPendingWritableStreamErrors(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
+function toError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error(String(error));
+}
+
 async function writeJSONLRecord(
-  stream: NodeJS.WritableStream,
+  stream: Writable,
+  streamErrors: ReturnType<typeof createWritableStreamErrorTracker>,
   record: unknown,
 ): Promise<void> {
-  await new Promise<void>((resolveWrite, rejectWrite) => {
-    let drainDone = false;
-    let needsDrain = false;
-    let settled = false;
-    let writeDone = false;
+  await streamErrors.race(
+    new Promise<void>((resolveWrite, rejectWrite) => {
+      let drainDone = false;
+      let needsDrain = false;
+      let settled = false;
+      let writeDone = false;
 
-    const cleanup = () => {
-      stream.off("drain", onDrain);
-      stream.off("error", onError);
-    };
-    const settle = (error?: Error | null) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      cleanup();
-      if (error !== undefined && error !== null) {
-        rejectWrite(error);
-        return;
-      }
-      resolveWrite();
-    };
-    const maybeSettle = () => {
-      if (writeDone && (!needsDrain || drainDone)) {
-        settle();
-      }
-    };
-    const onDrain = () => {
-      drainDone = true;
-      maybeSettle();
-    };
-    const onError = (error: Error) => settle(error);
+      const cleanup = () => {
+        stream.off("drain", onDrain);
+      };
+      const settle = (error?: Error | null) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        if (error !== undefined && error !== null) {
+          rejectWrite(error);
+          return;
+        }
+        resolveWrite();
+      };
+      const maybeSettle = () => {
+        if (writeDone && (!needsDrain || drainDone)) {
+          settle();
+        }
+      };
+      const onDrain = () => {
+        drainDone = true;
+        maybeSettle();
+      };
 
-    stream.once("error", onError);
-    const canContinue = stream.write(`${JSON.stringify(record)}\n`, (error) => {
-      if (error !== undefined && error !== null) {
-        settle(error);
-        return;
+      const canContinue = stream.write(
+        `${JSON.stringify(record)}\n`,
+        (error) => {
+          if (error !== undefined && error !== null) {
+            settle(error);
+            return;
+          }
+          writeDone = true;
+          maybeSettle();
+        },
+      );
+      if (!canContinue) {
+        needsDrain = true;
+        stream.once("drain", onDrain);
       }
-      writeDone = true;
-      maybeSettle();
-    });
-    if (!canContinue) {
-      needsDrain = true;
-      stream.once("drain", onDrain);
-    }
-  });
+    }),
+  );
 }
