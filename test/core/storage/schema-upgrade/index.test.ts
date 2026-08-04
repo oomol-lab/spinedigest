@@ -115,8 +115,8 @@ describe("schema-upgrade", () => {
         expect(ftsArtifact).toMatchObject({
           kind: "fts",
           serialId: 1,
-          sourceRevision: expect.any(Number),
         });
+        expect(typeof ftsArtifact?.sourceRevision).toBe("number");
         expect(lexicalRows.some((row) => row.text.includes("Salvaged"))).toBe(
           true,
         );

@@ -30,7 +30,7 @@ describe("DirectoryDocument search index cache", () => {
       await writeIncompatibleCache(document);
 
       await expect(
-        document.readSearchIndexDatabase(async () => "unreachable"),
+        document.readSearchIndexDatabase(() => "unreachable"),
       ).rejects.toThrow("Search index cache is missing: index.db");
       await expect(stat(join(path, "index.db"))).rejects.toThrow();
     });
