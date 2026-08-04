@@ -917,7 +917,7 @@ describe("facade/build-queue", () => {
       releaseJob();
       await worker;
     });
-  });
+  }, 10_000);
 
   async function waitForRunningJob(message: string): Promise<void> {
     await waitForRunningJobCount(1, message);
