@@ -116,6 +116,74 @@ describe("archive/query/archive-view/graph search", () => {
     });
   });
 
+  it("promotes object bucket hits from matching source sentence evidence", async () => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          const draft = await openedDocument
+            .getSerialFragments(1)
+            .createDraft();
+
+          draft.addSentence("alpha beta appears beside an unnamed person.", 7);
+          await draft.commit();
+          await openedDocument.mentions.save({
+            chapterId: 1,
+            id: "mention-gamma",
+            qid: "QGamma",
+            rangeEnd: 31,
+            rangeStart: 17,
+            sentenceIndex: 0,
+            surface: "unnamed person",
+          });
+          await openedDocument.writeBookMeta({
+            authors: [],
+            description: null,
+            identifier: null,
+            language: "en",
+            publishedAt: null,
+            publisher: null,
+            sourceFormat: "markdown",
+            title: "Evidence Ranking Fixture",
+            version: 1,
+          });
+          await openedDocument.writeToc({
+            items: [
+              {
+                children: [],
+                serialId: 1,
+                title: "Evidence",
+              },
+            ],
+            version: 1,
+          });
+        });
+        await rebuildArchiveSearchIndex(document);
+
+        const result = await findArchiveObjects(document, "alpha beta", {
+          evidenceLimit: 3,
+          limit: 3,
+        });
+
+        expect(result.items[0]).toMatchObject({
+          id: "wikg://entity/QGamma",
+          type: "entity",
+        });
+        expect(result.items[0]?.evidence).toMatchObject({
+          shown: 1,
+          total: 1,
+        });
+      } finally {
+        restoreWikiGraphStateDir(previousStateDir);
+        await document.release();
+      }
+    });
+  });
+
   it("hydrates entity evidence after reading a search session page", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = getWikiGraphStateDirectoryPathForTesting();

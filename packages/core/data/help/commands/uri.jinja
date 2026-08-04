@@ -13,6 +13,7 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates archive-level objects.
   - `{{ commandName }} {{ uri }} --query <query>` applies search index retrieval across archive scopes.
+  - Broad query results are bucketed by object family: chapter/title hits, graph objects, chunks, then text streams.
   - Query is strict by default; add `--skip-unindexed` only to intentionally search indexed chapters and ignore uncovered chapters.
 
 Use when:
@@ -43,6 +44,7 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates objects inside this chapter subtree.
   - `{{ commandName }} {{ uri }} --query <query>` applies search index retrieval inside this chapter subtree.
+  - Broad query results are bucketed by object family: chapter/title hits, graph objects, chunks, then text streams.
   - Query is strict by default; add `--skip-unindexed` only to intentionally search indexed chapters and ignore uncovered chapters.
   - Use `--depth 0` to restrict the scope to this chapter only; `--depth 1` includes direct children.
   - The path in this URI is the public CLI handle for the chapter; internal chapter ids are not command targets.
@@ -135,6 +137,7 @@ Default behavior:
   - Summary range fragments such as `#4..8` read sentence numbers 4 through 8, inclusive.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
   - Whole summary reads are plain text streams and do not support `--json`; summary range fragments are structured range objects and support `--json`.
+  - Summary readiness means a summary object exists and is current for the chapter source. It does not guarantee the prose answers every question about the chapter.
 
 Use when:
   - You need compact readable prose before tracing source evidence.
@@ -186,6 +189,7 @@ Default behavior:
 Use when:
   - You need to build or delete one chapter-level index artifact stored in the `.wikg` archive.
   - Use `/index/fts` for lexical retrieval, `/index/embedding/source` for Dense source retrieval, or `/index/embedding/summary` for Dense summary retrieval.
+  - Build enqueues a local job; read the returned job status or watch the job before assuming the artifact is ready.
 {% elif target.name == "chunk-object" %}
 URI type:
   Chunk object
@@ -247,6 +251,7 @@ URI type:
 
 Default behavior:
   - `{{ commandName }} {{ uri }}` shows local generation jobs.
+  - Use `--json` for a machine-readable job list. Job list does not support `--jsonl`; `watch --jsonl` is the streaming job interface.
 
 Use when:
   - You need to inspect, add, or clean local generation jobs.

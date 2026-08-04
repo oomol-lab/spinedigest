@@ -37,6 +37,7 @@ import {
 import {
   assertSearchCursorTypesMatch,
   createEntitySearchCacheInput,
+  createSentenceEvidenceSearchCacheInput,
 } from "./cache-input.js";
 import { findEntities, findTriples } from "../find.js";
 import {
@@ -244,7 +245,7 @@ async function readObjectBucketPage(
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
   if (!session.objectCachesPopulated) {
-    await populateObjectBucketCaches(document, session, options);
+    await populateObjectBucketCaches(document, session, limit, options);
   }
   const page = await readSearchSessionObjectBucketPage(
     session.sessionId,
@@ -278,6 +279,7 @@ async function readObjectBucketPage(
 async function populateObjectBucketCaches(
   document: ReadonlyDocument,
   session: SearchSessionDescriptor,
+  limit: number,
   options: ArchiveFindOptions,
 ): Promise<void> {
   const search = createLexicalQuery(session.query);
@@ -297,7 +299,7 @@ async function populateObjectBucketCaches(
         : { embeddingProvider: options.embeddingProvider }),
       match: parseFindMatch(session.match),
       objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
-      textHitLimit: 0,
+      textHitLimit: createBucketQueryWindow(limit),
       types: null,
     }),
   ]);
@@ -309,11 +311,24 @@ async function populateObjectBucketCaches(
     structuredHits,
     indexed,
   );
+  const sentenceCacheInput = await createSentenceEvidenceSearchCacheInput(
+    document,
+    indexed,
+    options,
+  );
 
   await populateSearchSessionObjectCaches({
-    entityHits: entityCacheInput.entityHits,
-    evidenceEvents: entityCacheInput.evidenceEvents,
+    chunkHits: sentenceCacheInput.chunkHits,
+    entityHits: [
+      ...entityCacheInput.entityHits,
+      ...sentenceCacheInput.entityHits,
+    ],
+    evidenceEvents: [
+      ...entityCacheInput.evidenceEvents,
+      ...sentenceCacheInput.evidenceEvents,
+    ],
     sessionId: session.sessionId,
+    tripleHits: sentenceCacheInput.tripleHits,
   });
 }
 

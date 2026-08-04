@@ -29,15 +29,19 @@ Archive index readiness:
   Cache behavior:
     `{{ commandName }} <archive-uri>/index sync` builds or repairs local `index.db` cache from artifacts.
     Sync does not build missing artifacts and does not call an embeddings provider.
-    Free archive query can lazy-sync the cache on first use, but explicit sync avoids the first-query delay.
+    Archive-level query can create a missing cache from current artifacts on first use, but explicit sync avoids the first-query delay.
+    If query reports a missing or outdated cache, run `{{ commandName }} <archive-uri>/index sync`; library query always requires a current library cache.
     `{{ commandName }} <archive-uri>/index clean` deletes only the local cache.
 
   Query behavior:
     FTS artifact only: FTS query.
     Source embedding artifact only: semantic/Dense-only query.
     Both artifacts: Hybrid query with automatic fusion.
+    Broad query is grouped by result type first: chapter/title, object, chunk, then source/summary text.
+    FTS, Dense, and Hybrid ranking affect ordering inside those result groups and evidence-backed object ranking; they do not flatten the type groups into one global rerank.
     Missing both FTS and source embedding for any content chapter in scope: ordinary query fails.
     Add `--skip-unindexed` to a scope query, `related --query`, or `evidence --query` only when you want to search indexed chapters and ignore uncovered chapters.
+    Results produced with `--skip-unindexed` are intentionally partial; inspect coverage before treating absent chapters as negative evidence.
     Summary embedding artifacts are for summary semantic retrieval and are not the minimum requirement for ordinary source query.
 
   Commands:
@@ -142,6 +146,7 @@ WikiSpine readiness:
 How to choose:
   - Need lexical retrieval: build chapter FTS artifacts, then sync cache if you do not want lazy sync.
   - Need semantic retrieval: configure embeddings, build source embedding artifacts, then sync cache.
+  - Need both lexical and semantic retrieval: build both FTS and source embedding artifacts; query chooses Hybrid automatically.
   - Need searchable retrieval across a managed folder: sync the library index cache.
   - Need to intentionally drop local cache: clean index cache; artifacts remain in the archive.
   - Need generated Reading Graph or summaries: configure LLM and use local jobs.

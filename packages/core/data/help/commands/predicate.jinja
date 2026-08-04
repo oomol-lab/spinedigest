@@ -112,15 +112,18 @@ Usage:
 
 Notes:
   - This command enqueues work; it does not wait for the artifact to be built.
-  - A queued response means the artifact is not ready yet. Use the returned job id with `wg wikg://local/job/<job-id> watch` to follow progress.
+  - A queued response means the artifact is not ready yet. Use the returned job id with `{{ commandName }} wikg://local/job/<job-id> watch` to follow progress.
+{% if "/index/fts" in uri %}
   - FTS artifacts are local compilation work and do not call a provider.
+{% else %}
   - Source and summary embedding artifacts require `wikg://local/config/embeddings` and may call the configured provider.
-  - Direct artifact build is an explicit build request; it does not use `--accept-cost`.
   - Building an embedding artifact can immediately enqueue or run provider-backed work and may incur provider cost.
+{% endif %}
+  - Direct artifact build is an explicit build request; it does not use `--accept-cost`.
 {% if "/index/embedding/summary" in uri %}
   - Summary embedding artifacts require an existing non-empty chapter summary.
 {% endif %}
-  - After artifacts change, sync the archive or library index cache before library query; free archive query can lazy-sync on first use.
+  - After artifacts change, sync the archive or library index cache before library query; archive-level query can create a missing archive cache from current artifacts on first use.
 {% elif predicate == "add" and target.name == "chapter-collection-scope" %}
 Purpose:
   Add a chapter to the archive.
@@ -411,7 +414,8 @@ Notes:
   - It reads chapter index artifacts from the archive and does not call an embeddings provider.
   - If required chapter artifacts are missing, sync reports that artifact readiness problem instead of building them.
   - Add `--skip-unindexed` only when you intentionally want the cache to include indexed chapters and ignore uncovered chapters.
-  - Free archive query can lazy-sync this cache, but explicit sync avoids the first-query delay.
+  - Archive-level query can create a missing cache from current artifacts on first use, but explicit sync avoids the first-query delay.
+  - If query reports a missing or outdated cache, run this sync command before retrying.
   - With `--jsonl`, progress is emitted as line-delimited event records.
 {% endif %}
 {% elif predicate == "clean" and target.name == "index-object" %}
@@ -424,7 +428,7 @@ Usage:
 Notes:
   - This removes local `index.db` cache data only.
   - It does not delete chapter index artifacts, Knowledge Graph, Reading Graph, Summary, source text, or library membership.
-  - Free archive query can recreate an archive cache from artifacts.
+  - Archive query can recreate an archive cache from artifacts when the selected scope supports lazy cache creation.
 {% elif predicate == "clean" %}
 Purpose:
   Remove completed local generation jobs.

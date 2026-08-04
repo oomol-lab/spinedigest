@@ -388,7 +388,13 @@ describe("cli/args/help", () => {
       "`wg <archive-uri>/index sync` builds or repairs local `index.db` cache from artifacts",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "Free archive query can lazy-sync the cache on first use",
+      "Archive-level query can create a missing cache from current artifacts on first use",
+    );
+    expect(renderHelpTopicText("readiness")).toContain(
+      "Broad query is grouped by result type first",
+    );
+    expect(renderHelpTopicText("readiness")).toContain(
+      "FTS, Dense, and Hybrid ranking affect ordering inside those result groups",
     );
     expect(renderHelpTopicText("readiness")).toContain(
       "wg <archive-uri>/index sync --help",
@@ -572,6 +578,15 @@ describe("cli/args/help", () => {
     expect(
       renderUriHelpText("job-collection-scope", "wikg://local/job"),
     ).toContain("generation jobs can consume model/runtime cost");
+    expect(
+      renderUriHelpText("job-collection-scope", "wikg://local/job"),
+    ).toContain("Job list does not support `--jsonl`");
+    expect(
+      renderUriHelpText(
+        "chapter-summary-object",
+        "wikg://book.wikg/chapter/part/summary",
+      ),
+    ).toContain("does not guarantee the prose answers every question");
     expect(
       renderUriPredicateHelpText(
         "job-collection-scope",
