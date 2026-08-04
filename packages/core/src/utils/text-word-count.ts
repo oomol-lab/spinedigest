@@ -1,5 +1,6 @@
 const HAN_CHARACTER_PATTERN = /\p{Script=Han}/u;
 const WORD_CHARACTER_PATTERN = /[\p{Letter}\p{Number}]/u;
+const WORD_MARK_PATTERN = /\p{Mark}/u;
 
 export function countTextWords(text: string): number {
   let words = 0;
@@ -17,6 +18,10 @@ export function countTextWords(text: string): number {
         words += 1;
       }
       inWord = true;
+      continue;
+    }
+
+    if (inWord && WORD_MARK_PATTERN.test(character)) {
       continue;
     }
 

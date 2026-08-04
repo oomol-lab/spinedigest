@@ -477,7 +477,11 @@ describe("cli/archive/object", () => {
           totalWords: 1200,
         },
       },
-      help: { readiness: "wg help readiness" },
+      help: {
+        readiness: "wg help readiness",
+        summaryCoverage:
+          "Summary coverage means a current summary artifact exists for the chapter; it does not guarantee that every source topic is represented in the summary text.",
+      },
     });
     expect(output.retrievalGuidance).toEqual(
       expect.arrayContaining([

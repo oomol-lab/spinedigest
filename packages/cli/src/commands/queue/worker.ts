@@ -45,6 +45,37 @@ import {
 import { buildSearchIndexEmbeddingProvider } from "../../runtime/embedding.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "../../support/index.js";
 
+interface IndexArtifactJobChunkSnapshot {
+  readonly content: string;
+  readonly id: number;
+  readonly label: string;
+  readonly wordsCount: number;
+}
+
+interface IndexArtifactJobMentionSnapshot {
+  readonly id: string;
+  readonly qid: string;
+  readonly surface: string;
+}
+
+interface IndexArtifactJobTocItemSnapshot {
+  readonly children: readonly IndexArtifactJobTocItemSnapshot[];
+  readonly serialId?: number | undefined;
+  readonly title?: string | null | undefined;
+}
+
+interface IndexArtifactJobSnapshot {
+  readonly chapterTitles: readonly {
+    readonly id: number;
+    readonly title: string;
+  }[];
+  readonly chunks: readonly IndexArtifactJobChunkSnapshot[];
+  readonly mentions: readonly IndexArtifactJobMentionSnapshot[];
+  readonly revision: number;
+  readonly sentences: readonly SentenceRecord[];
+  readonly summarySentences: readonly SentenceRecord[];
+}
+
 export async function runQueueWorker(): Promise<void> {
   const config = await loadCLIConfig();
 
@@ -360,9 +391,13 @@ async function executeIndexArtifactBuildJob(
     await writeIndexArtifactOutput(
       outputPath,
       createFtsIndexArtifactInput({
+        chapterTitles: snapshot.chapterTitles,
+        chunks: snapshot.chunks,
+        mentions: snapshot.mentions,
         sentences: snapshot.sentences,
         serialId: job.chapterId,
         sourceRevision: snapshot.revision,
+        summarySentences: snapshot.summarySentences,
       }),
     );
     const artifact = await readIndexArtifactOutput(outputPath);
@@ -433,10 +468,9 @@ async function completeIndexArtifactStep(
   assertJobStillRunning(await getBuildJob(job.jobId));
 }
 
-async function readIndexArtifactJobSnapshot(job: BuildJob): Promise<{
-  readonly revision: number;
-  readonly sentences: readonly SentenceRecord[];
-}> {
+async function readIndexArtifactJobSnapshot(
+  job: BuildJob,
+): Promise<IndexArtifactJobSnapshot> {
   return await new WikiGraphArchiveFile(job.archivePath).readDocument(
     async (document) => {
       await assertJobChapterExists(document, job.chapterId);
@@ -458,12 +492,70 @@ async function readIndexArtifactJobSnapshot(job: BuildJob): Promise<{
         throw new Error("Text stream does not expose sentence listing.");
       }
 
+      const sentences = await stream.listSentences();
+      if (job.target !== "index-fts") {
+        return {
+          chapterTitles: [],
+          chunks: [],
+          mentions: [],
+          revision,
+          sentences,
+          summarySentences: [],
+        };
+      }
+
       return {
+        chapterTitles: await readChapterTitles(document, job.chapterId),
+        chunks: await document.chunks.listBySerial(job.chapterId),
+        mentions: await document.mentions.listByChapter(job.chapterId),
         revision,
-        sentences: await stream.listSentences(),
+        sentences,
+        summarySentences: await listTextStreamSentences(
+          document.getSummaryFragments(job.chapterId),
+        ),
       };
     },
   );
+}
+
+async function listTextStreamSentences(stream: {
+  readonly listSentences?: () => Promise<readonly SentenceRecord[]>;
+}): Promise<readonly SentenceRecord[]> {
+  if (stream.listSentences === undefined) {
+    throw new Error("Text stream does not expose sentence listing.");
+  }
+
+  return await stream.listSentences();
+}
+
+async function readChapterTitles(
+  document: ReadonlyDocument,
+  serialId: number,
+): Promise<readonly { readonly id: number; readonly title: string }[]> {
+  const reader = document as ReadonlyDocument & {
+    readonly readToc?: () => Promise<
+      { readonly items: readonly IndexArtifactJobTocItemSnapshot[] } | undefined
+    >;
+  };
+  const toc = await reader.readToc?.();
+  if (toc === undefined) {
+    return [];
+  }
+
+  const chapter = collectTocItems(toc.items).find(
+    (item) => item.serialId === serialId,
+  );
+  if (chapter === undefined || typeof chapter.title !== "string") {
+    return [];
+  }
+
+  return [{ id: serialId, title: chapter.title }];
+}
+
+function collectTocItems(
+  items: readonly IndexArtifactJobTocItemSnapshot[],
+): readonly IndexArtifactJobTocItemSnapshot[] {
+  return items.flatMap((item) => [item, ...collectTocItems(item.children)]);
 }
 
 function resolveIndexArtifactOutputPath(job: BuildJob): string {

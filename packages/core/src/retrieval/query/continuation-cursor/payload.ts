@@ -334,17 +334,17 @@ function getPayloadOptionalInteger<K extends string>(
   throw new Error("Invalid continuation cursor payload.");
 }
 
-function getPayloadOptionalBoolean(
+function getPayloadOptionalBoolean<Key extends string>(
   payload: Readonly<Record<string, unknown>>,
-  key: string,
-): { readonly backlinks?: boolean } {
+  key: Key,
+): { readonly [Property in Key]?: boolean } {
   const value = payload[key];
 
   if (value === undefined) {
     return {};
   }
   if (typeof value === "boolean") {
-    return { backlinks: value };
+    return { [key]: value } as { readonly [Property in Key]?: boolean };
   }
 
   throw new Error("Invalid continuation cursor payload.");

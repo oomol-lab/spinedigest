@@ -236,6 +236,7 @@ export function parseCLIArguments(
 
   rejectNonGcForceFlag(positionals, values);
   rejectNonCreateReplaceFlag(positionals, values);
+  rejectNonWikiGraphSkipUnindexedFlag(positionals, values);
   rejectUnsupportedIndexesFlag(values.indexes);
 
   if (values.version === true) {
@@ -359,6 +360,30 @@ function rejectUnsupportedIndexesFlag(value: string | undefined): void {
   throw new Error(
     withHelpRoute(
       "The --indexes option has been removed. Build chapter index artifacts explicitly, then sync the archive or library index cache.",
+      CLI_HELP_ROUTES.root,
+    ),
+  );
+}
+
+function rejectNonWikiGraphSkipUnindexedFlag(
+  positionals: readonly string[],
+  values: { readonly "skip-unindexed"?: boolean },
+): void {
+  if (values["skip-unindexed"] !== true) {
+    return;
+  }
+
+  const command = positionals[0];
+  if (
+    command !== undefined &&
+    (isWikiGraphUri(command) || isWikiGraphLibraryUri(command))
+  ) {
+    return;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      "The current command does not support --skip-unindexed.",
       CLI_HELP_ROUTES.root,
     ),
   );

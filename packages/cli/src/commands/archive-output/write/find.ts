@@ -79,7 +79,9 @@ export async function writeAllFindHits(
     const page = await readPage(cursor);
 
     if (format === "jsonl") {
-      await writeFindHitsWithoutContinuation(page, context, format);
+      await writeFindHitsWithoutContinuation(page, context, format, {
+        emitWarnings: cursor === undefined,
+      });
     } else {
       pages.push(page);
     }
@@ -103,11 +105,13 @@ export async function writeFindHitsWithoutContinuation(
   result: ArchiveFindResult,
   context: ArchiveOutputContext,
   format: ResultFormat,
+  options: { readonly emitWarnings?: boolean } = {},
 ): Promise<void> {
   const objects = await Promise.all(
     result.items.map(async (item) => await createFindObject(item, context)),
   );
-  const warnings = createOutputWarnings(context);
+  const warnings =
+    (options.emitWarnings ?? true) ? createOutputWarnings(context) : [];
 
   if (format === "json") {
     await writeTextToStdout(

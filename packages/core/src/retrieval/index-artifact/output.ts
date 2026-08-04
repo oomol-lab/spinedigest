@@ -26,7 +26,7 @@ const manifestSchema = z.object({
   embedding: z
     .object({
       dimensions: z.number().int().nonnegative(),
-      identity: z.string(),
+      identity: z.string().optional(),
       model: z.string(),
     })
     .optional(),
@@ -72,18 +72,19 @@ export async function writeIndexArtifactOutput(
   try {
     const manifest = createOutputManifest(artifact);
 
-    stream.write(`${JSON.stringify(manifest)}\n`);
+    await writeJSONLRecord(stream, manifest);
     if ("lexicalRows" in artifact) {
       for (const row of artifact.lexicalRows) {
-        stream.write(
-          `${JSON.stringify({ type: "lexical-row", ...omitEmptyMetadata(row) })}\n`,
-        );
+        await writeJSONLRecord(stream, {
+          type: "lexical-row",
+          ...omitEmptyMetadata(row),
+        });
       }
       return;
     }
 
     for (const segment of artifact.segments) {
-      stream.write(`${JSON.stringify({ type: "segment", ...segment })}\n`);
+      await writeJSONLRecord(stream, { type: "segment", ...segment });
     }
   } finally {
     await closeWritableStream(stream);
@@ -150,7 +151,9 @@ export async function readIndexArtifactOutput(
     kind: manifest.artifactKind,
     metadata: {
       dimensions: manifest.embedding.dimensions,
-      identity: manifest.embedding.identity,
+      ...(manifest.embedding.identity === undefined
+        ? {}
+        : { identity: manifest.embedding.identity }),
       model: manifest.embedding.model,
       version: 1,
     },
@@ -173,16 +176,19 @@ function createOutputManifest(
     };
   }
 
-  const dimensions = readNumberMetadata(artifact.metadata, "dimensions");
+  const dimensions = readNonNegativeIntegerMetadata(
+    artifact.metadata,
+    "dimensions",
+  );
   const model = readRequiredStringMetadata(artifact.metadata, "model");
-  const identity = readRequiredStringMetadata(artifact.metadata, "identity");
+  const identity = readStringMetadata(artifact.metadata, "identity");
 
   return {
     artifactKind: artifact.kind,
     chapterId: artifact.serialId,
     embedding: {
       dimensions,
-      identity,
+      ...(identity === undefined ? {} : { identity }),
       model,
     },
     inputRevision: artifact.sourceRevision,
@@ -276,7 +282,7 @@ function assertEmbeddingManifest(
   readonly artifactKind: "embedding-source" | "embedding-summary";
   readonly embedding: {
     readonly dimensions: number;
-    readonly identity: string;
+    readonly identity?: string;
     readonly model: string;
   };
 } {
@@ -312,17 +318,19 @@ function isFtsOutputManifest(manifest: {
   return manifest.artifactKind === "fts";
 }
 
-function readNumberMetadata(
+function readNonNegativeIntegerMetadata(
   metadata: Readonly<Record<string, unknown>> | undefined,
   key: string,
 ): number {
   const value = metadata?.[key];
 
-  if (typeof value === "number" && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
     return value;
   }
 
-  throw new Error(`Embedding index artifact metadata is missing ${key}.`);
+  throw new Error(
+    `Embedding index artifact metadata ${key} must be a nonnegative integer.`,
+  );
 }
 
 function readStringMetadata(
@@ -383,5 +391,58 @@ async function closeWritableStream(
 
       resolveClose();
     });
+  });
+}
+
+async function writeJSONLRecord(
+  stream: NodeJS.WritableStream,
+  record: unknown,
+): Promise<void> {
+  await new Promise<void>((resolveWrite, rejectWrite) => {
+    let drainDone = false;
+    let needsDrain = false;
+    let settled = false;
+    let writeDone = false;
+
+    const cleanup = () => {
+      stream.off("drain", onDrain);
+      stream.off("error", onError);
+    };
+    const settle = (error?: Error | null) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      if (error !== undefined && error !== null) {
+        rejectWrite(error);
+        return;
+      }
+      resolveWrite();
+    };
+    const maybeSettle = () => {
+      if (writeDone && (!needsDrain || drainDone)) {
+        settle();
+      }
+    };
+    const onDrain = () => {
+      drainDone = true;
+      maybeSettle();
+    };
+    const onError = (error: Error) => settle(error);
+
+    stream.once("error", onError);
+    const canContinue = stream.write(`${JSON.stringify(record)}\n`, (error) => {
+      if (error !== undefined && error !== null) {
+        settle(error);
+        return;
+      }
+      writeDone = true;
+      maybeSettle();
+    });
+    if (!canContinue) {
+      needsDrain = true;
+      stream.once("drain", onDrain);
+    }
   });
 }

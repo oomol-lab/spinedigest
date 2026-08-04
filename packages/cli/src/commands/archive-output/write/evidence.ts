@@ -68,7 +68,9 @@ export async function writeAllEvidence(
     const page = await readPage(cursor);
 
     if (format === "jsonl") {
-      await writeEvidenceWithoutContinuation(page, context, format);
+      await writeEvidenceWithoutContinuation(page, context, format, {
+        emitWarnings: cursor === initialCursor,
+      });
     } else {
       pages.push(page);
     }
@@ -95,9 +97,11 @@ export async function writeEvidenceWithoutContinuation(
   evidence: ArchiveEvidence,
   context: ArchiveOutputContext,
   format: ResultFormat,
+  options: { readonly emitWarnings?: boolean } = {},
 ): Promise<void> {
   const objects = evidence.items.map(createSourceObject);
-  const warnings = createOutputWarnings(context);
+  const warnings =
+    (options.emitWarnings ?? true) ? createOutputWarnings(context) : [];
 
   if (format === "json") {
     await writeTextToStdout(

@@ -43,5 +43,11 @@ describe("cli/args/gc", () => {
     expect(() => parseCLIArguments(["gc", "--jsonl"])).toThrow(
       "The `gc` command does not support --jsonl",
     );
+    expect(() => parseCLIArguments(["gc", "--skip-unindexed"])).toThrow(
+      "The current command does not support --skip-unindexed.",
+    );
+    expect(() => parseCLIArguments(["transform", "--skip-unindexed"])).toThrow(
+      "The current command does not support --skip-unindexed.",
+    );
   });
 });

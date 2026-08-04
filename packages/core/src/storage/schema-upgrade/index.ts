@@ -332,7 +332,8 @@ async function repairTextSentenceWordCounts(
       }),
     ),
   );
-  const textCache = new Map<string, Buffer | undefined>();
+  let cachedTextKey: string | undefined;
+  let cachedTextBuffer: Buffer | undefined;
   const updates: Array<{
     readonly chapterId: number;
     readonly kind: number;
@@ -347,22 +348,21 @@ async function repairTextSentenceWordCounts(
     }
 
     const textKey = `${streamName}:${row.chapterId}`;
-    let textBuffer = textCache.get(textKey);
-
-    if (textBuffer === undefined) {
+    if (textKey !== cachedTextKey) {
+      cachedTextKey = textKey;
       const text =
         streamName === "source"
           ? await document.getSerialFragments(row.chapterId).readText()
           : await document.getSummaryFragments(row.chapterId).readText();
 
-      textBuffer = text === undefined ? undefined : Buffer.from(text, "utf8");
-      textCache.set(textKey, textBuffer);
+      cachedTextBuffer =
+        text === undefined ? undefined : Buffer.from(text, "utf8");
     }
-    if (textBuffer === undefined) {
+    if (cachedTextBuffer === undefined) {
       continue;
     }
 
-    const sentenceText = textBuffer
+    const sentenceText = cachedTextBuffer
       .subarray(row.byteOffset, row.byteOffset + row.byteLength)
       .toString("utf8");
     const wordsCount = countTextWords(sentenceText);

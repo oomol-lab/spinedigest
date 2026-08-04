@@ -283,16 +283,56 @@ describe("index artifact builders", () => {
       await rm(path, { force: true, recursive: true });
     }
   });
+
+  it("round-trips embedding output without provider identity", async () => {
+    const path = await mkdtemp(join(tmpdir(), "wikigraph-index-output-"));
+
+    try {
+      const outputPath = join(path, "index-artifact-output.jsonl");
+      const provider = createFakeEmbeddingProvider({ identity: undefined });
+      const artifact = await createEmbeddingIndexArtifactInput({
+        embeddingProvider: provider,
+        kind: "embedding-source",
+        sentences: [{ text: "Alpha beta.", wordsCount: 2 }],
+        serialId: 12,
+        sourceRevision: 3,
+      });
+
+      await writeIndexArtifactOutput(outputPath, artifact);
+
+      const output = await readIndexArtifactOutput(outputPath);
+      const lines = (await readFile(outputPath, "utf8")).trim().split("\n");
+
+      expect(JSON.parse(lines[0]!)).toStrictEqual({
+        artifactKind: "embedding-source",
+        chapterId: 12,
+        embedding: {
+          dimensions: 3,
+          model: "test-embedding",
+        },
+        inputRevision: 3,
+        protocol: "wikg-index-output/v1",
+        type: "manifest",
+      });
+      expect(output).toStrictEqual(artifact);
+    } finally {
+      await rm(path, { force: true, recursive: true });
+    }
+  });
 });
 
-function createFakeEmbeddingProvider(): SearchIndexEmbeddingProvider & {
+function createFakeEmbeddingProvider(
+  options: { readonly identity?: string | undefined } = {
+    identity: "provider=fake;model=test-embedding",
+  },
+): SearchIndexEmbeddingProvider & {
   readonly requests: string[][];
 } {
   const requests: string[][] = [];
 
   return {
     dimensions: 3,
-    identity: "provider=fake;model=test-embedding",
+    ...(options.identity === undefined ? {} : { identity: options.identity }),
     model: "test-embedding",
     requests,
     embedTexts(texts) {

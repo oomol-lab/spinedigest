@@ -83,6 +83,71 @@ describe("continuation cursor payload", () => {
     });
   });
 
+  it("round-trips skip-unindexed search cursors", () => {
+    const cursor: ContinuationCursor = {
+      archiveKey: "archive-key",
+      archivePath: "/tmp/book.wikg",
+      backlinks: false,
+      chapters: [1],
+      cursor: "raw-cursor",
+      format: "json",
+      indexScope: {
+        archiveKey: "archive-key",
+        archivePath: "/tmp/book.wikg",
+        kind: "archive-index",
+      },
+      kind: "search",
+      query: "alpha",
+      skipUnindexed: true,
+      types: null,
+    };
+
+    expect(roundTripCursor(cursor)).toStrictEqual(cursor);
+  });
+
+  it("round-trips skip-unindexed evidence cursors", () => {
+    const cursor: ContinuationCursor = {
+      archiveKey: "archive-key",
+      archivePath: "/tmp/book.wikg",
+      cursor: "raw-cursor",
+      format: "jsonl",
+      indexScope: {
+        archiveKey: "archive-key",
+        archivePath: "/tmp/book.wikg",
+        kind: "archive-index",
+      },
+      kind: "evidence",
+      order: "doc-asc",
+      query: "alpha",
+      skipUnindexed: true,
+      targetUri: "wikg://source/1/0",
+    };
+
+    expect(roundTripCursor(cursor)).toStrictEqual(cursor);
+  });
+
+  it("round-trips skip-unindexed related cursors", () => {
+    const cursor: ContinuationCursor = {
+      archiveKey: "archive-key",
+      archivePath: "/tmp/book.wikg",
+      cursor: "raw-cursor",
+      format: "text",
+      indexScope: {
+        archiveKey: "archive-key",
+        archivePath: "/tmp/book.wikg",
+        kind: "archive-index",
+      },
+      kind: "related",
+      order: "doc-desc",
+      query: "alpha",
+      role: "subject",
+      skipUnindexed: true,
+      targetUri: "wikg://entity/Q1",
+    };
+
+    expect(roundTripCursor(cursor)).toStrictEqual(cursor);
+  });
+
   it("rejects malformed and mismatched archive index scopes", () => {
     expect(() =>
       parseContinuationCursorRecord({
@@ -119,3 +184,13 @@ describe("continuation cursor payload", () => {
     ).toThrow("Invalid continuation cursor payload");
   });
 });
+
+function roundTripCursor(cursor: ContinuationCursor): ContinuationCursor {
+  return parseContinuationCursorRecord({
+    archiveKey: cursor.archiveKey,
+    archivePath: cursor.archivePath,
+    format: cursor.format,
+    kind: cursor.kind,
+    payloadJSON: JSON.stringify(createCursorPayload(cursor)),
+  });
+}

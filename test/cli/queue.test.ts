@@ -155,6 +155,16 @@ function createQueueMockDocument() {
     },
     readSummary: () =>
       Promise.resolve(queueMockState.hasSummary ? "Summary text." : undefined),
+    readToc: () =>
+      Promise.resolve({
+        items: [
+          {
+            children: [],
+            serialId: 12,
+            title: "Chapter title",
+          },
+        ],
+      }),
     serials: {
       getById: () =>
         Promise.resolve(queueMockState.serialExists ? { id: 12 } : undefined),
@@ -1046,7 +1056,7 @@ describe("cli/queue", () => {
     expect(queueMockState.loadRequiredStageConfigCalls).toStrictEqual([]);
     expect(queueMockState.embeddingRequests).toStrictEqual([]);
     expect(queueMockState.serialFragmentsSentenceListCalls).toBe(1);
-    expect(queueMockState.summaryFragmentsSentenceListCalls).toBe(0);
+    expect(queueMockState.summaryFragmentsSentenceListCalls).toBe(1);
     expect(queueMockState.stepLog).toStrictEqual([
       "read:start",
       "read:end",
@@ -1069,8 +1079,28 @@ describe("cli/queue", () => {
       ).artifact.lexicalRows,
     ).toMatchObject([
       {
+        rowId: "chapter-title:12",
+        text: "Chapter title",
+      },
+      {
         rowId: "source-sentence:0",
         text: "Alpha beta.",
+      },
+      {
+        rowId: "summary-sentence:0",
+        text: "Summary text.",
+      },
+      {
+        rowId: "chunk-label:123",
+        text: "Chunk label",
+      },
+      {
+        rowId: "chunk-content:123",
+        text: "Chunk content.",
+      },
+      {
+        rowId: "mention-surface:mention-1",
+        text: "Alpha",
       },
     ]);
     expect(reporter.stepStarted).toHaveBeenCalledWith("index-fts");

@@ -13,4 +13,10 @@ describe("countTextWords", () => {
     expect(countTextWords("  中文，English!  ")).toBe(3);
     expect(countTextWords(" \n\t ")).toBe(0);
   });
+
+  it("keeps combining marks inside the current word", () => {
+    expect(countTextWords("e\u0301clair")).toBe(1);
+    expect(countTextWords("عَرَبِيّ")).toBe(1);
+    expect(countTextWords("\u0301")).toBe(0);
+  });
 });

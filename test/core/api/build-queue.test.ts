@@ -9,6 +9,7 @@ import {
   assertNoActiveBuildJobConflicts,
   getBuildJob,
   listBuildJobs,
+  pauseBuildJob,
   readBuildJobEvents,
   resolveBuildJobId,
   resumeBuildJob,
@@ -118,6 +119,27 @@ describe("facade/build-queue", () => {
         state: "queued",
       });
       await expect(readBuildJobEvents(job)).resolves.toHaveLength(1);
+    });
+  });
+
+  it("treats concurrent resume calls as idempotent", async () => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
+      useStateDir(`${path}/state`);
+
+      const job = await addBuildJob({
+        archivePath: `${path}/book.wikg`,
+        chapterId: 1,
+        target: "reading-summary",
+      });
+      const paused = await pauseBuildJob(job.jobId);
+
+      await expect(
+        Promise.all([resumeBuildJob(job.jobId), resumeBuildJob(job.jobId)]),
+      ).resolves.toEqual([
+        expect.objectContaining({ jobId: job.jobId, state: "queued" }),
+        expect.objectContaining({ jobId: job.jobId, state: "queued" }),
+      ]);
+      await expect(readBuildJobEvents(paused)).resolves.toHaveLength(3);
     });
   });
 
