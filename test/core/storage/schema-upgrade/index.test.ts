@@ -1,12 +1,15 @@
 import { createWriteStream } from "fs";
-import { mkdir, readFile, rm, stat, writeFile } from "fs/promises";
-import { dirname, join } from "path";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "fs/promises";
+import { dirname, join, posix, relative, sep } from "path";
 import { finished } from "stream/promises";
 
 import { ZipFile } from "yazl";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
-import { Database } from "../../../../packages/core/src/document/index.js";
+import {
+  Database,
+  DirectoryDocument,
+} from "../../../../packages/core/src/document/index.js";
 import { WikipageCache } from "../../../../packages/core/src/external/wikipage/cache.js";
 import {
   ensureDefaultWikiGraphLibrary,
@@ -25,12 +28,14 @@ import {
   upgradeWikiGraphArchiveSchema,
 } from "../../../../packages/core/src/storage/schema-upgrade/index.js";
 import {
+  LEGACY_SEARCH_INDEX_DATABASE_PATH,
   WIKG_MANIFEST_PATH,
   WIKG_MUTATION_TOKEN_PATH,
   SEARCH_INDEX_DATABASE_PATH,
 } from "../../../../packages/core/src/storage/wikg/archive/constants.js";
 import { createWikgMutationTokenContent } from "../../../../packages/core/src/storage/wikg/archive/manifest.js";
 import {
+  extractWikgArchive,
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
 } from "../../../../packages/core/src/storage/wikg/index.js";
@@ -68,7 +73,7 @@ describe("schema-upgrade", () => {
       );
       await expect(
         readWikiGraphArchiveSchemaVersion(archivePath),
-      ).resolves.toBe(2);
+      ).resolves.toBe(3);
       await expect(
         readWikgArchiveEntry(archivePath, SEARCH_INDEX_DATABASE_PATH),
       ).resolves.toBeUndefined();
@@ -78,6 +83,54 @@ describe("schema-upgrade", () => {
       await expect(
         readWikgArchiveEntry(archivePath, WIKG_MANIFEST_PATH),
       ).resolves.toBeInstanceOf(Uint8Array);
+    });
+  });
+
+  it("upgrades v2 source indexes into v3 FTS artifacts", async () => {
+    await withTempDir("wikigraph-schema-upgrade-v2-artifact-", async (root) => {
+      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
+      const archivePath = join(root, "book.wikg");
+      const unpackedPath = join(root, "unpacked");
+
+      await writeSourcedArchiveWithSchemaVersion(archivePath, 2);
+
+      await upgradeWikiGraphArchiveSchema(archivePath);
+
+      await expect(
+        readWikiGraphArchiveSchemaVersion(archivePath),
+      ).resolves.toBe(3);
+      await expect(
+        readWikgArchiveEntry(archivePath, SEARCH_INDEX_DATABASE_PATH),
+      ).resolves.toBeUndefined();
+      await expect(
+        readWikgArchiveEntry(archivePath, LEGACY_SEARCH_INDEX_DATABASE_PATH),
+      ).resolves.toBeUndefined();
+
+      await extractWikgArchive(archivePath, unpackedPath);
+      const document = await DirectoryDocument.open(unpackedPath);
+      try {
+        const ftsArtifact = await document.indexArtifacts.get(1, "fts");
+        const lexicalRows = await document.indexArtifacts.listLexicalRows(1);
+
+        expect(ftsArtifact).toMatchObject({
+          kind: "fts",
+          serialId: 1,
+          sourceRevision: expect.any(Number),
+        });
+        expect(lexicalRows.some((row) => row.text.includes("Salvaged"))).toBe(
+          true,
+        );
+        await expect(
+          document.indexArtifacts.get(1, "embedding-source"),
+        ).resolves.toBeUndefined();
+        await expect(
+          document.readDatabase(async (database) =>
+            hasTable(database, "archive_index_settings"),
+          ),
+        ).resolves.toBe(false);
+      } finally {
+        await document.release();
+      }
     });
   });
 
@@ -138,7 +191,7 @@ describe("schema-upgrade", () => {
       const archivePath = join(root, "book.wikg");
       await writeArchiveWithSchemaVersion(
         archivePath,
-        2,
+        3,
         `${JSON.stringify({
           version: 1,
           items: [
@@ -166,7 +219,7 @@ describe("schema-upgrade", () => {
       });
       await expect(
         readWikiGraphArchiveSchemaVersion(archivePath),
-      ).resolves.toBe(2);
+      ).resolves.toBe(3);
 
       const upgradedTocEntry = await readWikgArchiveEntry(
         archivePath,
@@ -247,7 +300,7 @@ describe("schema-upgrade", () => {
         await writeLegacyCoreDatabase(home);
         await ensureWikiGraphHomeSchemaCurrent();
 
-        await expect(readHomeSchemaVersion(home)).resolves.toBe(2);
+        await expect(readHomeSchemaVersion(home)).resolves.toBe(3);
       },
     );
   });
@@ -366,7 +419,7 @@ describe("schema-upgrade", () => {
             ["home"],
             (row) => Number(row.version),
           ),
-        ).resolves.toBe(2);
+        ).resolves.toBe(3);
       } finally {
         await upgradedCore.close();
       }
@@ -408,6 +461,42 @@ describe("schema-upgrade", () => {
       } finally {
         await upgradedStaging.close();
       }
+    });
+  });
+
+  it("upgrades an explicit v2 home and clears derived state", async () => {
+    await withTempDir("wikigraph-schema-home-v2-", async (home) => {
+      setWikiGraphStateDirectoryPathForTesting(home);
+      const cacheDirectoryPath = join(home, "cache");
+      const stagingDirectoryPath = join(home, "staging");
+      const jobsDirectoryPath = join(home, "jobs");
+
+      await writeHomeSchemaVersion(home, 2);
+      await mkdir(cacheDirectoryPath, { recursive: true });
+      await mkdir(join(stagingDirectoryPath, "library", "1", "index"), {
+        recursive: true,
+      });
+      await mkdir(join(jobsDirectoryPath, "cache"), { recursive: true });
+      await writeFile(join(cacheDirectoryPath, "search-sessions.sqlite"), "x");
+      await writeFile(
+        join(cacheDirectoryPath, "continuation-cursors.sqlite"),
+        "x",
+      );
+      await writeFile(join(jobsDirectoryPath, "cache", "artifact.json"), "x");
+
+      await ensureWikiGraphHomeSchemaCurrent();
+
+      await expect(readHomeSchemaVersion(home)).resolves.toBe(3);
+      await expect(
+        stat(join(cacheDirectoryPath, "search-sessions.sqlite")),
+      ).rejects.toThrow();
+      await expect(
+        stat(join(cacheDirectoryPath, "continuation-cursors.sqlite")),
+      ).rejects.toThrow();
+      await expect(
+        stat(join(stagingDirectoryPath, "library")),
+      ).rejects.toThrow();
+      await expect(stat(join(jobsDirectoryPath, "cache"))).rejects.toThrow();
     });
   });
 
@@ -473,7 +562,7 @@ describe("schema-upgrade", () => {
         setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
         const archivePath = join(root, "book.wikg");
         await writeLegacyArchive(archivePath);
-        await writeHomeSchemaVersion(join(root, "home"), 2);
+        await writeHomeSchemaVersion(join(root, "home"), 3);
         await writeCoordinatorOverlay(join(root, "home"), {
           archiveKey: createArchiveKey(archivePath),
           entryPath: "database.db",
@@ -569,7 +658,7 @@ describe("schema-upgrade", () => {
 
         await ensureWikiGraphHomeSchemaCurrent();
 
-        await expect(readHomeSchemaVersion(home)).resolves.toBe(2);
+        await expect(readHomeSchemaVersion(home)).resolves.toBe(3);
         await expect(stat(workspacePath)).rejects.toThrow();
         await expect(countCoordinatorOverlays(home)).resolves.toBe(0);
       },
@@ -643,7 +732,7 @@ describe("schema-upgrade", () => {
   ])("opens %s only after the home schema gate", async (_name, open) => {
     await withLegacyHome("wikigraph-schema-gate-", async (home) => {
       await open();
-      await expect(readHomeSchemaVersion(home)).resolves.toBe(2);
+      await expect(readHomeSchemaVersion(home)).resolves.toBe(3);
     });
   });
 
@@ -944,10 +1033,97 @@ async function writeLegacyArchive(archivePath: string): Promise<void> {
   await writeArchiveWithSchemaVersion(archivePath, 1);
 }
 
+async function writeSourcedArchiveWithSchemaVersion(
+  archivePath: string,
+  schemaVersion: number,
+): Promise<void> {
+  await withTempDir("wikigraph-schema-source-archive-", async (sourceDir) => {
+    const document = await DirectoryDocument.open(sourceDir);
+
+    try {
+      await document.openSession(async (openedDocument) => {
+        const serialId = await openedDocument.createSerial();
+        const draft = await openedDocument
+          .getSerialFragments(serialId)
+          .createDraft();
+
+        draft.addSentence(
+          "Salvaged source text should become FTS artifact.",
+          7,
+        );
+        await draft.commit();
+        await openedDocument.writeToc({
+          items: [
+            {
+              children: [],
+              key: "salvaged",
+              serialId,
+              title: "Salvaged",
+            },
+          ],
+          version: 1,
+        });
+      });
+      await createLegacyArchiveIndexSettings(document);
+    } finally {
+      await document.release();
+    }
+
+    await writeArchiveDirectoryWithSchemaVersion(
+      sourceDir,
+      archivePath,
+      schemaVersion,
+    );
+  });
+}
+
 async function writeArchiveWithSchemaVersion(
   archivePath: string,
   schemaVersion: number,
   tocContent = "legacy toc",
+): Promise<void> {
+  await withTempDir("wikigraph-schema-empty-archive-", async (sourceDir) => {
+    const document = await DirectoryDocument.open(sourceDir);
+
+    try {
+      await createLegacyArchiveIndexSettings(document);
+    } finally {
+      await document.release();
+    }
+    await writeFile(join(sourceDir, "toc.json"), tocContent, "utf8");
+    await writeArchiveDirectoryWithSchemaVersion(
+      sourceDir,
+      archivePath,
+      schemaVersion,
+    );
+  });
+}
+
+async function createLegacyArchiveIndexSettings(
+  document: DirectoryDocument,
+): Promise<void> {
+  await document.readDatabase(async (database) => {
+    await database.run(`
+      CREATE TABLE IF NOT EXISTS archive_index_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        fts_embedded INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+    await database.run(
+      `
+        INSERT INTO archive_index_settings(id, fts_embedded)
+        VALUES (1, 1)
+        ON CONFLICT(id)
+        DO UPDATE SET fts_embedded = excluded.fts_embedded
+      `,
+    );
+  });
+}
+
+async function writeArchiveDirectoryWithSchemaVersion(
+  sourceDir: string,
+  archivePath: string,
+  schemaVersion: number,
 ): Promise<void> {
   await mkdir(dirname(archivePath), { recursive: true });
 
@@ -969,12 +1145,12 @@ async function writeArchiveWithSchemaVersion(
       compress: false,
     },
   );
-  zipFile.addBuffer(Buffer.from("legacy db", "utf8"), "database.db", {
-    compress: false,
-  });
-  zipFile.addBuffer(Buffer.from(tocContent, "utf8"), "toc.json", {
-    compress: false,
-  });
+
+  for (const file of await listTestArchiveFiles(sourceDir)) {
+    zipFile.addFile(file.absolutePath, file.archivePath, {
+      compress: false,
+    });
+  }
   zipFile.addBuffer(
     Buffer.from("legacy index", "utf8"),
     SEARCH_INDEX_DATABASE_PATH,
@@ -982,9 +1158,58 @@ async function writeArchiveWithSchemaVersion(
       compress: false,
     },
   );
+  zipFile.addBuffer(
+    Buffer.from("legacy fts", "utf8"),
+    LEGACY_SEARCH_INDEX_DATABASE_PATH,
+    {
+      compress: false,
+    },
+  );
 
   zipFile.end();
   await writeZipFile(zipFile, archivePath);
+}
+
+async function listTestArchiveFiles(
+  rootDirectoryPath: string,
+  currentDirectoryPath = rootDirectoryPath,
+): Promise<Array<{ absolutePath: string; archivePath: string }>> {
+  const entries = await readdir(currentDirectoryPath, { withFileTypes: true });
+  const files: Array<{ absolutePath: string; archivePath: string }> = [];
+
+  for (const entry of entries) {
+    const absolutePath = join(currentDirectoryPath, entry.name);
+
+    if (entry.isDirectory()) {
+      files.push(
+        ...(await listTestArchiveFiles(rootDirectoryPath, absolutePath)),
+      );
+      continue;
+    }
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    const archivePath = relative(rootDirectoryPath, absolutePath)
+      .split(sep)
+      .join(posix.sep);
+
+    if (isTestArchiveDocumentPath(archivePath)) {
+      files.push({ absolutePath, archivePath });
+    }
+  }
+
+  return files.sort((left, right) =>
+    left.archivePath.localeCompare(right.archivePath),
+  );
+}
+
+function isTestArchiveDocumentPath(archivePath: string): boolean {
+  return (
+    archivePath === "database.db" ||
+    archivePath === "toc.json" ||
+    /^texts\/(?:source|summary)\/\d+\.txt$/u.test(archivePath)
+  );
 }
 
 async function writeZipFile(

@@ -1,4 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, rm } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { setWikiGraphStateDirectoryPathForTesting } from "../../../packages/core/src/runtime/common/wiki-graph/dir.js";
 
 const mocks = vi.hoisted(() => {
   const archives = new Map<number, Record<string, unknown>>();
@@ -178,6 +184,7 @@ vi.mock(
 );
 
 const target = { isDefault: true, kind: "scope" as const };
+let testStateDir: string | undefined;
 
 function seedArchive(id: number, status = "present") {
   mocks.archives.set(id, {
@@ -190,10 +197,20 @@ function seedArchive(id: number, status = "present") {
 }
 
 describe("wiki graph library object query aggregation", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    testStateDir = await mkdtemp(join(tmpdir(), "wikigraph-library-query-"));
+    setWikiGraphStateDirectoryPathForTesting(testStateDir);
     mocks.reset();
     seedArchive(1);
     seedArchive(2);
+  });
+
+  afterEach(async () => {
+    setWikiGraphStateDirectoryPathForTesting(undefined);
+    if (testStateDir !== undefined) {
+      await rm(testStateDir, { force: true, recursive: true });
+      testStateDir = undefined;
+    }
   });
 
   it("returns all archive sources for a library get", async () => {

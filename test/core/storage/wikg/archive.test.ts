@@ -51,7 +51,7 @@ describe("wikg/archive", () => {
       ).toMatch(/^wikg-mutation-token:v1\n[A-Za-z0-9_-]{43}\n$/u);
       expect(
         JSON.parse(await readFile(`${extractDir}/manifest.json`, "utf8")),
-      ).toEqual({ formatVersion: 1, schemaVersion: 2 });
+      ).toEqual({ formatVersion: 1, schemaVersion: 3 });
       expect(await readFile(`${extractDir}/database.db`, "utf8")).toBe(
         "sqlite",
       );
@@ -110,6 +110,14 @@ describe("wikg/archive", () => {
 
       try {
         await document.readDatabase(async (database) => {
+          await database.run(
+            `
+              CREATE TABLE archive_index_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                fts_embedded INTEGER NOT NULL DEFAULT 0
+              )
+            `,
+          );
           await database.run(
             `
               INSERT INTO archive_index_settings(id, fts_embedded)
@@ -182,7 +190,7 @@ describe("wikg/archive", () => {
 
       expect(
         JSON.parse(await readFile(`${extractDir}/manifest.json`, "utf8")),
-      ).toEqual({ formatVersion: 1, schemaVersion: 2 });
+      ).toEqual({ formatVersion: 1, schemaVersion: 3 });
     });
   });
 

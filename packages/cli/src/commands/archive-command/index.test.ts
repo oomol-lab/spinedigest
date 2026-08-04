@@ -1,10 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, rm } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   findWikiGraphLibraryObjects,
   listWikiGraphLibraryObjects,
 } from "wiki-graph-core";
 import type * as WikiGraphCore from "wiki-graph-core";
+import { setWikiGraphStateDirectoryPathForTesting } from "../../../../core/src/runtime/common/wiki-graph/dir.js";
 import { parseCLIArguments } from "../../args/index.js";
 import { writeFindHits } from "../archive-output/index.js";
 import { runArchiveCommand } from "./index.js";
@@ -66,7 +71,11 @@ vi.mock("./run/index.js", async (importOriginal) => {
 });
 vi.mock("./run/scope.js", () => ({ resolveArchiveChapterScope: vi.fn() }));
 
-beforeEach(() => {
+let testStateDir: string | undefined;
+
+beforeEach(async () => {
+  testStateDir = await mkdtemp(join(tmpdir(), "wikigraph-archive-command-"));
+  setWikiGraphStateDirectoryPathForTesting(testStateDir);
   vi.clearAllMocks();
   vi.mocked(findWikiGraphLibraryObjects).mockResolvedValue({
     chapters: null,
@@ -90,6 +99,14 @@ beforeEach(() => {
     order: "doc-asc",
     types: ["triple"],
   });
+});
+
+afterEach(async () => {
+  setWikiGraphStateDirectoryPathForTesting(undefined);
+  if (testStateDir !== undefined) {
+    await rm(testStateDir, { force: true, recursive: true });
+    testStateDir = undefined;
+  }
 });
 
 describe("runArchiveCommand library nested scopes", () => {

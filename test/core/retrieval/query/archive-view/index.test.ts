@@ -178,7 +178,7 @@ describe("archive/query/archive-view/index", () => {
     });
   });
 
-  it("migrates legacy search index uniqueness to include archive_id", async () => {
+  it("reinitializes incompatible legacy search index cache", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const documentPath = `${path}/document`;
       await mkdir(documentPath, { recursive: true });
@@ -247,13 +247,6 @@ describe("archive/query/archive-view/index", () => {
           );
 
           expect(rows).toStrictEqual([
-            {
-              archiveId: 0,
-              chapterId: 1,
-              kind: 1,
-              sentenceIndex: 0,
-              wordsCount: 3,
-            },
             {
               archiveId: 1,
               chapterId: 1,

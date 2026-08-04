@@ -1,10 +1,13 @@
 import { createHash } from "crypto";
 import { access, mkdir, readFile, rename, writeFile } from "fs/promises";
-import { resolve } from "path";
+import { dirname, resolve } from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
+import {
+  Database,
+  DirectoryDocument,
+} from "../../../../packages/core/src/document/index.js";
 import {
   getWikiGraphStateDirectoryPathForTesting,
   setWikiGraphStateDirectoryPathForTesting,
@@ -15,12 +18,18 @@ import {
 } from "../../../../packages/core/src/retrieval/query/view.js";
 import { replaceChapterFtsIndexArtifact } from "../../../../packages/core/src/retrieval/index-artifact/index.js";
 import { isSearchIndexCurrent } from "../../../../packages/core/src/retrieval/search-index/index.js";
+import { SEARCH_INDEX_VERSION } from "../../../../packages/core/src/retrieval/search-index/search/types.js";
 import { WikiGraphArchive } from "../../../../packages/core/src/api/wiki-graph-archive.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
 import {
   readWikgArchiveEntry,
   writeWikgArchiveWithOverlays,
 } from "../../../../packages/core/src/storage/wikg/archive/index.js";
+import {
+  createArchiveKey as createCoordinatorArchiveKey,
+  createArchiveSignature,
+} from "../../../../packages/core/src/storage/wikg/wikg-coordinator/archive-key.js";
+import { withStateDatabase } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
@@ -76,29 +85,36 @@ describe("wikg/wiki-graph-archive-file", () => {
 
   it("keeps a custom extraction directory when one is provided", async () => {
     await withTempDir("wikigraph-facade-file-", async (path) => {
-      const document = await DirectoryDocument.open(`${path}/document`);
-
+      const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
-        await seedDocument(document);
+        const document = await DirectoryDocument.open(`${path}/document`);
 
-        const archivePath = `${path}/fixture/book.wikg`;
-        const readDir = `${path}/opened-read`;
+        try {
+          await seedDocument(document);
 
-        await new WikiGraphArchive(document, document.path).saveAs(archivePath);
+          const archivePath = `${path}/fixture/book.wikg`;
+          const readDir = `${path}/opened-read`;
 
-        const digestFile = new WikiGraphArchiveFile(archivePath);
-        await digestFile.read(
-          async (digest) => {
-            expect(await digest.readMeta()).toMatchObject({
-              title: "Session Fixture",
-            });
-          },
-          {
-            documentDirPath: readDir,
-          },
-        );
+          await new WikiGraphArchive(document, document.path).saveAs(
+            archivePath,
+          );
+
+          const digestFile = new WikiGraphArchiveFile(archivePath);
+          await digestFile.read(
+            async (digest) => {
+              expect(await digest.readMeta()).toMatchObject({
+                title: "Session Fixture",
+              });
+            },
+            {
+              documentDirPath: readDir,
+            },
+          );
+        } finally {
+          await document.release();
+        }
       } finally {
-        await document.release();
+        restoreStateDir();
       }
     });
   });
@@ -396,6 +412,83 @@ describe("wikg/wiki-graph-archive-file", () => {
     });
   });
 
+  it("treats an incompatible archive-backed index cache as missing on read", async () => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
+      const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
+      try {
+        const archivePath = await createSeedArchive(path);
+
+        await createIncompatibleSearchIndexOverlay(path, archivePath);
+        await expect(readCoordinatorOverlays(path)).resolves.toContainEqual(
+          expect.objectContaining({
+            archivePath,
+            entryPath: "index.db",
+            kind: "file",
+          }),
+        );
+
+        await expect(
+          new WikiGraphArchiveFile(archivePath).readDocument(
+            async (document) => await isSearchIndexCurrent(document),
+            { searchIndexWritebackPolicy: "cache" },
+          ),
+        ).resolves.toBe(false);
+
+        await expect(readCoordinatorOverlays(path)).resolves.toContainEqual(
+          expect.objectContaining({
+            archivePath,
+            entryPath: "index.db",
+            kind: "deleted",
+          }),
+        );
+      } finally {
+        restoreStateDir();
+      }
+    });
+  });
+
+  it("reinitializes an incompatible archive-backed index cache on write", async () => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
+      const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
+      try {
+        const archivePath = await createSeedArchive(path);
+
+        await createIncompatibleSearchIndexOverlay(path, archivePath);
+
+        await new WikiGraphArchiveFile(archivePath).write(
+          async (document) => {
+            await document.writeSearchIndexDatabase(async (database) => {
+              await database.run(
+                `
+                  INSERT INTO search_index_state(key, value)
+                  VALUES ('version', ?)
+                `,
+                [SEARCH_INDEX_VERSION],
+              );
+            });
+            await expect(
+              document.readSearchIndexDatabase(
+                async (database) =>
+                  await database.queryOne(
+                    `
+                      SELECT value
+                      FROM search_index_state
+                      WHERE key = 'version'
+                    `,
+                    undefined,
+                    (row) => String(row.value),
+                  ),
+              ),
+            ).resolves.toBe(SEARCH_INDEX_VERSION);
+          },
+          { searchIndexWritebackPolicy: "cache" },
+        );
+      } finally {
+        restoreStateDir();
+      }
+    });
+  });
+
   it("does not let unrelated stale overlays fail archive writes", async () => {
     await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
@@ -677,6 +770,61 @@ ORDER BY archive_path, entry_path
   } finally {
     await database.close();
   }
+}
+
+async function createIncompatibleSearchIndexOverlay(
+  path: string,
+  archivePath: string,
+): Promise<void> {
+  const archiveKey = createCoordinatorArchiveKey(archivePath);
+  const workspacePath = `${path}/state/staging/work/${archiveKey}/index.db`;
+
+  await mkdir(dirname(workspacePath), { recursive: true });
+  const database = await Database.open(
+    workspacePath,
+    `
+      CREATE TABLE search_index_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `,
+  );
+
+  try {
+    await database.run(
+      `
+        INSERT INTO search_index_state(key, value)
+        VALUES ('version', 'old')
+      `,
+    );
+  } finally {
+    await database.close();
+  }
+
+  await withStateDatabase(async (state) => {
+    await state.run(
+      `
+        INSERT INTO entry_overlays (
+          archive_key,
+          archive_path,
+          entry_path,
+          kind,
+          workspace_path,
+          archive_signature,
+          mutation_token,
+          updated_at
+        )
+        VALUES (?, ?, 'index.db', 'file', ?, ?, NULL, ?)
+      `,
+      [
+        archiveKey,
+        archivePath,
+        workspacePath,
+        await createArchiveSignature(archivePath),
+        Date.now(),
+      ],
+    );
+  });
 }
 
 async function createStaleOverlay(path: string): Promise<void> {
