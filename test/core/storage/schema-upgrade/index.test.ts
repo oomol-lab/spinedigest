@@ -51,6 +51,7 @@ import {
   setWikiGraphStateDirectoryPathForTesting,
   withWikiGraphRuntimeStateDirectoryPath,
 } from "../../../../packages/core/src/runtime/common/wiki-graph/dir.js";
+import { countTextWords } from "../../../../packages/core/src/utils/text-word-count.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("schema-upgrade", () => {
@@ -227,6 +228,7 @@ describe("schema-upgrade", () => {
       ).resolves.toStrictEqual({
         changed: true,
         repairedToc: true,
+        repairedTextWords: false,
         schemaChanged: false,
       });
       await expect(
@@ -259,6 +261,55 @@ describe("schema-upgrade", () => {
       ).resolves.toStrictEqual({
         changed: false,
         repairedToc: false,
+        repairedTextWords: false,
+        schemaChanged: false,
+      });
+    });
+  });
+
+  it("repairs stale text sentence word counts in a current archive", async () => {
+    await withTempDir("wikigraph-schema-upgrade-text-words-", async (root) => {
+      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
+      const archivePath = join(root, "book.wikg");
+      const sourceText = "朱元璋攻克应天。陈友谅进攻采石。";
+
+      await writeBadWordCountArchive(archivePath, 3, sourceText);
+
+      await expect(
+        upgradeWikiGraphArchiveSchema(archivePath),
+      ).resolves.toStrictEqual({
+        changed: true,
+        repairedToc: false,
+        repairedTextWords: true,
+        schemaChanged: false,
+      });
+
+      await extractWikgArchive(archivePath, join(root, "unpacked"));
+      const database = await Database.open(
+        join(root, "unpacked", "database.db"),
+      );
+      try {
+        await expect(
+          database.queryOne(
+            `
+              SELECT SUM(words_count) AS words
+              FROM text_sentence_records
+              WHERE kind = 1 AND chapter_id = 1
+            `,
+            undefined,
+            (row) => Number(row.words),
+          ),
+        ).resolves.toBe(countTextWords(sourceText));
+      } finally {
+        await database.close();
+      }
+
+      await expect(
+        upgradeWikiGraphArchiveSchema(archivePath),
+      ).resolves.toStrictEqual({
+        changed: false,
+        repairedToc: false,
+        repairedTextWords: false,
         schemaChanged: false,
       });
     });
@@ -1087,6 +1138,51 @@ async function writeSourcedArchiveWithSchemaVersion(
       schemaVersion,
     );
   });
+}
+
+async function writeBadWordCountArchive(
+  archivePath: string,
+  schemaVersion: number,
+  sourceText: string,
+): Promise<void> {
+  await withTempDir(
+    "wikigraph-schema-bad-words-archive-",
+    async (sourceDir) => {
+      const document = await DirectoryDocument.open(sourceDir);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          const serialId = await openedDocument.createSerial();
+          const draft = await openedDocument
+            .getSerialFragments(serialId)
+            .createDraft();
+
+          draft.addSentence(sourceText, 1);
+          await draft.commit();
+          await openedDocument.writeToc({
+            items: [
+              {
+                children: [],
+                key: "bad-words",
+                serialId,
+                title: "Bad Words",
+              },
+            ],
+            version: 1,
+          });
+        });
+        await createLegacyArchiveIndexSettings(document);
+      } finally {
+        await document.release();
+      }
+
+      await writeArchiveDirectoryWithSchemaVersion(
+        sourceDir,
+        archivePath,
+        schemaVersion,
+      );
+    },
+  );
 }
 
 async function writeArchiveWithSchemaVersion(

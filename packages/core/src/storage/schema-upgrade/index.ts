@@ -6,12 +6,14 @@ import { dirname, join, resolve } from "path";
 import { Database, DirectoryDocument } from "../../document/index.js";
 import { ensureChapterKeys } from "../../document/chapter/toc.js";
 import type { MutableTocFile } from "../../document/chapter/tree.js";
+import { TEXT_STREAM_KIND } from "../../document/text-streams/types.js";
 import { ensureWikiGraphHomeSchemaCurrent } from "../../document/home-schema-upgrade.js";
 import { replaceChapterFtsIndexArtifact } from "../../retrieval/index-artifact/index.js";
 import {
   resolveWikiGraphHomeDirectoryPath,
   resolveWikiGraphStagingDirectoryPath,
 } from "../../runtime/common/wiki-graph/dir.js";
+import { countTextWords } from "../../utils/text-word-count.js";
 import {
   SEARCH_INDEX_DATABASE_PATH,
   LEGACY_SEARCH_INDEX_DATABASE_PATH,
@@ -40,6 +42,7 @@ const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
 export interface WikiGraphArchiveSchemaUpgradeResult {
   readonly changed: boolean;
   readonly repairedToc: boolean;
+  readonly repairedTextWords: boolean;
   readonly schemaChanged: boolean;
 }
 
@@ -103,11 +106,21 @@ export async function upgradeWikiGraphArchiveSchema(
       temporaryDirectories,
     );
     const schemaChanged = schemaVersion < CURRENT_ARCHIVE_SCHEMA_VERSION;
+    const archiveDatabaseUpgrade = await createArchiveDatabaseUpgradeOverlay(
+      resolvedArchivePath,
+      temporaryDirectories,
+      { refreshArtifacts: schemaChanged },
+    );
 
-    if (!schemaChanged && tocOverlay === undefined) {
+    if (
+      !schemaChanged &&
+      tocOverlay === undefined &&
+      archiveDatabaseUpgrade.overlay === undefined
+    ) {
       return {
         changed: false,
         repairedToc: false,
+        repairedTextWords: false,
         schemaChanged: false,
       };
     }
@@ -116,12 +129,6 @@ export async function upgradeWikiGraphArchiveSchema(
 
     const archiveKey = createArchiveKey(resolvedArchivePath);
     await assertArchiveUpgradeSafe(archiveKey);
-    const archiveDatabaseOverlay = schemaChanged
-      ? await createArchiveDatabaseUpgradeOverlay(
-          resolvedArchivePath,
-          temporaryDirectories,
-        )
-      : undefined;
 
     const temporaryPath = join(
       dirname(resolvedArchivePath),
@@ -144,9 +151,9 @@ export async function upgradeWikiGraphArchiveSchema(
               },
             ]
           : []),
-        ...(archiveDatabaseOverlay === undefined
+        ...(archiveDatabaseUpgrade.overlay === undefined
           ? []
-          : [archiveDatabaseOverlay]),
+          : [archiveDatabaseUpgrade.overlay]),
         ...(tocOverlay === undefined ? [] : [tocOverlay]),
       ],
       { preserveMutationToken: true },
@@ -157,6 +164,7 @@ export async function upgradeWikiGraphArchiveSchema(
     return {
       changed: true,
       repairedToc: tocOverlay !== undefined,
+      repairedTextWords: archiveDatabaseUpgrade.repairedTextWords,
       schemaChanged,
     };
   } finally {
@@ -232,14 +240,17 @@ async function createChapterTocUpgradeOverlay(
 async function createArchiveDatabaseUpgradeOverlay(
   archivePath: string,
   temporaryDirectories: string[],
-): Promise<
-  | {
-      readonly entryPath: typeof DATABASE_ENTRY_PATH;
-      readonly kind: "file";
-      readonly workspacePath: string;
-    }
-  | undefined
-> {
+  options: { readonly refreshArtifacts: boolean },
+): Promise<{
+  readonly overlay:
+    | {
+        readonly entryPath: typeof DATABASE_ENTRY_PATH;
+        readonly kind: "file";
+        readonly workspacePath: string;
+      }
+    | undefined;
+  readonly repairedTextWords: boolean;
+}> {
   const temporaryDirectory = await mkdtemp(
     join(tmpdir(), "wikigraph-archive-upgrade-"),
   );
@@ -247,22 +258,32 @@ async function createArchiveDatabaseUpgradeOverlay(
   await extractWikgArchive(archivePath, temporaryDirectory);
 
   const document = await DirectoryDocument.open(temporaryDirectory);
+  let repairedTextWords = false;
 
   try {
-    await refreshChapterArtifacts(document);
+    repairedTextWords = await repairTextSentenceWordCounts(document);
+    if (options.refreshArtifacts) {
+      await refreshChapterArtifacts(document);
+    }
   } finally {
     await document.release();
   }
 
   const databasePath = join(temporaryDirectory, DATABASE_ENTRY_PATH);
   if (!(await pathExists(databasePath))) {
-    return undefined;
+    return { overlay: undefined, repairedTextWords };
+  }
+  if (!options.refreshArtifacts && !repairedTextWords) {
+    return { overlay: undefined, repairedTextWords: false };
   }
 
   return {
-    entryPath: DATABASE_ENTRY_PATH,
-    kind: "file",
-    workspacePath: databasePath,
+    overlay: {
+      entryPath: DATABASE_ENTRY_PATH,
+      kind: "file",
+      workspacePath: databasePath,
+    },
+    repairedTextWords,
   };
 }
 
@@ -288,6 +309,112 @@ async function refreshChapterArtifacts(
   await document.readDatabase(async (database) => {
     await database.run("DROP TABLE IF EXISTS archive_index_settings");
   });
+}
+
+async function repairTextSentenceWordCounts(
+  document: DirectoryDocument,
+): Promise<boolean> {
+  const rows = await document.readDatabase(async (database) =>
+    database.queryAll(
+      `
+        SELECT kind, chapter_id, sentence_index, words_count, byte_offset, byte_length
+        FROM text_sentence_records
+        ORDER BY kind, chapter_id, sentence_index
+      `,
+      undefined,
+      (row) => ({
+        byteLength: Number(row.byte_length),
+        byteOffset: Number(row.byte_offset),
+        chapterId: Number(row.chapter_id),
+        kind: Number(row.kind),
+        sentenceIndex: Number(row.sentence_index),
+        wordsCount: Number(row.words_count),
+      }),
+    ),
+  );
+  const textCache = new Map<string, Buffer | undefined>();
+  const updates: Array<{
+    readonly chapterId: number;
+    readonly kind: number;
+    readonly sentenceIndex: number;
+    readonly wordsCount: number;
+  }> = [];
+
+  for (const row of rows) {
+    const streamName = getTextStreamName(row.kind);
+    if (streamName === undefined) {
+      continue;
+    }
+
+    const textKey = `${streamName}:${row.chapterId}`;
+    let textBuffer = textCache.get(textKey);
+
+    if (textBuffer === undefined) {
+      const text =
+        streamName === "source"
+          ? await document.getSerialFragments(row.chapterId).readText()
+          : await document.getSummaryFragments(row.chapterId).readText();
+
+      textBuffer = text === undefined ? undefined : Buffer.from(text, "utf8");
+      textCache.set(textKey, textBuffer);
+    }
+    if (textBuffer === undefined) {
+      continue;
+    }
+
+    const sentenceText = textBuffer
+      .subarray(row.byteOffset, row.byteOffset + row.byteLength)
+      .toString("utf8");
+    const wordsCount = countTextWords(sentenceText);
+
+    if (wordsCount === row.wordsCount) {
+      continue;
+    }
+
+    updates.push({
+      chapterId: row.chapterId,
+      kind: row.kind,
+      sentenceIndex: row.sentenceIndex,
+      wordsCount,
+    });
+  }
+
+  if (updates.length === 0) {
+    return false;
+  }
+
+  await document.readDatabase(async (database) => {
+    await database.transaction(async () => {
+      for (const update of updates) {
+        await database.run(
+          `
+            UPDATE text_sentence_records
+            SET words_count = ?
+            WHERE kind = ? AND chapter_id = ? AND sentence_index = ?
+          `,
+          [
+            update.wordsCount,
+            update.kind,
+            update.chapterId,
+            update.sentenceIndex,
+          ],
+        );
+      }
+    });
+  });
+
+  return true;
+}
+
+function getTextStreamName(kind: number): "source" | "summary" | undefined {
+  if (kind === TEXT_STREAM_KIND.source) {
+    return "source";
+  }
+  if (kind === TEXT_STREAM_KIND.summary) {
+    return "summary";
+  }
+
+  return undefined;
 }
 
 async function cleanupArchiveDerivedData(archiveKey: string): Promise<void> {
