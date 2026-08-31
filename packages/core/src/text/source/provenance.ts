@@ -219,7 +219,7 @@ function isSyntacticallyValidCfi(value: string): boolean {
 
   // Validate the structural shape without interpreting CFI assertions.
   // Assertions may contain escaped characters; the locator remains opaque.
-  const step = /\/\d+(?:\[[^\[\]\r\n]*\])?/gu;
+  const step = /\/\d+(?:\[[^\r\n]*\])?/gu;
   let cursor = 0;
   while (cursor < body.length) {
     if (body[cursor] === "/") {
