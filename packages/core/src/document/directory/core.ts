@@ -20,6 +20,7 @@ import {
   MentionStore,
   ObjectMetadataStore,
   SerialStore,
+  SourceProvenanceStore,
   SnakeChunkStore,
   SnakeEdgeStore,
   SnakeStore,
@@ -64,6 +65,7 @@ export class DirectoryDocument implements Document {
   public readonly metadata: ObjectMetadataStore;
   public readonly path: string;
   public readonly serials: SerialStore;
+  public readonly sourceProvenance: SourceProvenanceStore;
   public readonly snakeChunks: SnakeChunkStore;
   public readonly snakeEdges: SnakeEdgeStore;
   public readonly snakes: SnakeStore;
@@ -92,6 +94,7 @@ export class DirectoryDocument implements Document {
     this.metadata = new ObjectMetadataStore(database);
     this.path = path;
     this.serials = new SerialStore(database);
+    this.sourceProvenance = new SourceProvenanceStore(database);
     this.snakeChunks = new SnakeChunkStore(database);
     this.snakeEdges = new SnakeEdgeStore(database);
     this.snakes = new SnakeStore(database);
@@ -201,6 +204,13 @@ export class DirectoryDocument implements Document {
     await this.graphBuildParameters.deleteUnreferenced();
   }
 
+  public async markSerialDerivedArtifactsStale(
+    serialId: number,
+  ): Promise<void> {
+    await this.serials.setTopologyReady(serialId, false);
+    await this.serials.setKnowledgeGraphReady(serialId, false);
+  }
+
   public async clearSerialKnowledgeGraph(serialId: number): Promise<void> {
     await this.indexArtifacts.delete(serialId, "fts");
     await deleteSerialKnowledgeGraphRecords({
@@ -224,8 +234,9 @@ export class DirectoryDocument implements Document {
   }
 
   public async clearSerialSource(serialId: number): Promise<void> {
-    await this.clearSerialDerivedArtifacts(serialId);
+    await this.markSerialDerivedArtifactsStale(serialId);
     await this.#textStreams.getSerial(serialId).delete();
+    await this.sourceProvenance.clear(serialId);
     await this.serials.bumpRevision(serialId);
   }
 
@@ -470,6 +481,7 @@ export class DirectoryDocument implements Document {
 
   async #deleteSerialResources(serialId: number): Promise<void> {
     await this.indexArtifacts.deleteBySerial(serialId);
+    await this.sourceProvenance.clear(serialId);
     await deleteSerialResources({
       database: this.#database,
       deleteSummary: async (targetSerialId) => {

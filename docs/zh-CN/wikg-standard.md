@@ -216,6 +216,7 @@ database.db-shm
 文件布局很小，但归档承载多个语义层：
 
 - Source layer：`texts/source/*.txt`、chapter serials 和 source sentence records。
+- Source provenance：source artifact 和格式专属 locator 存在 `database.db` 中；source text map 用映射范围把规范化 source text 的字符 offset 连接到这些 locator。原始 PDF/EPUB 文件不会存进归档。
 - Reading Graph：`database.db` 中的 chunks、reading edges、snakes 和 sentence groups。
 - Knowledge Graph：`database.db` 中的 mentions、mention links、entity projections、triple projections 和 evidence references。
 - Summary layer：`texts/summary/*.txt` 加上 summary sentence records。

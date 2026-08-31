@@ -257,6 +257,10 @@ The file layout is small, but the archive carries several semantic layers:
 
 - Source layer: `texts/source/*.txt`, chapter serials, and source sentence
   records.
+- Source provenance: source artifacts and format-specific locators are stored
+  in `database.db`; source text map ranges connect normalized source text
+  character offsets to those locators. Original PDF/EPUB files are never
+  stored in the archive.
 - Reading Graph: chunks, reading edges, snakes, and sentence groups in
   `database.db`.
 - Knowledge Graph: mentions, mention links, entity projections, triple

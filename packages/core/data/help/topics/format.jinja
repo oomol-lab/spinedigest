@@ -23,7 +23,7 @@ Inference rules:
   - File paths use their extension when the format flag is omitted.
   - Transform stdin requires an explicit `--input-format`.
   - Commands that accept content input use `--input <path>` for files and `--input -` for stdin.
-  - Archive chapter/source text commands read plain source text and do not use `--input-format`.
+  - Archive chapter/source text commands read plain source text by default; `chapter/<path>/source set` also accepts `--input-format jsonl` for source provenance input.
   - Stdout text export requires an explicit or inferable output format.
   - `transform --stage` is only valid when creating `.wikg` from source input.
 

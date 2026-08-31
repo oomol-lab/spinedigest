@@ -6,6 +6,7 @@ import type {
   ReadonlyMentionLinkStore,
   ReadonlyMentionStore,
   ReadonlyObjectMetadataStore,
+  ReadonlySourceProvenanceStore,
 } from "../../../document/index.js";
 import type {
   IndexArtifactCoverageRecord,
@@ -113,6 +114,16 @@ export class EmptySnapshotObjectMetadataStore implements ReadonlyObjectMetadataS
 export class EmptySnapshotGraphBuildParameterStore implements ReadonlyGraphBuildParameterStore {
   public getByHash(_hash: string): Promise<undefined> {
     return Promise.resolve(undefined);
+  }
+}
+
+export class EmptySnapshotSourceProvenanceStore implements ReadonlySourceProvenanceStore {
+  public listArtifacts(): Promise<never[]> {
+    return Promise.resolve([]);
+  }
+
+  public listMap(_serialId: number): Promise<never[]> {
+    return Promise.resolve([]);
   }
 }
 

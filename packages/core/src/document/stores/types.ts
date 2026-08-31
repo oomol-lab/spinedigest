@@ -14,7 +14,14 @@ import type {
   SnakeChunkRecord,
   SnakeEdgeRecord,
   SnakeRecord,
+  SourceArtifactRecord,
+  SourceTextMapRecord,
 } from "../types.js";
+
+export interface ReadonlySourceProvenanceStore {
+  listArtifacts(): Promise<SourceArtifactRecord[]>;
+  listMap(serialId: number): Promise<SourceTextMapRecord[]>;
+}
 
 export interface ReadonlySerialStore {
   getById(serialId: number): Promise<SerialRecord | undefined>;

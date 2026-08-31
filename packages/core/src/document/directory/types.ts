@@ -24,10 +24,12 @@ import type {
   ReadonlyObjectMetadataStore,
   ReadonlyReadingEdgeStore,
   ReadonlySerialStore,
+  ReadonlySourceProvenanceStore,
   ReadonlySnakeChunkStore,
   ReadonlySnakeEdgeStore,
   ReadonlySnakeStore,
   SerialStore,
+  SourceProvenanceStore,
   SnakeChunkStore,
   SnakeEdgeStore,
   SnakeStore,
@@ -64,6 +66,7 @@ export interface ReadonlyDocument {
   readonly mentions: ReadonlyMentionStore;
   readonly metadata: ReadonlyObjectMetadataStore;
   readonly serials: ReadonlySerialStore;
+  readonly sourceProvenance: ReadonlySourceProvenanceStore;
   readonly snakeChunks: ReadonlySnakeChunkStore;
   readonly snakeEdges: ReadonlySnakeEdgeStore;
   readonly snakes: ReadonlySnakeStore;
@@ -104,6 +107,7 @@ export interface Document extends ReadonlyDocument {
   readonly mentions: MentionStore;
   readonly metadata: ObjectMetadataStore;
   readonly serials: SerialStore;
+  readonly sourceProvenance: SourceProvenanceStore;
   readonly snakeChunks: SnakeChunkStore;
   readonly snakeEdges: SnakeEdgeStore;
   readonly snakes: SnakeStore;
@@ -113,6 +117,7 @@ export interface Document extends ReadonlyDocument {
   getSummaryFragments(serialId: number): SerialTextStream;
   createSerial(): Promise<number>;
   clearSerialDerivedArtifacts(serialId: number): Promise<void>;
+  markSerialDerivedArtifactsStale(serialId: number): Promise<void>;
   clearSerialGraph(serialId: number): Promise<void>;
   clearSerialKnowledgeGraph(serialId: number): Promise<void>;
   clearSerialReadingGraph(serialId: number): Promise<void>;

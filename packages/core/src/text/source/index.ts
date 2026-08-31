@@ -14,6 +14,10 @@ export {
   TXT_SOURCE_ADAPTER,
 } from "./plain-text.js";
 export {
+  parseSourceTextJsonl,
+  type ParsedSourceTextJsonl,
+} from "./provenance.js";
+export {
   TOC_FILE_VERSION,
   tocFileSchema,
   tocItemSchema,

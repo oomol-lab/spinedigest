@@ -1,5 +1,6 @@
 import type { Document, ReadonlyDocument } from "../../document/index.js";
 import type { ReaderTextStream } from "../../text/reader/index.js";
+import type { SourceTextProvenanceInput } from "../../document/index.js";
 import { writeSerialSource } from "../../serial.js";
 import type { TocItem } from "../../text/source/index.js";
 import {
@@ -196,6 +197,7 @@ export async function setChapterSource(
   document: Document,
   chapterId: number,
   stream: ReaderTextStream,
+  options: { readonly provenance?: SourceTextProvenanceInput } = {},
 ): Promise<ChapterDetails> {
   return await document.openSession(async (openedDocument) => {
     const details = await requireChapterDetails(openedDocument, chapterId);
@@ -206,7 +208,7 @@ export async function setChapterSource(
       );
     }
 
-    await writeSerialSource(openedDocument, chapterId, stream);
+    await writeSerialSource(openedDocument, chapterId, stream, options);
     return await getChapterDetails(openedDocument, chapterId);
   });
 }

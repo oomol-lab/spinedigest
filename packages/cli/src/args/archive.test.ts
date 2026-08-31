@@ -1358,6 +1358,26 @@ describe("cli/args/archive", () => {
       help: false,
       kind: "chapter",
     });
+    expect(
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/part/source",
+        "set",
+        "--input",
+        "chapter.jsonl",
+        "--input-format",
+        "jsonl",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "set-source",
+        chapterPath: "part",
+        inputFormat: "jsonl",
+        inputPath: "chapter.jsonl",
+        path: archivePath,
+      },
+      help: false,
+      kind: "chapter",
+    });
     expect(() =>
       parseCLIArguments([
         "wikg://book.wikg/chapter/part/source",
