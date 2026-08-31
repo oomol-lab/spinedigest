@@ -99,4 +99,56 @@ describe("SourceProvenanceStore", () => {
       await rm(path, { force: true, recursive: true });
     }
   });
+
+  it("preflights invalid mappings before replacing source text", async () => {
+    const path = await mkdtemp(join(tmpdir(), "wikigraph-source-provenance-"));
+    try {
+      const document = await DirectoryDocument.open(path);
+      try {
+        await document.openSession(async (opened) => {
+          const serialId = await opened.createSerial();
+          const digest = "E".repeat(64);
+          await writeSerialSource(opened, serialId, ["original"], {
+            provenance: {
+              artifacts: [{ digest, mediaType: "application/pdf" }],
+              mappings: [
+                {
+                  artifactDigest: digest,
+                  locator: { pageIndex: 1, bbox: [0, 0, 1, 1] },
+                  sourceStart: 0,
+                  sourceEnd: 8,
+                },
+              ],
+            },
+          });
+          const revision = await opened.serials.getRevision(serialId);
+
+          await expect(
+            writeSerialSource(opened, serialId, ["replacement"], {
+              provenance: {
+                artifacts: [{ digest, mediaType: "application/pdf" }],
+                mappings: [
+                  {
+                    artifactDigest: "F".repeat(64),
+                    locator: { pageIndex: 1, bbox: [0, 0, 1, 1] },
+                    sourceStart: 0,
+                    sourceEnd: 11,
+                  },
+                ],
+              },
+            }),
+          ).rejects.toThrow(/undeclared artifact/iu);
+
+          expect(await opened.getSerialFragments(serialId).readText()).toBe(
+            "original",
+          );
+          expect(await opened.serials.getRevision(serialId)).toBe(revision);
+        });
+      } finally {
+        await document.release();
+      }
+    } finally {
+      await rm(path, { force: true, recursive: true });
+    }
+  });
 });
