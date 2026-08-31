@@ -5,8 +5,6 @@ import type {
   SourceTextProvenanceInput,
 } from "../../document/types.js";
 
-const MAX_IDENTIFIER_BYTES = 1024;
-
 const artifactRecordSchema = z.object({
   type: z.literal("artifact"),
   digest: z.string().regex(/^[0-9a-f]{64}$/iu),
@@ -132,15 +130,6 @@ function parseArtifactRecord(value: unknown, lineNumber: number) {
   const parsed = artifactRecordSchema.safeParse(value);
   if (!parsed.success) {
     throw new Error(`Invalid source artifact record at line ${lineNumber}.`);
-  }
-  const identifier = parsed.data.identifier;
-  if (
-    identifier !== undefined &&
-    Buffer.byteLength(identifier, "utf8") > MAX_IDENTIFIER_BYTES
-  ) {
-    throw new Error(
-      `Source artifact identifier at line ${lineNumber} exceeds ${MAX_IDENTIFIER_BYTES} bytes.`,
-    );
   }
   return parsed.data;
 }

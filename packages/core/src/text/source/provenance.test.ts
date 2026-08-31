@@ -53,4 +53,25 @@ describe("parseSourceTextJsonl", () => {
       ),
     ).toThrow(/1-based integer/);
   });
+
+  it("preserves long opaque identifiers", () => {
+    const identifier = "opaque:" + "x".repeat(5000);
+    const result = parseSourceTextJsonl(
+      [
+        JSON.stringify({
+          type: "artifact",
+          digest: "C".repeat(64),
+          identifier,
+          mediaType: "application/epub+zip",
+        }),
+        JSON.stringify({
+          type: "text",
+          text: "content",
+          locator: { cfi: "epubcfi(/6/2)" },
+        }),
+      ].join("\n"),
+    );
+
+    expect(result.provenance.artifacts[0]?.identifier).toBe(identifier);
+  });
 });
