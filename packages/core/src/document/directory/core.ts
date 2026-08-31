@@ -204,6 +204,13 @@ export class DirectoryDocument implements Document {
     await this.graphBuildParameters.deleteUnreferenced();
   }
 
+  public async markSerialDerivedArtifactsStale(
+    serialId: number,
+  ): Promise<void> {
+    await this.serials.setTopologyReady(serialId, false);
+    await this.serials.setKnowledgeGraphReady(serialId, false);
+  }
+
   public async clearSerialKnowledgeGraph(serialId: number): Promise<void> {
     await this.indexArtifacts.delete(serialId, "fts");
     await deleteSerialKnowledgeGraphRecords({
@@ -227,7 +234,7 @@ export class DirectoryDocument implements Document {
   }
 
   public async clearSerialSource(serialId: number): Promise<void> {
-    await this.clearSerialDerivedArtifacts(serialId);
+    await this.markSerialDerivedArtifactsStale(serialId);
     await this.#textStreams.getSerial(serialId).delete();
     await this.sourceProvenance.clear(serialId);
     await this.serials.bumpRevision(serialId);

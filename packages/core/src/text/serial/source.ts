@@ -15,7 +15,7 @@ export async function writeSerialSource(
   // File writes are coordinated separately from the database transaction, so
   // this preflight preserves the all-or-nothing source replacement contract.
   await document.sourceProvenance.validate(options.provenance);
-  await document.clearSerialDerivedArtifacts(serialId);
+  await document.markSerialDerivedArtifactsStale(serialId);
   await serialFragments.writeTextStream(await collectTextStream(stream), {
     ...(options.segmenter === undefined
       ? {}

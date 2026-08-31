@@ -26,7 +26,7 @@ async function withDocument(
 }
 
 describe("DirectoryDocument index artifact invalidation", () => {
-  it("deletes all index artifacts when source is cleared", async () => {
+  it("keeps derived artifacts as stale when source is cleared", async () => {
     await withDocument(async (document) => {
       await document.openSession(async (openedDocument) => {
         const serialId = await openedDocument.createSerial();
@@ -39,14 +39,17 @@ describe("DirectoryDocument index artifact invalidation", () => {
 
         await openedDocument.clearSerialSource(serialId);
 
-        expect(await openedDocument.indexArtifacts.list()).toStrictEqual([]);
+        expect(await openedDocument.indexArtifacts.list()).toHaveLength(3);
         expect(
           await openedDocument.mentions.listByChapter(serialId),
-        ).toStrictEqual([]);
+        ).toHaveLength(1);
         expect(
           await openedDocument.readingEdges.listBySerial(serialId),
-        ).toStrictEqual([]);
-        expect(await openedDocument.readSummary(serialId)).toBeUndefined();
+        ).toHaveLength(1);
+        expect(await openedDocument.readSummary(serialId)).toBe("Summary.");
+        const state = await openedDocument.serials.getById(serialId);
+        expect(state?.topologyReady).toBe(false);
+        expect(state?.knowledgeGraphReady).toBe(false);
         expect(await openedDocument.serials.getRevision(serialId)).toBe(
           revision + 1,
         );
@@ -169,7 +172,7 @@ describe("DirectoryDocument index artifact invalidation", () => {
     });
   });
 
-  it("deletes derived artifacts and bumps revision when source is replaced", async () => {
+  it("keeps derived artifacts as stale when source is replaced", async () => {
     await withDocument(async (document) => {
       await document.openSession(async (openedDocument) => {
         const serialId = await openedDocument.createSerial();
@@ -182,14 +185,17 @@ describe("DirectoryDocument index artifact invalidation", () => {
 
         await writeSerialSource(openedDocument, serialId, ["Replacement."]);
 
-        expect(await openedDocument.indexArtifacts.list()).toStrictEqual([]);
+        expect(await openedDocument.indexArtifacts.list()).not.toHaveLength(0);
         expect(
           await openedDocument.mentions.listByChapter(serialId),
-        ).toStrictEqual([]);
+        ).toHaveLength(1);
         expect(
           await openedDocument.readingEdges.listBySerial(serialId),
-        ).toStrictEqual([]);
-        expect(await openedDocument.readSummary(serialId)).toBeUndefined();
+        ).toHaveLength(1);
+        expect(await openedDocument.readSummary(serialId)).toBe("Summary.");
+        const state = await openedDocument.serials.getById(serialId);
+        expect(state?.topologyReady).toBe(false);
+        expect(state?.knowledgeGraphReady).toBe(false);
         expect(await openedDocument.serials.getRevision(serialId)).toBe(
           revision + 1,
         );
