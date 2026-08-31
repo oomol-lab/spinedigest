@@ -82,6 +82,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
     input: SourceTextProvenanceInput | undefined,
   ): Promise<void> {
     await this.#database.transaction(async () => {
+      await this.validate(input);
       await this.#deleteSerialRecords(serialId);
 
       if (input !== undefined) {
@@ -213,6 +214,34 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
 
   public async clear(serialId: number): Promise<void> {
     await this.replace(serialId, 0, undefined);
+  }
+
+  /** Validate all artifact constraints without changing provenance records. */
+  public async validate(
+    input: SourceTextProvenanceInput | undefined,
+  ): Promise<void> {
+    if (input === undefined) return;
+    const seen = new Map<string, string>();
+    for (const artifact of input.artifacts) {
+      const digest = normalizeDigest(artifact.digest);
+      const prior = seen.get(digest);
+      if (prior !== undefined && prior !== artifact.mediaType) {
+        throw new Error(
+          `Source artifact ${digest} has conflicting mediaType values.`,
+        );
+      }
+      seen.set(digest, artifact.mediaType);
+      const existing = await this.#database.queryOne(
+        `SELECT media_type FROM source_artifacts WHERE digest = ?`,
+        [Buffer.from(digest, "hex")],
+        (row) => getString(row, "media_type"),
+      );
+      if (existing !== undefined && existing !== artifact.mediaType) {
+        throw new Error(
+          `Source artifact ${digest} already exists with mediaType ${existing}; received ${artifact.mediaType}.`,
+        );
+      }
+    }
   }
 
   async #deleteSerialRecords(serialId: number): Promise<void> {

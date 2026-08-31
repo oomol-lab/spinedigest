@@ -11,6 +11,10 @@ export async function writeSerialSource(
 ): Promise<void> {
   const serialFragments = document.getSerialFragments(serialId);
 
+  // Validate conflicts before touching text, derived artifacts, or revision.
+  // File writes are coordinated separately from the database transaction, so
+  // this preflight preserves the all-or-nothing source replacement contract.
+  await document.sourceProvenance.validate(options.provenance);
   await document.clearSerialDerivedArtifacts(serialId);
   await serialFragments.writeTextStream(await collectTextStream(stream), {
     ...(options.segmenter === undefined
