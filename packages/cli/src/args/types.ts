@@ -77,6 +77,7 @@ export interface CLIArchiveChapterArguments {
   readonly dryRun?: boolean;
   readonly first?: boolean;
   readonly inputPath?: string;
+  readonly inputFormat?: "jsonl";
   readonly inputValue?: string;
   readonly indexArtifactKind?: IndexArtifactKind;
   readonly indexArtifactTarget?: BuildJobTarget;

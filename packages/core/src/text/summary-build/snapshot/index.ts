@@ -15,6 +15,7 @@ import {
   EmptySnapshotMentionLinkStore,
   EmptySnapshotMentionStore,
   EmptySnapshotObjectMetadataStore,
+  EmptySnapshotSourceProvenanceStore,
 } from "./empty-stores.js";
 import {
   SnapshotFragmentGroupStore,
@@ -38,6 +39,7 @@ export class SummaryInputSnapshotDocument implements ReadonlyDocument {
   public readonly mentions: ReadonlyMentionStore;
   public readonly metadata: ReadonlyObjectMetadataStore;
   public readonly serials: SnapshotSerialStore;
+  public readonly sourceProvenance: EmptySnapshotSourceProvenanceStore;
   public readonly snakeChunks: SnapshotSnakeChunkStore;
   public readonly snakeEdges: SnapshotSnakeEdgeStore;
   public readonly snakes: SnapshotSnakeStore;
@@ -60,6 +62,7 @@ export class SummaryInputSnapshotDocument implements ReadonlyDocument {
     this.mentions = new EmptySnapshotMentionStore();
     this.metadata = new EmptySnapshotObjectMetadataStore();
     this.serials = new SnapshotSerialStore(snapshot.serial);
+    this.sourceProvenance = new EmptySnapshotSourceProvenanceStore();
     this.snakeChunks = new SnapshotSnakeChunkStore(snapshot.snakeChunks);
     this.snakeEdges = new SnapshotSnakeEdgeStore(
       snapshot.snakeEdges,

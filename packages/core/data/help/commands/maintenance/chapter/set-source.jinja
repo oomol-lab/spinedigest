@@ -5,10 +5,12 @@ Purpose:
   Fill a planned chapter with normalized source text.
 
 Usage:
-  {{ commandName }} <chapter-uri>/source set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
+  {{ commandName }} <chapter-uri>/source set [text] [--input <path|->] [--input-format jsonl] [--llm <json>] [--json] [--help|-h]
 
 Input:
   - Source text is read from a positional value, `--input <path>`, or `--input -` for stdin.
+  - `--input-format jsonl` accepts provenance records with `type: "artifact"` and `type: "text"`.
+  - JSONL text records are concatenated in order; each text record is bound to the most recently declared artifact.
 
 Preconditions:
   - The chapter must be `planned`.

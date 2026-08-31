@@ -3,6 +3,7 @@ import type { WikiGraphScope } from "../../runtime/common/llm-scope.js";
 import type { Document } from "../../document/index.js";
 import type { LLM } from "../../external/llm/index.js";
 import type { ReaderSegmenter } from "../reader/index.js";
+import type { SourceTextProvenanceInput } from "../../document/index.js";
 
 export const DEFAULT_COMPRESSION_RATIO = 0.2;
 export const DEFAULT_FRAGMENT_WORDS_COUNT = 320;
@@ -24,6 +25,7 @@ export interface BuildSerialSummaryOptions {
 }
 
 export interface WriteSerialSourceOptions {
+  readonly provenance?: SourceTextProvenanceInput;
   readonly segmenter?: ReaderSegmenter;
 }
 

@@ -293,6 +293,41 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_text_sentence_records_chapter
   ON text_sentence_records(kind, chapter_id, sentence_index);
 
+  CREATE TABLE IF NOT EXISTS source_artifacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    digest BLOB NOT NULL UNIQUE,
+    media_type TEXT NOT NULL,
+    name TEXT,
+    identifier TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS source_locators (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    artifact_id INTEGER NOT NULL,
+    value_json TEXT NOT NULL,
+    FOREIGN KEY (artifact_id) REFERENCES source_artifacts(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_source_locators_artifact
+  ON source_locators(artifact_id);
+
+  CREATE TABLE IF NOT EXISTS source_text_maps (
+    serial_id INTEGER NOT NULL,
+    source_revision INTEGER NOT NULL,
+    source_start INTEGER NOT NULL,
+    source_end INTEGER NOT NULL,
+    locator_id INTEGER NOT NULL,
+    PRIMARY KEY (serial_id, source_start, source_end, locator_id),
+    FOREIGN KEY (serial_id) REFERENCES serials(id),
+    FOREIGN KEY (locator_id) REFERENCES source_locators(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_source_text_maps_serial_range
+  ON source_text_maps(serial_id, source_start, source_end);
+
+  CREATE INDEX IF NOT EXISTS idx_source_text_maps_locator
+  ON source_text_maps(locator_id);
+
   CREATE TABLE IF NOT EXISTS object_metadata (
     id INTEGER PRIMARY KEY,
     object_kind INTEGER NOT NULL,

@@ -18,4 +18,9 @@ export async function writeSerialSource(
       : { segmenter: options.segmenter }),
   });
   await document.serials.bumpRevision(serialId);
+  await document.sourceProvenance.replace(
+    serialId,
+    await document.serials.getRevision(serialId),
+    options.provenance,
+  );
 }

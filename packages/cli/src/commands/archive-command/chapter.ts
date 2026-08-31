@@ -18,6 +18,7 @@ import {
   setChapterSource,
   setChapterSummary,
   setChapterTitle,
+  parseSourceTextJsonl,
   type BuildJobTarget,
   type ChapterTree,
   type ChapterTreeApplyResult,
@@ -227,10 +228,16 @@ export async function runArchiveChapterCommand(
           chapterIds: [chapterId],
           operation: "Setting chapter source",
         });
+        const sourceText = await readRequiredSourceText(args);
+        const parsed =
+          args.inputFormat === "jsonl"
+            ? parseSourceTextJsonl(sourceText)
+            : undefined;
         const details = await setChapterSource(
           document,
           chapterId,
-          Readable.from([await readRequiredSourceText(args)]),
+          Readable.from([parsed?.text ?? sourceText]),
+          parsed === undefined ? {} : { provenance: parsed.provenance },
         );
 
         await writeChapterDetails(details, args.json ?? false);

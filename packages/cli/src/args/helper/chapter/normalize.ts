@@ -276,12 +276,17 @@ export function normalizeArchiveChapterArguments(
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
       rejectActionFlag(values.import, "--import", action, helpRoute);
-      rejectActionFlag(
-        values["input-format"],
-        "--input-format",
-        action,
-        helpRoute,
-      );
+      if (
+        values["input-format"] !== undefined &&
+        values["input-format"] !== "jsonl"
+      ) {
+        rejectActionFlag(
+          values["input-format"],
+          "--input-format",
+          action,
+          helpRoute,
+        );
+      }
       rejectActionFlag(values.parent, "--parent", action, helpRoute);
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.title, "--title", action, helpRoute);
@@ -309,6 +314,9 @@ export function normalizeArchiveChapterArguments(
         ...(values.json === undefined ? {} : { json: values.json }),
         path,
         ...(values.input === undefined ? {} : { inputPath: values.input }),
+        ...(values["input-format"] === undefined
+          ? {}
+          : { inputFormat: "jsonl" as const }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
       };
     case "set-summary":

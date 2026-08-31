@@ -76,6 +76,37 @@ export interface SerialRecord {
   readonly topologyReady: boolean;
 }
 
+export interface SourceArtifactInput {
+  readonly digest: string;
+  readonly identifier?: string;
+  readonly mediaType: string;
+  readonly name?: string;
+}
+
+export interface SourceArtifactRecord extends SourceArtifactInput {
+  readonly id: number;
+}
+
+export interface SourceTextMappingInput {
+  readonly artifactDigest: string;
+  readonly locator: Readonly<Record<string, unknown>>;
+  readonly sourceEnd: number;
+  readonly sourceStart: number;
+}
+
+export interface SourceTextProvenanceInput {
+  readonly artifacts: readonly SourceArtifactInput[];
+  readonly mappings: readonly SourceTextMappingInput[];
+}
+
+export interface SourceTextMapRecord {
+  readonly artifact: Omit<SourceArtifactRecord, "id">;
+  readonly locator: Readonly<Record<string, unknown>>;
+  readonly sourceEnd: number;
+  readonly sourceRevision: number;
+  readonly sourceStart: number;
+}
+
 export interface GraphBuildParameterRecord {
   readonly createdAt: string;
   readonly hash: string;

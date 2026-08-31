@@ -7,6 +7,7 @@ export { MentionStore } from "./mention.js";
 export { ObjectMetadataStore } from "./object-metadata.js";
 export { ReadingEdgeStore } from "./reading-edge.js";
 export { SerialStore } from "./serial.js";
+export { SourceProvenanceStore } from "./source-provenance.js";
 export { SnakeChunkStore, SnakeEdgeStore, SnakeStore } from "./snake/index.js";
 export type {
   ReadonlyChunkStore,
@@ -18,6 +19,7 @@ export type {
   ReadonlyObjectMetadataStore,
   ReadonlyReadingEdgeStore,
   ReadonlySerialStore,
+  ReadonlySourceProvenanceStore,
   ReadonlySnakeChunkStore,
   ReadonlySnakeEdgeStore,
   ReadonlySnakeStore,
