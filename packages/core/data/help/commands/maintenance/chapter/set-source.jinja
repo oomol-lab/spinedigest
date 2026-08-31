@@ -11,6 +11,7 @@ Input:
   - Source text is read from a positional value, `--input <path>`, or `--input -` for stdin.
   - `--input-format jsonl` accepts provenance records with `type: "artifact"` and `type: "text"`.
   - JSONL text records are concatenated in order; each text record is bound to the most recently declared artifact.
+  - Artifact `digest` is exactly 64 hexadecimal characters. `identifier` is opaque and optional, with a maximum length of 1024 characters.
 
 Preconditions:
   - The chapter must be `planned`.

@@ -219,11 +219,25 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
   /** Validate all artifact constraints without changing provenance records. */
   public async validate(
     input: SourceTextProvenanceInput | undefined,
+    options: { readonly sourceTextLength?: number } = {},
   ): Promise<void> {
     if (input === undefined) return;
     const seen = new Map<string, string>();
+    const declared = new Set<string>();
     for (const artifact of input.artifacts) {
       const digest = normalizeDigest(artifact.digest);
+      if (artifact.mediaType.length === 0) {
+        throw new Error("Source artifact mediaType must not be empty.");
+      }
+      if (
+        artifact.identifier !== undefined &&
+        Array.from(artifact.identifier).length > 1024
+      ) {
+        throw new Error(
+          "Source artifact identifier must be at most 1024 characters.",
+        );
+      }
+      declared.add(digest);
       const prior = seen.get(digest);
       if (prior !== undefined && prior !== artifact.mediaType) {
         throw new Error(
@@ -239,6 +253,32 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
       if (existing !== undefined && existing !== artifact.mediaType) {
         throw new Error(
           `Source artifact ${digest} already exists with mediaType ${existing}; received ${artifact.mediaType}.`,
+        );
+      }
+    }
+
+    if (input.artifacts.length === 0 || input.mappings.length === 0) {
+      throw new Error(
+        "Source provenance must contain artifacts and source text mappings.",
+      );
+    }
+
+    for (const mapping of input.mappings) {
+      if (
+        !Number.isInteger(mapping.sourceStart) ||
+        !Number.isInteger(mapping.sourceEnd) ||
+        mapping.sourceStart < 0 ||
+        mapping.sourceEnd < mapping.sourceStart ||
+        (options.sourceTextLength !== undefined &&
+          mapping.sourceEnd > options.sourceTextLength)
+      ) {
+        throw new Error(
+          "Source text map offsets must be non-negative character ranges within source text.",
+        );
+      }
+      if (!declared.has(normalizeDigest(mapping.artifactDigest))) {
+        throw new Error(
+          `Source mapping references undeclared artifact ${mapping.artifactDigest}.`,
         );
       }
     }

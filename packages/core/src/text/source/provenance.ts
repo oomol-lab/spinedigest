@@ -10,7 +10,7 @@ const artifactRecordSchema = z.object({
   digest: z.string().regex(/^[0-9a-f]{64}$/iu),
   mediaType: z.string().min(1),
   name: z.string().optional(),
-  identifier: z.string().optional(),
+  identifier: z.string().max(1024).optional(),
 });
 
 const textRecordSchema = z.object({
@@ -84,7 +84,7 @@ export function parseSourceTextJsonl(input: string): ParsedSourceTextJsonl {
     const record = parseTextRecord(value, index + 1);
     validateLocator(currentArtifact.mediaType, record.locator, index + 1);
     const sourceStart = sourceOffset;
-    sourceOffset += record.text.length;
+    sourceOffset += countCharacters(record.text);
     textParts.push(record.text);
     mappings.push({
       artifactDigest: currentArtifact.digest,
@@ -200,10 +200,58 @@ function validateEpubLocator(
 ): void {
   if (
     typeof locator.cfi !== "string" ||
-    !/^epubcfi\(.+\)$/u.test(locator.cfi)
+    !isSyntacticallyValidCfi(locator.cfi)
   ) {
     throw new Error(
       `EPUB locator cfi at line ${lineNumber} must be a syntactically valid epubcfi(...).`,
     );
   }
+}
+
+function countCharacters(text: string): number {
+  return Array.from(text).length;
+}
+
+function isSyntacticallyValidCfi(value: string): boolean {
+  if (!value.startsWith("epubcfi(") || !value.endsWith(")")) return false;
+  const body = value.slice("epubcfi(".length, -1);
+  if (!body.startsWith("/")) return false;
+
+  // Validate the structural shape without interpreting CFI assertions.
+  // Assertions may contain escaped characters; the locator remains opaque.
+  const step = /\/\d+(?:\[[^\[\]\r\n]*\])?/gu;
+  let cursor = 0;
+  while (cursor < body.length) {
+    if (body[cursor] === "/") {
+      step.lastIndex = cursor;
+      const match = step.exec(body);
+      if (match === null || match.index !== cursor) return false;
+      cursor = step.lastIndex;
+      continue;
+    }
+    if (body[cursor] === "!") {
+      cursor += 1;
+      continue;
+    }
+    if (body[cursor] === ":" || body[cursor] === "@" || body[cursor] === "~") {
+      const match = /^(?::\d+|@\d+(?::\d+)?|~\d+(?:@\d+(?::\d+)?)?)/u.exec(
+        body.slice(cursor),
+      );
+      if (match === null) return false;
+      cursor += match[0].length;
+      if (body[cursor] === "[") {
+        const assertionEnd = body.indexOf("]", cursor + 1);
+        if (assertionEnd < 0) return false;
+        cursor = assertionEnd + 1;
+      }
+      continue;
+    }
+    if (body[cursor] === ",") {
+      cursor += 1;
+      continue;
+    }
+    return false;
+  }
+
+  return cursor > 0;
 }
