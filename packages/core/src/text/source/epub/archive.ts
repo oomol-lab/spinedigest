@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { createReadStream } from "fs";
 import { posix } from "path";
 import { PassThrough, type Readable } from "stream";
 import type { Entry, ZipFile } from "yauzl";
@@ -8,23 +9,27 @@ export class EpubArchive {
   readonly #path: string;
   readonly #zipFile: ZipFile;
   readonly #entries: ReadonlyMap<string, Entry>;
+  readonly #digest: string;
   #closed = false;
 
   public constructor(
     path: string,
     zipFile: ZipFile,
     entries: ReadonlyMap<string, Entry>,
+    digest: string,
   ) {
     this.#path = path;
     this.#zipFile = zipFile;
     this.#entries = entries;
+    this.#digest = digest;
   }
 
   public static async open(path: string): Promise<EpubArchive> {
+    const digest = await digestFile(path);
     const zipFile = await openZipFile(path);
     const entries = await indexEntries(zipFile);
 
-    return new EpubArchive(path, zipFile, entries);
+    return new EpubArchive(path, zipFile, entries, digest);
   }
 
   public close(): Promise<void> {
@@ -97,6 +102,10 @@ export class EpubArchive {
     return this.#path;
   }
 
+  public get digest(): string {
+    return this.#digest;
+  }
+
   #getEntry(path: string): Entry {
     const normalizedPath = normalizeArchivePath(path);
     const entry = this.#entries.get(normalizedPath);
@@ -161,6 +170,17 @@ async function openZipFile(path: string): Promise<ZipFile> {
 
       resolve(zipFile);
     });
+  });
+}
+
+async function digestFile(path: string): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const hash = createHash("sha256");
+    const stream = createReadStream(path);
+
+    stream.on("data", (chunk: Buffer | string) => hash.update(chunk));
+    stream.once("end", () => resolve(hash.digest("hex")));
+    stream.once("error", reject);
   });
 }
 

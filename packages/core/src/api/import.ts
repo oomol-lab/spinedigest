@@ -16,6 +16,7 @@ import {
   type SourceAsset,
   type SourceDocument,
   type SourceSection,
+  type SourceSectionContent,
   type TocFile,
   type TocItem,
 } from "../text/source/index.js";
@@ -23,7 +24,7 @@ import type { ChapterStage } from "./chapter/index.js";
 
 export interface ImportSourceOptions
   extends
-    GenerateSerialOptions,
+    Omit<GenerateSerialOptions, "provenance">,
     Omit<SerialGenerationOptions, "document" | "llm"> {
   readonly adapter: SourceAdapter;
   readonly digestProgressTracker?: DigestProgressTracker;
@@ -188,6 +189,8 @@ async function generatePlannedSerials(
               id: plannedSection.serialId,
             });
           const serial = await context.run(async () => {
+            const content = await openSectionContent(plannedSection.section);
+
             if (options.targetStage === "sourced") {
               await options.document.serials.createWithId(
                 plannedSection.serialId,
@@ -195,7 +198,10 @@ async function generatePlannedSerials(
               await writeSerialSource(
                 options.document,
                 plannedSection.serialId,
-                await plannedSection.section.open(),
+                content.stream,
+                content.provenance === undefined
+                  ? {}
+                  : { provenance: content.provenance },
               );
 
               return {
@@ -210,7 +216,10 @@ async function generatePlannedSerials(
               await writeSerialSource(
                 options.document,
                 plannedSection.serialId,
-                await plannedSection.section.open(),
+                content.stream,
+                content.provenance === undefined
+                  ? {}
+                  : { provenance: content.provenance },
               );
               await requireSerialGeneration(
                 options.generation,
@@ -236,9 +245,12 @@ async function generatePlannedSerials(
               options.targetStage,
             ).generateInto(
               plannedSection.serialId,
-              await plannedSection.section.open(),
+              content.stream,
               {
                 extractionPrompt: options.extractionPrompt,
+                ...(content.provenance === undefined
+                  ? {}
+                  : { provenance: content.provenance }),
                 ...(options.userLanguage === undefined
                   ? {}
                   : { userLanguage: options.userLanguage }),
@@ -257,6 +269,16 @@ async function generatePlannedSerials(
   );
 
   return [...serials].sort((left, right) => left.id - right.id);
+}
+
+async function openSectionContent(
+  section: SourceSection,
+): Promise<SourceSectionContent> {
+  if (section.openWithProvenance !== undefined) {
+    return await section.openWithProvenance();
+  }
+
+  return { stream: await section.open() };
 }
 
 function planTocItems(input: {

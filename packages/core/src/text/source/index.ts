@@ -24,4 +24,9 @@ export {
   type TocFile,
   type TocItem,
 } from "./toc.js";
-export type { SourceAsset, SourceSection, SourceTextStream } from "./types.js";
+export type {
+  SourceAsset,
+  SourceSection,
+  SourceSectionContent,
+  SourceTextStream,
+} from "./types.js";

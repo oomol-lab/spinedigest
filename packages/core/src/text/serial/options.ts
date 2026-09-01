@@ -15,6 +15,7 @@ export const DEFAULT_WORKING_MEMORY_CAPACITY = 7;
 
 export interface GenerateSerialOptions {
   readonly extractionPrompt: string;
+  readonly provenance?: SourceTextProvenanceInput;
   readonly userLanguage?: Language;
 }
 

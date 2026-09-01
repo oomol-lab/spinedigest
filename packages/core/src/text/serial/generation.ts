@@ -73,6 +73,9 @@ export class SerialGeneration {
   ): Promise<Serial> {
     const serialId = await this.#createSerialId();
     await writeSerialSource(this.#document, serialId, stream, {
+      ...(options.provenance === undefined
+        ? {}
+        : { provenance: options.provenance }),
       ...(this.#segmenter === undefined ? {} : { segmenter: this.#segmenter }),
     });
     return await this.#generatePrepared(serialId, options, progressTracker);
@@ -93,6 +96,9 @@ export class SerialGeneration {
   ): Promise<Serial> {
     await this.#createExplicitSerialId(serialId);
     await writeSerialSource(this.#document, serialId, stream, {
+      ...(options.provenance === undefined
+        ? {}
+        : { provenance: options.provenance }),
       ...(this.#segmenter === undefined ? {} : { segmenter: this.#segmenter }),
     });
     return await this.#generatePrepared(serialId, options, progressTracker);

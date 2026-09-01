@@ -1,4 +1,6 @@
 import { Readable } from "stream";
+import { createHash } from "crypto";
+import { readFile } from "fs/promises";
 
 import { describe, expect, it } from "vitest";
 
@@ -12,6 +14,7 @@ import {
   getFixturePath,
   readStreamText,
 } from "../../../helpers/fixtures.js";
+import { parseSourceTextJsonl } from "../../../../packages/core/src/text/source/provenance.js";
 
 describe("source/epub", () => {
   it("reads metadata and cover from the sample epub fixture", async () => {
@@ -75,6 +78,61 @@ describe("source/epub", () => {
         expect(stormLedgerText).toContain("west stair sounded hollow");
       },
     );
+  });
+
+  it("returns source text provenance for imported EPUB sections", async () => {
+    const epubPath = getFixturePath("Cambridge.epub");
+    const digest = createHash("sha256")
+      .update(await readFile(epubPath))
+      .digest("hex");
+
+    await EPUB_SOURCE_ADAPTER.openSession(epubPath, async (document) => {
+      const section = (await document.readSections())[0]!;
+      const content = await section.openWithProvenance!();
+      const text = await readStreamText(content.stream);
+      const mappings = content.provenance?.mappings ?? [];
+
+      expect(text).toContain("Joan Robinson’s first complaint");
+      expect(content.provenance?.artifacts).toMatchObject([
+        {
+          digest,
+          mediaType: "application/epub+zip",
+          name: "Cambridge.epub",
+        },
+      ]);
+      expect(mappings.length).toBeGreaterThan(0);
+      expect(mappings[0]?.sourceStart).toBe(0);
+      expect(mappings.at(-1)?.sourceEnd).toBe(Array.from(text).length);
+      expect(
+        mappings.every((mapping) => mapping.sourceEnd > mapping.sourceStart),
+      ).toBe(true);
+      expect(
+        mappings.every(
+          (mapping, index) =>
+            index === 0 ||
+            mapping.sourceStart === mappings[index - 1]!.sourceEnd,
+        ),
+      ).toBe(true);
+      expect(
+        mappings.every((mapping) => typeof mapping.locator.cfi === "string"),
+      ).toBe(true);
+      expect(() =>
+        parseSourceTextJsonl(
+          [
+            JSON.stringify({
+              type: "artifact",
+              digest,
+              mediaType: "application/epub+zip",
+            }),
+            JSON.stringify({
+              type: "text",
+              text: "x",
+              locator: mappings[0]?.locator,
+            }),
+          ].join("\n"),
+        ),
+      ).not.toThrow();
+    });
   });
 
   it("reopens the underlying xhtml entry for repeated section reads", async () => {
