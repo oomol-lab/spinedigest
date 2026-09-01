@@ -99,8 +99,34 @@ describe("facade/import EPUB provenance", () => {
             {
               children: [],
               hasContent: true,
+              id: "first",
+              open: () => Promise.resolve(["first text"]),
+              openWithProvenance: () =>
+                Promise.resolve({
+                  provenance: {
+                    artifacts: [
+                      {
+                        digest: "a".repeat(64),
+                        mediaType: "application/epub+zip",
+                      },
+                    ],
+                    mappings: [
+                      {
+                        artifactDigest: "a".repeat(64),
+                        locator: { cfi: "epubcfi(/6/2!/4/1:0)" },
+                        sourceEnd: 10,
+                        sourceStart: 0,
+                      },
+                    ],
+                  },
+                  stream: ["first text"],
+                }),
+            },
+            {
+              children: [],
+              hasContent: true,
               id: "broken",
-              open: () => Promise.resolve(["text"]),
+              open: () => Promise.resolve(["second text"]),
               openWithProvenance: () =>
                 Promise.reject(new Error("cannot verify EPUB CFI locator")),
             },
@@ -117,6 +143,9 @@ describe("facade/import EPUB provenance", () => {
           }),
         ).rejects.toThrow("cannot verify EPUB CFI locator");
         expect(await document.serials.listIds()).toStrictEqual([]);
+        expect(await document.sourceProvenance.listArtifacts()).toStrictEqual(
+          [],
+        );
         expect(await document.readBookMeta()).toBeUndefined();
         expect(await document.readToc()).toBeUndefined();
       } finally {

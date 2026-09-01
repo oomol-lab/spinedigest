@@ -176,99 +176,122 @@ async function generatePlannedSerials(
   }
 
   const limiter = new AsyncSemaphore(options.serialConcurrency);
-  const serials = await Promise.all(
-    plannedSections.map(async (plannedSection) => {
-      return await limiter.use(async () => {
-        const context = options.document.createContext();
+  const serialTasks = plannedSections.map(async (plannedSection) => {
+    return await limiter.use(async () => {
+      const context = options.document.createContext();
 
-        context.ownSerial(plannedSection.serialId);
+      context.ownSerial(plannedSection.serialId);
 
-        try {
-          const serialProgressTracker =
-            options.digestProgressTracker?.createSerialTracker({
-              id: plannedSection.serialId,
-            });
-          const serial = await context.run(async () => {
-            const content = await openSectionContent(plannedSection.section);
+      try {
+        const serialProgressTracker =
+          options.digestProgressTracker?.createSerialTracker({
+            id: plannedSection.serialId,
+          });
+        const serial = await context.run(async () => {
+          const content = await openSectionContent(plannedSection.section);
 
-            if (options.targetStage === "sourced") {
-              await options.document.serials.createWithId(
-                plannedSection.serialId,
-              );
-              await writeSerialSource(
-                options.document,
-                plannedSection.serialId,
-                content.stream,
-                content.provenance === undefined
-                  ? {}
-                  : { provenance: content.provenance },
-              );
-
-              return {
-                id: plannedSection.serialId,
-              } satisfies ImportedSerial;
-            }
-
-            if (options.targetStage === "graphed") {
-              await options.document.serials.createWithId(
-                plannedSection.serialId,
-              );
-              await writeSerialSource(
-                options.document,
-                plannedSection.serialId,
-                content.stream,
-                content.provenance === undefined
-                  ? {}
-                  : { provenance: content.provenance },
-              );
-              await requireSerialGeneration(
-                options.generation,
-                options.targetStage,
-              ).buildTopologyInto(
-                plannedSection.serialId,
-                {
-                  extractionPrompt: options.extractionPrompt,
-                  ...(options.userLanguage === undefined
-                    ? {}
-                    : { userLanguage: options.userLanguage }),
-                },
-                serialProgressTracker,
-              );
-
-              return {
-                id: plannedSection.serialId,
-              } satisfies ImportedSerial;
-            }
-
-            return await requireSerialGeneration(
-              options.generation,
-              options.targetStage,
-            ).generateInto(
+          if (options.targetStage === "sourced") {
+            await options.document.serials.createWithId(
+              plannedSection.serialId,
+            );
+            await writeSerialSource(
+              options.document,
               plannedSection.serialId,
               content.stream,
+              content.provenance === undefined
+                ? {}
+                : { provenance: content.provenance },
+            );
+
+            return {
+              id: plannedSection.serialId,
+            } satisfies ImportedSerial;
+          }
+
+          if (options.targetStage === "graphed") {
+            await options.document.serials.createWithId(
+              plannedSection.serialId,
+            );
+            await writeSerialSource(
+              options.document,
+              plannedSection.serialId,
+              content.stream,
+              content.provenance === undefined
+                ? {}
+                : { provenance: content.provenance },
+            );
+            await requireSerialGeneration(
+              options.generation,
+              options.targetStage,
+            ).buildTopologyInto(
+              plannedSection.serialId,
               {
                 extractionPrompt: options.extractionPrompt,
-                ...(content.provenance === undefined
-                  ? {}
-                  : { provenance: content.provenance }),
                 ...(options.userLanguage === undefined
                   ? {}
                   : { userLanguage: options.userLanguage }),
               },
               serialProgressTracker,
             );
-          });
 
-          context.complete();
-          return serial;
-        } finally {
-          await context.dispose();
-        }
-      });
-    }),
-  );
+            return {
+              id: plannedSection.serialId,
+            } satisfies ImportedSerial;
+          }
 
-  return [...serials].sort((left, right) => left.id - right.id);
+          return await requireSerialGeneration(
+            options.generation,
+            options.targetStage,
+          ).generateInto(
+            plannedSection.serialId,
+            content.stream,
+            {
+              extractionPrompt: options.extractionPrompt,
+              ...(content.provenance === undefined
+                ? {}
+                : { provenance: content.provenance }),
+              ...(options.userLanguage === undefined
+                ? {}
+                : { userLanguage: options.userLanguage }),
+            },
+            serialProgressTracker,
+          );
+        });
+
+        context.complete();
+        return serial;
+      } finally {
+        await context.dispose();
+      }
+    });
+  });
+
+  try {
+    const serials = await Promise.all(serialTasks);
+
+    return [...serials].sort((left, right) => left.id - right.id);
+  } catch (error) {
+    // Promise.all rejects as soon as one section fails, but other section
+    // tasks may still be writing. Wait for every task before removing all
+    // serial resources created by this import.
+    await Promise.allSettled(serialTasks);
+    await rollbackImportedSerials(
+      options.document,
+      plannedSections.map((plannedSection) => plannedSection.serialId),
+    );
+    throw error;
+  }
+}
+
+async function rollbackImportedSerials(
+  document: Document,
+  serialIds: readonly number[],
+): Promise<void> {
+  await document.openSession(async (openedDocument) => {
+    for (const serialId of serialIds) {
+      await openedDocument.deleteSerial(serialId);
+    }
+  });
 }
 
 async function openSectionContent(
