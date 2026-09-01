@@ -4,7 +4,10 @@ import { resolve } from "path";
 
 import { describe, expect, it } from "vitest";
 
-import { importSource } from "../../../packages/core/src/api/import.js";
+import {
+  importSource,
+  importSourceDocument,
+} from "../../../packages/core/src/api/import.js";
 import { DirectoryDocument } from "../../../packages/core/src/document/index.js";
 import { EPUB_SOURCE_ADAPTER } from "../../../packages/core/src/text/source/index.js";
 import { withTempDir } from "../../helpers/temp.js";
@@ -68,6 +71,54 @@ describe("facade/import EPUB provenance", () => {
           ).map((mapping) => mapping.artifact.name),
         );
         expect(artifactNames).toStrictEqual(new Set(["Cambridge.epub"]));
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("does not create a serial when provenance locator generation fails", async () => {
+    await withTempDir("wikigraph-epub-import-atomicity-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+      const sourceDocument = {
+        readCover: () => Promise.resolve(undefined),
+        readMeta: () =>
+          Promise.resolve({
+            authors: [],
+            description: null,
+            identifier: null,
+            language: null,
+            publishedAt: null,
+            publisher: null,
+            sourceFormat: "epub" as const,
+            title: "Broken EPUB",
+            version: 1 as const,
+          }),
+        readSections: () =>
+          Promise.resolve([
+            {
+              children: [],
+              hasContent: true,
+              id: "broken",
+              open: () => Promise.resolve(["text"]),
+              openWithProvenance: () =>
+                Promise.reject(new Error("cannot verify EPUB CFI locator")),
+            },
+          ]),
+      };
+
+      try {
+        await expect(
+          importSourceDocument(sourceDocument, {
+            document,
+            extractionPrompt: "Keep the source text unchanged.",
+            llm: {} as never,
+            targetStage: "sourced",
+          }),
+        ).rejects.toThrow("cannot verify EPUB CFI locator");
+        expect(await document.serials.listIds()).toStrictEqual([]);
+        expect(await document.readBookMeta()).toBeUndefined();
+        expect(await document.readToc()).toBeUndefined();
       } finally {
         await document.release();
       }

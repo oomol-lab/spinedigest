@@ -3,11 +3,13 @@ import { createHash } from "crypto";
 import { readFile } from "fs/promises";
 
 import { describe, expect, it } from "vitest";
+import { parseDocument } from "../../../../packages/core/node_modules/htmlparser2/dist/index.js";
 
 import {
   analyzeSectionTargets,
   EpubContentLoader,
 } from "../../../../packages/core/src/text/source/epub/content.js";
+import { EpubArchive } from "../../../../packages/core/src/text/source/epub/archive.js";
 import { EPUB_SOURCE_ADAPTER } from "../../../../packages/core/src/text/source/index.js";
 import {
   collectSectionTitles,
@@ -85,6 +87,9 @@ describe("source/epub", () => {
     const digest = createHash("sha256")
       .update(await readFile(epubPath))
       .digest("hex");
+    const archive = await EpubArchive.open(epubPath);
+    const xhtml = await archive.readText("OEBPS/Text/chapter_05.xhtml");
+    await archive.close();
 
     await EPUB_SOURCE_ADAPTER.openSession(epubPath, async (document) => {
       const section = (await document.readSections())[0]!;
@@ -116,6 +121,9 @@ describe("source/epub", () => {
       expect(
         mappings.every((mapping) => typeof mapping.locator.cfi === "string"),
       ).toBe(true);
+      expect(
+        resolveCfiText(xhtml, mappings[0]!.locator.cfi as string),
+      ).toContain("Joan Robinson");
       expect(() =>
         parseSourceTextJsonl(
           [
@@ -133,6 +141,61 @@ describe("source/epub", () => {
         ),
       ).not.toThrow();
     });
+  });
+
+  it("resolves CFI paths from an XHTML root and counts UTF-16 offsets", async () => {
+    const loader = new EpubContentLoader(
+      {
+        readText: () =>
+          Promise.resolve(
+            [
+              '<?xml version="1.0"?>',
+              "<!DOCTYPE html>",
+              '<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>',
+              '<section id="first">\n<p>A😀B</p>\n</section>',
+              '<section id="second"><p>Second</p></section>',
+              "</body></html>",
+            ].join(""),
+          ),
+        openReadStream: () => Promise.reject(new Error("unused")),
+      } as never,
+      new Map([
+        [
+          "chapter.xhtml",
+          [
+            {
+              fragment: "first",
+              id: "first",
+              path: "chapter.xhtml",
+              spineIndex: 0,
+            },
+            {
+              fragment: "second",
+              id: "second",
+              path: "chapter.xhtml",
+              spineIndex: 0,
+            },
+          ],
+        ],
+      ]),
+    );
+    const artifact = {
+      digest: "a".repeat(64),
+      mediaType: "application/epub+zip",
+    };
+
+    const first = await loader.openSectionWithProvenance("first", artifact);
+    const second = await loader.openSectionWithProvenance("second", artifact);
+    const firstText = await readStreamText(first.stream);
+    const secondText = await readStreamText(second.stream);
+    const firstCfi = first.provenance?.mappings[0]?.locator.cfi;
+    const secondCfi = second.provenance?.mappings[0]?.locator.cfi;
+
+    expect(firstText).toBe("A😀B");
+    expect(secondText).toBe("Second");
+    expect(firstCfi).toContain("/4/2[first]/2/1:0");
+    expect(firstCfi).toContain("/4/2[first]/2/1:4)");
+    expect(secondCfi).toContain("/4/4[second]/2/1:0");
   });
 
   it("reopens the underlying xhtml entry for repeated section reads", async () => {
@@ -224,3 +287,66 @@ describe("source/epub", () => {
     );
   });
 });
+
+function resolveCfiText(html: string, cfi: string): string {
+  const body = cfi.slice("epubcfi(".length, -1);
+  const indirection = body.indexOf("!");
+  const localPath = indirection < 0 ? body : body.slice(indirection + 1);
+  const [startPath, endPath] = localPath.split(",", 3);
+  if (startPath === undefined || endPath === undefined) {
+    throw new Error("Test CFI does not contain a range.");
+  }
+  const steps = [...startPath.matchAll(/\/(\d+)(?:\[[^\]]*\])?/gu)].map(
+    (match) => Number(match[1]),
+  );
+  const offset = Number(startPath.match(/:(\d+)$/u)?.[1] ?? 0);
+  const endOffset = Number(endPath.match(/:(\d+)$/u)?.[1] ?? 0);
+  const root = parseDocument(html) as unknown as TestHtmlNode;
+  const rootElement = (root.children ?? []).find(isTestElement);
+  if (rootElement === undefined) {
+    throw new Error("Test XHTML has no root element.");
+  }
+
+  let node: TestHtmlNode = rootElement;
+  for (const step of steps) {
+    if (step % 2 === 0) {
+      const elements = (node.children ?? []).filter(isTestElement);
+      node = elements[step / 2 - 1]!;
+    } else {
+      const chunks = collectTextChunks(node);
+      const text = chunks[(step - 1) / 2] ?? "";
+      expect(endOffset).toBeLessThanOrEqual(text.length);
+      return text.slice(offset);
+    }
+  }
+
+  return node.data ?? "";
+}
+
+interface TestHtmlNode {
+  readonly children?: readonly TestHtmlNode[];
+  readonly data?: string;
+  readonly name?: string;
+  readonly type?: string;
+}
+
+function isTestElement(node: TestHtmlNode): boolean {
+  return node.name !== undefined && node.type !== "directive";
+}
+
+function collectTextChunks(node: TestHtmlNode): string[] {
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const child of node.children ?? []) {
+    if (isTestElement(child)) {
+      chunks.push(current);
+      current = "";
+    } else if (child.type === "text") {
+      current += child.data ?? "";
+    }
+  }
+
+  chunks.push(current);
+  return chunks;
+}

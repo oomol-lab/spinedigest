@@ -128,6 +128,11 @@ export class EpubContentLoader {
     const html = await this.#archive.readText(target.path);
     const parsed = parseHtmlSectionContent(html, target.targets, sectionId);
     const mappings = createProvenanceMappings(parsed.segments, artifact.digest);
+    if (parsed.text.length > 0 && mappings.length === 0) {
+      throw new Error(
+        `EPUB section ${sectionId} produced text without provenance mappings.`,
+      );
+    }
 
     return {
       provenance: {
@@ -265,7 +270,18 @@ function parseHtmlSections(
   const root = parseDocument(html, {
     decodeEntities: true,
   }) as unknown as HtmlNode;
-  visitNode(root, "", undefined);
+  const rootElement = (root.children ?? []).find(isCfiElement);
+  if (rootElement === undefined) {
+    if (withLocators) {
+      throw new Error("EPUB XHTML document has no root element for CFI.");
+    }
+    visitNode(root, "");
+  } else {
+    // EPUB CFI indirection resolves the local path from the referenced
+    // XHTML root element, so the synthetic htmlparser2 document node and
+    // the root element itself are not included in the path.
+    visitNode(rootElement, "");
+  }
 
   return new Map(
     [...sections.entries()].map(([index, segments]) => {
@@ -280,11 +296,7 @@ function parseHtmlSections(
     }),
   );
 
-  function visitNode(
-    node: HtmlNode,
-    nodePath: string,
-    elementPath: string | undefined,
-  ): void {
+  function visitNode(node: HtmlNode, nodePath: string): void {
     if (isTextNode(node)) {
       if (currentIndex < 0 || currentIndex >= orderedTargets.length) {
         return;
@@ -297,10 +309,7 @@ function parseHtmlSections(
 
       const target = orderedTargets[currentIndex];
       const targetSpineIndex = target?.spineIndex;
-      if (
-        withLocators &&
-        (targetSpineIndex === undefined || elementPath === undefined)
-      ) {
+      if (withLocators && targetSpineIndex === undefined) {
         throw new Error(
           `EPUB section ${target?.id ?? "unknown"} cannot produce a CFI locator.`,
         );
@@ -308,7 +317,7 @@ function parseHtmlSections(
 
       const locator =
         withLocators && targetSpineIndex !== undefined
-          ? createTextLocator(targetSpineIndex, nodePath, text)
+          ? createTextLocator(targetSpineIndex, nodePath, 0, text.length)
           : EMPTY_LOCATOR;
       appendSegment(currentIndex, text, locator);
       return;
@@ -344,17 +353,69 @@ function parseHtmlSections(
   }
 
   function visitChildren(node: HtmlNode, parentPath: string): void {
-    let cfiIndex = 0;
+    let elementIndex = 0;
+    const textChunkOffsets = new Map<number, number>();
 
     for (const child of node.children ?? []) {
-      if (!isCfiNode(child)) {
+      if (isTextNode(child)) {
+        if (currentIndex < 0 || currentIndex >= orderedTargets.length) {
+          continue;
+        }
+
+        const text = child.data ?? "";
+        if (text === "") {
+          continue;
+        }
+
+        const textIndex = elementIndex * 2 + 1;
+        const offset = textChunkOffsets.get(textIndex) ?? 0;
+        textChunkOffsets.set(textIndex, offset + text.length);
+        const childPath = appendCfiStep(parentPath, textIndex, true);
+        visitTextNode(child, childPath, offset, text.length);
         continue;
       }
 
-      const childPath = appendCfiStep(parentPath, cfiIndex, isTextNode(child));
-      cfiIndex += 1;
-      visitNode(child, childPath, isTextNode(child) ? parentPath : childPath);
+      if (!isCfiElement(child)) {
+        continue;
+      }
+
+      const childPath = appendCfiStep(
+        parentPath,
+        elementIndex,
+        false,
+        child.attribs?.id ?? child.attribs?.["xml:id"],
+      );
+      elementIndex += 1;
+      visitNode(child, childPath);
     }
+  }
+
+  function visitTextNode(
+    node: HtmlNode,
+    nodePath: string,
+    start: number,
+    length: number,
+  ): void {
+    if (currentIndex < 0 || currentIndex >= orderedTargets.length) {
+      return;
+    }
+
+    const text = node.data ?? "";
+    const target = orderedTargets[currentIndex];
+    const targetSpineIndex = target?.spineIndex;
+    if (withLocators && targetSpineIndex === undefined) {
+      throw new Error(
+        `EPUB section ${target?.id ?? "unknown"} cannot produce a CFI locator.`,
+      );
+    }
+
+    appendSegment(
+      currentIndex,
+      text,
+      withLocators && targetSpineIndex !== undefined
+        ? createTextLocator(targetSpineIndex, nodePath, start, start + length)
+        : EMPTY_LOCATOR,
+    );
   }
 
   function appendSegment(
@@ -495,30 +556,33 @@ function isTextNode(node: HtmlNode): boolean {
   return node.type === "text";
 }
 
-function isCfiNode(node: HtmlNode): boolean {
-  return isTextNode(node) || node.name !== undefined;
+function isCfiElement(node: HtmlNode): boolean {
+  return node.name !== undefined && node.type !== "directive";
 }
 
 function appendCfiStep(
   parentPath: string,
   index: number,
   textNode: boolean,
+  id?: string,
 ): string {
-  const step = textNode ? index * 2 + 1 : (index + 1) * 2;
+  const step = textNode ? index : (index + 1) * 2;
+  const assertion =
+    textNode || id === undefined ? "" : `[${escapeCfiAssertion(id)}]`;
 
-  return `${parentPath}/${step}`;
+  return `${parentPath}/${step}${assertion}`;
 }
 
 function createTextLocator(
   spineIndex: number,
   path: string,
-  text: string,
+  start: number,
+  end: number,
 ): Readonly<Record<string, unknown>> {
   const prefix = createCfiPrefix(spineIndex);
-  const length = Array.from(text).length;
 
   return {
-    cfi: `epubcfi(${prefix}${path}:0,${path}:${length})`,
+    cfi: `epubcfi(${prefix}${path}:${start},${path}:${end})`,
   };
 }
 
@@ -531,6 +595,14 @@ function createPointLocator(
 
 function createCfiPrefix(spineIndex: number): string {
   return `/6/${(spineIndex + 1) * 2}!`;
+}
+
+function escapeCfiAssertion(value: string): string {
+  return [...value]
+    .map((character) =>
+      "[]^(),;=".includes(character) ? `^${character}` : character,
+    )
+    .join("");
 }
 
 function toTextChunk(chunk: unknown): string {
