@@ -59,7 +59,10 @@ export interface EpubSectionAnalysis {
 }
 
 interface TextSegment {
+  readonly locatorBase?: Readonly<Record<string, unknown>>;
   readonly locator: Readonly<Record<string, unknown>>;
+  readonly locatorEnd?: number;
+  readonly locatorStart?: number;
   readonly text: string;
 }
 
@@ -319,7 +322,13 @@ function parseHtmlSections(
         withLocators && targetSpineIndex !== undefined
           ? createTextLocator(targetSpineIndex, nodePath, 0, text.length)
           : EMPTY_LOCATOR;
-      appendSegment(currentIndex, text, locator);
+      appendSegment(
+        currentIndex,
+        text,
+        locator,
+        withLocators ? 0 : undefined,
+        withLocators ? text.length : undefined,
+      );
       return;
     }
 
@@ -415,6 +424,8 @@ function parseHtmlSections(
       withLocators && targetSpineIndex !== undefined
         ? createTextLocator(targetSpineIndex, nodePath, start, start + length)
         : EMPTY_LOCATOR,
+      withLocators ? start : undefined,
+      withLocators ? start + length : undefined,
     );
   }
 
@@ -422,13 +433,20 @@ function parseHtmlSections(
     sectionIndex: number,
     text: string,
     locator: Readonly<Record<string, unknown>>,
+    locatorStart?: number,
+    locatorEnd?: number,
   ): void {
     const segments = sections.get(sectionIndex);
     if (segments === undefined) {
       return;
     }
 
-    segments.push({ locator, text });
+    segments.push({
+      locator,
+      ...(locatorEnd === undefined ? {} : { locatorEnd }),
+      ...(locatorStart === undefined ? {} : { locatorStart }),
+      text,
+    });
   }
 
   function appendSynthetic(
@@ -488,19 +506,51 @@ function normalizeMappedSegments(segments: readonly TextSegment[]): {
   readonly text: string;
 } {
   const chars: Array<{
+    readonly baseLocator: Readonly<Record<string, unknown>>;
     readonly char: string;
     readonly locator: Readonly<Record<string, unknown>>;
+    readonly locatorEnd: number | undefined;
+    readonly locatorStart: number | undefined;
   }> = [];
 
   for (const segment of segments) {
     const segmentChars = Array.from(segment.text);
+    let rawOffset = 0;
     for (let index = 0; index < segmentChars.length; index += 1) {
       const char = segmentChars[index]!;
+      const charStart =
+        segment.locatorStart === undefined
+          ? undefined
+          : segment.locatorStart + rawOffset;
+      rawOffset += char.length;
+      let charEnd =
+        segment.locatorEnd === undefined
+          ? undefined
+          : segment.locatorStart === undefined
+            ? undefined
+            : segment.locatorStart + rawOffset;
       if (char === "\r" && segmentChars[index + 1] === "\n") {
-        chars.push({ char: "\n", locator: segment.locator });
+        rawOffset += 1;
+        charEnd =
+          segment.locatorStart === undefined
+            ? undefined
+            : segment.locatorStart + rawOffset;
+        chars.push({
+          baseLocator: segment.locator,
+          char: "\n",
+          locator: createNormalizedLocator(segment.locator, charStart, charEnd),
+          locatorEnd: charEnd,
+          locatorStart: charStart,
+        });
         index += 1;
       } else {
-        chars.push({ char, locator: segment.locator });
+        chars.push({
+          baseLocator: segment.locator,
+          char,
+          locator: createNormalizedLocator(segment.locator, charStart, charEnd),
+          locatorEnd: charEnd,
+          locatorStart: charStart,
+        });
       }
     }
   }
@@ -532,19 +582,78 @@ function normalizeMappedSegments(segments: readonly TextSegment[]): {
   const normalizedSegments: TextSegment[] = [];
   for (const item of trimmed) {
     const previous = normalizedSegments.at(-1);
-    if (previous !== undefined && previous.locator === item.locator) {
+    if (
+      previous !== undefined &&
+      previous.locatorBase === item.baseLocator &&
+      previous.locatorEnd === item.locatorStart &&
+      previous.locatorStart !== undefined &&
+      item.locatorEnd !== undefined
+    ) {
       normalizedSegments[normalizedSegments.length - 1] = {
+        locatorBase: previous.locatorBase,
+        locator: createNormalizedLocator(
+          previous.locatorBase ?? previous.locator,
+          previous.locatorStart,
+          item.locatorEnd,
+        ),
+        locatorEnd: item.locatorEnd,
+        locatorStart: previous.locatorStart,
+        text: previous.text + item.char,
+      };
+    } else if (
+      previous !== undefined &&
+      previous.locatorBase === item.baseLocator &&
+      previous.locatorStart === undefined &&
+      item.locatorStart === undefined
+    ) {
+      normalizedSegments[normalizedSegments.length - 1] = {
+        locatorBase: previous.locatorBase,
         locator: previous.locator,
         text: previous.text + item.char,
       };
     } else {
-      normalizedSegments.push({ locator: item.locator, text: item.char });
+      normalizedSegments.push({
+        locatorBase: item.baseLocator,
+        locator: item.locator,
+        ...(item.locatorEnd === undefined
+          ? {}
+          : { locatorEnd: item.locatorEnd }),
+        ...(item.locatorStart === undefined
+          ? {}
+          : { locatorStart: item.locatorStart }),
+        text: item.char,
+      });
     }
   }
 
   return {
     segments: normalizedSegments,
     text: trimmed.map((item) => item.char).join(""),
+  };
+}
+
+function createNormalizedLocator(
+  locator: Readonly<Record<string, unknown>>,
+  start: number | undefined,
+  end: number | undefined,
+): Readonly<Record<string, unknown>> {
+  if (start === undefined || end === undefined) {
+    return locator;
+  }
+
+  const cfi = locator.cfi;
+  if (typeof cfi !== "string") {
+    throw new Error("EPUB text mapping is missing a CFI locator.");
+  }
+
+  const range = /^epubcfi\((.*):(\d+),(.*):(\d+)\)$/u.exec(cfi);
+  if (range === null) {
+    throw new Error("EPUB text mapping has an invalid CFI range locator.");
+  }
+
+  return {
+    ...locator,
+    cfi: `epubcfi(${range[1]}:${start},${range[3]}:${end})`,
   };
 }
 

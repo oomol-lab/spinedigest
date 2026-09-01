@@ -152,7 +152,7 @@ describe("source/epub", () => {
               '<?xml version="1.0"?>',
               "<!DOCTYPE html>",
               '<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>',
-              '<section id="first">\n<p>A😀B</p>\n</section>',
+              '<section id="first">\n<p> A😀B </p>\n</section>',
               '<section id="second"><p>Second</p></section>',
               "</body></html>",
             ].join(""),
@@ -193,8 +193,8 @@ describe("source/epub", () => {
 
     expect(firstText).toBe("A😀B");
     expect(secondText).toBe("Second");
-    expect(firstCfi).toContain("/4/2[first]/2/1:0");
-    expect(firstCfi).toContain("/4/2[first]/2/1:4)");
+    expect(firstCfi).toContain("/4/2[first]/2/1:1");
+    expect(firstCfi).toContain("/4/2[first]/2/1:5)");
     expect(secondCfi).toContain("/4/4[second]/2/1:0");
   });
 
@@ -316,7 +316,7 @@ function resolveCfiText(html: string, cfi: string): string {
       const chunks = collectTextChunks(node);
       const text = chunks[(step - 1) / 2] ?? "";
       expect(endOffset).toBeLessThanOrEqual(text.length);
-      return text.slice(offset);
+      return text.slice(offset, endOffset);
     }
   }
 
