@@ -32,9 +32,10 @@ Choose your starting point:
       {{ commandName }} help library
 
   - User gave you source content and needs a reusable knowledge-base archive:
-    Create an empty `.wikg` archive, or create one while importing an EPUB.
+    Create an empty `.wikg` archive, or create one while importing a source file.
       {{ commandName }} wikg://book.wikg create
       {{ commandName }} wikg://book.wikg create --import ./book.epub
+    Read `{{ commandName }} help file-import` when the source is a file.
 
   - User needs one-shot conversion without keeping an archive:
     Use transform. Source input usually requires LLM configuration.

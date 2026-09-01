@@ -10,7 +10,7 @@ Managed archive format:
   wikg
 
 Archive create/import input:
-  epub via `{{ commandName }} <archive-uri> create --import <epub-path>`
+  source files via `{{ commandName }} <archive-uri> create --import <source-file>`
 
 Export formats:
   txt, markdown, epub
@@ -24,6 +24,7 @@ Inference rules:
   - Transform stdin requires an explicit `--input-format`.
   - Commands that accept content input use `--input <path>` for files and `--input -` for stdin.
   - Archive chapter/source text commands read plain source text by default; `chapter/<path>/source set` also accepts `--input-format jsonl` for source provenance input.
+  - Read `{{ commandName }} help file-import` for source-file import behavior and provenance boundaries.
   - Stdout text export requires an explicit or inferable output format.
   - `transform --stage` is only valid when creating `.wikg` from source input.
 

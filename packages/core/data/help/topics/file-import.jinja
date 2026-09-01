@@ -1,0 +1,50 @@
+Help Type: topic
+Topic: file-import
+
+Source-File Import
+
+Purpose:
+  Import an external source file into a `.wikg` archive while keeping the
+  normalized source text traceable to the file that produced it.
+
+Usage:
+  {{ commandName }} wikg://book.wikg create --import ./book.epub
+  {{ commandName }} wikg://book.wikg create --import ./book.pdf
+
+Supported source files:
+  - EPUB
+  - PDF
+
+Import contract:
+  - The importer is responsible for reading or extracting text from the file.
+  - OCR, layout analysis, and format-specific interpretation are outside this
+    contract.
+  - WG stores the normalized source text and a source-text map that points
+    each imported text range back to its source file and locator.
+  - The source text is its own layer; the file's internal layout does not
+    determine how source text is later split into sentences or other objects.
+  - The original PDF or EPUB file is not embedded in the `.wikg` archive.
+
+Source identity and locator:
+  - Each imported file has a stable artifact identity.
+  - Each imported text range is mapped to a format-specific locator.
+  - WG preserves the locator for later evidence and does not require an Agent
+    to interpret the source file format.
+
+Advanced input:
+  - Use `--input-format jsonl` with `chapter/<path>/source set` only when an
+    external importer already provides ordered text ranges and locators.
+  - JSONL text ranges are concatenated in order and mapped by source-text
+    character offsets.
+  - For ordinary file import, use `create --import` instead.
+
+Boundaries:
+  - File import does not generate Reading Graph, Summary, or Knowledge Graph
+    data.
+  - Generation remains a separate, explicit workflow after import.
+  - A source file is an input and evidence origin, not an archive entry.
+
+See also:
+  - {{ commandName }} wikg://book.wikg create --help
+  - {{ commandName }} wikg://book.wikg/chapter/part/source set --help
+  - {{ commandName }} help format
