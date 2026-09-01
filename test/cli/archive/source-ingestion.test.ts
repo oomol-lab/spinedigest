@@ -132,11 +132,10 @@ describe("cli/archive/source-ingestion", () => {
     const generatedJsonl = parseJsonl(
       await readFile(LITTLE_PRINCE_JSONL_PATH, "utf8"),
     );
-    const generatedText = generatedJsonl
-      .filter(isTextRecord)
+    const generatedTextRecords = generatedJsonl.filter(isTextRecord);
+    const generatedText = generatedTextRecords
       .map((record) => record.text)
       .join("");
-    const generatedMappingCount = generatedJsonl.filter(isTextRecord).length;
 
     await withTempDir("wikigraph-cli-epub-import-", async (path) => {
       const stateDir = resolve(path, "state");
@@ -156,9 +155,11 @@ describe("cli/archive/source-ingestion", () => {
       expect(serials.every((serial) => serial.text.length > 0)).toBe(true);
       expect(serials.every((serial) => serial.maps.length > 0)).toBe(true);
       expect(serials.map((serial) => serial.text).join("")).toBe(generatedText);
-      expect(
-        serials.reduce((count, serial) => count + serial.maps.length, 0),
-      ).toBe(generatedMappingCount);
+      const importedMaps = serials.flatMap((serial) => serial.maps);
+      expect(importedMaps).toHaveLength(generatedTextRecords.length);
+      expect(importedMaps.map((mapping) => mapping.locator)).toStrictEqual(
+        generatedTextRecords.map((record) => record.locator),
+      );
       expect(
         serials.every((serial) =>
           serial.maps.every(
@@ -220,6 +221,9 @@ describe("cli/archive/source-ingestion", () => {
       expect(serial.maps).toHaveLength(textRecords.length);
       expect(serial.maps.at(-1)?.sourceEnd).toBe(
         Array.from(expectedText).length,
+      );
+      expect(serial.maps.map((mapping) => mapping.locator)).toStrictEqual(
+        textRecords.map((record) => record.locator),
       );
       expect(
         serial.maps.every(
