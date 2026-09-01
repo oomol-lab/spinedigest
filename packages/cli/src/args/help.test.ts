@@ -297,7 +297,7 @@ describe("cli/args/help", () => {
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of format, config, runtime, uri, recipe, readiness, library.\nSee: wg --help",
+      "Invalid help topic: unknown. Expected one of format, file-import, config, runtime, uri, recipe, readiness, library.\nSee: wg --help",
     );
     expect(() =>
       parseCLIArguments(["help", "object", "entity", "extra"]),
@@ -316,11 +316,22 @@ describe("cli/args/help", () => {
   it("documents the layered help contract", () => {
     const rootHelpText = renderMainHelpText();
     const uriHelpText = renderHelpTopicText("uri");
+    const fileImportHelpText = renderHelpTopicText("file-import");
+    const archiveCreateHelpText = renderUriPredicateHelpText(
+      "archive-scope",
+      "create",
+      "wikg://book.wikg",
+    );
 
     expect(rootHelpText).toContain("wg help [topic]");
     expect(rootHelpText).toContain("wg help recipe");
     expect(rootHelpText).toContain("wg help readiness");
     expect(rootHelpText).toContain("wg help library");
+    expect(rootHelpText).not.toContain("wg help file-import");
+    expect(fileImportHelpText).toContain("Source-File Import");
+    expect(fileImportHelpText).toContain("source-text map");
+    expect(fileImportHelpText).toContain("OCR, layout analysis");
+    expect(archiveCreateHelpText).toContain("wg help file-import");
     expect(rootHelpText).toContain("Core concepts:");
     expect(rootHelpText).toContain("knowledge-base archives");
     expect(rootHelpText).toContain("Do not edit archive internals:");

@@ -82,8 +82,10 @@ Library entry point:
 
 Help topics:
 {% for topic in helpTopics %}
+{% if topic.rootVisible is not defined or topic.rootVisible %}
   - {{ commandName }} help {{ topic.name }}
     {{ topic.summary }}
+{% endif %}
 {% endfor %}
 
 Formats:

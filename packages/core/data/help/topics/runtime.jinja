@@ -8,7 +8,7 @@ Purpose:
 
 Archive-first streams:
   - `{{ commandName }} <archive-uri> create` creates an empty archive; it does not read stdin.
-  - `{{ commandName }} <archive-uri> create --import <epub-path>` imports EPUB source into a new archive.
+  - `{{ commandName }} <archive-uri> create --import <source-file>` imports a source file into a new archive; read `{{ commandName }} help file-import` for the import contract.
   - `{{ commandName }} <archive-uri> export --output-format markdown|txt` can write text projections to stdout.
   - `{{ commandName }} transform --input-format markdown|txt --output-format markdown|txt` runs direct one-shot stream digest/export and usually requires LLM configuration.
   - Retrieval commands print human-readable text by default and support `--json` where documented.

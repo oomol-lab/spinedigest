@@ -21,6 +21,7 @@ import { parseChapterTarget } from "./uri/chapter/target.js";
 
 export const HELP_TOPICS = [
   "format",
+  "file-import",
   "config",
   "runtime",
   "uri",
@@ -175,10 +176,16 @@ export const ARCHIVE_MAINTENANCE_COMMANDS = [
 const HELP_TOPIC_METADATA: readonly {
   readonly name: HelpTopic;
   readonly summary: string;
+  readonly rootVisible?: boolean;
 }[] = [
   {
     name: "format",
     summary: "Supported formats, inference rules, and IO constraints.",
+  },
+  {
+    name: "file-import",
+    rootVisible: false,
+    summary: "Advanced source-file import and source-text provenance behavior.",
   },
   {
     name: "config",
@@ -228,6 +235,7 @@ const ARCHIVE_MAINTENANCE_COMMAND_METADATA: readonly {
 
 const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
   format: "help/topics/format",
+  "file-import": "help/topics/file-import",
   config: "help/topics/config",
   runtime: "help/topics/runtime",
   uri: "help/topics/uri",

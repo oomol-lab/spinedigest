@@ -54,13 +54,15 @@ Purpose:
   Create the archive at this URI.
 
 Usage:
-  {{ commandName }} {{ uri }} create [--import <epub-path>] [--replace] [--json]
+  {{ commandName }} {{ uri }} create [--import <source-file>] [--replace] [--json]
 
 Notes:
   - Without `--import`, create an empty `.wikg` archive.
-  - `--import <epub-path>` creates the archive and imports EPUB metadata, cover, chapter tree, and source text.
-  - `create` does not read stdin; `--import` only accepts EPUB input.
-  - EPUB import runs only the import/source stage and does not call an LLM provider.
+  - `--import <source-file>` creates the archive and imports the source file's metadata, structure, and source text.
+  - File import also records source provenance so normalized source text can be traced back to the imported file.
+  - The imported file itself is not embedded in the `.wikg` archive.
+  - `create` does not read stdin. Read `{{ commandName }} help file-import` for supported source files and import boundaries.
+  - File import runs only the import/source stage and does not call an LLM provider.
   - Existing archives are not overwritten by default. Use `--replace` only when the target archive should be discarded and recreated.
   - Parent directories must already exist.
   - On success, text output is the archive object (`<archive>`). With `--json`, output is `{"uri":"..."}`.
@@ -215,10 +217,11 @@ Purpose:
   Replace this chapter source text.
 
 Usage:
-  {{ commandName }} {{ uri }} set [text] [--input <path|->]
+  {{ commandName }} {{ uri }} set [text] [--input <path|->] [--input-format jsonl]
 
 Notes:
   - Source text is read from a positional value, `--input <path>`, or `--input -` for stdin.
+  - Use `--input-format jsonl` when an external importer supplies ordered text ranges and source locators; see `{{ commandName }} help file-import` for the input contract.
   - Source replacement invalidates later generated work for that chapter.
   - Use `{{ commandName }} {{ uri }} --help` to inspect the source object before replacing it.
 {% elif target.name == "chapter-summary-object" %}
@@ -634,6 +637,9 @@ Related help:
 {% endif %}
 {% if predicate == "create" or predicate == "export" %}
   - {{ commandName }} help format
+{% endif %}
+{% if predicate == "create" %}
+  - {{ commandName }} help file-import
 {% endif %}
 {% if target.name == "job-collection-scope" or target.name == "job-object" or target.name == "job-target-object" %}
   - {{ commandName }} help runtime
