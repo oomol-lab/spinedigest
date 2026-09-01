@@ -10,6 +10,7 @@ import {
   EpubContentLoader,
 } from "../../../../packages/core/src/text/source/epub/content.js";
 import { EpubArchive } from "../../../../packages/core/src/text/source/epub/archive.js";
+import { readEpubPackage } from "../../../../packages/core/src/text/source/epub/package.js";
 import { EPUB_SOURCE_ADAPTER } from "../../../../packages/core/src/text/source/index.js";
 import {
   collectSectionTitles,
@@ -124,6 +125,18 @@ describe("source/epub", () => {
       expect(
         resolveCfiText(xhtml, mappings[0]!.locator.cfi as string),
       ).toContain("Joan Robinson");
+      for (const mapping of mappings) {
+        const cfi = mapping.locator.cfi;
+        expect(typeof cfi).toBe("string");
+        const components = splitCfiComponents(
+          (cfi as string).slice("epubcfi(".length, -1),
+        );
+        expect(components.length === 1 || components.length === 3).toBe(true);
+        if (components.length === 3) {
+          expect(components[1]).toMatch(/:\d+$/u);
+          expect(components[2]).toMatch(/:\d+$/u);
+        }
+      }
       expect(() =>
         parseSourceTextJsonl(
           [
@@ -193,9 +206,50 @@ describe("source/epub", () => {
 
     expect(firstText).toBe("A😀B");
     expect(secondText).toBe("Second");
-    expect(firstCfi).toContain("/4/2[first]/2/1:1");
-    expect(firstCfi).toContain("/4/2[first]/2/1:5)");
-    expect(secondCfi).toContain("/4/4[second]/2/1:0");
+    expect(firstCfi).toContain("epubcfi(/6/2!/4/2[first]/2,/1:1,/1:5)");
+    expect(secondCfi).toContain("epubcfi(/6/2!/4/4[second]/2,/1:0,/1:6)");
+  });
+
+  it("keeps the original OPF spine position when unsupported items precede XHTML", async () => {
+    const files = new Map([
+      [
+        "META-INF/container.xml",
+        '<container><rootfiles><rootfile full-path="package.opf"/></rootfiles></container>',
+      ],
+      [
+        "package.opf",
+        [
+          '<package version="3.0">',
+          '<metadata><dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">Test</dc:title></metadata>',
+          "<manifest>",
+          '<item id="cover" href="cover.svg" media-type="image/svg+xml"/>',
+          '<item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>',
+          "</manifest>",
+          "<spine>",
+          '<itemref idref="cover"/>',
+          '<itemref idref="chapter"/>',
+          "</spine>",
+          "</package>",
+        ].join(""),
+      ],
+    ]);
+    const packageData = await readEpubPackage({
+      readText: (path: string) => {
+        const content = files.get(path);
+        if (content === undefined) {
+          return Promise.reject(new Error(`missing test EPUB entry: ${path}`));
+        }
+        return Promise.resolve(content);
+      },
+      resolveRelativePath: (_basePath: string, href: string) => href,
+    } as never);
+
+    expect(packageData.spine).toHaveLength(1);
+    expect(packageData.spine[0]).toMatchObject({
+      idref: "chapter",
+      path: "chapter.xhtml",
+      spineIndex: 1,
+    });
   });
 
   it("reopens the underlying xhtml entry for repeated section reads", async () => {
@@ -290,17 +344,23 @@ describe("source/epub", () => {
 
 function resolveCfiText(html: string, cfi: string): string {
   const body = cfi.slice("epubcfi(".length, -1);
-  const indirection = body.indexOf("!");
-  const localPath = indirection < 0 ? body : body.slice(indirection + 1);
-  const [startPath, endPath] = localPath.split(",", 3);
-  if (startPath === undefined || endPath === undefined) {
+  const components = splitCfiComponents(body);
+  if (components.length !== 3) {
     throw new Error("Test CFI does not contain a range.");
   }
-  const steps = [...startPath.matchAll(/\/(\d+)(?:\[[^\]]*\])?/gu)].map(
+  const [parentPath, relativeStartPath, relativeEndPath] = components;
+  const startPath = joinCfiPath(parentPath!, relativeStartPath!);
+  const endPath = joinCfiPath(parentPath!, relativeEndPath!);
+  const indirection = startPath.indexOf("!");
+  const localPath =
+    indirection < 0 ? startPath : startPath.slice(indirection + 1);
+  const localEndPath =
+    indirection < 0 ? endPath : endPath.slice(indirection + 1);
+  const steps = [...localPath.matchAll(/\/(\d+)(?:\[[^\]]*\])?/gu)].map(
     (match) => Number(match[1]),
   );
-  const offset = Number(startPath.match(/:(\d+)$/u)?.[1] ?? 0);
-  const endOffset = Number(endPath.match(/:(\d+)$/u)?.[1] ?? 0);
+  const offset = Number(localPath.match(/:(\d+)$/u)?.[1] ?? 0);
+  const endOffset = Number(localEndPath.match(/:(\d+)$/u)?.[1] ?? 0);
   const root = parseDocument(html) as unknown as TestHtmlNode;
   const rootElement = (root.children ?? []).find(isTestElement);
   if (rootElement === undefined) {
@@ -321,6 +381,44 @@ function resolveCfiText(html: string, cfi: string): string {
   }
 
   return node.data ?? "";
+}
+
+function joinCfiPath(parentPath: string, relativePath: string): string {
+  return `${parentPath}${relativePath}`;
+}
+
+function splitCfiComponents(value: string): string[] {
+  const components: string[] = [];
+  let componentStart = 0;
+  let assertionDepth = 0;
+  let escaped = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === "^") {
+      escaped = true;
+      continue;
+    }
+    if (character === "[") {
+      assertionDepth += 1;
+      continue;
+    }
+    if (character === "]") {
+      assertionDepth -= 1;
+      continue;
+    }
+    if (character === "," && assertionDepth === 0) {
+      components.push(value.slice(componentStart, index));
+      componentStart = index + 1;
+    }
+  }
+
+  components.push(value.slice(componentStart));
+  return components;
 }
 
 interface TestHtmlNode {

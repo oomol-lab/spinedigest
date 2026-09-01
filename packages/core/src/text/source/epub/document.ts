@@ -265,7 +265,7 @@ function groupTargetsByPath(
 ): ReadonlyMap<string, readonly EpubSectionTarget[]> {
   const targetsByPath = new Map<string, EpubSectionTarget[]>();
   const spineIndexesByPath = new Map(
-    packageData.spine.map((item, index) => [item.path, index]),
+    packageData.spine.map((item) => [item.path, item.spineIndex]),
   );
 
   for (const section of flattenSections(sections)) {

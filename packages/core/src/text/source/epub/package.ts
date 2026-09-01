@@ -31,6 +31,8 @@ export interface EpubSpineItem {
   readonly idref: string;
   readonly path: string;
   readonly mediaType: string;
+  /** The itemref's zero-based position in the OPF spine element. */
+  readonly spineIndex: number;
 }
 
 export interface EpubPackageData {
@@ -206,9 +208,12 @@ function buildSpine(
   }
 
   return findChildren(spineElement, "itemref")
-    .map((itemref) => getAttribute(itemref, "idref"))
-    .filter((idref): idref is string => idref !== undefined)
-    .map((idref) => {
+    .map((itemref, spineIndex) => {
+      const idref = getAttribute(itemref, "idref");
+      if (idref === undefined) {
+        return undefined;
+      }
+
       const item = manifest.get(idref);
 
       if (
@@ -223,6 +228,7 @@ function buildSpine(
         idref,
         path: item.path,
         mediaType: item.mediaType,
+        spineIndex,
       } satisfies EpubSpineItem;
     })
     .filter((item): item is EpubSpineItem => item !== undefined);

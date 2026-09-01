@@ -646,15 +646,85 @@ function createNormalizedLocator(
     throw new Error("EPUB text mapping is missing a CFI locator.");
   }
 
-  const range = /^epubcfi\((.*):(\d+),(.*):(\d+)\)$/u.exec(cfi);
-  if (range === null) {
+  const range = parseCfiRange(cfi);
+  if (range === undefined) {
     throw new Error("EPUB text mapping has an invalid CFI range locator.");
   }
 
   return {
     ...locator,
-    cfi: `epubcfi(${range[1]}:${start},${range[3]}:${end})`,
+    cfi: `epubcfi(${range.parentPath},${replaceCfiOffset(range.startPath, start)},${replaceCfiOffset(range.endPath, end)})`,
   };
+}
+
+interface CfiRange {
+  readonly endPath: string;
+  readonly parentPath: string;
+  readonly startPath: string;
+}
+
+function parseCfiRange(value: string): CfiRange | undefined {
+  if (!value.startsWith("epubcfi(") || !value.endsWith(")")) {
+    return undefined;
+  }
+
+  const parts = splitCfiComponents(value.slice("epubcfi(".length, -1));
+  if (parts.length !== 3 || parts.some((part) => part === "")) {
+    return undefined;
+  }
+
+  const [parentPath, startPath, endPath] = parts;
+  if (
+    parentPath === undefined ||
+    startPath === undefined ||
+    endPath === undefined
+  ) {
+    return undefined;
+  }
+
+  return { endPath, parentPath, startPath };
+}
+
+function splitCfiComponents(value: string): string[] {
+  const components: string[] = [];
+  let componentStart = 0;
+  let assertionDepth = 0;
+  let escaped = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === "^") {
+      escaped = true;
+      continue;
+    }
+    if (character === "[") {
+      assertionDepth += 1;
+      continue;
+    }
+    if (character === "]") {
+      assertionDepth -= 1;
+      continue;
+    }
+    if (character === "," && assertionDepth === 0) {
+      components.push(value.slice(componentStart, index));
+      componentStart = index + 1;
+    }
+  }
+
+  components.push(value.slice(componentStart));
+  return components;
+}
+
+function replaceCfiOffset(path: string, offset: number): string {
+  if (!/:\d+$/u.test(path)) {
+    throw new Error("EPUB text mapping has an invalid CFI offset.");
+  }
+
+  return path.replace(/:\d+$/u, `:${offset}`);
 }
 
 function getHtmlTagName(node: HtmlNode): string | undefined {
@@ -688,10 +758,32 @@ function createTextLocator(
   start: number,
   end: number,
 ): Readonly<Record<string, unknown>> {
-  const prefix = createCfiPrefix(spineIndex);
+  const packagePath = createCfiPackagePath(spineIndex);
+  const { parentPath, textPath } = splitTextPath(path);
+  const parent =
+    parentPath === "" ? packagePath : `${packagePath}!${parentPath}`;
+  const startPath =
+    parentPath === "" ? `!${textPath}:${start}` : `${textPath}:${start}`;
+  const endPath =
+    parentPath === "" ? `!${textPath}:${end}` : `${textPath}:${end}`;
 
   return {
-    cfi: `epubcfi(${prefix}${path}:${start},${path}:${end})`,
+    cfi: `epubcfi(${parent},${startPath},${endPath})`,
+  };
+}
+
+function splitTextPath(path: string): {
+  readonly parentPath: string;
+  readonly textPath: string;
+} {
+  const separator = path.lastIndexOf("/");
+  if (separator < 0 || separator === path.length - 1) {
+    throw new Error(`EPUB text mapping has an invalid CFI path: ${path}`);
+  }
+
+  return {
+    parentPath: path.slice(0, separator),
+    textPath: path.slice(separator),
   };
 }
 
@@ -703,7 +795,11 @@ function createPointLocator(
 }
 
 function createCfiPrefix(spineIndex: number): string {
-  return `/6/${(spineIndex + 1) * 2}!`;
+  return `${createCfiPackagePath(spineIndex)}!`;
+}
+
+function createCfiPackagePath(spineIndex: number): string {
+  return `/6/${(spineIndex + 1) * 2}`;
 }
 
 function escapeCfiAssertion(value: string): string {
