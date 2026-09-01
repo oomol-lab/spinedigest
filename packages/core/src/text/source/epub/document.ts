@@ -1,5 +1,13 @@
 import type { SourceAdapter, SourceDocument } from "../adapter.js";
-import type { SourceAsset, SourceSection, SourceTextStream } from "../types.js";
+import type {
+  SourceAsset,
+  SourceSection,
+  SourceSectionContent,
+  SourceTextStream,
+} from "../types.js";
+import type { SourceArtifactInput } from "../../../document/types.js";
+import { basename } from "path";
+
 import { normalizeFragment } from "./archive.js";
 import { EpubArchive } from "./archive.js";
 import {
@@ -58,20 +66,27 @@ class EpubSourceSection implements SourceSection {
   public async open(): Promise<SourceTextStream> {
     return await this.#document.openSection(this.#definition.id);
   }
+
+  public async openWithProvenance(): Promise<SourceSectionContent> {
+    return await this.#document.openSectionWithProvenance(this.#definition.id);
+  }
 }
 
 export class EpubSourceDocument implements SourceDocument {
+  readonly #artifact: SourceArtifactInput;
   readonly #packageData: EpubPackageData;
   readonly #cover: SourceAsset | undefined;
   readonly #sections: readonly SectionDefinition[];
   readonly #contentLoader: EpubContentLoader;
 
   public constructor(
+    artifact: SourceArtifactInput,
     packageData: EpubPackageData,
     cover: SourceAsset | undefined,
     sections: readonly SectionDefinition[],
     contentLoader: EpubContentLoader,
   ) {
+    this.#artifact = artifact;
     this.#packageData = packageData;
     this.#cover = cover;
     this.#sections = sections;
@@ -81,14 +96,23 @@ export class EpubSourceDocument implements SourceDocument {
   public static async open(archive: EpubArchive): Promise<EpubSourceDocument> {
     assertArchiveIsSupported(archive);
     const packageData = await readEpubPackage(archive);
+    const artifact: SourceArtifactInput = {
+      digest: archive.digest,
+      mediaType: "application/epub+zip",
+      name: basename(archive.path),
+      ...(packageData.metadata.identifier === null
+        ? {}
+        : { identifier: packageData.metadata.identifier }),
+    };
     const navigation = await readEpubNavigation(archive, packageData);
     const rawSections = buildSections(archive, navigation);
-    const targetsByPath = groupTargetsByPath(rawSections);
+    const targetsByPath = groupTargetsByPath(rawSections, packageData);
     const sectionAnalyses = await analyzeSectionTargets(archive, targetsByPath);
     const sections = hydrateSectionAnalyses(rawSections, sectionAnalyses);
     const cover = await readCoverAsset(archive, packageData);
 
     return new EpubSourceDocument(
+      artifact,
       packageData,
       cover,
       sections,
@@ -112,6 +136,15 @@ export class EpubSourceDocument implements SourceDocument {
 
   public async openSection(sectionId: string): Promise<SourceTextStream> {
     return await this.#contentLoader.openSection(sectionId);
+  }
+
+  public async openSectionWithProvenance(
+    sectionId: string,
+  ): Promise<SourceSectionContent> {
+    return await this.#contentLoader.openSectionWithProvenance(
+      sectionId,
+      this.#artifact,
+    );
   }
 }
 
@@ -228,8 +261,12 @@ function createUniqueId(baseId: string, idCounts: Map<string, number>): string {
 
 function groupTargetsByPath(
   sections: readonly SectionDefinition[],
+  packageData: EpubPackageData,
 ): ReadonlyMap<string, readonly EpubSectionTarget[]> {
   const targetsByPath = new Map<string, EpubSectionTarget[]>();
+  const spineIndexesByPath = new Map(
+    packageData.spine.map((item, index) => [item.path, index]),
+  );
 
   for (const section of flattenSections(sections)) {
     if (section.path === undefined) {
@@ -241,6 +278,7 @@ function groupTargetsByPath(
       id: section.id,
       path: section.path,
       fragment: section.fragment,
+      spineIndex: spineIndexesByPath.get(section.path),
     });
     targetsByPath.set(section.path, targets);
   }

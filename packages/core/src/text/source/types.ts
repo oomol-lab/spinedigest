@@ -1,4 +1,11 @@
+import type { SourceTextProvenanceInput } from "../../document/types.js";
+
 export type SourceTextStream = AsyncIterable<string> | Iterable<string>;
+
+export interface SourceSectionContent {
+  readonly provenance?: SourceTextProvenanceInput;
+  readonly stream: SourceTextStream;
+}
 
 export interface SourceAsset {
   readonly path: string;
@@ -13,4 +20,5 @@ export interface SourceSection {
   readonly wordsCount?: number | undefined;
   readonly children: readonly SourceSection[];
   open(): Promise<SourceTextStream>;
+  openWithProvenance?(): Promise<SourceSectionContent>;
 }
