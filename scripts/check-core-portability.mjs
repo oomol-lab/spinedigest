@@ -52,11 +52,17 @@ function inspectSource(file, source, {
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind);
   const relativeImports = new Set();
   const globalAliases = new Set(["globalThis"]);
+  const requireAliases = new Set(["require"]);
   function visit(node) {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) &&
         node.initializer && ts.isIdentifier(node.initializer) &&
         globalAliases.has(node.initializer.text)) {
       globalAliases.add(node.name.text);
+    }
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) &&
+        node.initializer && ts.isIdentifier(node.initializer) &&
+        requireAliases.has(node.initializer.text)) {
+      requireAliases.add(node.name.text);
     }
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       const specifier = node.moduleSpecifier;
@@ -70,7 +76,7 @@ function inspectSource(file, source, {
         const argument = node.arguments[0];
         if (!argument || !ts.isStringLiteral(argument) || forbidden.has(moduleName(argument.text))) report(file, "uses a non-literal or forbidden dynamic import");
       }
-      if ((!dependency || strictDependencies) && ts.isIdentifier(node.expression) && node.expression.text === "require") {
+      if ((!dependency || strictDependencies) && ts.isIdentifier(node.expression) && requireAliases.has(node.expression.text)) {
         const argument = node.arguments[0];
         // A CommonJS wrapper is not itself a Node dependency. Reject it when
         // it resolves to a forbidden builtin (or cannot be resolved), while
