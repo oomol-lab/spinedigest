@@ -220,7 +220,7 @@ Object.assign(nodeWikiGraphPlatform, {
     const database = new sqlite3.Database((file as NodeFile).path, flags, (error) =>
       error === null ? resolve(database) : reject(error));
   }),
-  resolveFilePath: (file: File) => (file as NodeFile).path,
+  hostArchiveHandle: (file: File) => (file as NodeFile).path,
 });
 
 export function installNodeWikiGraphPlatform(): void {

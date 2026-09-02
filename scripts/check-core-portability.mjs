@@ -16,7 +16,7 @@ const violations = [];
 const seenFiles = new Set();
 const forbiddenCapabilities = new Set([
   "readFile", "writeFile", "readdir", "mkdir", "rm", "resolve", "join",
-  "path_resolve", "path_join", "resolveFilePath", "system_homedir", "system_tmpdir",
+  "path_resolve", "path_join", "hostArchiveHandle", "system_homedir", "system_tmpdir",
 ]);
 // These packages are part of Core's existing browser-capable surface. Their
 // published ESM/browser bundles contain optional feature probes such as
