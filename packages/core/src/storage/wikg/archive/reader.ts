@@ -1,31 +1,27 @@
 import { Buffer as platformBuffer } from "../../../runtime/platform/index.js";
-import {
-  open as openFile,
-  readFile,
-  type FileHandle,
-} from "../../../runtime/platform/index.js";
+import { readFile } from "../../../runtime/platform/index.js";
 import { join } from "../../../runtime/platform/index.js";
 
 import type {
   Entry,
+  File,
   ZipFile as YauzlZipFile,
 } from "../../../runtime/platform/index.js";
 
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 import { parseWikgManifest, parseWikgMutationToken } from "./manifest.js";
 import { isWikgArchivePath, normalizeArchivePath } from "./paths.js";
-import { openIndexedArchive, readArchiveEntryBufferFromFile } from "./zip.js";
+import { openIndexedArchive, readArchiveEntryBuffer } from "./zip.js";
 import { ensureWikiGraphArchiveSchemaCurrent } from "../../schema-upgrade/index.js";
 
 export class WikgArchiveReader {
   readonly #entryByPath: Map<string, Entry>;
   readonly #entries: readonly string[];
-  #file: Promise<FileHandle> | undefined;
-  readonly #path: string;
+  readonly #path: string | File;
   readonly #zipFile: YauzlZipFile;
 
   public constructor(
-    path: string,
+    path: string | File,
     zipFile: YauzlZipFile,
     entries: readonly Entry[],
   ) {
@@ -45,8 +41,12 @@ export class WikgArchiveReader {
     );
   }
 
-  public static async open(inputPath: string): Promise<WikgArchiveReader> {
-    await ensureWikiGraphArchiveSchemaCurrent(inputPath);
+  public static async open(
+    inputPath: string | File,
+  ): Promise<WikgArchiveReader> {
+    if (typeof inputPath === "string") {
+      await ensureWikiGraphArchiveSchemaCurrent(inputPath);
+    }
     const { entries, zipFile } = await openIndexedArchive(inputPath);
 
     return new WikgArchiveReader(inputPath, zipFile, entries);
@@ -54,12 +54,6 @@ export class WikgArchiveReader {
 
   public close(): void {
     this.#zipFile.close();
-    if (this.#file !== undefined) {
-      void this.#file.then(async (file) => {
-        await file.close();
-      });
-      this.#file = undefined;
-    }
   }
 
   public listEntries(): readonly string[] {
@@ -75,12 +69,7 @@ export class WikgArchiveReader {
       return undefined;
     }
 
-    return await readArchiveEntryBufferFromFile(await this.#getFile(), entry);
-  }
-
-  async #getFile(): Promise<FileHandle> {
-    this.#file ??= openFile(this.#path, "r");
-    return await this.#file;
+    return await readArchiveEntryBuffer(this.#path, entry);
   }
 }
 

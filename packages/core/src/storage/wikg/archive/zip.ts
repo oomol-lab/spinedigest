@@ -3,6 +3,7 @@ import {
   open as openFile,
   type FileHandle,
 } from "../../../runtime/platform/index.js";
+import type { File } from "../../../runtime/platform/index.js";
 import { inflateRaw } from "../../../runtime/platform/index.js";
 
 import {
@@ -15,7 +16,7 @@ import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 import { parseWikgManifest, parseWikgMutationToken } from "./manifest.js";
 import { normalizeArchivePath } from "./paths.js";
 
-export async function openIndexedArchive(inputPath: string): Promise<{
+export async function openIndexedArchive(inputPath: string | File): Promise<{
   readonly entries: readonly Entry[];
   readonly zipFile: YauzlZipFile;
 }> {
@@ -59,17 +60,20 @@ export async function indexArchiveEntries(
 }
 
 export async function readArchiveEntryText(
-  inputPath: string,
+  inputPath: string | File,
   entry: Entry,
 ): Promise<string> {
   return (await readArchiveEntryBuffer(inputPath, entry)).toString("utf8");
 }
 
 export async function readArchiveEntryBuffer(
-  inputPath: string,
+  inputPath: string | File,
   entry: Entry,
 ): Promise<platformBuffer> {
-  const file = await openFile(inputPath, "r");
+  const file =
+    typeof inputPath === "string"
+      ? await openFile(inputPath, "r")
+      : new MemoryFileHandle(await inputPath.read());
 
   try {
     return await readArchiveEntryBufferFromFile(file, entry);
@@ -94,14 +98,18 @@ export async function readArchiveEntryBufferFromFile(
   throw new Error(`Unsupported ZIP compression method: ${entry.fileName}`);
 }
 
-async function openArchive(path: string): Promise<YauzlZipFile> {
+async function openArchive(path: string | File): Promise<YauzlZipFile> {
+  const source =
+    typeof path === "string"
+      ? path
+      : platformBuffer.from((await path.read()) as Uint8Array);
   return await new Promise((resolve, reject) => {
     openZip(
-      path,
+      source,
       { autoClose: false, lazyEntries: true },
       (error: any, zipFile: any) => {
         if (error !== null || zipFile === undefined) {
-          reject(error ?? new Error(`Cannot open archive: ${path}`));
+          reject(error ?? new Error("Cannot open archive"));
           return;
         }
 
@@ -111,8 +119,39 @@ async function openArchive(path: string): Promise<YauzlZipFile> {
   });
 }
 
+class MemoryFileHandle {
+  readonly #data: platformBuffer;
+
+  public constructor(data: Uint8Array | string) {
+    this.#data =
+      typeof data === "string"
+        ? platformBuffer.from(data, "utf8")
+        : platformBuffer.from(data);
+  }
+
+  public async read(
+    target: platformBuffer,
+    offset: number,
+    length: number,
+    position: number,
+  ): Promise<{ readonly bytesRead: number; readonly buffer: platformBuffer }> {
+    const bytesRead = Math.max(
+      0,
+      Math.min(length, this.#data.length - position),
+    );
+    if (bytesRead > 0) {
+      this.#data.copy(target, offset, position, position + bytesRead);
+    }
+    return { bytesRead, buffer: target };
+  }
+
+  public async close(): Promise<void> {
+    // Nothing to release for an in-memory host file.
+  }
+}
+
 async function validateArchiveManifest(
-  inputPath: string,
+  inputPath: string | File,
   entries: readonly Entry[],
 ): Promise<void> {
   await validateArchiveMutationToken(inputPath, entries);
@@ -130,7 +169,7 @@ async function validateArchiveManifest(
 }
 
 async function validateArchiveMutationToken(
-  inputPath: string,
+  inputPath: string | File,
   entries: readonly Entry[],
 ): Promise<void> {
   const firstEntryPath = normalizeArchivePath(entries[0]?.fileName ?? "");
