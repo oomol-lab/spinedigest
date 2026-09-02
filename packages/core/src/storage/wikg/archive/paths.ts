@@ -1,4 +1,4 @@
-import { posix, resolve, sep } from "../../../runtime/platform/index.js";
+import { resolve, sep } from "../../../runtime/platform/index.js";
 
 import {
   WIKG_ARCHIVE_PATTERNS,
@@ -16,10 +16,10 @@ export function normalizeArchivePath(path: string): string {
     ? normalized.slice(1)
     : normalized;
 
-  const result = posix
-    .normalize(withoutLeadingSlash)
-    .replace(/^(\.\/)+/u, "")
-    .replace(/^\/+/u, "");
+  const result = withoutLeadingSlash
+    .split("/")
+    .filter((part) => part !== "" && part !== ".")
+    .join("/");
   assertSafeRelativePath(result);
   return result;
 }

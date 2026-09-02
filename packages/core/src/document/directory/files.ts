@@ -1,8 +1,6 @@
-import { binary as platformBinary } from "../../runtime/platform/index.js";
-import { join } from "../../runtime/platform/index.js";
-
 import { isNodeError } from "../../utils/node-error.js";
 import type { DirectoryDocumentContext } from "./context.js";
+import { joinDocumentPath } from "./path.js";
 import type { DocumentFileStore } from "./types.js";
 
 export async function readJsonFile<T>(input: {
@@ -58,19 +56,19 @@ export async function writeNewFile(input: {
 }
 
 export function getCoverDataPath(documentPath: string): string {
-  return join(getCoverDirectoryPath(documentPath), "data.bin");
+  return joinDocumentPath(getCoverDirectoryPath(documentPath), "data.bin");
 }
 
 export function getCoverDirectoryPath(documentPath: string): string {
-  return join(documentPath, "cover");
+  return joinDocumentPath(documentPath, "cover");
 }
 
 export function getCoverInfoPath(documentPath: string): string {
-  return join(getCoverDirectoryPath(documentPath), "info.json");
+  return joinDocumentPath(getCoverDirectoryPath(documentPath), "info.json");
 }
 
 export function getTocPath(documentPath: string): string {
-  return join(documentPath, "toc.json");
+  return joinDocumentPath(documentPath, "toc.json");
 }
 
 async function readOptionalTextFile(
@@ -79,9 +77,7 @@ async function readOptionalTextFile(
 ): Promise<string | undefined> {
   const content = await fileStore.readFile(path);
 
-  return content === undefined
-    ? undefined
-    : platformBinary.from(content).toString("utf8");
+  return content === undefined ? undefined : new TextDecoder().decode(content);
 }
 
 async function writeFile(input: {

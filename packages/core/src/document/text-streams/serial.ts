@@ -1,7 +1,5 @@
-import { binary as platformBinary } from "../../runtime/platform/index.js";
-import { join, resolve } from "../../runtime/platform/index.js";
-
 import type { Database } from "../database.js";
+import { joinDocumentPath, resolveDocumentPath } from "../directory/path.js";
 import {
   Sentence,
   type FragmentRecord,
@@ -34,6 +32,7 @@ export class SerialTextStream implements ReadonlySerialTextStream {
   readonly #fileAccess: TextStreamFileAccess;
   readonly #stream: TextStreamName;
   readonly #serialId: number;
+  readonly #identity: string;
 
   public constructor(
     documentPath: string,
@@ -41,12 +40,14 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     fileAccess: TextStreamFileAccess,
     stream: TextStreamName,
     serialId: number,
+    identity = documentPath,
   ) {
     this.#database = database;
-    this.#documentPath = resolve(documentPath);
+    this.#documentPath = resolveDocumentPath(documentPath);
     this.#fileAccess = fileAccess;
     this.#stream = stream;
     this.#serialId = serialId;
+    this.#identity = identity;
   }
 
   public async createDraft(): Promise<TextStreamDraft> {
@@ -162,9 +163,9 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
     const content = await this.#readContent();
 
-    return content
-      .subarray(first.byteOffset, last.byteOffset + last.byteLength)
-      .toString("utf8");
+    return new TextDecoder().decode(
+      content.subarray(first.byteOffset, last.byteOffset + last.byteLength),
+    );
   }
 
   async #getSentenceLocation(
@@ -196,15 +197,15 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
   #readSentenceLocation(
     location: TextSentenceLocation,
-    content: platformBinary,
+    content: Uint8Array,
   ): SentenceRecord {
     return new Sentence(
-      content
-        .subarray(
+      new TextDecoder().decode(
+        content.subarray(
           location.byteOffset,
           location.byteOffset + location.byteLength,
-        )
-        .toString("utf8"),
+        ),
+      ),
       location.wordsCount,
     );
   }
@@ -214,7 +215,7 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
     return content === undefined
       ? undefined
-      : platformBinary.from(content).toString("utf8");
+      : new TextDecoder().decode(content);
   }
 
   public async writeTextStream(
@@ -265,21 +266,18 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     draftState.draftOpen = false;
 
     const existing = await this.#fileAccess.readFile(this.#getTextPath());
-    const existingBuffer =
-      existing === undefined
-        ? platformBinary.alloc(0)
-        : platformBinary.from(existing);
+    const existingBuffer = existing ?? new Uint8Array();
     const text =
       textOverride === ""
         ? sentences.map(getSentenceRawText).join("")
         : textOverride;
-    const appendBuffer = platformBinary.from(text, "utf8");
+    const appendBuffer = new TextEncoder().encode(text);
     let offset = existingBuffer.length;
 
     await this.#fileAccess.ensureDirectory(this.#getDirectoryPath());
     await this.#fileAccess.writeFile(
       this.#getTextPath(),
-      platformBinary.concat([existingBuffer, appendBuffer]),
+      concatenateBytes(existingBuffer, appendBuffer),
       { overwrite: true },
     );
 
@@ -399,22 +397,22 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     return draftState.nextSentenceIndex;
   }
 
-  async #readContent(): Promise<platformBinary> {
+  async #readContent(): Promise<Uint8Array> {
     const content = await this.#fileAccess.readFile(this.#getTextPath());
 
-    return platformBinary.from(content ?? new Uint8Array());
+    return content ?? new Uint8Array();
   }
 
   #getDirectoryPath(): string {
-    return join(this.#documentPath, "texts", this.#stream);
+    return joinDocumentPath(this.#documentPath, "texts", this.#stream);
   }
 
   #getTextPath(): string {
-    return join(this.#getDirectoryPath(), `${this.#serialId}.txt`);
+    return joinDocumentPath(this.#getDirectoryPath(), `${this.#serialId}.txt`);
   }
 
   #getDraftState(): TextStreamDraftState {
-    const key = `${this.#documentPath}\0${this.#stream}\0${this.#serialId}`;
+    const key = `${this.#identity}\0${this.#stream}\0${this.#serialId}`;
     let state = SerialTextStream.#draftStates.get(key);
 
     if (state === undefined) {
@@ -424,6 +422,13 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
     return state;
   }
+}
+
+function concatenateBytes(left: Uint8Array, right: Uint8Array): Uint8Array {
+  const result = new Uint8Array(left.byteLength + right.byteLength);
+  result.set(left);
+  result.set(right, left.byteLength);
+  return result;
 }
 
 function mapTextSentenceLocation(

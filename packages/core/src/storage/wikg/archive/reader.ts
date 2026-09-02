@@ -1,5 +1,8 @@
 import { binary as platformBinary } from "../../../runtime/platform/index.js";
-import { readFile } from "../../../runtime/platform/index.js";
+import {
+  getWikiGraphPlatform,
+  readFile,
+} from "../../../runtime/platform/index.js";
 import { join } from "../../../runtime/platform/index.js";
 
 import type {
@@ -9,24 +12,31 @@ import type {
 } from "../../../runtime/platform/index.js";
 
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
-import { parseWikgManifest, parseWikgMutationToken } from "./manifest.js";
+import {
+  WIKG_SCHEMA_VERSION,
+  parseWikgManifest,
+  parseWikgMutationToken,
+} from "./manifest.js";
 import { isWikgArchivePath, normalizeArchivePath } from "./paths.js";
 import { openIndexedArchive, readArchiveEntryBuffer } from "./zip.js";
 import { ensureWikiGraphArchiveSchemaCurrent } from "../../schema-upgrade/index.js";
 
 export class WikgArchiveReader {
   readonly #entryByPath: Map<string, Entry>;
+  readonly #hostEntryByPath: ReadonlyMap<string, Uint8Array> | undefined;
   readonly #entries: readonly string[];
   readonly #path: string | File;
-  readonly #zipFile: YauzlZipFile;
+  readonly #zipFile: YauzlZipFile | undefined;
 
   public constructor(
     path: string | File,
-    zipFile: YauzlZipFile,
+    zipFile: YauzlZipFile | undefined,
     entries: readonly Entry[],
+    hostEntryByPath?: ReadonlyMap<string, Uint8Array>,
   ) {
     this.#path = path;
     this.#zipFile = zipFile;
+    this.#hostEntryByPath = hostEntryByPath;
     this.#entryByPath = new Map(
       entries
         .map(
@@ -36,9 +46,9 @@ export class WikgArchiveReader {
         .filter(([entryPath]) => entryPath !== "")
         .filter(([entryPath]) => isWikgArchivePath(entryPath)),
     );
-    this.#entries = [...this.#entryByPath.keys()].sort((left, right) =>
-      left.localeCompare(right),
-    );
+    this.#entries = [
+      ...(hostEntryByPath?.keys() ?? this.#entryByPath.keys()),
+    ].sort((left, right) => left.localeCompare(right));
   }
 
   public static async open(
@@ -46,14 +56,22 @@ export class WikgArchiveReader {
   ): Promise<WikgArchiveReader> {
     if (typeof inputPath === "string") {
       await ensureWikiGraphArchiveSchemaCurrent(inputPath);
+      const { entries, zipFile } = await openIndexedArchive(inputPath);
+      return new WikgArchiveReader(inputPath, zipFile, entries);
     }
-    const { entries, zipFile } = await openIndexedArchive(inputPath);
-
-    return new WikgArchiveReader(inputPath, zipFile, entries);
+    const entries = new Map<string, Uint8Array>();
+    for (const entry of await getWikiGraphPlatform().zip.read(inputPath)) {
+      const entryPath = normalizeArchivePath(entry.name);
+      if (entryPath !== "" && isWikgArchivePath(entryPath)) {
+        entries.set(entryPath, entry.data);
+      }
+    }
+    assertCurrentHostArchive(entries);
+    return new WikgArchiveReader(inputPath, undefined, [], entries);
   }
 
   public close(): void {
-    this.#zipFile.close();
+    this.#zipFile?.close();
   }
 
   public listEntries(): readonly string[] {
@@ -65,6 +83,10 @@ export class WikgArchiveReader {
   ): Promise<platformBinary | undefined> {
     const entry = this.#entryByPath.get(normalizeArchivePath(entryPath));
 
+    if (this.#hostEntryByPath !== undefined) {
+      return this.#hostEntryByPath.get(normalizeArchivePath(entryPath));
+    }
+
     if (entry === undefined) {
       return undefined;
     }
@@ -74,7 +96,7 @@ export class WikgArchiveReader {
 }
 
 export async function listWikgArchiveEntries(
-  inputPath: string,
+  inputPath: string | File,
 ): Promise<readonly string[]> {
   const reader = await WikgArchiveReader.open(inputPath);
 
@@ -86,7 +108,7 @@ export async function listWikgArchiveEntries(
 }
 
 export async function readWikgArchiveEntry(
-  inputPath: string,
+  inputPath: string | File,
   entryPath: string,
 ): Promise<platformBinary | undefined> {
   const reader = await WikgArchiveReader.open(inputPath);
@@ -99,7 +121,7 @@ export async function readWikgArchiveEntry(
 }
 
 export async function readWikgArchiveMutationToken(
-  inputPath: string,
+  inputPath: string | File,
 ): Promise<string> {
   const reader = await WikgArchiveReader.open(inputPath);
 
@@ -112,10 +134,29 @@ export async function readWikgArchiveMutationToken(
       );
     }
 
-    return parseWikgMutationToken(content.toString("utf8"));
+    return parseWikgMutationToken(decodeUtf8(content));
   } finally {
     reader.close();
   }
+}
+
+function assertCurrentHostArchive(
+  entries: ReadonlyMap<string, Uint8Array>,
+): void {
+  const manifest = entries.get(WIKG_MANIFEST_PATH);
+  if (manifest === undefined) {
+    throw new Error(`Missing WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
+  }
+  const parsed = parseWikgManifest(decodeUtf8(manifest));
+  if (parsed.schemaVersion !== WIKG_SCHEMA_VERSION) {
+    throw new Error(
+      `WIKG schema version ${parsed.schemaVersion} requires migration by a host that supports archive migration.`,
+    );
+  }
+}
+
+function decodeUtf8(content: Uint8Array): string {
+  return new TextDecoder().decode(content);
 }
 
 export async function readWikgArchiveFormatVersion(

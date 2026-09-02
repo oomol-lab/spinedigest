@@ -13,6 +13,12 @@ export class DirectoryFileStore implements DocumentFileStore {
   public close(): Promise<void> {
     return Promise.resolve();
   }
+  public documentIdentity(): string {
+    return this.#root.identity;
+  }
+  public searchIndexLockKey(): string {
+    return this.#root.identity;
+  }
   public initializeDatabaseSchema(): boolean {
     return true;
   }

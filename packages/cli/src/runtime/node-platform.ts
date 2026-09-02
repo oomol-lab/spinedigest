@@ -38,12 +38,17 @@ import {
 
 /** Install the Node implementation used by the CLI and its workers. */
 export class NodeFile implements File {
+  public readonly identity: string;
   public readonly name: string;
 
   public constructor(
     public readonly path: string,
     name = pathModule.basename(path),
   ) {
+    this.identity = crypto
+      .createHash("sha256")
+      .update(pathModule.resolve(path))
+      .digest("hex");
     this.name = name;
   }
 
@@ -56,6 +61,10 @@ export class NodeFile implements File {
         ? undefined
         : { encoding: options.encoding as BufferEncoding },
     );
+  }
+
+  public async getSize(): Promise<number> {
+    return (await fsPromises.stat(this.path)).size;
   }
 
   public async openWriter(): Promise<FileWriter> {
@@ -87,9 +96,14 @@ export class NodeFile implements File {
 }
 
 export class NodeDirectory implements Directory {
+  public readonly identity: string;
   public readonly name: string;
 
   public constructor(public readonly path: string) {
+    this.identity = crypto
+      .createHash("sha256")
+      .update(`directory\0${pathModule.resolve(path)}`)
+      .digest("hex");
     this.name = pathModule.basename(path);
   }
 
@@ -294,7 +308,7 @@ async function writeNodeZip(
   const zipFile = new yazl.ZipFile();
   const output = collectNodeStream(zipFile.outputStream);
   for await (const entry of entries) {
-    zipFile.addBuffer(Buffer.from(entry.data), entry.name);
+    zipFile.addBuffer(Buffer.from(entry.data), entry.name, { compress: false });
   }
   zipFile.end();
 

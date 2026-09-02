@@ -1,7 +1,5 @@
 import {
   AsyncLocalStorage,
-  getRelativeFile,
-  join,
   resolve,
   type Directory,
 } from "../../runtime/platform/index.js";
@@ -45,6 +43,7 @@ import {
   writeNewFile,
 } from "./files.js";
 import { openSearchIndexDatabase } from "./search-index.js";
+import { joinDocumentPath } from "./path.js";
 import {
   deleteSerialGraphRecords,
   deleteSerialKnowledgeGraphRecords,
@@ -117,12 +116,26 @@ export class DirectoryDocument implements Document {
       (typeof documentPath === "string"
         ? LOCAL_DOCUMENT_FILE_STORE
         : new DirectoryFileStore(documentPath));
+    return await DirectoryDocument.#openFileStore(
+      resolvedDocumentPath,
+      fileStore,
+    );
+  }
+
+  /** Open a document whose files are addressed only by logical relative names. */
+  public static async openFileStore(
+    fileStore: DocumentFileStore,
+  ): Promise<DirectoryDocument> {
+    return await DirectoryDocument.#openFileStore("", fileStore);
+  }
+
+  static async #openFileStore(
+    resolvedDocumentPath: string,
+    fileStore: DocumentFileStore,
+  ): Promise<DirectoryDocument> {
     try {
       const databasePath =
-        typeof documentPath === "string"
-          ? await fileStore.resolveDatabasePath(resolvedDocumentPath)
-          : ((await getRelativeFile(documentPath, "database.db")) ??
-            (await documentPath.createFile("database.db")));
+        await fileStore.resolveDatabasePath(resolvedDocumentPath);
       await fileStore.ensureDirectory(resolvedDocumentPath);
 
       const shouldInitializeDatabaseSchema =
@@ -140,19 +153,24 @@ export class DirectoryDocument implements Document {
       if (shouldInitializeDatabaseSchema) {
         await initializeDocumentSchema(database);
       }
-      const textStreams = new TextStreams(resolvedDocumentPath, database, {
-        deleteTree: async (path) => {
-          await fileStore.deleteTree(path);
+      const textStreams = new TextStreams(
+        resolvedDocumentPath,
+        database,
+        {
+          deleteTree: async (path) => {
+            await fileStore.deleteTree(path);
+          },
+          ensureDirectory: async (path) => {
+            await fileStore.ensureDirectory(path);
+          },
+          listFiles: async (path) => await fileStore.listFiles(path),
+          readFile: async (path) => await fileStore.readFile(path),
+          writeFile: async (path, content, options) => {
+            await fileStore.writeFile(path, content, options);
+          },
         },
-        ensureDirectory: async (path) => {
-          await fileStore.ensureDirectory(path);
-        },
-        listFiles: async (path) => await fileStore.listFiles(path),
-        readFile: async (path) => await fileStore.readFile(path),
-        writeFile: async (path, content, options) => {
-          await fileStore.writeFile(path, content, options);
-        },
-      });
+        fileStore.documentIdentity?.() ?? resolvedDocumentPath,
+      );
       await textStreams.ensureCreated();
 
       const document = new DirectoryDocument(
@@ -320,9 +338,9 @@ export class DirectoryDocument implements Document {
   }
 
   public async deleteSearchIndexDatabase(): Promise<void> {
-    await this.#fileStore.deleteFile(join(this.path, "index.db"));
+    await this.#fileStore.deleteFile(joinDocumentPath(this.path, "index.db"));
     await this.#fileStore
-      .deleteFile(join(this.path, "fts.db"))
+      .deleteFile(joinDocumentPath(this.path, "fts.db"))
       .catch(() => undefined);
   }
 

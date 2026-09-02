@@ -1,4 +1,5 @@
 import type { ReadonlyDocument } from "../document/index.js";
+import type { File } from "../runtime/platform/index.js";
 import { writeEpub, writePlainText } from "../text/output/index.js";
 import type {
   BookMeta,
@@ -9,6 +10,7 @@ import type {
 
 import {
   readWikgArchiveFormatVersion,
+  readWikgArchiveEntry,
   writeWikgArchive,
 } from "../storage/wikg/index.js";
 import type { ChapterStage } from "./chapter/index.js";
@@ -16,14 +18,17 @@ import type { WikiGraphSerialEntry } from "./types.js";
 
 export class WikiGraphArchive {
   readonly #document: ReadonlyDocument;
-  readonly #documentDirectoryPath: string;
+  readonly #source: File | string;
+  readonly #sourceKind: "archive" | "directory";
 
   public constructor(
     document: ReadonlyDocument,
-    documentDirectoryPath: string,
+    source: File | string,
+    options: { readonly sourceKind?: "archive" | "directory" } = {},
   ) {
     this.#document = document;
-    this.#documentDirectoryPath = documentDirectoryPath;
+    this.#source = source;
+    this.#sourceKind = options.sourceKind ?? "directory";
   }
 
   public async exportEpub(path: string): Promise<void> {
@@ -53,7 +58,18 @@ export class WikiGraphArchive {
   }
 
   public async readArchiveFormatVersion(): Promise<number> {
-    return await readWikgArchiveFormatVersion(this.#documentDirectoryPath);
+    if (this.#sourceKind === "directory") {
+      if (typeof this.#source !== "string") {
+        throw new Error("A document directory cannot be represented by File");
+      }
+      return await readWikgArchiveFormatVersion(this.#source);
+    }
+    const manifest = await readWikgArchiveEntry(this.#source, "manifest.json");
+    if (manifest === undefined) throw new Error("WIKG manifest is missing");
+    const parsed = JSON.parse(new TextDecoder().decode(manifest)) as {
+      formatVersion: number;
+    };
+    return parsed.formatVersion;
   }
 
   public async readChapterStage(serialId: number): Promise<ChapterStage> {
@@ -126,8 +142,13 @@ export class WikiGraphArchive {
   }
 
   public async saveAs(path: string): Promise<void> {
+    if (this.#sourceKind !== "directory" || typeof this.#source !== "string") {
+      throw new Error(
+        "saveAs(path) is unavailable for an opened archive; use a host File writer.",
+      );
+    }
     await flushDocument(this.#document);
-    await writeWikgArchive(this.#documentDirectoryPath, path);
+    await writeWikgArchive(this.#source, path);
   }
 }
 

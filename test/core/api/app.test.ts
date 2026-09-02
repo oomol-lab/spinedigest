@@ -327,9 +327,11 @@ function createStorage(name: string): WikiGraphStorage {
 }
 
 class MemoryDirectory implements Directory {
+  public readonly identity: string;
   public readonly name: string;
 
   public constructor(name: string) {
+    this.identity = `memory:${name}`;
     this.name = name;
   }
 
