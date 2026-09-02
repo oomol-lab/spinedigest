@@ -7,14 +7,26 @@ import {
 
 export function normalizeArchivePath(path: string): string {
   const normalized = path.replaceAll("\\", "/").trim();
+  if (normalized.split("/").some((part) => part === "..")) {
+    throw new Error(`Path must remain relative to its host-provided root: ${path}`);
+  }
   const withoutLeadingSlash = normalized.startsWith("/")
     ? normalized.slice(1)
     : normalized;
 
-  return posix
+  const result = posix
     .normalize(withoutLeadingSlash)
     .replace(/^(\.\/)+/u, "")
     .replace(/^\/+/u, "");
+  assertSafeRelativePath(result);
+  return result;
+}
+
+/** Reject archive/workspace names that could escape their injected root. */
+export function assertSafeRelativePath(path: string): void {
+  if (path.startsWith("/") || path.split("/").some((part) => part === "..")) {
+    throw new Error(`Path must remain relative to its host-provided root: ${path}`);
+  }
 }
 
 export function isWikgArchivePath(archivePath: string): boolean {
