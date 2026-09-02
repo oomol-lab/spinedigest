@@ -30,16 +30,11 @@ export interface WikiGraphPlatform {
   readonly url: PlatformModule;
   readonly sqlite3?: PlatformModule;
   readonly zip?: PlatformZipModule;
-  /** Host-only locator bridge used by legacy Node-backed archive algorithms. */
-  readonly filePath?: (file: File) => string;
-  readonly directoryPath?: (directory: Directory) => string;
 }
 
 /** A host-owned file. Core never interprets its backing URI or path. */
 export interface File {
   readonly name: string;
-  /** Opaque host-owned identity; Core never parses this value. */
-  readonly locator?: unknown;
   readonly size?: number;
   read(options?: { readonly encoding?: string }): Promise<Uint8Array | string>;
   openWriter(): Promise<FileWriter>;
@@ -55,7 +50,6 @@ export interface FileWriter {
 /** Directory tree supplied by the host. Only relative child names are used. */
 export interface Directory {
   readonly name: string;
-  readonly locator?: unknown;
   getFile(name: string): Promise<File | undefined>;
   getDirectory(name: string): Promise<Directory | undefined>;
   list(): Promise<ReadonlyArray<File | Directory>>;
@@ -81,6 +75,19 @@ export interface NodeError extends Error {
 
 let installedPlatform: WikiGraphPlatform | undefined;
 let installedStorage: WikiGraphStorage | undefined;
+const fileLocations = new WeakMap<object, string>();
+const directoryLocations = new WeakMap<object, string>();
+
+export function registerFileLocation(file: File, location: string): void {
+  fileLocations.set(file, location);
+}
+
+export function registerDirectoryLocation(
+  directory: Directory,
+  location: string,
+): void {
+  directoryLocations.set(directory, location);
+}
 
 export function installWikiGraphPlatform(platform: WikiGraphPlatform): void {
   installedPlatform = platform;
@@ -110,21 +117,21 @@ export function getWikiGraphStorage(): WikiGraphStorage {
 }
 
 export function getPlatformFilePath(file: File): string {
-  const resolver = getWikiGraphPlatform().filePath;
-  if (resolver === undefined) {
-    throw new Error("The installed runtime does not provide a file locator.");
+  const location = fileLocations.get(file);
+  if (location === undefined) {
+    throw new Error("The supplied File is not bound to this host runtime.");
   }
-  return resolver(file);
+  return location;
 }
 
 export function getPlatformDirectoryPath(directory: Directory): string {
-  const resolver = getWikiGraphPlatform().directoryPath;
-  if (resolver === undefined) {
+  const location = directoryLocations.get(directory);
+  if (location === undefined) {
     throw new Error(
-      "The installed runtime does not provide a directory locator.",
+      "The supplied Directory is not bound to this host runtime.",
     );
   }
-  return resolver(directory);
+  return location;
 }
 
 function moduleValue<T = any>(

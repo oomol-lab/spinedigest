@@ -2,7 +2,11 @@ English | [中文](../zh-CN/sdk.md)
 
 # SDK
 
-This document describes how to use Wiki Graph from Node.js code through `wiki-graph-core`. Use the SDK when an application needs to create, read, query, or maintain `.wikg` archives without shelling out to the `wg` CLI.
+This document describes how to use Wiki Graph through `wiki-graph-core`. Use
+the SDK when an application needs to create, read, query, or maintain `.wikg`
+archives without shelling out to the `wg` CLI. Core is runtime-neutral: the
+host provides `File` and `Directory` implementations, while the Node-only
+filesystem, SQLite, and ZIP wiring remains private to the CLI.
 
 ## Packages
 
@@ -31,6 +35,27 @@ the same core package as the application.
 ## Main SDK
 
 The main entrypoint is `wiki-graph-core`. It exposes archive sessions, archive query helpers, chapter operations, queue control, and shared types.
+
+### Host storage
+
+Before opening or creating archives, install two host-owned directory roots:
+
+```ts
+import { WikiGraph, type Directory, type File } from "wiki-graph-core";
+
+const storage = {
+  library: myLibraryDirectory satisfies Directory,
+  documentStore: myDocumentDirectory satisfies Directory,
+};
+const wikiGraph = new WikiGraph({ storage });
+
+const archive = myArchiveFile satisfies File;
+await wikiGraph.openSession(archive, (session) => session.readMeta());
+```
+
+`File`/`Directory` are platform primitives. Core never interprets their URI or
+absolute path; browser and extension hosts can back them with IndexedDB,
+OPFS, or another scoped store. The `wiki-graph` CLI supplies the Node adapter.
 
 ```ts
 import { WikiGraph } from "wiki-graph-core";

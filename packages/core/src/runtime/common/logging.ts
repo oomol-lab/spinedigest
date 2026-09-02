@@ -1,29 +1,36 @@
-import { type WritableStream } from "../platform/index.js";
-import { process as platformProcess } from "../platform/index.js";
 import { AsyncLocalStorage } from "../platform/index.js";
-import { randomUUID } from "../platform/index.js";
+import { appendFile, randomUUID } from "../platform/index.js";
 import { existsSync, mkdirSync } from "../platform/index.js";
-import { dirname, join, resolve } from "../platform/index.js";
+import { join, resolve } from "../platform/index.js";
+import { process as platformProcess } from "../platform/index.js";
 
-import pino, {
-  multistream,
-  type Logger as PinoLogger,
-  type StreamEntry,
-} from "pino";
-import pretty from "pino-pretty";
-import type { PrettyOptions } from "pino-pretty";
+interface CoreLogger {
+  child(bindings: Record<string, unknown>): CoreLogger;
+  debug(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+  info(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+  flush(): Promise<void>;
+}
 
 interface LoggingContext {
   readonly artifactCounters: Map<string, number>;
   readonly artifactRootDirPath?: string;
-  readonly logger: PinoLogger;
+  readonly logger: CoreLogger;
   readonly rootLogDirPath?: string;
   readonly runId: string;
 }
 
 const loggingContext = new AsyncLocalStorage<LoggingContext>();
 const artifactCounters = new Map<string, number>();
-const silentLogger = pino({ enabled: false });
+const silentLogger: CoreLogger = {
+  child: () => silentLogger,
+  debug: () => undefined,
+  error: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  flush: async () => undefined,
+};
 
 export async function withLoggingContext<T>(
   input: {
@@ -54,19 +61,23 @@ export async function withLoggingContext<T>(
       : { eventLogPath: join(runDirPath, "run.log") }),
   });
 
-  return await loggingContext.run(
-    {
-      artifactCounters: new Map(),
-      logger,
-      runId,
-      ...(artifactRootDirPath === undefined ? {} : { artifactRootDirPath }),
-      ...(rootLogDirPath === undefined ? {} : { rootLogDirPath }),
-    },
-    operation,
-  );
+  try {
+    return await loggingContext.run(
+      {
+        artifactCounters: new Map(),
+        logger,
+        runId,
+        ...(artifactRootDirPath === undefined ? {} : { artifactRootDirPath }),
+        ...(rootLogDirPath === undefined ? {} : { rootLogDirPath }),
+      },
+      operation,
+    );
+  } finally {
+    await logger.flush();
+  }
 }
 
-export function getLogger(bindings?: Record<string, unknown>): PinoLogger {
+export function getLogger(bindings?: Record<string, unknown>): CoreLogger {
   const logger = loggingContext.getStore()?.logger ?? silentLogger;
 
   return bindings === undefined ? logger : logger.child(bindings);
@@ -149,52 +160,91 @@ function createLogger(input: {
   readonly operation: string;
   readonly runId: string;
   readonly verbose: boolean;
-}): PinoLogger {
-  const streams: StreamEntry[] = [];
-
-  if (input.eventLogPath !== undefined) {
-    mkdirSync(dirname(input.eventLogPath), { recursive: true });
-    streams.push({
-      level: "info",
-      stream: pretty(createPrettyOptions(input.eventLogPath)),
-    });
-  }
-
-  if (input.verbose) {
-    streams.push({
-      level: "info",
-      stream: pretty(createPrettyOptions(platformProcess.stderr)),
-    });
-  }
-
-  if (streams.length === 0) {
+}): CoreLogger {
+  if (input.eventLogPath === undefined && !input.verbose) {
     return silentLogger;
   }
 
-  return pino(
-    {
-      base: null,
-      level: "info",
-    },
-    multistream(streams),
-  ).child({
-    operation: input.operation,
-    runId: input.runId,
-  });
+  return new BufferedLogger(input.eventLogPath, input.verbose);
 }
 
-function createPrettyOptions(
-  destination: string | WritableStream,
-): PrettyOptions {
-  return {
-    colorize: false,
-    destination,
-    ignore: "pid,hostname,operation,runId,component,scope,sessionId",
-    mkdir: typeof destination === "string",
-    singleLine: true,
-    sync: true,
-    translateTime: "SYS:yyyy-mm-dd HH:MM:ss",
-  };
+/**
+ * A tiny logger kept in core so logging does not pull a Node-only logger into
+ * the portable package. Hosts provide the actual append implementation via
+ * the platform adapter; writes are serialized and flushed at the end of a
+ * logging context.
+ */
+class BufferedLogger implements CoreLogger {
+  #pending: Promise<void> = Promise.resolve();
+
+  public constructor(
+    private readonly eventLogPath: string | undefined,
+    private readonly verbose: boolean,
+  ) {}
+
+  public child(_bindings: Record<string, unknown>): CoreLogger {
+    // Bindings are intentionally not rendered in the human-oriented run log.
+    return this;
+  }
+
+  public debug(...args: unknown[]): void {
+    this.#write("DEBUG", args);
+  }
+
+  public error(...args: unknown[]): void {
+    this.#write("ERROR", args);
+  }
+
+  public info(...args: unknown[]): void {
+    this.#write("INFO", args);
+  }
+
+  public warn(...args: unknown[]): void {
+    this.#write("WARN", args);
+  }
+
+  public async flush(): Promise<void> {
+    await this.#pending;
+  }
+
+  #write(level: string, args: readonly unknown[]): void {
+    const line = `${level} ${formatLogArguments(args)}\n`;
+
+    if (this.eventLogPath !== undefined) {
+      this.#pending = this.#pending.then(async () => {
+        await appendFile(this.eventLogPath!, line, "utf8");
+      });
+    }
+
+    if (this.verbose) {
+      const stderr = platformProcess.stderr;
+      if (stderr !== undefined && typeof stderr.write === "function") {
+        stderr.write(line);
+      }
+    }
+  }
+}
+
+function formatLogArguments(args: readonly unknown[]): string {
+  if (args.length === 0) {
+    return "";
+  }
+
+  return args
+    .map((value) => {
+      if (typeof value === "string") {
+        return value;
+      }
+      if (value instanceof Error) {
+        return value.stack ?? value.message;
+      }
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    })
+    .join(" ");
 }
 
 function createRunId(): string {

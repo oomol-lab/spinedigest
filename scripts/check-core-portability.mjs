@@ -45,11 +45,30 @@ async function collect(directory) {
 }
 
 const violations = [];
+
+// Keep the package boundary honest even when a dependency is only pulled in
+// indirectly by a source file or by a future build entry.
+const corePackage = JSON.parse(
+  await readFile(join(root, "..", "package.json"), "utf8").catch(
+    async () =>
+      await readFile(
+        join(repositoryRoot, "..", "packages/core/package.json"),
+        "utf8",
+      ),
+  ),
+);
+for (const dependency of Object.keys(corePackage.dependencies ?? {})) {
+  if (forbidden.has(dependency)) {
+    violations.push(
+      `packages/core/package.json depends on Node-only package ${dependency}`,
+    );
+  }
+}
+
 for (const file of await collect(root)) {
-  if (file.endsWith("runtime/platform/index.ts")) continue;
   const source = await readFile(file, "utf8");
   for (const match of source.matchAll(
-    /(?:from|import\s*\()\s*["']([^"']+)["']/g,
+    /(?:from|import\s*\(?|export\s+[^;]*?\sfrom\s*)["']([^"']+)["']/g,
   )) {
     const specifier = match[1];
     const builtin = specifier.startsWith("node:")
@@ -61,15 +80,18 @@ for (const file of await collect(root)) {
       );
   }
 
+  // Remove comments and literals before checking globals. Imported aliases
+  // (for example `process as platformProcess`) are safe; stripping whole
+  // import declarations would make it possible to hide unrelated violations
+  // when a platform import appears later in the file.
   const executable = source
-    .replace(/import[\s\S]*?from\s+["'][^"']*platform\/index\.js["'];?/g, "")
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/\/\/.*$/gm, "")
     .replace(/(['"`])(?:\\.|(?!\1)[^\\])*\1/g, "");
   for (const pattern of [
     /\brequire\s*\(/,
-    /\bprocess\b/,
-    /\bBuffer\b/,
+    /\bprocess\s*\./,
+    /\bBuffer\s*\./,
     /\bNodeJS\b/,
   ]) {
     if (pattern.test(executable)) {

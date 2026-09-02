@@ -1,6 +1,5 @@
 import { process as platformProcess } from "../platform/index.js";
 import { existsSync, statSync } from "../platform/index.js";
-import { fileURLToPath } from "../platform/index.js";
 import { dirname, join, parse, resolve } from "../platform/index.js";
 
 export function resolveDataDirPath(): string {
@@ -11,28 +10,7 @@ export function resolveDataDirPath(): string {
     return injectedPath;
   }
 
-  const moduleDataDirPath = resolveDataDirPathFromModule();
-  if (moduleDataDirPath !== undefined) {
-    return moduleDataDirPath;
-  }
-
   return resolveDataDirPathFromWorkingDirectory();
-}
-
-function resolveDataDirPathFromModule(): string | undefined {
-  const moduleDirectoryPath = dirname(fileURLToPath(import.meta.url));
-
-  for (const candidatePath of [
-    resolve(moduleDirectoryPath, "../../../data"),
-    resolve(moduleDirectoryPath, "../../data"),
-    resolve(moduleDirectoryPath, "../data"),
-  ]) {
-    if (existsSync(candidatePath) && statSync(candidatePath).isDirectory()) {
-      return candidatePath;
-    }
-  }
-
-  return undefined;
 }
 
 function resolveDataDirPathFromWorkingDirectory(): string {

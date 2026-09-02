@@ -1,11 +1,21 @@
-import { rm } from "../../../runtime/platform/index.js";
+import {
+  getPlatformDirectoryPath,
+  getWikiGraphStorage,
+  join,
+  mkdir,
+  randomUUID,
+  rm,
+} from "../../../runtime/platform/index.js";
 import {
   getPlatformFilePath,
   resolve,
   type File,
 } from "../../../runtime/platform/index.js";
 
-import { createWikiGraphTempDirectory } from "../../../runtime/common/wiki-graph/temp.js";
+import {
+  createWikiGraphTempDirectory,
+  type WikiGraphTempCategory,
+} from "../../../runtime/common/wiki-graph/temp.js";
 import type { DocumentFileStore } from "../../../document/directory/index.js";
 
 import { extractWikgArchive } from "../archive/index.js";
@@ -52,7 +62,7 @@ export class WikgCoordinator {
   ): Promise<T> {
     const directoryPath =
       options.documentDirPath === undefined
-        ? await createWikiGraphTempDirectory("archive-open")
+        ? await createWorkspaceDirectory("archive-open")
         : resolve(options.documentDirPath);
 
     try {
@@ -69,7 +79,7 @@ export class WikgCoordinator {
     archivePath: File | string,
     operation: (documentDirectoryPath: string) => Promise<T> | T,
   ): Promise<T> {
-    const directoryPath = await createWikiGraphTempDirectory("archive-write");
+    const directoryPath = await createWorkspaceDirectory("archive-write");
 
     try {
       await extractWikgArchive(toArchivePath(archivePath), directoryPath);
@@ -77,6 +87,21 @@ export class WikgCoordinator {
     } finally {
       await rm(directoryPath, { force: true, recursive: true });
     }
+  }
+}
+
+async function createWorkspaceDirectory(
+  prefix: Extract<WikiGraphTempCategory, "archive-open" | "archive-write">,
+): Promise<string> {
+  // Prefer the host-provided document store for transient materialization so
+  // browser/extension hosts can scope all document I/O to one Directory.
+  try {
+    const root = getPlatformDirectoryPath(getWikiGraphStorage().documentStore);
+    const directoryPath = join(root, `.wikg-${prefix}-${randomUUID()}`);
+    await mkdir(directoryPath, { recursive: true });
+    return directoryPath;
+  } catch {
+    return await createWikiGraphTempDirectory(prefix);
   }
 }
 
