@@ -1,3 +1,4 @@
+import { runtimeContext as platformRuntime } from "../../../runtime/platform/index.js";
 import { LOCK_STALE_TIMEOUT_MS } from "./constants.js";
 import { flushArchiveOverlays } from "./flusher.js";
 import {
@@ -19,7 +20,13 @@ INSERT OR REPLACE INTO archive_owners (
   archive_key, owner_id, owner_pid, heartbeat_at, created_at
 ) VALUES (?, ?, ?, ?, ?)
 `,
-      [input.archiveKey, input.ownerId, process.pid, Date.now(), Date.now()],
+      [
+        input.archiveKey,
+        input.ownerId,
+        platformRuntime.pid,
+        Date.now(),
+        Date.now(),
+      ],
     );
   });
 }
@@ -35,7 +42,7 @@ UPDATE archive_owners
 SET heartbeat_at = ?, owner_pid = ?
 WHERE archive_key = ? AND owner_id = ?
 `,
-      [Date.now(), process.pid, input.archiveKey, input.ownerId],
+      [Date.now(), platformRuntime.pid, input.archiveKey, input.ownerId],
     );
   });
 }

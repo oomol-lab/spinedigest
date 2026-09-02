@@ -1,4 +1,10 @@
-import { mkdir, readFile, readdir, rm, writeFile } from "fs/promises";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "../../runtime/platform/index.js";
 
 import { isNodeError } from "../../utils/node-error.js";
 import type { TextStreamFileAccess } from "./types.js";
@@ -12,8 +18,8 @@ export const DEFAULT_FILE_ACCESS: TextStreamFileAccess = {
   },
   listFiles: async (path) =>
     (await readdir(path, { withFileTypes: true }))
-      .filter((entry) => entry.isFile())
-      .map((entry) => entry.name),
+      .filter((entry: any) => entry.isFile())
+      .map((entry: any) => entry.name),
   readFile: async (path) => {
     try {
       return await readFile(path);

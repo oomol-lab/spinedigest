@@ -1,5 +1,5 @@
-import { readdir } from "fs/promises";
-import { join, posix, relative, sep } from "path";
+import { readdir } from "../../../runtime/platform/index.js";
+import { join, posix, relative, sep } from "../../../runtime/platform/index.js";
 
 import {
   LEGACY_SEARCH_INDEX_DATABASE_PATH,

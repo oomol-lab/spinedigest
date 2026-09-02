@@ -1,4 +1,4 @@
-import { rm } from "fs/promises";
+import { rm } from "../platform/index.js";
 import type { Database } from "../../document/index.js";
 import { isProcessAlive } from "./helpers.js";
 import { mapBuildJob } from "./row.js";
@@ -30,7 +30,8 @@ WHERE state IN ('running', 'canceling')
       }
 
       await markBuildJobFailedInState(state, job, {
-        message: "Build worker process disappeared before finishing the job.",
+        message:
+          "Build worker platformRuntime disappeared before finishing the job.",
         name: "BuildJobWorkerLost",
       });
       workspacePathsToDelete.push(job.workspacePath);

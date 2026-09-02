@@ -1,5 +1,5 @@
-import { randomBytes } from "crypto";
-import { join } from "path";
+import { randomBytes } from "../../../runtime/platform/index.js";
+import { join } from "../../../runtime/platform/index.js";
 
 import { resolveWikiGraphCacheDirectoryPath } from "../../../runtime/common/wiki-graph/dir.js";
 import { getOptionalString } from "../../../document/database.js";

@@ -1,9 +1,11 @@
-import { posix, resolve, sep } from "path";
+import { type Readable } from "../../../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../../../runtime/platform/index.js";
+import { posix, resolve, sep } from "../../../../runtime/platform/index.js";
 import {
-  open as openZip,
+  openZip,
   type Entry,
   type ZipFile as YauzlZipFile,
-} from "yauzl";
+} from "../../../../runtime/platform/index.js";
 
 const LEGACY_SDPUB_PATTERNS = [
   /^manifest\.json$/u,
@@ -78,23 +80,27 @@ export function normalizeArchivePath(path: string): string {
 
 export async function openArchive(path: string): Promise<YauzlZipFile> {
   return await new Promise((resolveOpen, rejectOpen) => {
-    openZip(path, { autoClose: false, lazyEntries: true }, (error, zipFile) => {
-      if (error !== null || zipFile === undefined) {
-        rejectOpen(error ?? new Error(`Cannot open archive: ${path}`));
-        return;
-      }
+    openZip(
+      path,
+      { autoClose: false, lazyEntries: true },
+      (error: any, zipFile: any) => {
+        if (error !== null || zipFile === undefined) {
+          rejectOpen(error ?? new Error(`Cannot open archive: ${path}`));
+          return;
+        }
 
-      resolveOpen(zipFile);
-    });
+        resolveOpen(zipFile);
+      },
+    );
   });
 }
 
 export async function openArchiveEntryStream(
   zipFile: YauzlZipFile,
   entry: Entry,
-): Promise<NodeJS.ReadableStream> {
+): Promise<Readable> {
   return await new Promise((resolveStream, rejectStream) => {
-    zipFile.openReadStream(entry, (error, stream) => {
+    zipFile.openReadStream(entry, (error: any, stream: any) => {
       if (error !== null || stream === undefined) {
         rejectStream(
           error ?? new Error(`Cannot open archive entry: ${entry.fileName}`),
@@ -111,16 +117,16 @@ export async function readArchiveEntryText(
   zipFile: YauzlZipFile,
   entry: Entry,
 ): Promise<string> {
-  const chunks: Buffer[] = [];
+  const chunks: platformBinary[] = [];
   const stream = await openArchiveEntryStream(zipFile, entry);
 
   await new Promise<void>((resolveRead, rejectRead) => {
-    stream.on("data", (chunk: Buffer) => {
+    stream.on("data", (chunk: platformBinary) => {
       chunks.push(chunk);
     });
     stream.once("end", resolveRead);
     stream.once("error", rejectRead);
   });
 
-  return Buffer.concat(chunks).toString("utf8");
+  return platformBinary.concat(chunks).toString("utf8");
 }

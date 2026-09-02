@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "fs/promises";
-import { dirname } from "path";
+import { mkdir, writeFile } from "../../runtime/platform/index.js";
+import { dirname } from "../../runtime/platform/index.js";
 
 import type { ReadonlyDocument } from "../../document/index.js";
 import type { TocItem } from "../source/index.js";

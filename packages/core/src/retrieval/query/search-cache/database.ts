@@ -1,5 +1,5 @@
-import { join } from "path";
-import { rm } from "fs/promises";
+import { join } from "../../../runtime/platform/index.js";
+import { rm } from "../../../runtime/platform/index.js";
 
 import { resolveWikiGraphCacheDirectoryPath } from "../../../runtime/common/wiki-graph/dir.js";
 import { openSharedStateDatabase } from "../../../document/index.js";

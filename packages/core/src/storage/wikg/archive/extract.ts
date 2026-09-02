@@ -1,5 +1,9 @@
-import { mkdir, open as openFile, writeFile } from "fs/promises";
-import { dirname, resolve } from "path";
+import {
+  mkdir,
+  open as openFile,
+  writeFile,
+} from "../../../runtime/platform/index.js";
+import { dirname, resolve } from "../../../runtime/platform/index.js";
 
 import {
   assertWithinDirectory,

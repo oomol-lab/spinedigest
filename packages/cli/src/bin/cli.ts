@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
-import { main } from "../app/index.js";
+import { installNodeWikiGraphPlatform } from "../runtime/node-platform.js";
+
+installNodeWikiGraphPlatform();
+const { main } = await import("../app/index.js");
 
 void main();

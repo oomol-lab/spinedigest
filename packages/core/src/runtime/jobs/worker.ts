@@ -1,4 +1,6 @@
-import { randomUUID } from "crypto";
+import {} from "../platform/index.js";
+import { runtimeContext as platformRuntime } from "../platform/index.js";
+import { randomUUID } from "../platform/index.js";
 import type { Database } from "../../document/index.js";
 import { delay, isProcessAlive } from "./helpers.js";
 import {
@@ -24,19 +26,19 @@ export async function runBuildJobWorker(
   options: BuildJobWorkerOptions,
 ): Promise<void> {
   const state = await openBuildQueueDatabase();
-  const ownerId = `${process.pid}-${randomUUID()}`;
+  const ownerId = `${platformRuntime.pid}-${randomUUID()}`;
   const concurrency = Math.max(1, options.concurrency);
   const idleTimeoutMs = options.idleTimeoutMs ?? 10_000;
   let stopping = false;
   let busySlotCount = 0;
   let idleSince = Date.now();
 
-  const stop = (_signal: NodeJS.Signals): void => {
+  const stop = (_signal: string): void => {
     stopping = true;
   };
 
-  process.once("SIGINT", stop);
-  process.once("SIGTERM", stop);
+  platformRuntime.once("SIGINT", stop);
+  platformRuntime.once("SIGTERM", stop);
 
   const heartbeat = setInterval(() => {
     void heartbeatBuildWorker(ownerId).catch(() => undefined);
@@ -91,8 +93,8 @@ export async function runBuildJobWorker(
     );
   } finally {
     clearInterval(heartbeat);
-    process.removeListener("SIGINT", stop);
-    process.removeListener("SIGTERM", stop);
+    platformRuntime.removeListener("SIGINT", stop);
+    platformRuntime.removeListener("SIGTERM", stop);
     await releaseBuildWorkerLease(state, ownerId);
     await state.close();
   }
@@ -193,7 +195,7 @@ UPDATE build_jobs
 SET state = 'running', owner_id = ?, owner_pid = ?, updated_at = ?
 WHERE job_id = ? AND state = 'queued'
 `,
-      [ownerId, process.pid, now, job.jobId],
+      [ownerId, platformRuntime.pid, now, job.jobId],
     );
 
     return await requireBuildJobById(state, job.jobId);
@@ -230,7 +232,7 @@ UPDATE build_worker_lease
 SET owner_id = ?, owner_pid = ?, heartbeat_at = ?
 WHERE id = 1
 `,
-      [ownerId, process.pid, Date.now()],
+      [ownerId, platformRuntime.pid, Date.now()],
     );
     return true;
   });

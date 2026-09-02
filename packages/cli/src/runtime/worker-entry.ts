@@ -1,4 +1,4 @@
-import { withWikiGraphRuntimeStateDirectoryPath } from "wiki-graph-core";
+import { withWikiGraphRuntimeStateDirectoryPath } from "../../../core/src/runtime/common/wiki-graph/dir.js";
 
 import { createEntryRuntimeContext } from "./entry-context.js";
 

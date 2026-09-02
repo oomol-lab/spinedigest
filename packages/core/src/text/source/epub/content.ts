@@ -1,3 +1,4 @@
+import { binary as platformBinary } from "../../../runtime/platform/index.js";
 import { parseDocument } from "htmlparser2";
 
 import { countTextWords } from "../../../utils/text-word-count.js";
@@ -815,8 +816,8 @@ function toTextChunk(chunk: unknown): string {
     return chunk;
   }
 
-  if (Buffer.isBuffer(chunk)) {
-    return chunk.toString("utf8");
+  if (platformBinary.isBuffer(chunk)) {
+    return (chunk as { toString(encoding?: string): string }).toString("utf8");
   }
 
   throw new Error("Unexpected HTML stream chunk type");

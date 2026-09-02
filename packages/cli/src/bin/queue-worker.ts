@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
-import { runQueueWorker } from "../commands/index.js";
-import { withWorkerEntryRuntime } from "../runtime/worker-entry.js";
+import { installNodeWikiGraphPlatform } from "../runtime/node-platform.js";
+installNodeWikiGraphPlatform();
+const { runQueueWorker } = await import("../commands/index.js");
+const { withWorkerEntryRuntime } = await import("../runtime/worker-entry.js");
 
 async function main(): Promise<void> {
   await withWorkerEntryRuntime(

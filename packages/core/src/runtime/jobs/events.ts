@@ -1,4 +1,4 @@
-import { appendFile, readFile } from "fs/promises";
+import { appendFile, readFile } from "../platform/index.js";
 import type { BuildJob, BuildJobEvent } from "./types.js";
 
 export async function readBuildJobEvents(

@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
-import { join } from "path";
+import { mkdir, readFile, writeFile } from "../platform/index.js";
+import { join } from "../platform/index.js";
 
 import { resolveWikiGraphStateRootPath } from "../common/wiki-graph/temp.js";
 import { runSearchCacheGc } from "../../retrieval/query/index.js";

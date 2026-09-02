@@ -1,9 +1,10 @@
-import { createWriteStream } from "fs";
-import { dirname, extname } from "path";
-import { finished } from "stream/promises";
+import { binary as platformBinary } from "../../../runtime/platform/index.js";
+import { createWriteStream } from "../../../runtime/platform/index.js";
+import { dirname, extname } from "../../../runtime/platform/index.js";
+import { finished } from "../../../runtime/platform/index.js";
 
-import { mkdir } from "fs/promises";
-import { ZipFile } from "yazl";
+import { mkdir } from "../../../runtime/platform/index.js";
+import { ZipFile } from "../../../runtime/platform/index.js";
 
 import type { BookMeta, SourceAsset } from "../../source/index.js";
 
@@ -27,27 +28,39 @@ export async function writeEpubArchive(
 
   const zip = new ZipFile();
 
-  zip.addBuffer(Buffer.from("application/epub+zip"), "mimetype", {
+  zip.addBuffer(platformBinary.from("application/epub+zip"), "mimetype", {
     compress: false,
   });
   zip.addBuffer(
-    Buffer.from(EPUB_CONTAINER_XML, "utf8"),
+    platformBinary.from(EPUB_CONTAINER_XML, "utf8"),
     "META-INF/container.xml",
   );
-  zip.addBuffer(Buffer.from(book.packageOpf, "utf8"), "OEBPS/package.opf");
-  zip.addBuffer(Buffer.from(book.navXhtml, "utf8"), "OEBPS/nav.xhtml");
+  zip.addBuffer(
+    platformBinary.from(book.packageOpf, "utf8"),
+    "OEBPS/package.opf",
+  );
+  zip.addBuffer(platformBinary.from(book.navXhtml, "utf8"), "OEBPS/nav.xhtml");
 
   for (const section of book.sections) {
-    zip.addBuffer(Buffer.from(section.xhtml, "utf8"), `OEBPS/${section.href}`);
+    zip.addBuffer(
+      platformBinary.from(section.xhtml, "utf8"),
+      `OEBPS/${section.href}`,
+    );
   }
 
   if (book.cover !== undefined) {
     const coverImageHref = createCoverImageHref(book.cover);
     const language = normalizeLanguage(book.meta.language);
 
-    zip.addBuffer(Buffer.from(book.cover.data), `OEBPS/${coverImageHref}`);
     zip.addBuffer(
-      Buffer.from(createCoverPage(book.meta, coverImageHref, language), "utf8"),
+      platformBinary.from(book.cover.data),
+      `OEBPS/${coverImageHref}`,
+    );
+    zip.addBuffer(
+      platformBinary.from(
+        createCoverPage(book.meta, coverImageHref, language),
+        "utf8",
+      ),
       "OEBPS/text/cover.xhtml",
     );
   }

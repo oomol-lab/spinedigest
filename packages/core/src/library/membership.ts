@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { randomBytes } from "../runtime/platform/index.js";
 import {
   constants,
   copyFile,
@@ -8,8 +8,14 @@ import {
   rename,
   rm,
   stat,
-} from "fs/promises";
-import { dirname, isAbsolute, join, relative, resolve } from "path";
+} from "../runtime/platform/index.js";
+import {
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+} from "../runtime/platform/index.js";
 
 import {
   getNumber,

@@ -1,5 +1,5 @@
-import { readFileSync, statSync } from "fs";
-import { resolve, sep } from "path";
+import { readFileSync, statSync } from "../platform/index.js";
+import { resolve, sep } from "../platform/index.js";
 
 import { Environment, Loader, type LoaderSource } from "nunjucks";
 

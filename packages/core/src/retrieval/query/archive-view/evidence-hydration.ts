@@ -259,7 +259,7 @@ async function coalesceTextStreamFindHits(
     }
   }
 
-  return entries.map((entry) =>
+  return entries.map((entry: any) =>
     entry.type === "range" ? entry.range.hit : entry.hit,
   );
 }

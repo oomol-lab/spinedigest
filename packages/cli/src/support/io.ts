@@ -2,7 +2,7 @@ import { createReadStream } from "fs";
 import { rm } from "fs/promises";
 import { join } from "path";
 
-import { createWikiGraphTempDirectory } from "wiki-graph-core";
+import { createWikiGraphTempDirectory } from "../../../core/src/runtime/common/wiki-graph/temp.js";
 import {
   getCLIStderr,
   getCLIStdin,

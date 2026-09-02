@@ -1,4 +1,4 @@
-import { appendFile } from "fs/promises";
+import { appendFile } from "../../runtime/platform/index.js";
 import { allocateArtifactPath } from "../../runtime/common/logging.js";
 
 export class RequestLog {

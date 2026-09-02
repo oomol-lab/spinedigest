@@ -1,7 +1,17 @@
-import { randomUUID } from "crypto";
-import { mkdtemp, rename, rm, stat, writeFile } from "fs/promises";
-import { tmpdir } from "os";
-import { dirname, join, resolve } from "path";
+import {
+  binary as platformBinary,
+  runtimeContext as platformRuntime,
+} from "../../runtime/platform/index.js";
+import { randomUUID } from "../../runtime/platform/index.js";
+import {
+  mkdtemp,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "../../runtime/platform/index.js";
+import { tmpdir } from "../../runtime/platform/index.js";
+import { dirname, join, resolve } from "../../runtime/platform/index.js";
 
 import { Database, DirectoryDocument } from "../../document/index.js";
 import { ensureChapterKeys } from "../../document/chapter/toc.js";
@@ -70,7 +80,8 @@ export async function readWikiGraphArchiveSchemaVersion(
 
   try {
     const manifestEntry = entries.find(
-      (entry) => normalizeArchivePath(entry.fileName) === WIKG_MANIFEST_PATH,
+      (entry: any) =>
+        normalizeArchivePath(entry.fileName) === WIKG_MANIFEST_PATH,
     );
 
     if (manifestEntry === undefined) {
@@ -135,7 +146,7 @@ export async function upgradeWikiGraphArchiveSchema(
 
     const temporaryPath = join(
       dirname(resolvedArchivePath),
-      `.${getArchiveBasename(resolvedArchivePath)}.${process.pid}.${randomUUID()}.upgrade.tmp`,
+      `.${getArchiveBasename(resolvedArchivePath)}.${platformRuntime.pid}.${randomUUID()}.upgrade.tmp`,
     );
 
     await writeWikgArchiveWithOverlays(
@@ -194,7 +205,7 @@ async function createChapterTocUpgradeOverlay(
 
   try {
     const tocEntry = entries.find(
-      (entry) => normalizeArchivePath(entry.fileName) === "toc.json",
+      (entry: any) => normalizeArchivePath(entry.fileName) === "toc.json",
     );
 
     if (tocEntry === undefined) {
@@ -339,7 +350,7 @@ async function repairTextSentenceWordCounts(
     ),
   );
   let cachedTextKey: string | undefined;
-  let cachedTextBuffer: Buffer | undefined;
+  let cachedTextBuffer: platformBinary | undefined;
   const updates: Array<{
     readonly chapterId: number;
     readonly kind: number;
@@ -362,7 +373,7 @@ async function repairTextSentenceWordCounts(
           : await document.getSummaryFragments(row.chapterId).readText();
 
       cachedTextBuffer =
-        text === undefined ? undefined : Buffer.from(text, "utf8");
+        text === undefined ? undefined : platformBinary.from(text, "utf8");
     }
     if (cachedTextBuffer === undefined) {
       continue;
@@ -597,7 +608,7 @@ function isActiveLock(ownerPid: number, heartbeatAt: number): boolean {
 
 function isProcessAlive(pid: number): boolean {
   try {
-    process.kill(pid, 0);
+    platformRuntime.kill(pid, 0);
     return true;
   } catch {
     return false;

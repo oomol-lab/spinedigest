@@ -1,9 +1,12 @@
-import { createWriteStream } from "fs";
-import { mkdir } from "fs/promises";
-import { dirname, resolve } from "path";
-import { pipeline } from "stream/promises";
+import { createWriteStream } from "../../../../runtime/platform/index.js";
+import { mkdir } from "../../../../runtime/platform/index.js";
+import { dirname, resolve } from "../../../../runtime/platform/index.js";
+import { pipeline } from "../../../../runtime/platform/index.js";
 
-import type { Entry, ZipFile as YauzlZipFile } from "yauzl";
+import type {
+  Entry,
+  ZipFile as YauzlZipFile,
+} from "../../../../runtime/platform/index.js";
 
 import {
   assertWithinDirectory,
@@ -53,7 +56,7 @@ async function assertLegacySdpubArchive(
   entries: readonly Entry[],
 ): Promise<void> {
   const paths = new Set(
-    entries.map((entry) => normalizeArchivePath(entry.fileName)),
+    entries.map((entry: any) => normalizeArchivePath(entry.fileName)),
   );
 
   if (!paths.has("database.db") || !paths.has("toc.json")) {
@@ -61,7 +64,7 @@ async function assertLegacySdpubArchive(
   }
   if (paths.has("manifest.json")) {
     const manifestEntry = entries.find(
-      (entry) => normalizeArchivePath(entry.fileName) === "manifest.json",
+      (entry: any) => normalizeArchivePath(entry.fileName) === "manifest.json",
     );
 
     if (manifestEntry === undefined) {

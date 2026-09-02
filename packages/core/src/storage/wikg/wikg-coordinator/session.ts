@@ -1,5 +1,11 @@
-import { mkdir, rm, writeFile } from "fs/promises";
-import { dirname, isAbsolute, relative, resolve } from "path";
+import {} from "../../../runtime/platform/index.js";
+import { mkdir, rm, writeFile } from "../../../runtime/platform/index.js";
+import {
+  dirname,
+  isAbsolute,
+  relative,
+  resolve,
+} from "../../../runtime/platform/index.js";
 
 import { createWikiGraphTempDirectory } from "../../../runtime/common/wiki-graph/temp.js";
 import type { DocumentFileStore } from "../../../document/directory/index.js";
@@ -27,7 +33,7 @@ export class WikgArchiveSession {
   readonly #archiveKey: string;
   readonly #archivePath: string;
   readonly #ownerId = createOwnerId();
-  readonly #heartbeat: NodeJS.Timeout;
+  readonly #heartbeat: ReturnType<typeof setTimeout>;
   readonly #observedDirtyEntryPaths = new Set<string>();
   readonly #modifiedEntryPaths = new Set<string>();
   #closed = false;

@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash } from "../../../runtime/platform/index.js";
 import type { Database } from "../../../document/database.js";
 import type { SearchIndexInput } from "./types.js";
 

@@ -1,4 +1,4 @@
-import { resolve } from "path";
+import { type File } from "../../runtime/platform/index.js";
 
 import { DirectoryDocument } from "../../document/index.js";
 
@@ -7,11 +7,11 @@ import { deleteArchiveSearchSessions } from "../../retrieval/query/index.js";
 import { WikiGraphArchive } from "../../api/wiki-graph-archive.js";
 
 export class WikiGraphArchiveFile {
-  readonly #path: string;
+  readonly #file: File | string;
   readonly #coordinator = new WikgCoordinator();
 
-  public constructor(path: string) {
-    this.#path = resolve(path);
+  public constructor(file: File | string) {
+    this.#file = file;
   }
 
   public async read<T>(
@@ -38,7 +38,7 @@ export class WikiGraphArchiveFile {
     } = {},
   ): Promise<T> {
     return await this.#coordinator.withArchiveSession(
-      this.#path,
+      this.#file,
       async (session) => {
         if (options.documentDirPath !== undefined) {
           return await session.materializeReadWorkspace(
@@ -55,20 +55,26 @@ export class WikiGraphArchiveFile {
           );
         }
 
-        const document = await DirectoryDocument.open(this.#path, {
-          fileStore: session.createFileStore({
-            readonlyDatabase: true,
-            ...(options.searchIndexWritebackPolicy === undefined
-              ? {}
-              : {
-                  searchIndexWritebackPolicy:
-                    options.searchIndexWritebackPolicy,
-                }),
-          }),
-        });
+        const document = await DirectoryDocument.open(
+          toHostHandle(this.#file),
+          {
+            fileStore: session.createFileStore({
+              readonlyDatabase: true,
+              ...(options.searchIndexWritebackPolicy === undefined
+                ? {}
+                : {
+                    searchIndexWritebackPolicy:
+                      options.searchIndexWritebackPolicy,
+                  }),
+            }),
+          },
+        );
 
         try {
-          return await operation(document, this.#path);
+          return await operation(
+            document,
+            typeof this.#file === "string" ? this.#file : document.path,
+          );
         } finally {
           await document.release();
         }
@@ -81,18 +87,21 @@ export class WikiGraphArchiveFile {
     options: { readonly searchIndexWritebackPolicy?: "archive" | "cache" } = {},
   ): Promise<T> {
     return await this.#coordinator.withArchiveSession(
-      this.#path,
+      this.#file,
       async (session) => {
-        const document = await DirectoryDocument.open(this.#path, {
-          fileStore: session.createFileStore({
-            ...(options.searchIndexWritebackPolicy === undefined
-              ? {}
-              : {
-                  searchIndexWritebackPolicy:
-                    options.searchIndexWritebackPolicy,
-                }),
-          }),
-        });
+        const document = await DirectoryDocument.open(
+          toHostHandle(this.#file),
+          {
+            fileStore: session.createFileStore({
+              ...(options.searchIndexWritebackPolicy === undefined
+                ? {}
+                : {
+                    searchIndexWritebackPolicy:
+                      options.searchIndexWritebackPolicy,
+                  }),
+            }),
+          },
+        );
 
         try {
           return await operation(document);
@@ -100,10 +109,14 @@ export class WikiGraphArchiveFile {
           try {
             await document.release();
           } finally {
-            await deleteArchiveSearchSessions(this.#path);
+            await deleteArchiveSearchSessions(document.path);
           }
         }
       },
     );
   }
+}
+
+function toHostHandle(file: File | string): string {
+  return typeof file === "string" ? file : file.name;
 }

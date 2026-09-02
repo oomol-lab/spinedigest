@@ -1,5 +1,9 @@
-import { createReadStream, createWriteStream } from "fs";
-import { createInterface } from "readline";
+import { type WritableStream } from "./runtime/platform/index.js";
+import {
+  createReadStream,
+  createWriteStream,
+  readLines,
+} from "./runtime/platform/index.js";
 import { z } from "zod";
 
 import type {
@@ -325,10 +329,7 @@ export async function writeWikgObjectsToJsonl(
 export async function* readWikgObjectsFromJsonl(
   path: string,
 ): AsyncGenerator<WikgObject> {
-  const lines = createInterface({
-    crlfDelay: Infinity,
-    input: createReadStream(path, { encoding: "utf8" }),
-  });
+  const lines = readLines(createReadStream(path, { encoding: "utf8" }));
   let lineNumber = 0;
 
   for await (const line of lines) {
@@ -1045,10 +1046,7 @@ function formatSentenceId(sentenceId: SentenceId): string {
   return sentenceId.join(":");
 }
 
-async function writeLine(
-  stream: NodeJS.WritableStream,
-  line: string,
-): Promise<void> {
+async function writeLine(stream: WritableStream, line: string): Promise<void> {
   await new Promise<void>((resolveWrite, rejectWrite) => {
     stream.write(line, (error?: Error | null) => {
       if (error !== undefined && error !== null) {
@@ -1060,9 +1058,7 @@ async function writeLine(
   });
 }
 
-async function closeWritableStream(
-  stream: NodeJS.WritableStream,
-): Promise<void> {
+async function closeWritableStream(stream: WritableStream): Promise<void> {
   await new Promise<void>((resolveClose, rejectClose) => {
     stream.end((error?: Error | null) => {
       if (error !== undefined && error !== null) {

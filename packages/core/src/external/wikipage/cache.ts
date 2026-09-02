@@ -1,4 +1,4 @@
-import { stat } from "fs/promises";
+import { stat } from "../../runtime/platform/index.js";
 
 import { resolveWikiGraphCacheDatabasePath } from "../../runtime/common/wiki-graph/dir.js";
 import { getNumber } from "../../document/database.js";

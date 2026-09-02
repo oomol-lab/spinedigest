@@ -1,4 +1,5 @@
-import { spawn } from "child_process";
+import { binary as platformBinary } from "../../runtime/platform/index.js";
+import { spawn } from "../../runtime/platform/index.js";
 
 import type {
   WikimatchCandidate,
@@ -182,7 +183,7 @@ async function runWikispineMatch(
       stdio: ["pipe", "pipe", "pipe"],
     });
     const progress = createWikispineProgressReporter(options.onProgress, {
-      onFailure: (error) => {
+      onFailure: (error: any) => {
         reject(error);
         child.kill();
       },
@@ -194,7 +195,7 @@ async function runWikispineMatch(
         });
       },
     });
-    const stderr: Buffer[] = [];
+    const stderr: platformBinary[] = [];
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
@@ -205,10 +206,10 @@ async function runWikispineMatch(
         child.kill();
       }
     });
-    child.stderr.on("data", (chunk: Buffer) => {
+    child.stderr.on("data", (chunk: platformBinary) => {
       stderr.push(chunk);
     });
-    child.on("error", (error) => {
+    child.on("error", (error: any) => {
       reject(
         new Error(
           formatWikispineRuntimeError(
@@ -217,12 +218,12 @@ async function runWikispineMatch(
         ),
       );
     });
-    child.on("close", (code) => {
+    child.on("close", (code: number | null) => {
       if (code !== 0) {
         reject(
           new Error(
             formatWikispineRuntimeError(
-              `wikispine match failed with exit code ${code}: ${Buffer.concat(stderr).toString("utf8")}`,
+              `wikispine match failed with exit code ${code}: ${platformBinary.concat(stderr).toString("utf8")}`,
             ),
           ),
         );

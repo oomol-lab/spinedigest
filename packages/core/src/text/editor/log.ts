@@ -1,4 +1,4 @@
-import { appendFile, writeFile } from "fs/promises";
+import { appendFile, writeFile } from "../../runtime/platform/index.js";
 import { allocateArtifactPath } from "../../runtime/common/logging.js";
 
 import type { Language } from "../../runtime/common/language.js";

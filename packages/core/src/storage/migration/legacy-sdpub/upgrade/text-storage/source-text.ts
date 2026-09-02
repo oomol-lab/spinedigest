@@ -1,5 +1,6 @@
-import { mkdir, writeFile } from "fs/promises";
-import { join } from "path";
+import { binary as platformBinary } from "../../../../../runtime/platform/index.js";
+import { mkdir, writeFile } from "../../../../../runtime/platform/index.js";
+import { join } from "../../../../../runtime/platform/index.js";
 
 import type { Database } from "../../../../../document/database.js";
 import type { LegacyFragmentRecord } from "./types.js";
@@ -44,7 +45,7 @@ export async function writeLegacySourceTextStream(
 
   for (const fragment of input.fragments) {
     for (const sentence of fragment.content.sentences) {
-      const byteLength = Buffer.byteLength(sentence.text, "utf8");
+      const byteLength = platformBinary.byteLength(sentence.text, "utf8");
 
       await database.run(
         `

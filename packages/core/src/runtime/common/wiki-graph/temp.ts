@@ -1,5 +1,5 @@
-import { mkdir, mkdtemp } from "fs/promises";
-import { join } from "path";
+import { mkdir, mkdtemp } from "../../platform/index.js";
+import { join } from "../../platform/index.js";
 
 import { resolveWikiGraphTempRootDirectoryPath } from "./dir.js";
 

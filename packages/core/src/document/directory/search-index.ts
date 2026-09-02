@@ -1,5 +1,5 @@
-import { stat } from "fs/promises";
-import { join, resolve } from "path";
+import { stat } from "../../runtime/platform/index.js";
+import { join, resolve } from "../../runtime/platform/index.js";
 
 import { isNodeError } from "../../utils/node-error.js";
 import { Database } from "../database.js";

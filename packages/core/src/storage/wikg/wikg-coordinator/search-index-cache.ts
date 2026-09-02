@@ -1,5 +1,5 @@
-import { mkdir, rename, rm } from "fs/promises";
-import { dirname } from "path";
+import { mkdir, rename, rm } from "../../../runtime/platform/index.js";
+import { dirname } from "../../../runtime/platform/index.js";
 
 import { Database as DocumentDatabase } from "../../../document/index.js";
 import { ensureWikiGraphHomeSchemaCurrent } from "../../../document/home-schema-upgrade.js";

@@ -1,5 +1,15 @@
-import { mkdir, readFile, rename, rm, writeFile } from "fs/promises";
-import { dirname, posix, resolve } from "path";
+import {
+  binary as platformBinary,
+  runtimeContext as platformRuntime,
+} from "../../../runtime/platform/index.js";
+import {
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "../../../runtime/platform/index.js";
+import { dirname, posix, resolve } from "../../../runtime/platform/index.js";
 
 import type { DocumentFileStore } from "../../../document/directory/index.js";
 import { ensureWikiGraphHomeSchemaCurrent } from "../../../document/home-schema-upgrade.js";
@@ -405,7 +415,7 @@ export class WikgDocumentFileStore implements DocumentFileStore {
         );
 
         await mkdir(dirname(workspacePath), { recursive: true });
-        const temporaryWorkspacePath = `${workspacePath}.${process.pid}.${Date.now()}.tmp`;
+        const temporaryWorkspacePath = `${workspacePath}.${platformRuntime.pid}.${Date.now()}.tmp`;
 
         try {
           await writeFile(temporaryWorkspacePath, content);
@@ -451,7 +461,9 @@ export class WikgDocumentFileStore implements DocumentFileStore {
     return (await this.#getArchiveReader()).listEntries();
   }
 
-  async #readArchiveEntry(entryPath: string): Promise<Buffer | undefined> {
+  async #readArchiveEntry(
+    entryPath: string,
+  ): Promise<platformBinary | undefined> {
     return await (await this.#getArchiveReader()).readEntry(entryPath);
   }
 

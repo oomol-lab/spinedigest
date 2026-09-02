@@ -1,3 +1,4 @@
+import { binary as platformBinary } from "../../../runtime/platform/index.js";
 import { getNumber, type Database } from "../../../document/database.js";
 import { serializeTokens } from "./helpers.js";
 import type { SearchTokenPlan } from "./tokenizer.js";
@@ -122,7 +123,9 @@ export async function insertTextEmbeddingSegment(
   );
 }
 
-export function deserializeFloat32Vector(buffer: Buffer): readonly number[] {
+export function deserializeFloat32Vector(
+  buffer: platformBinary,
+): readonly number[] {
   const vector: number[] = [];
 
   for (let offset = 0; offset < buffer.length; offset += 4) {
@@ -132,8 +135,8 @@ export function deserializeFloat32Vector(buffer: Buffer): readonly number[] {
   return vector;
 }
 
-function serializeFloat32Vector(vector: readonly number[]): Buffer {
-  const buffer = Buffer.alloc(vector.length * 4);
+function serializeFloat32Vector(vector: readonly number[]): platformBinary {
+  const buffer = platformBinary.alloc(vector.length * 4);
 
   for (const [index, value] of vector.entries()) {
     buffer.writeFloatLE(value, index * 4);

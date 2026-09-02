@@ -2,13 +2,13 @@ import { rename, rm, stat } from "fs/promises";
 import { basename, dirname, join } from "path";
 
 import {
-  createWikiGraphTempDirectory,
   DirectoryDocument,
   formatLocatedWikiGraphUri,
   formatWikiGraphCommandUri,
   TOC_FILE_VERSION,
   writeWikgArchive,
 } from "wiki-graph-core";
+import { createWikiGraphTempDirectory } from "../../../../core/src/runtime/common/wiki-graph/temp.js";
 
 import type { CLIArchiveArguments } from "../../args/index.js";
 import { runConvertCommand } from "../convert.js";

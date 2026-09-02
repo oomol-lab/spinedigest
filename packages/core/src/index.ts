@@ -95,16 +95,6 @@ export type {
   WikiGraphLibraryScanResult,
 } from "./library/index.js";
 export {
-  resolveWikiGraphCoreDatabasePath,
-  resolveWikiGraphHomeDirectoryPath,
-  withWikiGraphRuntimeEnvironment,
-  withWikiGraphRuntimeStateDirectoryPath,
-} from "./runtime/common/wiki-graph/dir.js";
-export {
-  createWikiGraphTempDirectory,
-  resolveWikiGraphStateRootPath,
-} from "./runtime/common/wiki-graph/temp.js";
-export {
   EVIDENCE_SELECTION_JSON_SHAPE,
   EVIDENCE_SELECTION_PROMPT_FRAGMENT,
   formatEvidenceSelectionChoicePrompt,
@@ -468,3 +458,13 @@ export {
   writeWikgObjectsToJsonl,
 } from "./object-stream.js";
 export type { WikgObject } from "./object-stream.js";
+export {
+  getWikiGraphStorage,
+  installWikiGraphPlatform,
+  installWikiGraphStorage,
+  type Directory,
+  type File,
+  type FileWriter,
+  type WikiGraphPlatform,
+  type WikiGraphStorage,
+} from "./runtime/platform/index.js";

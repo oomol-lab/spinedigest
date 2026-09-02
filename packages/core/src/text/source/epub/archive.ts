@@ -1,9 +1,10 @@
-import { createHash } from "crypto";
-import { createReadStream } from "fs";
-import { posix } from "path";
-import { PassThrough, type Readable } from "stream";
-import type { Entry, ZipFile } from "yauzl";
-import { open } from "yauzl";
+import { binary as platformBinary } from "../../../runtime/platform/index.js";
+import { createHash } from "../../../runtime/platform/index.js";
+import { createReadStream } from "../../../runtime/platform/index.js";
+import { posix } from "../../../runtime/platform/index.js";
+import { PassThrough, type Readable } from "../../../runtime/platform/index.js";
+import type { Entry, ZipFile } from "../../../runtime/platform/index.js";
+import { openZip as open } from "../../../runtime/platform/index.js";
 
 export class EpubArchive {
   readonly #path: string;
@@ -62,7 +63,7 @@ export class EpubArchive {
     return (await readStreamToBuffer(stream)).toString("utf8");
   }
 
-  public async readBuffer(path: string): Promise<Buffer> {
+  public async readBuffer(path: string): Promise<platformBinary> {
     const stream = await this.openReadStream(path);
     return await readStreamToBuffer(stream);
   }
@@ -162,14 +163,18 @@ export function splitHref(href: string): {
 
 async function openZipFile(path: string): Promise<ZipFile> {
   return await new Promise((resolve, reject) => {
-    open(path, { autoClose: false, lazyEntries: true }, (error, zipFile) => {
-      if (error !== null || zipFile === undefined) {
-        reject(error ?? new Error(`Cannot open EPUB archive: ${path}`));
-        return;
-      }
+    open(
+      path,
+      { autoClose: false, lazyEntries: true },
+      (error: any, zipFile: any) => {
+        if (error !== null || zipFile === undefined) {
+          reject(error ?? new Error(`Cannot open EPUB archive: ${path}`));
+          return;
+        }
 
-      resolve(zipFile);
-    });
+        resolve(zipFile);
+      },
+    );
   });
 }
 
@@ -178,7 +183,7 @@ async function digestFile(path: string): Promise<string> {
     const hash = createHash("sha256");
     const stream = createReadStream(path);
 
-    stream.on("data", (chunk: Buffer | string) => hash.update(chunk));
+    stream.on("data", (chunk: platformBinary | string) => hash.update(chunk));
     stream.once("end", () => resolve(hash.digest("hex")));
     stream.once("error", reject);
   });
@@ -210,27 +215,27 @@ async function indexEntries(
   });
 }
 
-function toBuffer(chunk: unknown): Buffer {
-  if (Buffer.isBuffer(chunk)) {
+function toBuffer(chunk: unknown): platformBinary {
+  if (platformBinary.isBuffer(chunk)) {
     return chunk;
   }
 
   if (typeof chunk === "string") {
-    return Buffer.from(chunk, "utf8");
+    return platformBinary.from(chunk, "utf8");
   }
 
   throw new Error("Unexpected ZIP stream chunk type");
 }
 
-async function readStreamToBuffer(stream: Readable): Promise<Buffer> {
+async function readStreamToBuffer(stream: Readable): Promise<platformBinary> {
   return await new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
+    const chunks: platformBinary[] = [];
 
     stream.on("data", (chunk: unknown) => {
       chunks.push(toBuffer(chunk));
     });
     stream.once("end", () => {
-      resolve(Buffer.concat(chunks));
+      resolve(platformBinary.concat(chunks));
     });
     stream.once("error", (error: Error) => {
       reject(error);
@@ -244,7 +249,7 @@ async function openEntryStream(
   entry: Entry,
 ): Promise<Readable> {
   return await new Promise((resolve, reject) => {
-    zipFile.openReadStream(entry, (error, stream) => {
+    zipFile.openReadStream(entry, (error: any, stream: any) => {
       if (error !== null || stream === undefined) {
         reject(error ?? new Error(`Cannot open EPUB entry: ${entry.fileName}`));
         return;

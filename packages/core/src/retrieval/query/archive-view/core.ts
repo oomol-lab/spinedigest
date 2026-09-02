@@ -27,7 +27,7 @@ export async function requireChapter(
   chapterId: number,
 ): Promise<ChapterEntry> {
   const chapter = (await listChapters(document)).find(
-    (entry) => entry.chapterId === chapterId,
+    (entry: any) => entry.chapterId === chapterId,
   );
 
   if (chapter === undefined) {

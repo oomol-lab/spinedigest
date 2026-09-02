@@ -1,5 +1,5 @@
-import { mkdir, rm } from "fs/promises";
-import { join } from "path";
+import { mkdir, rm } from "../../runtime/platform/index.js";
+import { join } from "../../runtime/platform/index.js";
 
 import type { Document } from "../../document/index.js";
 import {

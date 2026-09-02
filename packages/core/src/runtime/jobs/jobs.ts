@@ -1,5 +1,5 @@
-import { randomUUID } from "crypto";
-import { resolve } from "path";
+import { randomUUID } from "../platform/index.js";
+import { resolve } from "../platform/index.js";
 import type { Database } from "../../document/index.js";
 import {
   createJobCachePath,

@@ -1,8 +1,11 @@
-import { createReadStream, createWriteStream } from "fs";
-import { mkdir } from "fs/promises";
-import { dirname } from "path";
-import { createInterface } from "readline";
-import type { Writable } from "stream";
+import {
+  createReadStream,
+  createWriteStream,
+  readLines,
+} from "../../runtime/platform/index.js";
+import { mkdir } from "../../runtime/platform/index.js";
+import { dirname } from "../../runtime/platform/index.js";
+import type { Writable } from "../../runtime/platform/index.js";
 import { z } from "zod";
 
 import type {
@@ -112,10 +115,7 @@ export async function writeIndexArtifactOutputToStream(
 export async function readIndexArtifactOutput(
   path: string,
 ): Promise<IndexArtifactOutput> {
-  const lines = createInterface({
-    crlfDelay: Infinity,
-    input: createReadStream(path, { encoding: "utf8" }),
-  });
+  const lines = readLines(createReadStream(path, { encoding: "utf8" }));
   let manifest: IndexArtifactOutputManifest | undefined;
   const lexicalRows: IndexArtifactLexicalRow[] = [];
   const segments: IndexArtifactEmbeddingSegment[] = [];
@@ -542,7 +542,7 @@ async function writeJSONLRecord(
 
       const canContinue = stream.write(
         `${JSON.stringify(record)}\n`,
-        (error) => {
+        (error: any) => {
           if (error !== undefined && error !== null) {
             settle(error);
             return;

@@ -1,5 +1,5 @@
-import { createHash } from "crypto";
-import { appendFile } from "fs/promises";
+import { createHash } from "../../runtime/platform/index.js";
+import { appendFile } from "../../runtime/platform/index.js";
 
 import {
   getLogger,

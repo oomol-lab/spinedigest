@@ -1,17 +1,22 @@
-import { open as openFile, type FileHandle } from "fs/promises";
-import { inflateRaw } from "zlib";
+import { binary as platformBinary } from "../../../runtime/platform/index.js";
+import {
+  open as openFile,
+  type FileHandle,
+} from "../../../runtime/platform/index.js";
+import type { File } from "../../../runtime/platform/index.js";
+import { inflateRaw } from "../../../runtime/platform/index.js";
 
 import {
-  open as openZip,
+  openZip,
   type Entry,
   type ZipFile as YauzlZipFile,
-} from "yauzl";
+} from "../../../runtime/platform/index.js";
 
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 import { parseWikgManifest, parseWikgMutationToken } from "./manifest.js";
 import { normalizeArchivePath } from "./paths.js";
 
-export async function openIndexedArchive(inputPath: string): Promise<{
+export async function openIndexedArchive(inputPath: string | File): Promise<{
   readonly entries: readonly Entry[];
   readonly zipFile: YauzlZipFile;
 }> {
@@ -55,17 +60,20 @@ export async function indexArchiveEntries(
 }
 
 export async function readArchiveEntryText(
-  inputPath: string,
+  inputPath: string | File,
   entry: Entry,
 ): Promise<string> {
   return (await readArchiveEntryBuffer(inputPath, entry)).toString("utf8");
 }
 
 export async function readArchiveEntryBuffer(
-  inputPath: string,
+  inputPath: string | File,
   entry: Entry,
-): Promise<Buffer> {
-  const file = await openFile(inputPath, "r");
+): Promise<platformBinary> {
+  const file =
+    typeof inputPath === "string"
+      ? await openFile(inputPath, "r")
+      : new MemoryFileHandle(await inputPath.read());
 
   try {
     return await readArchiveEntryBufferFromFile(file, entry);
@@ -77,7 +85,7 @@ export async function readArchiveEntryBuffer(
 export async function readArchiveEntryBufferFromFile(
   file: FileHandle,
   entry: Entry,
-): Promise<Buffer> {
+): Promise<platformBinary> {
   const compressed = await readCompressedArchiveEntryBuffer(file, entry);
 
   if (entry.compressionMethod === 0) {
@@ -90,21 +98,60 @@ export async function readArchiveEntryBufferFromFile(
   throw new Error(`Unsupported ZIP compression method: ${entry.fileName}`);
 }
 
-async function openArchive(path: string): Promise<YauzlZipFile> {
+async function openArchive(path: string | File): Promise<YauzlZipFile> {
+  const source =
+    typeof path === "string"
+      ? path
+      : platformBinary.from((await path.read()) as Uint8Array);
   return await new Promise((resolve, reject) => {
-    openZip(path, { autoClose: false, lazyEntries: true }, (error, zipFile) => {
-      if (error !== null || zipFile === undefined) {
-        reject(error ?? new Error(`Cannot open archive: ${path}`));
-        return;
-      }
+    openZip(
+      source,
+      { autoClose: false, lazyEntries: true },
+      (error: any, zipFile: any) => {
+        if (error !== null || zipFile === undefined) {
+          reject(error ?? new Error("Cannot open archive"));
+          return;
+        }
 
-      resolve(zipFile);
-    });
+        resolve(zipFile);
+      },
+    );
   });
 }
 
+class MemoryFileHandle {
+  readonly #data: platformBinary;
+
+  public constructor(data: Uint8Array | string) {
+    this.#data =
+      typeof data === "string"
+        ? platformBinary.from(data, "utf8")
+        : platformBinary.from(data);
+  }
+
+  public async read(
+    target: platformBinary,
+    offset: number,
+    length: number,
+    position: number,
+  ): Promise<{ readonly bytesRead: number; readonly buffer: platformBinary }> {
+    const bytesRead = Math.max(
+      0,
+      Math.min(length, this.#data.length - position),
+    );
+    if (bytesRead > 0) {
+      this.#data.copy(target, offset, position, position + bytesRead);
+    }
+    return { bytesRead, buffer: target };
+  }
+
+  public async close(): Promise<void> {
+    // Nothing to release for an in-memory host file.
+  }
+}
+
 async function validateArchiveManifest(
-  inputPath: string,
+  inputPath: string | File,
   entries: readonly Entry[],
 ): Promise<void> {
   await validateArchiveMutationToken(inputPath, entries);
@@ -122,7 +169,7 @@ async function validateArchiveManifest(
 }
 
 async function validateArchiveMutationToken(
-  inputPath: string,
+  inputPath: string | File,
   entries: readonly Entry[],
 ): Promise<void> {
   const firstEntryPath = normalizeArchivePath(entries[0]?.fileName ?? "");
@@ -133,14 +180,14 @@ async function validateArchiveMutationToken(
     );
   }
 
-  parseWikgMutationToken(await readArchiveEntryText(inputPath, entries[0]!));
+  parseWikgMutationToken(await readArchiveEntryText(inputPath, entries[0]));
 }
 
 async function readCompressedArchiveEntryBuffer(
   file: FileHandle,
   entry: Entry,
-): Promise<Buffer> {
-  const header = Buffer.alloc(30);
+): Promise<platformBinary> {
+  const header = platformBinary.alloc(30);
 
   await file.read(header, 0, header.length, entry.relativeOffsetOfLocalHeader);
   if (header.readUInt32LE(0) !== 0x04034b50) {
@@ -151,15 +198,17 @@ async function readCompressedArchiveEntryBuffer(
   const extraFieldLength = header.readUInt16LE(28);
   const dataOffset =
     entry.relativeOffsetOfLocalHeader + 30 + fileNameLength + extraFieldLength;
-  const compressed = Buffer.alloc(entry.compressedSize);
+  const compressed = platformBinary.alloc(entry.compressedSize);
 
   await file.read(compressed, 0, compressed.length, dataOffset);
   return compressed;
 }
 
-async function inflateRawBuffer(input: Buffer): Promise<Buffer> {
+async function inflateRawBuffer(
+  input: platformBinary,
+): Promise<platformBinary> {
   return await new Promise((resolveInflate, rejectInflate) => {
-    inflateRaw(input, (error, output) => {
+    inflateRaw(input, (error: any, output: any) => {
       if (error !== null) {
         rejectInflate(error);
         return;

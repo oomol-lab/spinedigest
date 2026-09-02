@@ -1,5 +1,5 @@
-import { readdir, rm, rmdir, stat } from "fs/promises";
-import { join } from "path";
+import { readdir, rm, rmdir, stat } from "../platform/index.js";
+import { join } from "../platform/index.js";
 
 import { isNodeError } from "../../utils/node-error.js";
 
@@ -24,7 +24,7 @@ export async function removeDisposableDirectory(
   if (entries === undefined) {
     return 0;
   }
-  if (entries.some((entry) => !isDisposableDirectoryEntry(entry))) {
+  if (entries.some((entry: any) => !isDisposableDirectoryEntry(entry))) {
     return 0;
   }
 

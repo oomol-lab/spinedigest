@@ -1,5 +1,9 @@
-import { existsSync, mkdirSync, statSync } from "fs";
-import { resolve } from "path";
+import {
+  existsSync,
+  mkdirSync,
+  statSync,
+} from "../../../runtime/platform/index.js";
+import { resolve } from "../../../runtime/platform/index.js";
 
 import { LLMCache } from "../cache.js";
 

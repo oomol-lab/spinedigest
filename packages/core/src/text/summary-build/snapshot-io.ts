@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "fs/promises";
+import { readFile, writeFile } from "../../runtime/platform/index.js";
 
 import {
   summaryInputSnapshotSchema,

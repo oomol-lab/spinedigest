@@ -6,7 +6,7 @@ import type {
   SourceTextStream,
 } from "../types.js";
 import type { SourceArtifactInput } from "../../../document/types.js";
-import { basename } from "path";
+import { basename } from "../../../runtime/platform/index.js";
 
 import { normalizeFragment } from "./archive.js";
 import { EpubArchive } from "./archive.js";

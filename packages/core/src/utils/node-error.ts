@@ -1,4 +1,5 @@
-export function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+import { type NodeError } from "../runtime/platform/index.js";
+export function isNodeError(error: unknown): error is NodeError {
   return error instanceof Error;
 }
 
@@ -24,7 +25,7 @@ export function formatError(error: unknown): string {
 }
 
 function describeError(error: Error): string {
-  const errnoError = error as NodeJS.ErrnoException;
+  const errnoError = error as NodeError;
   const message = error.message.trim();
   const code =
     typeof errnoError.code === "string" && errnoError.code !== ""

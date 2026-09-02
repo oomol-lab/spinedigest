@@ -1,4 +1,5 @@
-import { join } from "path";
+import { binary as platformBinary } from "../../runtime/platform/index.js";
+import { join } from "../../runtime/platform/index.js";
 
 import { isNodeError } from "../../utils/node-error.js";
 import type { DirectoryDocumentContext } from "./context.js";
@@ -80,7 +81,7 @@ async function readOptionalTextFile(
 
   return content === undefined
     ? undefined
-    : Buffer.from(content).toString("utf8");
+    : platformBinary.from(content).toString("utf8");
 }
 
 async function writeFile(input: {

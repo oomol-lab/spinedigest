@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join } from "../../../../../runtime/platform/index.js";
 
 import type { SqlBindValue } from "../../../../../document/database.js";
 import { Database } from "../../../../../document/database.js";

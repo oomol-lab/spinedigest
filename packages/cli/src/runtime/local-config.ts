@@ -1,4 +1,4 @@
-import { resolveWikiGraphCoreDatabasePath } from "wiki-graph-core";
+import { resolveWikiGraphCoreDatabasePath } from "../../../core/src/runtime/common/wiki-graph/dir.js";
 import { openSharedStateDatabase } from "wiki-graph-core";
 import type { Database } from "wiki-graph-core";
 

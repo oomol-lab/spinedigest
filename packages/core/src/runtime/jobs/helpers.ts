@@ -1,5 +1,6 @@
-import { createHash } from "crypto";
-import { resolve } from "path";
+import { runtimeContext as platformRuntime } from "../platform/index.js";
+import { createHash } from "../platform/index.js";
+import { resolve } from "../platform/index.js";
 
 export function createArchiveKey(archivePath: string): string {
   return createHash("sha256").update(resolve(archivePath)).digest("hex");
@@ -7,7 +8,7 @@ export function createArchiveKey(archivePath: string): string {
 
 export function isProcessAlive(pid: number): boolean {
   try {
-    process.kill(pid, 0);
+    platformRuntime.kill(pid, 0);
     return true;
   } catch {
     return false;

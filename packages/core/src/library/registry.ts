@@ -1,7 +1,7 @@
-import { randomBytes } from "crypto";
-import { constants } from "fs";
-import { access, mkdir, stat } from "fs/promises";
-import { join, resolve } from "path";
+import { getWikiGraphStorage, randomBytes } from "../runtime/platform/index.js";
+import { constants } from "../runtime/platform/index.js";
+import { access, mkdir, stat } from "../runtime/platform/index.js";
+import { join, resolve } from "../runtime/platform/index.js";
 
 import {
   getNumber,
@@ -308,6 +308,17 @@ export function formatWikiGraphLibraryUri(publicId?: string): string {
 }
 
 export function resolveDefaultWikiGraphLibraryDirectoryPath(): string {
+  // A host-provided library root is the authoritative location when the
+  // storage adapter is installed. The legacy home-directory fallback remains
+  // for callers that use the low-level registry helpers directly.
+  try {
+    return join(
+      getWikiGraphStorage().library as unknown as string,
+      DEFAULT_LIBRARY_FOLDER_NAME,
+    );
+  } catch {
+    // Keep the existing Node/CLI behavior for backwards compatibility.
+  }
   return join(resolveWikiGraphHomeDirectoryPath(), DEFAULT_LIBRARY_FOLDER_NAME);
 }
 

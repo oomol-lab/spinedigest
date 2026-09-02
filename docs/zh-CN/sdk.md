@@ -2,7 +2,7 @@
 
 # SDK
 
-本文档说明如何在 Node.js 代码中通过 `wiki-graph-core` 使用 Wiki Graph。当应用需要创建、读取、检索或维护 `.wikg` 归档，并且不希望 shell out 到 `wg` CLI 时，应使用 SDK。
+本文档说明如何通过 `wiki-graph-core` 使用 Wiki Graph。当应用需要创建、读取、检索或维护 `.wikg` 归档，并且不希望 shell out 到 `wg` CLI 时，应使用 SDK。Core 是与运行时无关的 TypeScript 库：由宿主提供 `File` 和 `Directory` 实现；仅 CLI 私下负责 Node 文件系统、SQLite 和 ZIP 的组装。
 
 ## Packages
 
@@ -30,6 +30,25 @@ core 包。
 ## Main SDK
 
 主入口是 `wiki-graph-core`。它暴露 archive session、archive query helpers、章节操作、队列控制和共享类型。
+
+### 宿主存储
+
+打开或创建归档前，宿主需要提供两个目录根：
+
+```ts
+import { WikiGraph, type Directory, type File } from "wiki-graph-core";
+
+const storage = {
+  library: myLibraryDirectory satisfies Directory,
+  documentStore: myDocumentDirectory satisfies Directory,
+};
+const wikiGraph = new WikiGraph({ storage });
+
+const archive = myArchiveFile satisfies File;
+await wikiGraph.openSession(archive, (session) => session.readMeta());
+```
+
+`File`/`Directory` 是平台原语，Core 不解析它们背后的 URI 或绝对路径。浏览器、Extension 等宿主可以使用 IndexedDB、OPFS 或其他受限存储；`wiki-graph` CLI 提供 Node 适配器。
 
 ```ts
 import { WikiGraph } from "wiki-graph-core";

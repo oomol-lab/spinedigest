@@ -1,6 +1,6 @@
 import { Readable, Writable } from "stream";
 
-import { withWikiGraphRuntimeStateDirectoryPath } from "wiki-graph-core";
+import { withWikiGraphRuntimeStateDirectoryPath } from "../../../core/src/runtime/common/wiki-graph/dir.js";
 import { dispatchWikiGraphCLI } from "./dispatch.js";
 import {
   getCLIExitCode,

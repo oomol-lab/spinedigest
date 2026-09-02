@@ -1,6 +1,5 @@
-import { AsyncLocalStorage } from "async_hooks";
-import { homedir } from "os";
-import { join, resolve } from "path";
+import { AsyncLocalStorage } from "../../platform/index.js";
+import { join, resolve } from "../../platform/index.js";
 
 const testingStateDirectoryPath = new AsyncLocalStorage<{
   readonly path: string | undefined;
@@ -22,7 +21,8 @@ export function resolveWikiGraphHomeDirectoryPath(): string {
     return resolve(runtimeStateDirPath);
   }
 
-  return join(homedir(), ".wikigraph");
+  // Core owns only a logical name. The host decides which Directory backs it.
+  return ".wikigraph";
 }
 
 export function setWikiGraphStateDirectoryPathForTesting(
@@ -46,11 +46,11 @@ export async function withWikiGraphRuntimeStateDirectoryPath<T>(
 }
 
 /**
- * @deprecated Runtime state overrides are no longer read from process-style
+ * @deprecated Runtime state overrides are no longer read from platformRuntime-style
  * environment objects. Use `withWikiGraphRuntimeStateDirectoryPath` instead.
  */
 export async function withWikiGraphRuntimeEnvironment<T>(
-  _environment: NodeJS.ProcessEnv,
+  _environment: Record<string, string | undefined>,
   operation: () => Promise<T> | T,
 ): Promise<T> {
   return await operation();

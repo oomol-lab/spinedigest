@@ -1,5 +1,10 @@
-import { AsyncLocalStorage } from "async_hooks";
-import { join, resolve } from "path";
+import {
+  AsyncLocalStorage,
+  getRelativeFile,
+  join,
+  resolve,
+  type Directory,
+} from "../../runtime/platform/index.js";
 import { z } from "zod";
 
 import { bookMetaSchema, type BookMeta } from "../../text/source/meta.js";
@@ -28,6 +33,7 @@ import {
 import { ObjectMetadataKind, type SentenceId } from "../types.js";
 import { DirectoryDocumentContext } from "./context.js";
 import { LOCAL_DOCUMENT_FILE_STORE } from "./file-store.js";
+import { DirectoryFileStore } from "./directory-file-store.js";
 import {
   getCoverDataPath,
   getCoverDirectoryPath,
@@ -101,14 +107,22 @@ export class DirectoryDocument implements Document {
   }
 
   public static async open(
-    documentPath: string,
+    documentPath: string | Directory,
     options: { readonly fileStore?: DocumentFileStore } = {},
   ): Promise<DirectoryDocument> {
-    const resolvedDocumentPath = resolve(documentPath);
-    const fileStore = options.fileStore ?? LOCAL_DOCUMENT_FILE_STORE;
+    const resolvedDocumentPath =
+      typeof documentPath === "string" ? resolve(documentPath) : "";
+    const fileStore =
+      options.fileStore ??
+      (typeof documentPath === "string"
+        ? LOCAL_DOCUMENT_FILE_STORE
+        : new DirectoryFileStore(documentPath));
     try {
       const databasePath =
-        await fileStore.resolveDatabasePath(resolvedDocumentPath);
+        typeof documentPath === "string"
+          ? await fileStore.resolveDatabasePath(resolvedDocumentPath)
+          : ((await getRelativeFile(documentPath, "database.db")) ??
+            (await documentPath.createFile("database.db")));
       await fileStore.ensureDirectory(resolvedDocumentPath);
 
       const shouldInitializeDatabaseSchema =

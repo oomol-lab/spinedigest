@@ -1,7 +1,16 @@
-import { rm } from "fs/promises";
-import { resolve } from "path";
+import {
+  getWikiGraphStorage,
+  join,
+  mkdir,
+  randomUUID,
+  rm,
+} from "../../../runtime/platform/index.js";
+import { resolve, type File } from "../../../runtime/platform/index.js";
 
-import { createWikiGraphTempDirectory } from "../../../runtime/common/wiki-graph/temp.js";
+import {
+  createWikiGraphTempDirectory,
+  type WikiGraphTempCategory,
+} from "../../../runtime/common/wiki-graph/temp.js";
 import type { DocumentFileStore } from "../../../document/directory/index.js";
 
 import { extractWikgArchive } from "../archive/index.js";
@@ -12,21 +21,24 @@ import type { WorkspaceWritebackPolicy } from "./types.js";
 
 export class WikgCoordinator {
   public createFileStore(
-    archivePath: string,
+    archivePath: File | string,
     options: {
       readonly readonlyDatabase?: boolean;
       readonly searchIndexWritebackPolicy?: WorkspaceWritebackPolicy;
       readonly session?: WikgArchiveSession;
     } = {},
   ): DocumentFileStore {
-    return new WikgDocumentFileStore(resolve(archivePath), options);
+    const path = resolve(
+      typeof archivePath === "string" ? archivePath : archivePath.name,
+    );
+    return new WikgDocumentFileStore(path, options);
   }
 
   public async withArchiveSession<T>(
-    archivePath: string,
+    archivePath: File | string,
     operation: (session: WikgArchiveSession) => Promise<T> | T,
   ): Promise<T> {
-    const session = await WikgArchiveSession.open(resolve(archivePath));
+    const session = await WikgArchiveSession.open(toArchivePath(archivePath));
 
     try {
       return await operation(session);
@@ -36,7 +48,7 @@ export class WikgCoordinator {
   }
 
   public async withReadWorkspace<T>(
-    archivePath: string,
+    archivePath: File | string,
     operation: (documentDirectoryPath: string) => Promise<T> | T,
     options: {
       readonly documentDirPath?: string;
@@ -44,11 +56,11 @@ export class WikgCoordinator {
   ): Promise<T> {
     const directoryPath =
       options.documentDirPath === undefined
-        ? await createWikiGraphTempDirectory("archive-open")
+        ? await createWorkspaceDirectory("archive-open")
         : resolve(options.documentDirPath);
 
     try {
-      await extractWikgArchive(resolve(archivePath), directoryPath);
+      await extractWikgArchive(toArchivePath(archivePath), directoryPath);
       return await operation(directoryPath);
     } finally {
       if (options.documentDirPath === undefined) {
@@ -58,16 +70,37 @@ export class WikgCoordinator {
   }
 
   public async withWriteWorkspace<T>(
-    archivePath: string,
+    archivePath: File | string,
     operation: (documentDirectoryPath: string) => Promise<T> | T,
   ): Promise<T> {
-    const directoryPath = await createWikiGraphTempDirectory("archive-write");
+    const directoryPath = await createWorkspaceDirectory("archive-write");
 
     try {
-      await extractWikgArchive(resolve(archivePath), directoryPath);
+      await extractWikgArchive(toArchivePath(archivePath), directoryPath);
       return await operation(directoryPath);
     } finally {
       await rm(directoryPath, { force: true, recursive: true });
     }
   }
+}
+
+async function createWorkspaceDirectory(
+  prefix: Extract<WikiGraphTempCategory, "archive-open" | "archive-write">,
+): Promise<string> {
+  // Prefer the host-provided document store for transient materialization so
+  // browser/extension hosts can scope all document I/O to one Directory.
+  try {
+    const root = getWikiGraphStorage().documentStore as unknown as string;
+    const directoryPath = join(root, `.wikg-${prefix}-${randomUUID()}`);
+    await mkdir(directoryPath, { recursive: true });
+    return directoryPath;
+  } catch {
+    return await createWikiGraphTempDirectory(prefix);
+  }
+}
+
+function toArchivePath(archivePath: File | string): string {
+  return resolve(
+    typeof archivePath === "string" ? archivePath : archivePath.name,
+  );
 }

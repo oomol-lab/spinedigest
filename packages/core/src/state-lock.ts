@@ -1,4 +1,5 @@
-import { randomUUID } from "crypto";
+import { runtimeContext as platformRuntime } from "./runtime/platform/index.js";
+import { randomUUID } from "./runtime/platform/index.js";
 
 import {
   getNumber,
@@ -68,7 +69,7 @@ export async function withStateLock<T>(
 export async function acquireStateLock(
   options: StateLockOptions,
 ): Promise<(() => Promise<void>) | undefined> {
-  const ownerId = `${process.pid}-${randomUUID()}`;
+  const ownerId = `${platformRuntime.pid}-${randomUUID()}`;
   const pollMs = options.pollMs ?? DEFAULT_STATE_LOCK_POLL_MS;
 
   while (true) {
@@ -153,7 +154,7 @@ async function tryInsertStateLock(
           options.resourceKey,
           options.mode,
           ownerId,
-          process.pid,
+          platformRuntime.pid,
           now,
           now,
         ],
@@ -206,7 +207,13 @@ async function updateStateLockHeartbeat(
         SET heartbeat_at = ?, owner_pid = ?
         WHERE scope = ? AND resource_key = ? AND owner_id = ?
       `,
-      [Date.now(), process.pid, options.scope, options.resourceKey, ownerId],
+      [
+        Date.now(),
+        platformRuntime.pid,
+        options.scope,
+        options.resourceKey,
+        ownerId,
+      ],
     );
   } finally {
     await database.close();
@@ -304,7 +311,7 @@ function isStateLockStale(
 
 function isProcessAlive(pid: number): boolean {
   try {
-    process.kill(pid, 0);
+    platformRuntime.kill(pid, 0);
     return true;
   } catch (error) {
     if (isNodeError(error) && error.code === "ESRCH") {

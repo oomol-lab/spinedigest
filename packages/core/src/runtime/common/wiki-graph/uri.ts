@@ -1,5 +1,6 @@
-import { isAbsolute, relative, resolve } from "path";
-import { homedir } from "os";
+import { runtimeContext as platformRuntime } from "../../platform/index.js";
+import { isAbsolute, relative, resolve } from "../../platform/index.js";
+import { homedir } from "../../platform/index.js";
 
 import { RESERVED_LIBRARY_URI_SEGMENTS } from "../../../library/segments.js";
 
@@ -249,7 +250,7 @@ export function formatLocatedWikiGraphUri(
 export function formatWikiGraphCommandUri(
   archivePath: string,
   objectUri?: string,
-  cwd = process.cwd(),
+  cwd = platformRuntime.cwd(),
 ): string {
   return formatLocatedWikiGraphUri(
     formatCommandArchivePath(archivePath, cwd),
