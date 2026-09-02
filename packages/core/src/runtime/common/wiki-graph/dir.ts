@@ -1,7 +1,4 @@
-import {} from "../../platform/index.js";
-import { runtimeContext as platformRuntime } from "../../platform/index.js";
 import { AsyncLocalStorage } from "../../platform/index.js";
-import { homedir } from "../../platform/index.js";
 import { join, resolve } from "../../platform/index.js";
 
 const testingStateDirectoryPath = new AsyncLocalStorage<{
@@ -24,7 +21,8 @@ export function resolveWikiGraphHomeDirectoryPath(): string {
     return resolve(runtimeStateDirPath);
   }
 
-  return join(homedir(), ".wikigraph");
+  // Core owns only a logical name. The host decides which Directory backs it.
+  return ".wikigraph";
 }
 
 export function setWikiGraphStateDirectoryPathForTesting(
