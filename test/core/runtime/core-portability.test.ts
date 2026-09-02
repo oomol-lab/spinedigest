@@ -15,7 +15,7 @@ describe("core portability gate", () => {
     try {
       await writeFile(
         join(fixture, "forbidden.ts"),
-        'const fs = require("fs");\nconsole.log(process.pid, Buffer.from("x"));\nlet x: NodeJS.Process;\n',
+        'const fs = require("fs");\nconsole.log(process.pid, Buffer.from("x"));\nlet x: NodeJS.Process;\ncapability("readFile");\n',
       );
 
       await expect(

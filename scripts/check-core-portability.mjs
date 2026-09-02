@@ -14,6 +14,10 @@ const forbidden = new Set([
 ]);
 const violations = [];
 const seenFiles = new Set();
+const forbiddenCapabilities = new Set([
+  "readFile", "writeFile", "readdir", "mkdir", "rm", "resolve", "join",
+  "path_resolve", "path_join", "resolveFilePath", "system_homedir", "system_tmpdir",
+]);
 // These packages are part of Core's existing browser-capable surface. Their
 // published ESM/browser bundles contain optional feature probes such as
 // `process`/`Buffer` (or legacy CommonJS wrappers) that are never executed by
@@ -84,6 +88,12 @@ function inspectSource(file, source, {
         // it resolves to a forbidden builtin (or cannot be resolved), while
         // allowing legacy wrappers that only require portable package code.
         if (!argument || !ts.isStringLiteral(argument) || forbidden.has(moduleName(argument.text))) report(file, "uses CommonJS require");
+      }
+      if (!artifact && !file.includes("runtime/platform") &&
+          ts.isIdentifier(node.expression) && node.expression.text === "capability" &&
+          node.arguments.length > 0 && ts.isStringLiteral(node.arguments[0]) &&
+          forbiddenCapabilities.has(node.arguments[0].text)) {
+        report(file, `uses forbidden runtime capability ${node.arguments[0].text}`);
       }
     }
     if (ts.isIdentifier(node)) {
