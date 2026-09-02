@@ -88,7 +88,8 @@ archive, including:
   projections, and evidence references;
 - object metadata, including archive-level book metadata;
 - generation parameter hashes and readiness state;
-- chapter index artifacts.
+- chapter index artifacts;
+- source provenance artifacts, locators, and text maps.
 
 Book metadata is not stored as a top-level `meta.json` file. It is stored in
 `database.db` as archive-level object metadata.

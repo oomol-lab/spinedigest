@@ -36,7 +36,7 @@ export {
   readWikiGraphHomeSchemaVersion,
 } from "../../document/home-schema-upgrade.js";
 
-export const CURRENT_ARCHIVE_SCHEMA_VERSION = 3;
+export const CURRENT_ARCHIVE_SCHEMA_VERSION = 4;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
 
 export interface WikiGraphArchiveSchemaUpgradeResult {
@@ -109,7 +109,10 @@ export async function upgradeWikiGraphArchiveSchema(
     const archiveDatabaseUpgrade = await createArchiveDatabaseUpgradeOverlay(
       resolvedArchivePath,
       temporaryDirectories,
-      { refreshArtifacts: schemaChanged },
+      {
+        persistDatabase: schemaChanged,
+        refreshArtifacts: schemaVersion < 3,
+      },
     );
 
     if (
@@ -240,7 +243,10 @@ async function createChapterTocUpgradeOverlay(
 async function createArchiveDatabaseUpgradeOverlay(
   archivePath: string,
   temporaryDirectories: string[],
-  options: { readonly refreshArtifacts: boolean },
+  options: {
+    readonly persistDatabase: boolean;
+    readonly refreshArtifacts: boolean;
+  },
 ): Promise<{
   readonly overlay:
     | {
@@ -273,7 +279,7 @@ async function createArchiveDatabaseUpgradeOverlay(
   if (!(await pathExists(databasePath))) {
     return { overlay: undefined, repairedTextWords };
   }
-  if (!options.refreshArtifacts && !repairedTextWords) {
+  if (!options.persistDatabase && !repairedTextWords) {
     return { overlay: undefined, repairedTextWords: false };
   }
 

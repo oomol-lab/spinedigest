@@ -33,6 +33,7 @@ import {
   WIKG_MUTATION_TOKEN_PATH,
   SEARCH_INDEX_DATABASE_PATH,
 } from "../../../../packages/core/src/storage/wikg/archive/constants.js";
+import { DATABASE_ENTRY_PATH } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/constants.js";
 import { createWikgMutationTokenContent } from "../../../../packages/core/src/storage/wikg/archive/manifest.js";
 import {
   extractWikgArchive,
@@ -79,7 +80,7 @@ describe("schema-upgrade", () => {
       );
       await expect(
         readWikiGraphArchiveSchemaVersion(archivePath),
-      ).resolves.toBe(3);
+      ).resolves.toBe(4);
       await expect(
         readWikgArchiveEntry(archivePath, SEARCH_INDEX_DATABASE_PATH),
       ).resolves.toBeUndefined();
@@ -92,7 +93,7 @@ describe("schema-upgrade", () => {
     });
   });
 
-  it("upgrades v2 source indexes into v3 FTS artifacts", async () => {
+  it("upgrades v2 source indexes into current FTS artifacts", async () => {
     await withTempDir("wikigraph-schema-upgrade-v2-artifact-", async (root) => {
       setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
       const archivePath = join(root, "book.wikg");
@@ -111,7 +112,7 @@ describe("schema-upgrade", () => {
       ).resolves.toEqual(mutationTokenBefore);
       await expect(
         readWikiGraphArchiveSchemaVersion(archivePath),
-      ).resolves.toBe(3);
+      ).resolves.toBe(4);
       await expect(
         readWikgArchiveEntry(archivePath, SEARCH_INDEX_DATABASE_PATH),
       ).resolves.toBeUndefined();
@@ -145,6 +146,154 @@ describe("schema-upgrade", () => {
         await document.release();
       }
     });
+  });
+
+  it("adds provenance tables when upgrading a real v3 database shape", async () => {
+    await withTempDir(
+      "wikigraph-schema-upgrade-v3-provenance-",
+      async (root) => {
+        setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
+        const archivePath = join(root, "book.wikg");
+        const beforePath = join(root, "before");
+        const afterPath = join(root, "after");
+        const sourceText = "A v3 source archive without provenance tables.";
+
+        await writeV3ArchiveWithoutSourceProvenanceSchema(
+          archivePath,
+          sourceText,
+        );
+        const mutationTokenBefore = await readRawWikgArchiveEntry(
+          archivePath,
+          WIKG_MUTATION_TOKEN_PATH,
+        );
+        const sourceTextBefore = await readRawWikgArchiveEntry(
+          archivePath,
+          "texts/source/1.txt",
+        );
+        const tocBefore = await readRawWikgArchiveEntry(
+          archivePath,
+          "toc.json",
+        );
+
+        await extractWikgArchive(archivePath, beforePath);
+        const beforeDatabase = await Database.open(
+          join(beforePath, DATABASE_ENTRY_PATH),
+          "",
+          { readonly: true },
+        );
+        try {
+          await expect(
+            hasTable(beforeDatabase, "source_artifacts"),
+          ).resolves.toBe(false);
+          await expect(
+            hasTable(beforeDatabase, "source_locators"),
+          ).resolves.toBe(false);
+          await expect(
+            hasTable(beforeDatabase, "source_text_maps"),
+          ).resolves.toBe(false);
+          await expect(
+            beforeDatabase.queryOne(
+              "SELECT COUNT(*) AS count FROM serials",
+              undefined,
+              (row) => Number(row.count),
+            ),
+          ).resolves.toBe(1);
+        } finally {
+          await beforeDatabase.close();
+        }
+
+        await expect(
+          ensureWikiGraphArchiveSchemaCurrent(archivePath),
+        ).rejects.toThrow("wg maintenance upgrade");
+        await expect(
+          upgradeWikiGraphArchiveSchema(archivePath),
+        ).resolves.toEqual({
+          changed: true,
+          repairedToc: false,
+          repairedTextWords: false,
+          schemaChanged: true,
+        });
+
+        await expect(
+          readWikiGraphArchiveSchemaVersion(archivePath),
+        ).resolves.toBe(4);
+        await expect(
+          readRawWikgArchiveEntry(archivePath, WIKG_MUTATION_TOKEN_PATH),
+        ).resolves.toEqual(mutationTokenBefore);
+        await expect(
+          readWikgArchiveEntry(archivePath, "texts/source/1.txt"),
+        ).resolves.toEqual(sourceTextBefore);
+        await expect(
+          readWikgArchiveEntry(archivePath, "toc.json"),
+        ).resolves.toEqual(tocBefore);
+
+        await extractWikgArchive(archivePath, afterPath);
+        const afterDatabase = await Database.open(
+          join(afterPath, DATABASE_ENTRY_PATH),
+          "",
+          { readonly: true },
+        );
+        try {
+          await expect(
+            hasTable(afterDatabase, "source_artifacts"),
+          ).resolves.toBe(true);
+          await expect(
+            hasTable(afterDatabase, "source_locators"),
+          ).resolves.toBe(true);
+          await expect(
+            hasTable(afterDatabase, "source_text_maps"),
+          ).resolves.toBe(true);
+          await expect(
+            hasIndex(afterDatabase, "idx_source_locators_artifact"),
+          ).resolves.toBe(true);
+          await expect(
+            hasIndex(afterDatabase, "idx_source_text_maps_serial_range"),
+          ).resolves.toBe(true);
+          await expect(
+            hasIndex(afterDatabase, "idx_source_text_maps_locator"),
+          ).resolves.toBe(true);
+        } finally {
+          await afterDatabase.close();
+        }
+
+        const document = await DirectoryDocument.open(afterPath);
+        try {
+          await document.openSession(async (opened) => {
+            await opened.sourceProvenance.replace(1, 0, {
+              artifacts: [
+                {
+                  digest: "A".repeat(64),
+                  mediaType: "application/epub+zip",
+                  name: "book.epub",
+                },
+              ],
+              mappings: [
+                {
+                  artifactDigest: "A".repeat(64),
+                  locator: { cfi: "epubcfi(/6/2[body]!/4/2/1:0)" },
+                  sourceStart: 0,
+                  sourceEnd: sourceText.length,
+                },
+              ],
+            });
+            await expect(
+              opened.sourceProvenance.listMap(1),
+            ).resolves.toHaveLength(1);
+          });
+        } finally {
+          await document.release();
+        }
+
+        await expect(
+          upgradeWikiGraphArchiveSchema(archivePath),
+        ).resolves.toEqual({
+          changed: false,
+          repairedToc: false,
+          repairedTextWords: false,
+          schemaChanged: false,
+        });
+      },
+    );
   });
 
   it("persists missing chapter keys while upgrading a legacy archive", async () => {
@@ -204,7 +353,7 @@ describe("schema-upgrade", () => {
       const archivePath = join(root, "book.wikg");
       await writeArchiveWithSchemaVersion(
         archivePath,
-        3,
+        4,
         `${JSON.stringify({
           version: 1,
           items: [
@@ -233,7 +382,7 @@ describe("schema-upgrade", () => {
       });
       await expect(
         readWikiGraphArchiveSchemaVersion(archivePath),
-      ).resolves.toBe(3);
+      ).resolves.toBe(4);
 
       const upgradedTocEntry = await readWikgArchiveEntry(
         archivePath,
@@ -273,7 +422,7 @@ describe("schema-upgrade", () => {
       const archivePath = join(root, "book.wikg");
       const sourceText = "朱元璋攻克应天。陈友谅进攻采石。";
 
-      await writeBadWordCountArchive(archivePath, 3, sourceText);
+      await writeBadWordCountArchive(archivePath, 4, sourceText);
 
       await expect(
         upgradeWikiGraphArchiveSchema(archivePath),
@@ -1094,6 +1243,51 @@ async function createCoordinatorStateTable(
 
 async function writeLegacyArchive(archivePath: string): Promise<void> {
   await writeArchiveWithSchemaVersion(archivePath, 1);
+}
+
+async function writeV3ArchiveWithoutSourceProvenanceSchema(
+  archivePath: string,
+  sourceText: string,
+): Promise<void> {
+  await withTempDir(
+    "wikigraph-schema-v3-provenance-archive-",
+    async (sourceDir) => {
+      const document = await DirectoryDocument.open(sourceDir);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          const serialId = await openedDocument.createSerial();
+          const draft = await openedDocument
+            .getSerialFragments(serialId)
+            .createDraft();
+
+          draft.addSentence(sourceText, 7);
+          await draft.commit();
+          await openedDocument.writeToc({
+            items: [
+              {
+                children: [],
+                key: "v3-source",
+                serialId,
+                title: "V3 source",
+              },
+            ],
+            version: 1,
+          });
+        });
+
+        await document.readDatabase(async (database) => {
+          await database.run("DROP TABLE source_text_maps");
+          await database.run("DROP TABLE source_locators");
+          await database.run("DROP TABLE source_artifacts");
+        });
+      } finally {
+        await document.release();
+      }
+
+      await writeArchiveDirectoryWithSchemaVersion(sourceDir, archivePath, 3);
+    },
+  );
 }
 
 async function writeSourcedArchiveWithSchemaVersion(

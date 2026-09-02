@@ -52,6 +52,12 @@ old `archive_index_settings` table, and deletes embedded `index.db` / legacy
 `fts.db` caches. It does not create embedding artifacts, because older schemas
 never stored them as important data.
 
+The v3 -> v4 archive upgrader adds the source provenance schema to
+`database.db`: `source_artifacts`, `source_locators`, `source_text_maps`, and
+their indexes. It preserves existing source/summary text and structured archive
+data; provenance tables are initialized in the extracted upgrade workspace and
+the resulting database is written back only by the explicit archive upgrader.
+
 Archive upgraders must refuse active coordinator state for the target archive
 and non-search-index overlays, because those can represent uncommitted important
 data.
