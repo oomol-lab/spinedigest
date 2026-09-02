@@ -33,7 +33,7 @@ import {
 export class NodeFile implements File {
   public readonly name: string;
 
-  public constructor(public readonly path: string, name = path) {
+  public constructor(public readonly path: string, name = pathModule.basename(path)) {
     this.name = name;
   }
 
