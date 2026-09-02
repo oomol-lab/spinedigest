@@ -272,22 +272,46 @@ export const setTimeout = sleep;
 
 export class AsyncLocalStorage<T> {
   readonly #impl: any;
+  #fallbackStore: T | undefined;
 
   public constructor() {
-    const Constructor = moduleValue("asyncHooks", "AsyncLocalStorage");
-    this.#impl = new Constructor();
+    try {
+      const Constructor = moduleValue("asyncHooks", "AsyncLocalStorage");
+      this.#impl = new Constructor();
+    } catch {
+      // Importing the neutral core must not require a host runtime to have
+      // been installed already. The host implementation takes over once it
+      // is installed; this tiny fallback keeps pure parsing/type utilities
+      // usable before that point.
+      this.#impl = undefined;
+    }
   }
 
   public run<R>(store: T, callback: () => R): R {
-    return this.#impl.run(store, callback);
+    if (this.#impl !== undefined) {
+      return this.#impl.run(store, callback);
+    }
+    const previous = this.#fallbackStore;
+    this.#fallbackStore = store;
+    try {
+      return callback();
+    } finally {
+      this.#fallbackStore = previous;
+    }
   }
 
   public enterWith(store: T): void {
-    this.#impl.enterWith(store);
+    if (this.#impl !== undefined) {
+      this.#impl.enterWith(store);
+    } else {
+      this.#fallbackStore = store;
+    }
   }
 
   public getStore(): T | undefined {
-    return this.#impl.getStore();
+    return this.#impl === undefined
+      ? this.#fallbackStore
+      : this.#impl.getStore();
   }
 }
 

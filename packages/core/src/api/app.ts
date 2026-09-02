@@ -36,8 +36,6 @@ import {
   type WikiGraphStorage,
 } from "../runtime/platform/index.js";
 
-const DATA_DIR_PATH = resolveDataDirPath();
-
 export interface WikiGraphLLMOptions {
   readonly cacheDirPath?: string;
   readonly concurrent?: number;
@@ -97,7 +95,7 @@ export class WikiGraph {
     const llmOptions = normalizeLLMOptions(options.llm);
 
     this.#llm = new LLM<WikiGraphScope>({
-      dataDirPath: DATA_DIR_PATH,
+      dataDirPath: resolveDataDirPath(),
       sampling: createDefaultWikiGraphSampling({
         ...(llmOptions.temperature === undefined
           ? {}
