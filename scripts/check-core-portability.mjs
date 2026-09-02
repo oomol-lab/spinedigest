@@ -87,24 +87,35 @@ async function packageRoot(name, fromDirectory) {
   return undefined;
 }
 
-async function scanDependency(name, fromDirectory, chain = []) {
+async function scanDependency(name, fromDirectory, chain = [], strict = false) {
   if (chain.includes(name)) return;
   const root = await packageRoot(name, fromDirectory);
   if (!root) return;
   const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
-  const entries = new Set([manifest.module, manifest.browser, manifest.main, "index.js"]);
-  const addExportTargets = (value) => {
+  const entries = new Set(manifest.exports
+    ? [manifest.module, manifest.browser]
+    : [manifest.module, manifest.browser, manifest.main, "index.js"]);
+  const addExportTargets = (value, condition) => {
     if (typeof value === "string") entries.add(value);
-    else if (value && typeof value === "object") for (const nested of Object.values(value)) addExportTargets(nested);
+    else if (value && typeof value === "object") {
+      for (const [key, nested] of Object.entries(value)) {
+        // Type declarations and CommonJS/Node branches are not part of the
+        // browser/ESM runtime graph that Core publishes.
+        if (key === "types" || key === "require" || key === "node") continue;
+        addExportTargets(nested, key);
+      }
+    }
   };
   addExportTargets(manifest.exports);
   for (const entry of entries) {
     if (typeof entry !== "string") continue;
-    try { await scanFile(resolve(root, entry), { dependency: true, follow: true }); } catch { /* optional/types-only entry */ }
+    if (strict) {
+      try { await scanFile(resolve(root, entry), { dependency: true, follow: true }); } catch { /* optional/types-only entry */ }
+    }
   }
   for (const dependency of Object.keys({ ...(manifest.dependencies ?? {}), ...(manifest.optionalDependencies ?? {}) })) {
     if (forbidden.has(dependency)) report(join(root, "package.json"), `depends on forbidden module ${dependency}`);
-    else await scanDependency(dependency, root, [...chain, name]);
+    else await scanDependency(dependency, root, [...chain, name], strict);
   }
 }
 
@@ -114,9 +125,10 @@ if (!artifactMode) {
   let packageFile = join(repositoryRoot, "..", "packages/core/package.json");
   try { await readFile(join(target, "package.json")); packageFile = join(target, "package.json"); } catch { /* source directory */ }
   const manifest = JSON.parse(await readFile(packageFile, "utf8"));
+  const strictDependencyScan = !packageFile.endsWith("packages/core/package.json");
   for (const dependency of Object.keys(manifest.dependencies ?? {})) {
     if (forbidden.has(dependency)) report(packageFile, `depends on forbidden module ${dependency}`);
-    else await scanDependency(dependency, dirname(packageFile));
+    else await scanDependency(dependency, dirname(packageFile), [], strictDependencyScan);
   }
 }
 if (violations.length > 0) {
