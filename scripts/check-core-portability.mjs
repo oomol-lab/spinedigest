@@ -76,7 +76,9 @@ function inspectSource(file, source, {
         const argument = node.arguments[0];
         if (!argument || !ts.isStringLiteral(argument) || forbidden.has(moduleName(argument.text))) report(file, "uses a non-literal or forbidden dynamic import");
       }
-      if ((!dependency || strictDependencies) && ts.isIdentifier(node.expression) && requireAliases.has(node.expression.text)) {
+      const aliasedRequire = ts.isIdentifier(node.expression) && requireAliases.has(node.expression.text);
+      const propertyRequire = ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "require";
+      if ((!dependency || strictDependencies) && (aliasedRequire || propertyRequire)) {
         const argument = node.arguments[0];
         // A CommonJS wrapper is not itself a Node dependency. Reject it when
         // it resolves to a forbidden builtin (or cannot be resolved), while

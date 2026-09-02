@@ -88,7 +88,7 @@ describe("core portability gate", () => {
       await writeFile(join(fixture, "node_modules/ai/node.js"), 'export * from "./nested.js";\n');
       await writeFile(
         join(fixture, "node_modules/ai/nested.js"),
-        'const req = require; const fs = req("fs"); export const x = process; import "node:fs";\n',
+        'const req = require; const fs = req("fs"); const loader = { require }; loader.require("fs"); export const x = process; import "node:fs";\n',
       );
       await expect(
         execFileAsync("node", ["scripts/check-core-portability.mjs", fixture], {
