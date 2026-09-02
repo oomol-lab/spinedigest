@@ -1,5 +1,3 @@
-import { binary as platformBinary } from "../../../runtime/platform/index.js";
-
 import { z } from "zod";
 
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
@@ -45,8 +43,8 @@ export function parseWikgManifest(content: string): {
   };
 }
 
-export function createWikgMutationTokenContent(): platformBinary {
-  return platformBinary.from(createWikgMutationTokenBytes());
+export function createWikgMutationTokenContent(): Uint8Array {
+  return createWikgMutationTokenBytes();
 }
 
 export function createWikgMutationTokenBytes(): Uint8Array {

@@ -1,4 +1,4 @@
-import { readFile } from "fs/promises";
+import { mkdir, readFile } from "fs/promises";
 
 import {
   addWikiGraphLibraryArchive,
@@ -23,6 +23,7 @@ import {
   replaceWikiGraphLibraryMetadata,
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
+  type File,
 } from "wiki-graph-core";
 import type { CLILibraryArguments } from "../args/index.js";
 import type { RenderTreeNode } from "../support/index.js";
@@ -33,6 +34,11 @@ import {
   writeTextToStdout,
 } from "../support/index.js";
 import { createCollectionFindResult } from "./archive-command/run/index.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+  NodeFile,
+} from "../runtime/node-platform.js";
 import { writeFindHits } from "./archive-output/index.js";
 import {
   ProgressOutputWriter,
@@ -60,7 +66,7 @@ export async function runLibraryCommand(
       }
       await writeLibraryArchive(
         await addWikiGraphLibraryArchive({
-          inputPath: args.inputPath,
+          inputFile: new NodeFile(args.inputPath),
           target: args.target,
           ...(args.to === undefined ? {} : { to: args.to }),
         }),
@@ -72,7 +78,10 @@ export async function runLibraryCommand(
       if (args.path === undefined) {
         throw new Error("Missing --path <folder> for library create.");
       }
-      const library = await createWikiGraphLibrary({ folderPath: args.path });
+      await mkdir(args.path);
+      const library = await createWikiGraphLibrary({
+        folder: new NodeDirectory(args.path),
+      });
       await writeLibrary(library, args.json ?? false);
       return;
     }
@@ -112,7 +121,7 @@ export async function runLibraryCommand(
         "path set",
         async () =>
           await rebindWikiGraphLibrary({
-            folderPath,
+            folder: new NodeDirectory(folderPath),
             target: args.target,
           }),
         args.json ?? false,
@@ -309,9 +318,9 @@ async function writeLibrary(
       formatCLIJSON({
         uri: library.uri,
         id: library.publicId,
-        folderPath: library.folderPath,
+        folderPath: getNodeResourcePath(library.folder),
         isDefault: library.isDefault,
-        stagingPath: library.stagingPath,
+        stagingPath: getNodeResourcePath(library.staging),
         createdAt: library.createdAt,
         updatedAt: library.updatedAt,
       }),
@@ -331,7 +340,7 @@ async function writeLibraries(
         items: libraries.map((library) => ({
           uri: library.uri,
           id: library.publicId,
-          path: library.folderPath,
+          path: getNodeResourcePath(library.folder),
           isDefault: library.isDefault,
         })),
       }),
@@ -344,7 +353,7 @@ async function writeLibraries(
         [
           library.uri,
           library.publicId,
-          library.folderPath,
+          getNodeResourcePath(library.folder),
           library.isDefault ? "default" : "",
         ].join("\t"),
       )
@@ -358,11 +367,14 @@ async function writeLibraryPath(
 ): Promise<void> {
   if (json) {
     await writeTextToStdout(
-      formatCLIJSON({ uri: `${library.uri}/path`, path: library.folderPath }),
+      formatCLIJSON({
+        uri: `${library.uri}/path`,
+        path: getNodeResourcePath(library.folder),
+      }),
     );
     return;
   }
-  await writeTextToStdout(`${library.folderPath}\n`);
+  await writeTextToStdout(`${getNodeResourcePath(library.folder)}\n`);
 }
 
 async function writeLibraryArchivePath(
@@ -500,7 +512,7 @@ async function writeLibraryArchivePage(
       `Entity: ${archive.uri}/entity`,
       `Triple: ${archive.uri}/triple`,
       `Inspect: ${archive.uri} inspect`,
-      `Metadata path: ${archive.path}`,
+      `Metadata path: ${formatArchiveHostPath(archive)}`,
       "",
     ].join("\n"),
   );
@@ -514,7 +526,7 @@ function formatLibraryArchiveJSON(
     id: archive.publicId,
     libraryUri: archive.libraryUri,
     relativePath: archive.relativePath,
-    path: archive.path,
+    path: formatArchiveHostPath(archive),
     exists: archive.exists,
     status: archive.status,
     lastSeenMutationToken: archive.lastSeenMutationToken,
@@ -543,7 +555,7 @@ function formatLibraryArchivePageJSON(
       inspect: `${archive.uri} inspect`,
     },
     metadata: {
-      path: archive.path,
+      path: formatArchiveHostPath(archive),
       exists: archive.exists,
       lastSeenMutationToken: archive.lastSeenMutationToken,
       lastSeenSize: archive.lastSeenSize,
@@ -806,4 +818,13 @@ function formatMetadataTextValue(value: unknown): string {
     return JSON.stringify(value);
   }
   return String(value);
+}
+
+function formatArchiveHostPath(archive: {
+  readonly file?: File;
+  readonly relativePath: string;
+}): string {
+  return archive.file === undefined
+    ? archive.relativePath
+    : getNodeResourcePath(archive.file);
 }

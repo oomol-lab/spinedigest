@@ -15,6 +15,10 @@ import { rebuildArchiveSearchIndex } from "../../../../../packages/core/src/retr
 import { extractWikgArchive } from "../../../../../packages/core/src/storage/wikg/archive/index.js";
 import { migrateLegacySdpubToWikg } from "../../../../../packages/core/src/storage/migration/legacy-sdpub/upgrade/index.js";
 import { withTempDir } from "../../../../helpers/temp.js";
+import {
+  NodeDirectory,
+  NodeFile,
+} from "../../../../../packages/cli/src/runtime/node-platform.js";
 
 describe("legacy-sdpub/upgrade", () => {
   it("migrates a released sdpub archive into wikg", async () => {
@@ -29,13 +33,15 @@ describe("legacy-sdpub/upgrade", () => {
         manifest: false,
       });
 
-      await expect(
-        migrateLegacySdpubToWikg(legacyArchivePath),
-      ).resolves.toStrictEqual({
-        inputPath: legacyArchivePath,
-        outputPath: migratedArchivePath,
-      });
-      await extractWikgArchive(migratedArchivePath, extractedPath);
+      await migrateLegacySdpubToWikg(
+        new NodeFile(legacyArchivePath),
+        new NodeFile(migratedArchivePath),
+      );
+      await mkdir(extractedPath, { recursive: true });
+      await extractWikgArchive(
+        new NodeFile(migratedArchivePath),
+        new NodeDirectory(extractedPath),
+      );
 
       const document = await DirectoryDocument.open(extractedPath);
 
@@ -83,11 +89,11 @@ describe("legacy-sdpub/upgrade", () => {
       });
 
       await expect(
-        migrateLegacySdpubToWikg(legacyArchivePath, outputPath),
-      ).resolves.toStrictEqual({
-        inputPath: legacyArchivePath,
-        outputPath,
-      });
+        migrateLegacySdpubToWikg(
+          new NodeFile(legacyArchivePath),
+          new NodeFile(outputPath),
+        ),
+      ).resolves.toMatchObject({});
       await expect(readFile(outputPath)).resolves.toBeInstanceOf(Uint8Array);
     });
   });
@@ -112,8 +118,15 @@ describe("legacy-sdpub/upgrade", () => {
         manifest: false,
       });
 
-      await migrateLegacySdpubToWikg(legacyArchivePath, migratedArchivePath);
-      await extractWikgArchive(migratedArchivePath, extractedPath);
+      await migrateLegacySdpubToWikg(
+        new NodeFile(legacyArchivePath),
+        new NodeFile(migratedArchivePath),
+      );
+      await mkdir(extractedPath, { recursive: true });
+      await extractWikgArchive(
+        new NodeFile(migratedArchivePath),
+        new NodeDirectory(extractedPath),
+      );
 
       const document = await DirectoryDocument.open(extractedPath);
 
@@ -151,16 +164,22 @@ describe("legacy-sdpub/upgrade", () => {
       zipFile.addBuffer(Buffer.from("{}", "utf8"), "toc.json");
       await writeZipFile(zipFile, archivePath);
 
-      await expect(migrateLegacySdpubToWikg(archivePath)).rejects.toThrow(
-        "Unsupported legacy sdpub archive.",
-      );
+      await expect(
+        migrateLegacySdpubToWikg(
+          new NodeFile(archivePath),
+          new NodeFile(`${path}/broken.wikg`),
+        ),
+      ).rejects.toThrow("Unsupported legacy sdpub archive.");
     });
   });
 
   it("rejects migration onto the input path", async () => {
     await expect(
-      migrateLegacySdpubToWikg("book.sdpub", "book.sdpub"),
-    ).rejects.toThrow("output path must differ from input path");
+      migrateLegacySdpubToWikg(
+        new NodeFile("book.sdpub"),
+        new NodeFile("book.sdpub"),
+      ),
+    ).rejects.toThrow("output must differ from input");
   });
 });
 

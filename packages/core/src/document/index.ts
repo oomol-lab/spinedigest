@@ -2,6 +2,7 @@ export { Database } from "./database.js";
 export {
   ensureSharedStateDatabaseInitialized,
   openSharedStateDatabase,
+  openWikiGraphStateDatabase,
 } from "./shared-state-database.js";
 export { TextStreams, SerialTextStream } from "./text-streams/index.js";
 export {

@@ -9,7 +9,7 @@ import {
   listWikiGraphLibraryObjects,
 } from "wiki-graph-core";
 import type * as WikiGraphCore from "wiki-graph-core";
-import { setWikiGraphStateDirectoryPathForTesting } from "../../../../core/src/runtime/common/wiki-graph/dir.js";
+import { setWikiGraphStateDirectoryPathForTesting } from "../../../../../test/helpers/wiki-graph-storage.js";
 import { parseCLIArguments } from "../../args/index.js";
 import { writeFindHits } from "../archive-output/index.js";
 import { runArchiveCommand } from "./index.js";

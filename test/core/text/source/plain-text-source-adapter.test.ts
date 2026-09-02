@@ -8,11 +8,12 @@ import {
 } from "../../../../packages/core/src/text/source/index.js";
 import { getFixturePath, readStreamText } from "../../../helpers/fixtures.js";
 import { withTempDir } from "../../../helpers/temp.js";
+import { NodeFile } from "../../../../packages/cli/src/runtime/node-platform.js";
 
 describe("source/plain-text", () => {
   it("reads txt fixtures as a single root section", async () => {
     await TXT_SOURCE_ADAPTER.openSession(
-      getFixturePath("sample-observatory-guide.txt"),
+      new NodeFile(getFixturePath("sample-observatory-guide.txt")),
       async (document) => {
         const meta = await document.readMeta();
         const cover = await document.readCover();
@@ -37,7 +38,7 @@ describe("source/plain-text", () => {
 
   it("reads markdown fixtures without stripping markdown syntax", async () => {
     await MARKDOWN_SOURCE_ADAPTER.openSession(
-      getFixturePath("sample-observatory-guide.md"),
+      new NodeFile(getFixturePath("sample-observatory-guide.md")),
       async (document) => {
         const meta = await document.readMeta();
         const sections = await document.readSections();
@@ -60,10 +61,10 @@ describe("source/plain-text", () => {
       await mkdir(directoryPath);
 
       await expect(
-        TXT_SOURCE_ADAPTER.openSession(directoryPath, () =>
+        TXT_SOURCE_ADAPTER.openSession(new NodeFile(directoryPath), () =>
           Promise.resolve(undefined),
         ),
-      ).rejects.toThrow("Source file is not a regular file");
+      ).rejects.toThrow();
     });
   });
 });

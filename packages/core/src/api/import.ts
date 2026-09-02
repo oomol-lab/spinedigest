@@ -21,6 +21,7 @@ import {
   type TocItem,
 } from "../text/source/index.js";
 import type { ChapterStage } from "./chapter/index.js";
+import type { File } from "../runtime/platform/index.js";
 
 export interface ImportSourceOptions
   extends
@@ -30,7 +31,7 @@ export interface ImportSourceOptions
   readonly digestProgressTracker?: DigestProgressTracker;
   readonly document: Document;
   readonly llm?: SerialGenerationOptions["llm"];
-  readonly path: string;
+  readonly file: File;
   readonly targetStage?: ImportSourceStage;
 }
 
@@ -60,7 +61,7 @@ export async function importSource(
   options: ImportSourceOptions,
 ): Promise<ImportedSource> {
   return await options.adapter.openSession(
-    options.path,
+    options.file,
     async (sourceDocument) => {
       return await importSourceDocument(sourceDocument, options);
     },
@@ -69,7 +70,7 @@ export async function importSource(
 
 export async function importSourceDocument(
   sourceDocument: SourceDocument,
-  options: Omit<ImportSourceOptions, "adapter" | "path">,
+  options: Omit<ImportSourceOptions, "adapter" | "file">,
 ): Promise<ImportedSource> {
   await assertImportTargetIsEmpty(options.document);
 
@@ -99,9 +100,9 @@ export async function importSourceDocument(
       : new SerialGeneration({
           document: options.document,
           llm: requireImportLLM(options.llm, targetStage),
-          ...(options.logDirPath === undefined
+          ...(options.logDirectory === undefined
             ? {}
-            : { logDirPath: options.logDirPath }),
+            : { logDirectory: options.logDirectory }),
           ...(options.segmenter === undefined
             ? {}
             : { segmenter: options.segmenter }),

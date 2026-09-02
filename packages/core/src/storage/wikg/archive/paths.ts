@@ -1,5 +1,3 @@
-import { resolve, sep } from "../../../runtime/platform/index.js";
-
 import {
   WIKG_ARCHIVE_PATTERNS,
   WIKG_MUTATION_TOKEN_PATH,
@@ -35,26 +33,6 @@ export function assertSafeRelativePath(path: string): void {
 
 export function isWikgArchivePath(archivePath: string): boolean {
   return WIKG_ARCHIVE_PATTERNS.some((pattern) => pattern.test(archivePath));
-}
-
-export function assertWithinDirectory(
-  rootDirectoryPath: string,
-  targetPath: string,
-  archivePath: string,
-): void {
-  const resolvedRootDirectoryPath = resolve(rootDirectoryPath);
-  const rootPrefix = resolvedRootDirectoryPath.endsWith(sep)
-    ? resolvedRootDirectoryPath
-    : `${resolvedRootDirectoryPath}${sep}`;
-
-  if (
-    targetPath === resolvedRootDirectoryPath ||
-    targetPath.startsWith(rootPrefix)
-  ) {
-    return;
-  }
-
-  throw new Error(`Invalid archive entry path: ${archivePath}`);
 }
 
 export function sortArchiveEntriesForWrite<

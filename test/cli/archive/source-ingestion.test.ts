@@ -10,6 +10,7 @@ import {
   type SourceTextMapRecord,
 } from "wiki-graph-core";
 import { runWikiGraphCLICaptured } from "../../../packages/cli/src/index.js";
+import { NodeFile } from "../../../packages/cli/src/runtime/node-platform.js";
 
 import { withTempDir } from "../../helpers/temp.js";
 
@@ -261,7 +262,7 @@ async function readSingleSerial(archivePath: string): Promise<SerialSnapshot> {
 }
 
 async function readSerials(archivePath: string): Promise<SerialSnapshot[]> {
-  return await new WikiGraphArchiveFile(archivePath).readDocument(
+  return await new WikiGraphArchiveFile(new NodeFile(archivePath)).readDocument(
     async (document) => {
       const toc = await document.readToc();
       const serialIds = collectSerialIds(toc?.items ?? []);

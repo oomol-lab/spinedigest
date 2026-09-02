@@ -52,10 +52,10 @@ export interface DocumentFileStore {
   readFile(path: string): Promise<Uint8Array | undefined>;
   resolveDatabasePath(
     documentPath: string,
-  ): Promise<string | import("../../runtime/platform/index.js").File>;
+  ): Promise<import("../../runtime/platform/index.js").File>;
   resolveSearchIndexDatabasePath?(
     documentPath: string,
-  ): Promise<string | import("../../runtime/platform/index.js").File>;
+  ): Promise<import("../../runtime/platform/index.js").File>;
   writeFile(
     path: string,
     content: string | Uint8Array,

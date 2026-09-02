@@ -1,36 +1,36 @@
-import { appendFile } from "../../runtime/platform/index.js";
-import { allocateArtifactPath } from "../../runtime/common/logging.js";
+import {
+  appendFileText,
+  type Directory,
+  type File,
+} from "../../runtime/platform/index.js";
+
+let requestLogSequence = 0;
 
 export class RequestLog {
-  readonly #filePath: string | undefined;
+  readonly #filePromise: Promise<File> | undefined;
 
-  public constructor(filePath?: string) {
-    this.#filePath = filePath;
+  public constructor(filePromise?: Promise<File>) {
+    this.#filePromise = filePromise;
   }
 
-  public get filePath(): string | undefined {
-    return this.#filePath;
+  public get filePath(): undefined {
+    return undefined;
   }
 
   public async append(content: string): Promise<void> {
-    if (this.#filePath === undefined) {
-      return;
+    if (this.#filePromise !== undefined) {
+      await appendFileText(await this.#filePromise, content);
     }
-    await appendFile(this.#filePath, content, "utf8");
   }
 }
 
-export function createRequestLog(logDirPath?: string): RequestLog {
-  if (logDirPath === undefined) {
-    return new RequestLog();
-  }
-
+export function createRequestLog(directory?: Directory): RequestLog {
+  if (directory === undefined) return new RequestLog();
+  requestLogSequence += 1;
+  const name = `request-${requestLogSequence}.log`;
   return new RequestLog(
-    allocateArtifactPath({
-      alwaysNumbered: true,
-      category: "llm",
-      logDirPath,
-      prefix: "request",
-    }),
+    directory
+      .getFile(name)
+      .then(async (file) => file ?? directory.createFile(name)),
   );
 }

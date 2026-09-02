@@ -4,6 +4,7 @@ import type { Document } from "../../document/index.js";
 import type { LLM } from "../../external/llm/index.js";
 import type { ReaderSegmenter } from "../reader/index.js";
 import type { SourceTextProvenanceInput } from "../../document/index.js";
+import type { Directory } from "../../runtime/platform/index.js";
 
 export const DEFAULT_COMPRESSION_RATIO = 0.2;
 export const DEFAULT_FRAGMENT_WORDS_COUNT = 320;
@@ -49,7 +50,7 @@ export type CreateSerialOptions = GenerateSerialOptions;
 export interface SerialGenerationOptions {
   readonly document?: Document;
   readonly llm: LLM<WikiGraphScope>;
-  readonly logDirPath?: string;
+  readonly logDirectory?: Directory;
   readonly segmenter?: ReaderSegmenter;
   /** @deprecated Use `document` instead. */
   readonly workspace?: Document;

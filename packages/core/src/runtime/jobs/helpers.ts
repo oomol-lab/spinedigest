@@ -1,18 +1,8 @@
-import { runtimeContext as platformRuntime } from "../platform/index.js";
-import { createHash } from "../platform/index.js";
-import { resolve } from "../platform/index.js";
+import type { File } from "../platform/index.js";
+import { createPortableHash as createHash } from "../../utils/crypto.js";
 
-export function createArchiveKey(archivePath: string): string {
-  return createHash("sha256").update(resolve(archivePath)).digest("hex");
-}
-
-export function isProcessAlive(pid: number): boolean {
-  try {
-    platformRuntime.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
+export function createArchiveKey(archive: File): string {
+  return createHash("sha256").update(archive.identity).digest("hex");
 }
 
 export function formatErrorEvent(error: unknown): unknown {

@@ -1,7 +1,6 @@
 import {
   type ParsedWikiGraphLibraryUri,
   parseWikiGraphLibraryUri,
-  parseLocatedWikiGraphUri,
 } from "wiki-graph-core";
 
 import {
@@ -10,7 +9,11 @@ import {
   renderUriPredicateHelpText,
   type UriHelpTargetName,
 } from "../help.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "../../support/index.js";
+import {
+  CLI_HELP_ROUTES,
+  parseLocatedWikiGraphUri,
+  withHelpRoute,
+} from "../../support/index.js";
 import { parseArchiveArguments } from "../archive.js";
 import type {
   ArchiveArgumentValues,

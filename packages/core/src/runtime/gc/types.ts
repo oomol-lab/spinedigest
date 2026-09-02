@@ -1,7 +1,6 @@
 export interface GcContext {
   readonly force: boolean;
   readonly now: number;
-  readonly stateDirectoryPath: string;
   readonly dryRun: boolean;
 }
 

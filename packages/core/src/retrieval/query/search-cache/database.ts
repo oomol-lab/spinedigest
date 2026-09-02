@@ -1,44 +1,39 @@
-import { join } from "../../../runtime/platform/index.js";
-import { rm } from "../../../runtime/platform/index.js";
-
-import { resolveWikiGraphCacheDirectoryPath } from "../../../runtime/common/wiki-graph/dir.js";
-import { openSharedStateDatabase } from "../../../document/index.js";
+import { openWikiGraphStateDatabase } from "../../../document/index.js";
 import type { Database } from "../../../document/index.js";
 
 import { SEARCH_SESSION_SCHEMA_SQL } from "./schema.js";
 
-let currentSearchSessionSchemaPath: string | undefined;
+let searchSessionSchemaChecked = false;
 
 export async function openSearchSessionDatabase(): Promise<Database> {
-  const path = getSearchSessionDatabasePath();
-  const database = await openSharedStateDatabase(
-    path,
+  const database = await openWikiGraphStateDatabase(
+    "cache/search-sessions.sqlite",
     SEARCH_SESSION_SCHEMA_SQL,
   );
 
-  if (currentSearchSessionSchemaPath === path) {
+  if (searchSessionSchemaChecked) {
     return database;
   }
 
   if (await isSearchSessionSchemaCurrent(database)) {
-    currentSearchSessionSchemaPath = path;
+    searchSessionSchemaChecked = true;
     return database;
   }
 
-  await database.close();
-  await rm(path, { force: true });
-  await rm(`${path}.initialized`, { force: true });
-
-  currentSearchSessionSchemaPath = path;
-  return await openSharedStateDatabase(path, SEARCH_SESSION_SCHEMA_SQL);
+  await resetSearchSessionSchema(database);
+  searchSessionSchemaChecked = true;
+  return database;
 }
 
-export function getSearchSessionDatabasePath(): string {
-  return join(getSearchSessionStateDirectoryPath(), "search-sessions.sqlite");
-}
-
-function getSearchSessionStateDirectoryPath(): string {
-  return resolveWikiGraphCacheDirectoryPath();
+async function resetSearchSessionSchema(database: Database): Promise<void> {
+  await database.execute(`
+    DROP TABLE IF EXISTS search_evidence_hit_events;
+    DROP TABLE IF EXISTS search_triple_hits;
+    DROP TABLE IF EXISTS search_entity_hits;
+    DROP TABLE IF EXISTS search_chunk_hits;
+    DROP TABLE IF EXISTS search_sessions;
+    ${SEARCH_SESSION_SCHEMA_SQL}
+  `);
 }
 
 async function isSearchSessionSchemaCurrent(

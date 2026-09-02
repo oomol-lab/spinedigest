@@ -1,21 +1,27 @@
 import {
+  parseWikiGraphLibraryUri,
   upgradeWikiGraphMaintenanceTarget,
   type WikiGraphMaintenanceUpgradeResult,
 } from "wiki-graph-core";
 
 import type { CLIMaintenanceArguments } from "../args/index.js";
 import { formatCLIJSON, writeTextToStdout } from "../support/index.js";
+import { NodeFile } from "../runtime/node-platform.js";
+import { resolve } from "path";
 
 export async function runMaintenanceCommand(
   args: CLIMaintenanceArguments,
 ): Promise<void> {
   switch (args.action) {
     case "upgrade": {
-      const result = await upgradeWikiGraphMaintenanceTarget(args.target, {
-        ...(args.outputPath === undefined
-          ? {}
-          : { outputPath: args.outputPath }),
-      });
+      if (args.outputPath !== undefined || args.target.endsWith(".sdpub")) {
+        throw new Error(
+          "Legacy sdpub migration is available through `wg legacy migrate`.",
+        );
+      }
+      const result = await upgradeWikiGraphMaintenanceTarget(
+        parseMaintenanceTarget(args.target),
+      );
       await writeTextToStdout(
         args.json === true
           ? formatCLIJSON(result)
@@ -31,11 +37,9 @@ function formatMaintenanceUpgradeResult(
 ): string {
   switch (result.kind) {
     case "home":
-      return `Home ${result.status}: ${result.path} (schema v${result.schemaVersionBefore} -> v${result.schemaVersionAfter})\n`;
+      return `Home ${result.status} (schema v${result.schemaVersionBefore} -> v${result.schemaVersionAfter})\n`;
     case "archive":
-      return `Archive ${result.status}: ${result.path} (schema v${result.schemaVersionBefore} -> v${result.schemaVersionAfter})\n`;
-    case "sdpub":
-      return `Wrote ${result.outputPath}\n`;
+      return `Archive ${result.status}: ${result.fileName} (schema v${result.schemaVersionBefore} -> v${result.schemaVersionAfter})\n`;
     case "lib": {
       const lines = [
         `Library ${result.status}: ${result.library.uri}`,
@@ -48,4 +52,21 @@ function formatMaintenanceUpgradeResult(
       return `${lines.join("\n")}\n`;
     }
   }
+}
+
+function parseMaintenanceTarget(target: string) {
+  if (target === "home" || target === "~/.wikigraph") {
+    return { kind: "home" as const };
+  }
+  if (target.startsWith("wikg://lib")) {
+    const parsed = parseWikiGraphLibraryUri(target);
+    if (parsed === undefined || parsed.kind === "archive") {
+      throw new Error(`Invalid Wiki Graph library upgrade target: ${target}`);
+    }
+    return { kind: "library" as const, target: parsed };
+  }
+  if (!target.endsWith(".wikg")) {
+    throw new Error(`Unsupported maintenance upgrade target: ${target}`);
+  }
+  return { file: new NodeFile(resolve(target)), kind: "archive" as const };
 }

@@ -1,11 +1,10 @@
-import { randomUUID } from "../platform/index.js";
-import { resolve } from "../platform/index.js";
+import { randomUuid } from "../../utils/crypto.js";
 import type { Database } from "../../document/index.js";
 import {
-  createJobCachePath,
-  createJobEventsPath,
-  createJobLogPath,
-  createJobWorkspacePath,
+  createJobCache,
+  createJobEvents,
+  createJobLog,
+  createJobWorkspace,
 } from "./paths.js";
 import { createArchiveKey } from "./helpers.js";
 import { BuildJobStoppedError } from "./progress.js";
@@ -20,7 +19,7 @@ import {
 } from "./database.js";
 import { recoverStaleBuildJobs } from "./recovery.js";
 import { markBuildJobCanceled, markBuildJobCanceling } from "./state.js";
-import { formatBuildJobLane, mapBuildJob } from "./row.js";
+import { formatBuildJobLane, hydrateBuildJob, mapBuildJob } from "./row.js";
 import type {
   AddBuildJobOptions,
   BuildJob,
@@ -44,8 +43,7 @@ export async function addBuildJob(
   try {
     await recoverStaleBuildJobs(state);
     return await state.transaction(async () => {
-      const archivePath = resolve(options.archivePath);
-      const archiveKey = createArchiveKey(archivePath);
+      const archiveKey = createArchiveKey(options.archive);
       const now = Date.now();
       const existing = await findActiveBuildJobInLane(state, {
         archiveKey,
@@ -57,11 +55,11 @@ export async function addBuildJob(
         return await mergeActiveBuildJob(state, existing, options, now);
       }
 
-      const jobId = options.jobId ?? randomUUID();
-      const workspacePath = await createJobWorkspacePath(jobId);
-      const cachePath = await createJobCachePath(jobId);
-      const logPath = await createJobLogPath(jobId);
-      const eventsPath = await createJobEventsPath(jobId);
+      const jobId = options.jobId ?? randomUuid();
+      const workspace = await createJobWorkspace(jobId);
+      const cache = await createJobCache(jobId);
+      const log = await createJobLog(jobId);
+      const events = await createJobEvents(jobId);
       const queueRank =
         options.boost === true
           ? (await readMinQueueRank(state)) - 1
@@ -78,14 +76,14 @@ INSERT INTO build_jobs (
         [
           jobId,
           archiveKey,
-          archivePath,
+          options.archive.identity,
           options.chapterId,
           options.target,
           queueRank,
-          workspacePath,
-          cachePath,
-          logPath,
-          eventsPath,
+          workspace.identity,
+          cache.identity,
+          log.identity,
+          events.identity,
           options.llmJSON ?? null,
           options.prompt ?? null,
           now,
@@ -173,15 +171,15 @@ export async function listBuildJobs(
     const params: Array<number | string> = [];
     const filters: string[] = [];
 
-    if (options.archivePath !== undefined) {
-      params.push(createArchiveKey(resolve(options.archivePath)));
+    if (options.archive !== undefined) {
+      params.push(createArchiveKey(options.archive));
       filters.push("archive_key = ?");
     }
     if (options.activeOnly === true || options.all !== true) {
       filters.push("state IN ('queued', 'running', 'canceling', 'paused')");
     }
 
-    return await state.queryAll(
+    const jobs = await state.queryAll(
       `
 SELECT *
 FROM build_jobs
@@ -200,6 +198,7 @@ ORDER BY
       params,
       mapBuildJob,
     );
+    return await Promise.all(jobs.map(hydrateBuildJob));
   } finally {
     await state.close();
   }
@@ -215,7 +214,7 @@ async function findActiveBuildJobInLane(
 ): Promise<BuildJob | undefined> {
   const laneFilter = createBuildJobLaneFilter(input.target);
 
-  return await state.queryOne(
+  const job = await state.queryOne(
     `
 SELECT *
 FROM build_jobs
@@ -229,6 +228,7 @@ LIMIT 1
     [input.archiveKey, input.chapterId],
     mapBuildJob,
   );
+  return job === undefined ? undefined : await hydrateBuildJob(job);
 }
 
 function createBuildJobLaneFilter(target: BuildJobTarget): string {

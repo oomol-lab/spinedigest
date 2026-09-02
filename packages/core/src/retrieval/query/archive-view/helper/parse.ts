@@ -1,4 +1,7 @@
-import { binary as platformBinary } from "../../../../runtime/platform/index.js";
+import {
+  decodeBase64UrlText,
+  encodeBase64UrlText,
+} from "../../../../utils/bytes.js";
 import type {
   ArchiveCollectionType,
   ArchiveFindFilterType,
@@ -90,9 +93,7 @@ export function parseFindTypes(
 }
 
 export function encodeFindCursor(offset: number): string {
-  return platformBinary
-    .from(JSON.stringify({ offset, v: 1 }))
-    .toString("base64url");
+  return encodeBase64UrlText(JSON.stringify({ offset, v: 1 }));
 }
 
 export function decodeFindCursor(cursor: string | undefined): number {
@@ -101,9 +102,7 @@ export function decodeFindCursor(cursor: string | undefined): number {
   }
 
   try {
-    const parsed: unknown = JSON.parse(
-      platformBinary.from(cursor, "base64url").toString("utf8"),
-    );
+    const parsed: unknown = JSON.parse(decodeBase64UrlText(cursor));
 
     if (
       typeof parsed === "object" &&

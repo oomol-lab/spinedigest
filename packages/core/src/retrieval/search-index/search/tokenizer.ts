@@ -1,4 +1,4 @@
-import { createHash } from "../../../runtime/platform/index.js";
+import { createPortableHash as createHash } from "../../../utils/crypto.js";
 
 export interface SearchToken {
   readonly encoded: string;

@@ -1,10 +1,9 @@
-import {
-  parseChapterPath,
-  parseChapterUriPath,
-  parseLocatedWikiGraphUri,
-} from "wiki-graph-core";
+import { parseChapterPath, parseChapterUriPath } from "wiki-graph-core";
 
-import { withHelpRoute } from "../../../support/index.js";
+import {
+  parseLocatedWikiGraphUri,
+  withHelpRoute,
+} from "../../../support/index.js";
 import { isWikiGraphUri } from "../uri.js";
 
 export function parseSerialId(

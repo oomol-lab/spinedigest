@@ -46,7 +46,7 @@ export class SerialGeneration {
   readonly #fragmentWordsCount = DEFAULT_FRAGMENT_WORDS_COUNT;
   readonly #fragmentGroups: FragmentGroupStore;
   readonly #idSemaphore = new AsyncSemaphore(1);
-  readonly #logDirPath: string | undefined;
+  readonly #logDirectory: SerialGenerationOptions["logDirectory"];
   readonly #serials: SerialStore;
   readonly #document: Document;
   readonly #writeSemaphore = new AsyncSemaphore(1);
@@ -60,7 +60,7 @@ export class SerialGeneration {
 
     this.#fragmentGroups = document.fragmentGroups;
     this.#llm = options.llm;
-    this.#logDirPath = options.logDirPath;
+    this.#logDirectory = options.logDirectory;
     this.#serials = document.serials;
     this.#segmenter = options.segmenter;
     this.#document = document;
@@ -350,10 +350,10 @@ export class SerialGeneration {
       scopes: WIKI_GRAPH_EDITOR_SCOPES,
       serialId: input.serialId,
       document: this.#document,
-      ...(this.#logDirPath === undefined
+      ...(this.#logDirectory === undefined
         ? {}
         : {
-            logDirPath: this.#logDirPath,
+            logDirectory: this.#logDirectory,
           }),
       ...(input.userLanguage === undefined
         ? {}

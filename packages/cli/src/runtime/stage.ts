@@ -1,4 +1,3 @@
-import { resolveDataDirPath } from "wiki-graph-core";
 export {
   DEFAULT_EXTRACTION_PROMPT,
   DEFAULT_KNOWLEDGE_GRAPH_RECALL_PROMPT,
@@ -9,6 +8,7 @@ import type { WikiGraphScope } from "wiki-graph-core";
 import { createDefaultWikiGraphSampling } from "wiki-graph-core";
 import { LLM } from "wiki-graph-core";
 import type {
+  Directory,
   LLMStreamProgressCallback,
   LLMTokenUsageCallback,
 } from "wiki-graph-core";
@@ -20,8 +20,8 @@ import { buildLLMOptions } from "./llm.js";
 export function createStageLLM(
   config: CLIConfig,
   options?: {
-    readonly cacheDirPath?: string;
-    readonly logDirPath?: string;
+    readonly cacheDirectory?: Directory;
+    readonly logDirectory?: Directory;
     readonly onStreamProgress?: LLMStreamProgressCallback;
     readonly onTokenUsage?: LLMTokenUsageCallback;
   },
@@ -29,7 +29,6 @@ export function createStageLLM(
   const llmOptions = buildLLMOptions(config);
 
   return new LLM<WikiGraphScope>({
-    dataDirPath: resolveDataDirPath(),
     sampling: createDefaultWikiGraphSampling({
       ...(llmOptions.temperature === undefined
         ? {}
@@ -37,12 +36,12 @@ export function createStageLLM(
       ...(llmOptions.topP === undefined ? {} : { topP: llmOptions.topP }),
     }),
     ...llmOptions,
-    ...(options?.cacheDirPath === undefined
+    ...(options?.cacheDirectory === undefined
       ? {}
-      : { cacheDirPath: options.cacheDirPath }),
-    ...(options?.logDirPath === undefined
+      : { cacheDirectory: options.cacheDirectory }),
+    ...(options?.logDirectory === undefined
       ? {}
-      : { logDirPath: options.logDirPath }),
+      : { logDirectory: options.logDirectory }),
     ...(options?.onStreamProgress === undefined
       ? {}
       : { onStreamProgress: options.onStreamProgress }),

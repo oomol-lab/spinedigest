@@ -23,8 +23,8 @@ vi.mock(
       WikiGraphArchiveFile: class {
         readonly #path: string;
 
-        public constructor(path: string) {
-          this.#path = path;
+        public constructor(path: string | { readonly path: string }) {
+          this.#path = typeof path === "string" ? path : path.path;
         }
 
         public async readDocument(

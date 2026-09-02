@@ -74,10 +74,10 @@ export {
   replaceWikiGraphLibraryMetadata,
   resolveWikiGraphLibraryById,
   resolveWikiGraphLibraryQueryTargetById,
-  resolveDefaultWikiGraphLibraryDirectoryPath,
-  resolveWikiGraphLibraryArchivePath,
+  resolveDefaultWikiGraphLibraryDirectory,
+  resolveWikiGraphLibraryArchiveFile,
   resolveWikiGraphLibrary,
-  resolveWikiGraphLibraryStagingDirectoryPath,
+  resolveWikiGraphLibraryStagingDirectory,
   scanWikiGraphLibrary,
   cleanWikiGraphLibraryIndex,
   markWikiGraphLibraryIndexDirty,
@@ -277,7 +277,7 @@ export type {
   GuaranteedRequest,
   GuaranteedRequestController,
 } from "./external/guaranteed/index.js";
-export { formatError } from "./utils/node-error.js";
+export { formatError } from "./utils/host-error.js";
 export {
   createContinuationCursor,
   deleteArchiveSearchSessions,
@@ -443,7 +443,10 @@ export {
   DEFAULT_WIKISPINE_FETCH_ENDPOINT,
   testWikispineRuntime,
 } from "./external/wikimatch/index.js";
-export type { WikispineProvider } from "./external/wikimatch/index.js";
+export type {
+  WikispineCommandRunner,
+  WikispineProvider,
+} from "./external/wikimatch/index.js";
 export { ObjectMetadataKind } from "./document/index.js";
 export type { ObjectMetadataTarget } from "./document/index.js";
 export {
@@ -459,6 +462,8 @@ export {
 } from "./object-stream.js";
 export type { WikgObject } from "./object-stream.js";
 export {
+  ensureRelativeDirectory,
+  ensureRelativeFile,
   getWikiGraphStorage,
   installWikiGraphPlatform,
   installWikiGraphStorage,
@@ -471,6 +476,7 @@ export {
   type HostDatabaseProvider,
   type HostDatabaseRow,
   type HostDatabaseValue,
+  type HostResourceProvider,
   type HostZipEntry,
   type HostZipProvider,
   type WikiGraphPlatform,

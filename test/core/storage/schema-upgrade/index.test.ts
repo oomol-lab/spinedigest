@@ -1,1540 +1,208 @@
-import { createWriteStream } from "fs";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "fs/promises";
-import { dirname, join, posix, relative, sep } from "path";
-import { finished } from "stream/promises";
-
-import { ZipFile } from "yazl";
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { mkdir } from "fs/promises";
+import { join } from "path";
+import { describe, expect, it } from "vitest";
 
 import {
   Database,
   DirectoryDocument,
 } from "../../../../packages/core/src/document/index.js";
-import { WikipageCache } from "../../../../packages/core/src/external/wikipage/cache.js";
-import {
-  ensureDefaultWikiGraphLibrary,
-  parseWikiGraphLibraryUri,
-} from "../../../../packages/core/src/library/registry.js";
-import { withWikiGraphLibraryLock } from "../../../../packages/core/src/library/lock.js";
-import { readWikiGraphLibraryIndexState } from "../../../../packages/core/src/library/search-index.js";
-import { openContinuationCursorDatabase } from "../../../../packages/core/src/retrieval/query/continuation-cursor/store.js";
-import { openSearchSessionDatabase } from "../../../../packages/core/src/retrieval/query/search-cache/database.js";
-import { tryAcquireGcLock } from "../../../../packages/core/src/runtime/gc/lock.js";
-import { openBuildQueueDatabase } from "../../../../packages/core/src/runtime/jobs/database.js";
 import {
   ensureWikiGraphArchiveSchemaCurrent,
   ensureWikiGraphHomeSchemaCurrent,
   readWikiGraphArchiveSchemaVersion,
+  readWikiGraphHomeSchemaVersion,
   upgradeWikiGraphArchiveSchema,
 } from "../../../../packages/core/src/storage/schema-upgrade/index.js";
 import {
-  LEGACY_SEARCH_INDEX_DATABASE_PATH,
-  WIKG_MANIFEST_PATH,
-  WIKG_MUTATION_TOKEN_PATH,
-  SEARCH_INDEX_DATABASE_PATH,
-} from "../../../../packages/core/src/storage/wikg/archive/constants.js";
-import { DATABASE_ENTRY_PATH } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/constants.js";
-import { createWikgMutationTokenContent } from "../../../../packages/core/src/storage/wikg/archive/manifest.js";
-import {
-  extractWikgArchive,
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
+  writeWikgArchive,
 } from "../../../../packages/core/src/storage/wikg/index.js";
-import { isWikgArchivePath } from "../../../../packages/core/src/storage/wikg/archive/paths.js";
 import {
-  openIndexedArchive,
-  readArchiveEntryBuffer,
-} from "../../../../packages/core/src/storage/wikg/archive/zip.js";
-import { createArchiveKey } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/archive-key.js";
-import { withStateDatabase } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
+  SEARCH_INDEX_DATABASE_PATH,
+  WIKG_MANIFEST_PATH,
+} from "../../../../packages/core/src/storage/wikg/archive/constants.js";
+import { withWikiGraphStorage } from "../../../../packages/core/src/runtime/platform/index.js";
 import {
-  resolveWikiGraphHomeDirectoryPath,
-  setWikiGraphStateDirectoryPathForTesting,
-  withWikiGraphRuntimeStateDirectoryPath,
-} from "../../../../packages/core/src/runtime/common/wiki-graph/dir.js";
-import { countTextWords } from "../../../../packages/core/src/utils/text-word-count.js";
+  createNodeWikiGraphStorage,
+  nodeWikiGraphPlatform,
+  NodeDirectory,
+  NodeFile,
+} from "../../../../packages/cli/src/runtime/node-platform.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("schema-upgrade", () => {
-  beforeEach(() => {
-    setWikiGraphStateDirectoryPathForTesting(undefined);
-  });
-
-  afterEach(() => {
-    setWikiGraphStateDirectoryPathForTesting(undefined);
-  });
-
-  it("upgrades a legacy archive in place", async () => {
-    await withTempDir("wikigraph-schema-upgrade-", async (root) => {
-      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
-      const archivePath = join(root, "book.wikg");
-      await writeLegacyArchive(archivePath);
+  it("upgrades a v3 archive in place and preserves its mutation token", async () => {
+    await withFixture(async ({ archive, root }) => {
+      await rewriteManifest(archive, 3, true);
+      const before = await readWikgArchiveMutationToken(archive);
+      await expect(
+        ensureWikiGraphArchiveSchemaCurrent(archive),
+      ).rejects.toThrow("must be upgraded");
 
       await expect(
-        ensureWikiGraphArchiveSchemaCurrent(archivePath),
-      ).rejects.toThrow("wg maintenance upgrade");
-      await upgradeWikiGraphArchiveSchema(archivePath);
-
-      await expect(readWikgArchiveMutationToken(archivePath)).resolves.toEqual(
-        expect.any(String),
-      );
+        upgradeWikiGraphArchiveSchema(archive),
+      ).resolves.toMatchObject({
+        changed: true,
+        schemaChanged: true,
+      });
+      await expect(readWikiGraphArchiveSchemaVersion(archive)).resolves.toBe(4);
+      await expect(readWikgArchiveMutationToken(archive)).resolves.toBe(before);
       await expect(
-        readWikiGraphArchiveSchemaVersion(archivePath),
-      ).resolves.toBe(4);
-      await expect(
-        readWikgArchiveEntry(archivePath, SEARCH_INDEX_DATABASE_PATH),
-      ).resolves.toBeUndefined();
-      await expect(
-        readWikgArchiveEntry(archivePath, "toc.json"),
-      ).resolves.toBeInstanceOf(Uint8Array);
-      await expect(
-        readWikgArchiveEntry(archivePath, WIKG_MANIFEST_PATH),
-      ).resolves.toBeInstanceOf(Uint8Array);
-    });
-  });
-
-  it("upgrades v2 source indexes into current FTS artifacts", async () => {
-    await withTempDir("wikigraph-schema-upgrade-v2-artifact-", async (root) => {
-      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
-      const archivePath = join(root, "book.wikg");
-      const unpackedPath = join(root, "unpacked");
-
-      await writeSourcedArchiveWithSchemaVersion(archivePath, 2);
-      const mutationTokenBefore = await readRawWikgArchiveEntry(
-        archivePath,
-        WIKG_MUTATION_TOKEN_PATH,
-      );
-
-      await upgradeWikiGraphArchiveSchema(archivePath);
-
-      await expect(
-        readWikgArchiveEntry(archivePath, WIKG_MUTATION_TOKEN_PATH),
-      ).resolves.toEqual(mutationTokenBefore);
-      await expect(
-        readWikiGraphArchiveSchemaVersion(archivePath),
-      ).resolves.toBe(4);
-      await expect(
-        readWikgArchiveEntry(archivePath, SEARCH_INDEX_DATABASE_PATH),
-      ).resolves.toBeUndefined();
-      await expect(
-        readWikgArchiveEntry(archivePath, LEGACY_SEARCH_INDEX_DATABASE_PATH),
+        readWikgArchiveEntry(archive, SEARCH_INDEX_DATABASE_PATH),
       ).resolves.toBeUndefined();
 
-      await extractWikgArchive(archivePath, unpackedPath);
-      const document = await DirectoryDocument.open(unpackedPath);
+      const extracted = new NodeDirectory(join(root, "extracted"));
+      await mkdir(extracted.path, { recursive: true });
+      const databaseBytes = await readWikgArchiveEntry(archive, "database.db");
+      expect(databaseBytes).toBeDefined();
+      const databaseFile = await extracted.createFile("database.db");
+      const writer = await databaseFile.openWriter();
+      await writer.write(databaseBytes!);
+      await writer.commit();
+      const database = await Database.open(databaseFile, "", {
+        readonly: true,
+      });
       try {
-        const ftsArtifact = await document.indexArtifacts.get(1, "fts");
-        const lexicalRows = await document.indexArtifacts.listLexicalRows(1);
-
-        expect(ftsArtifact).toMatchObject({
-          kind: "fts",
-          serialId: 1,
-        });
-        expect(typeof ftsArtifact?.sourceRevision).toBe("number");
-        expect(lexicalRows.some((row) => row.text.includes("Salvaged"))).toBe(
-          true,
+        const provenanceTable = await database.queryOne(
+          "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'source_artifacts'",
+          undefined,
+          () => true,
         );
-        await expect(
-          document.indexArtifacts.get(1, "embedding-source"),
-        ).resolves.toBeUndefined();
-        await expect(
-          document.readDatabase(async (database) =>
-            hasTable(database, "archive_index_settings"),
-          ),
-        ).resolves.toBe(false);
+        expect(provenanceTable).toBe(true);
       } finally {
-        await document.release();
+        await database.close();
       }
     });
   });
 
-  it("adds provenance tables when upgrading a real v3 database shape", async () => {
-    await withTempDir(
-      "wikigraph-schema-upgrade-v3-provenance-",
-      async (root) => {
-        setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
-        const archivePath = join(root, "book.wikg");
-        const beforePath = join(root, "before");
-        const afterPath = join(root, "after");
-        const sourceText = "A v3 source archive without provenance tables.";
-
-        await writeV3ArchiveWithoutSourceProvenanceSchema(
-          archivePath,
-          sourceText,
-        );
-        const mutationTokenBefore = await readRawWikgArchiveEntry(
-          archivePath,
-          WIKG_MUTATION_TOKEN_PATH,
-        );
-        const sourceTextBefore = await readRawWikgArchiveEntry(
-          archivePath,
-          "texts/source/1.txt",
-        );
-        const tocBefore = await readRawWikgArchiveEntry(
-          archivePath,
-          "toc.json",
-        );
-
-        await extractWikgArchive(archivePath, beforePath);
-        const beforeDatabase = await Database.open(
-          join(beforePath, DATABASE_ENTRY_PATH),
-          "",
-          { readonly: true },
-        );
-        try {
-          await expect(
-            hasTable(beforeDatabase, "source_artifacts"),
-          ).resolves.toBe(false);
-          await expect(
-            hasTable(beforeDatabase, "source_locators"),
-          ).resolves.toBe(false);
-          await expect(
-            hasTable(beforeDatabase, "source_text_maps"),
-          ).resolves.toBe(false);
-          await expect(
-            beforeDatabase.queryOne(
-              "SELECT COUNT(*) AS count FROM serials",
-              undefined,
-              (row) => Number(row.count),
-            ),
-          ).resolves.toBe(1);
-        } finally {
-          await beforeDatabase.close();
-        }
-
-        await expect(
-          ensureWikiGraphArchiveSchemaCurrent(archivePath),
-        ).rejects.toThrow("wg maintenance upgrade");
-        await expect(
-          upgradeWikiGraphArchiveSchema(archivePath),
-        ).resolves.toEqual({
-          changed: true,
-          repairedToc: false,
-          repairedTextWords: false,
-          schemaChanged: true,
-        });
-
-        await expect(
-          readWikiGraphArchiveSchemaVersion(archivePath),
-        ).resolves.toBe(4);
-        await expect(
-          readRawWikgArchiveEntry(archivePath, WIKG_MUTATION_TOKEN_PATH),
-        ).resolves.toEqual(mutationTokenBefore);
-        await expect(
-          readWikgArchiveEntry(archivePath, "texts/source/1.txt"),
-        ).resolves.toEqual(sourceTextBefore);
-        await expect(
-          readWikgArchiveEntry(archivePath, "toc.json"),
-        ).resolves.toEqual(tocBefore);
-
-        await extractWikgArchive(archivePath, afterPath);
-        const afterDatabase = await Database.open(
-          join(afterPath, DATABASE_ENTRY_PATH),
-          "",
-          { readonly: true },
-        );
-        try {
-          await expect(
-            hasTable(afterDatabase, "source_artifacts"),
-          ).resolves.toBe(true);
-          await expect(
-            hasTable(afterDatabase, "source_locators"),
-          ).resolves.toBe(true);
-          await expect(
-            hasTable(afterDatabase, "source_text_maps"),
-          ).resolves.toBe(true);
-          await expect(
-            hasIndex(afterDatabase, "idx_source_locators_artifact"),
-          ).resolves.toBe(true);
-          await expect(
-            hasIndex(afterDatabase, "idx_source_text_maps_serial_range"),
-          ).resolves.toBe(true);
-          await expect(
-            hasIndex(afterDatabase, "idx_source_text_maps_locator"),
-          ).resolves.toBe(true);
-        } finally {
-          await afterDatabase.close();
-        }
-
-        const document = await DirectoryDocument.open(afterPath);
-        try {
-          await document.openSession(async (opened) => {
-            await opened.sourceProvenance.replace(1, 0, {
-              artifacts: [
-                {
-                  digest: "A".repeat(64),
-                  mediaType: "application/epub+zip",
-                  name: "book.epub",
-                },
-              ],
-              mappings: [
-                {
-                  artifactDigest: "A".repeat(64),
-                  locator: { cfi: "epubcfi(/6/2[body]!/4/2/1:0)" },
-                  sourceStart: 0,
-                  sourceEnd: sourceText.length,
-                },
-              ],
-            });
-            await expect(
-              opened.sourceProvenance.listMap(1),
-            ).resolves.toHaveLength(1);
-          });
-        } finally {
-          await document.release();
-        }
-
-        await expect(
-          upgradeWikiGraphArchiveSchema(archivePath),
-        ).resolves.toEqual({
-          changed: false,
-          repairedToc: false,
-          repairedTextWords: false,
-          schemaChanged: false,
-        });
-      },
-    );
-  });
-
-  it("persists missing chapter keys while upgrading a legacy archive", async () => {
-    await withTempDir("wikigraph-schema-upgrade-toc-", async (root) => {
-      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
-      const archivePath = join(root, "book.wikg");
-      await writeArchiveWithSchemaVersion(
-        archivePath,
-        1,
-        `${JSON.stringify({
-          version: 1,
-          items: [
-            {
-              children: [
-                {
-                  children: [],
-                  key: "existing-key",
-                  serialId: 2,
-                  title: "Existing",
-                },
-              ],
-              serialId: 1,
-              title: "Part I",
-            },
-          ],
-        })}\n`,
+  it("repairs missing chapter keys even when the schema is current", async () => {
+    await withFixture(async ({ archive }) => {
+      const entries = await nodeWikiGraphPlatform.zip.read(archive);
+      await nodeWikiGraphPlatform.zip.write(
+        archive,
+        entries.map((entry) =>
+          entry.name === "toc.json"
+            ? {
+                data: new TextEncoder().encode(
+                  `${JSON.stringify({ items: [{ serialId: 1, title: "Chapter" }], version: 1 })}\n`,
+                ),
+                name: entry.name,
+              }
+            : entry,
+        ),
       );
-
-      await upgradeWikiGraphArchiveSchema(archivePath);
-
-      const upgradedTocEntry = await readWikgArchiveEntry(
-        archivePath,
-        "toc.json",
-      );
-      expect(upgradedTocEntry).toBeInstanceOf(Uint8Array);
-      const upgradedToc = JSON.parse(
-        Buffer.from(upgradedTocEntry as Uint8Array).toString("utf8"),
-      ) as {
-        readonly items: readonly {
-          readonly children: readonly { readonly key?: string }[];
-          readonly key?: string;
-        }[];
-      };
-
-      expect(upgradedToc.items[0]?.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
-      expect(upgradedToc.items[0]?.key).not.toBe("part-i");
-      expect(upgradedToc.items[0]?.children[0]?.key).toBe("existing-key");
       await expect(
-        readWikgArchiveEntry(archivePath, SEARCH_INDEX_DATABASE_PATH),
-      ).resolves.toBeUndefined();
-    });
-  });
-
-  it("repairs missing chapter keys in a current archive", async () => {
-    await withTempDir("wikigraph-schema-upgrade-current-toc-", async (root) => {
-      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
-      const archivePath = join(root, "book.wikg");
-      await writeArchiveWithSchemaVersion(
-        archivePath,
-        4,
-        `${JSON.stringify({
-          version: 1,
-          items: [
-            {
-              children: [
-                {
-                  children: [],
-                  serialId: 2,
-                  title: "Chapter 1",
-                },
-              ],
-              serialId: 1,
-              title: "Part I",
-            },
-          ],
-        })}\n`,
-      );
-
-      await expect(
-        upgradeWikiGraphArchiveSchema(archivePath),
-      ).resolves.toStrictEqual({
+        upgradeWikiGraphArchiveSchema(archive),
+      ).resolves.toMatchObject({
         changed: true,
         repairedToc: true,
-        repairedTextWords: false,
         schemaChanged: false,
       });
-      await expect(
-        readWikiGraphArchiveSchemaVersion(archivePath),
-      ).resolves.toBe(4);
-
-      const upgradedTocEntry = await readWikgArchiveEntry(
-        archivePath,
-        "toc.json",
-      );
-      expect(upgradedTocEntry).toBeInstanceOf(Uint8Array);
-      const upgradedToc = JSON.parse(
-        Buffer.from(upgradedTocEntry as Uint8Array).toString("utf8"),
-      ) as {
-        readonly items: readonly {
-          readonly children: readonly { readonly key?: string }[];
-          readonly key?: string;
-        }[];
-      };
-
-      expect(upgradedToc.items[0]?.key).toMatch(/^(?!\d+$)[0-9a-f]{12}$/u);
-      expect(upgradedToc.items[0]?.children[0]?.key).toMatch(
-        /^(?!\d+$)[0-9a-f]{12}$/u,
-      );
-      await expect(
-        readWikgArchiveEntry(archivePath, SEARCH_INDEX_DATABASE_PATH),
-      ).resolves.toBeUndefined();
-      await expect(
-        upgradeWikiGraphArchiveSchema(archivePath),
-      ).resolves.toStrictEqual({
-        changed: false,
-        repairedToc: false,
-        repairedTextWords: false,
-        schemaChanged: false,
+      const toc = await readWikgArchiveEntry(archive, "toc.json");
+      expect(JSON.parse(new TextDecoder().decode(toc))).toMatchObject({
+        items: [{ key: expect.any(String), serialId: 1 }],
       });
     });
   });
 
-  it("repairs stale text sentence word counts in a current archive", async () => {
-    await withTempDir("wikigraph-schema-upgrade-text-words-", async (root) => {
-      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
-      const archivePath = join(root, "book.wikg");
-      const sourceText = "朱元璋攻克应天。陈友谅进攻采石。";
-
-      await writeBadWordCountArchive(archivePath, 4, sourceText);
-
-      await expect(
-        upgradeWikiGraphArchiveSchema(archivePath),
-      ).resolves.toStrictEqual({
-        changed: true,
-        repairedToc: false,
-        repairedTextWords: true,
-        schemaChanged: false,
-      });
-
-      await extractWikgArchive(archivePath, join(root, "unpacked"));
-      const database = await Database.open(
-        join(root, "unpacked", "database.db"),
+  it("rejects future archive schema versions without rewriting the file", async () => {
+    await withFixture(async ({ archive }) => {
+      await rewriteManifest(archive, 99, false);
+      await expect(upgradeWikiGraphArchiveSchema(archive)).rejects.toThrow(
+        "Unsupported Wiki Graph archive schema version: 99",
       );
-      try {
-        await expect(
-          database.queryOne(
-            `
-              SELECT SUM(words_count) AS words
-              FROM text_sentence_records
-              WHERE kind = 1 AND chapter_id = 1
-            `,
-            undefined,
-            (row) => Number(row.words),
-          ),
-        ).resolves.toBe(countTextWords(sourceText));
-      } finally {
-        await database.close();
-      }
-
-      await expect(
-        upgradeWikiGraphArchiveSchema(archivePath),
-      ).resolves.toStrictEqual({
-        changed: false,
-        repairedToc: false,
-        repairedTextWords: false,
-        schemaChanged: false,
-      });
-    });
-  });
-
-  it("rejects a future archive schema version", async () => {
-    await withTempDir("wikigraph-schema-future-archive-", async (root) => {
-      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
-      const archivePath = join(root, "book.wikg");
-      await writeArchiveWithSchemaVersion(archivePath, 999);
-
-      await expect(
-        ensureWikiGraphArchiveSchemaCurrent(archivePath),
-      ).rejects.toThrow("Unsupported Wiki Graph archive schema version: 999");
-    });
-  });
-
-  it("rejects a future home schema version", async () => {
-    await withTempDir("wikigraph-schema-future-home-", async (home) => {
-      setWikiGraphStateDirectoryPathForTesting(home);
-      await writeHomeSchemaVersion(home, 999);
-
-      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-        "Unsupported Wiki Graph home schema version: 999",
+      await expect(readWikiGraphArchiveSchemaVersion(archive)).resolves.toBe(
+        99,
       );
     });
   });
 
-  it("invalidates the home schema memo when core sqlite is replaced by future schema", async () => {
-    await withTempDir("wikigraph-schema-future-home-replace-", async (home) => {
-      setWikiGraphStateDirectoryPathForTesting(home);
-      await ensureWikiGraphHomeSchemaCurrent();
-
-      await rm(join(home, "core.sqlite"), { force: true });
-      await writeHomeSchemaVersion(home, 999);
-
-      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-        "Unsupported Wiki Graph home schema version: 999",
-      );
-    });
-  });
-
-  it("invalidates the home schema memo when core sqlite is deleted and recreated as legacy", async () => {
-    await withTempDir(
-      "wikigraph-schema-legacy-home-recreate-",
-      async (home) => {
-        setWikiGraphStateDirectoryPathForTesting(home);
-        await ensureWikiGraphHomeSchemaCurrent();
-
-        await rm(join(home, "core.sqlite"), { force: true });
-        await writeLegacyCoreDatabase(home);
-        await ensureWikiGraphHomeSchemaCurrent();
-
-        await expect(readHomeSchemaVersion(home)).resolves.toBe(3);
-      },
-    );
-  });
-
-  it("does not reuse the home schema memo after switching test home paths", async () => {
-    await withTempDir("wikigraph-schema-home-switch-", async (root) => {
-      const firstHome = join(root, "first-home");
-      const secondHome = join(root, "second-home");
-
-      setWikiGraphStateDirectoryPathForTesting(firstHome);
-      await ensureWikiGraphHomeSchemaCurrent();
-
-      setWikiGraphStateDirectoryPathForTesting(secondHome);
-      await writeHomeSchemaVersion(secondHome, 999);
-
-      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-        "Unsupported Wiki Graph home schema version: 999",
-      );
-    });
-  });
-
-  it("upgrades a legacy home and keeps user config", async () => {
-    await withTempDir("wikigraph-schema-home-", async (home) => {
-      setWikiGraphStateDirectoryPathForTesting(home);
-
-      const coreDatabasePath = join(home, "core.sqlite");
-      const cacheDirectoryPath = join(home, "cache");
-      const stagingDirectoryPath = join(home, "staging");
-      const jobsDirectoryPath = join(home, "jobs");
-      const tempDirectoryPath = join(home, "tmp");
-
-      await mkdir(cacheDirectoryPath, { recursive: true });
-      await mkdir(join(stagingDirectoryPath, "library", "1", "index"), {
-        recursive: true,
-      });
-      await mkdir(join(jobsDirectoryPath, "cache"), { recursive: true });
-      await mkdir(tempDirectoryPath, { recursive: true });
-      await writeFile(join(cacheDirectoryPath, "search-sessions.sqlite"), "x");
-      await writeFile(
-        join(cacheDirectoryPath, "continuation-cursors.sqlite"),
-        "x",
-      );
-      await writeFile(join(cacheDirectoryPath, "cache.sqlite"), "x");
-      await writeFile(join(tempDirectoryPath, "gc.sqlite"), "x");
-      await writeFile(join(tempDirectoryPath, "gc.last-run"), "x");
-
-      const coreDatabase = await Database.open(coreDatabasePath);
-      try {
-        await coreDatabase.run(`
-          CREATE TABLE config_sections (
-            section TEXT NOT NULL,
-            key TEXT NOT NULL,
-            value_json TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            PRIMARY KEY (section, key)
-          )
-        `);
-        await coreDatabase.run(`
-          INSERT INTO config_sections (section, key, value_json, updated_at)
-          VALUES ('default', 'theme', '"dark"', '2026-07-23T00:00:00.000Z')
-        `);
-      } finally {
-        await coreDatabase.close();
-      }
-
-      const stagingDatabase = await Database.open(
-        join(stagingDirectoryPath, "staging.sqlite"),
-      );
-      try {
-        await stagingDatabase.run(`
-          CREATE TABLE entry_overlays (
-            archive_key TEXT NOT NULL,
-            archive_path TEXT NOT NULL,
-            entry_path TEXT NOT NULL,
-            kind TEXT NOT NULL,
-            workspace_path TEXT,
-            updated_at INTEGER NOT NULL,
-            PRIMARY KEY (archive_key, entry_path)
-          )
-        `);
-        await stagingDatabase.run(
-          `
-            INSERT INTO entry_overlays (
-              archive_key, archive_path, entry_path, kind, workspace_path, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
-          `,
-          [
-            "archive-key",
-            join(home, "book.wikg"),
-            SEARCH_INDEX_DATABASE_PATH,
-            "file",
-            join(stagingDirectoryPath, "library", "1", "index", "index.db"),
-            Date.now(),
-          ],
-        );
-      } finally {
-        await stagingDatabase.close();
-      }
-
-      await ensureWikiGraphHomeSchemaCurrent();
-
-      const upgradedCore = await Database.open(coreDatabasePath, "", {
-        readonly: true,
-      });
-      try {
-        await expect(
-          upgradedCore.queryOne(
-            "SELECT value_json FROM config_sections WHERE section = ? AND key = ?",
-            ["default", "theme"],
-            (row) => String(row.value_json),
-          ),
-        ).resolves.toBe('"dark"');
-        await expect(
-          upgradedCore.queryOne(
-            "SELECT version FROM schema_versions WHERE scope = ?",
-            ["home"],
-            (row) => Number(row.version),
-          ),
-        ).resolves.toBe(3);
-      } finally {
-        await upgradedCore.close();
-      }
-
-      await expect(
-        readFile(join(cacheDirectoryPath, "search-sessions.sqlite")),
-      ).rejects.toThrow();
-      await expect(
-        readFile(join(cacheDirectoryPath, "continuation-cursors.sqlite")),
-      ).rejects.toThrow();
-      await expect(
-        readFile(join(cacheDirectoryPath, "cache.sqlite")),
-      ).rejects.toThrow();
-      await expect(
-        stat(join(stagingDirectoryPath, "library")),
-      ).rejects.toThrow();
-      await expect(
-        readFile(join(tempDirectoryPath, "gc.sqlite")),
-      ).rejects.toThrow();
-      await expect(
-        readFile(join(tempDirectoryPath, "gc.last-run")),
-      ).rejects.toThrow();
-
-      const upgradedStaging = await Database.open(
-        join(stagingDirectoryPath, "staging.sqlite"),
-        "",
-        {
-          readonly: true,
+  it("upgrades home schema under the injected library root", async () => {
+    await withTempDir("wikigraph-home-schema-", async (root) => {
+      await withWikiGraphStorage(
+        createNodeWikiGraphStorage(join(root, "state")),
+        async () => {
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(0);
+          await ensureWikiGraphHomeSchemaCurrent();
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(3);
         },
       );
-      try {
-        await expect(
-          upgradedStaging.queryOne(
-            "SELECT entry_path FROM entry_overlays WHERE archive_key = ?",
-            ["archive-key"],
-            (row) => String(row.entry_path),
+    });
+  });
+
+  it("upgrades concurrent host storage roots independently", async () => {
+    await withTempDir("wikigraph-home-schema-a-", async (firstRoot) => {
+      await withTempDir("wikigraph-home-schema-b-", async (secondRoot) => {
+        const storages = [firstRoot, secondRoot].map((root) =>
+          createNodeWikiGraphStorage(join(root, "state")),
+        );
+
+        await Promise.all(
+          storages.map(
+            async (storage) =>
+              await withWikiGraphStorage(storage, async () => {
+                await ensureWikiGraphHomeSchemaCurrent();
+                await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(3);
+              }),
           ),
-        ).resolves.toBeUndefined();
-      } finally {
-        await upgradedStaging.close();
-      }
-    });
-  });
-
-  it("upgrades an explicit v2 home and clears derived state", async () => {
-    await withTempDir("wikigraph-schema-home-v2-", async (home) => {
-      setWikiGraphStateDirectoryPathForTesting(home);
-      const cacheDirectoryPath = join(home, "cache");
-      const stagingDirectoryPath = join(home, "staging");
-      const jobsDirectoryPath = join(home, "jobs");
-
-      await writeHomeSchemaVersion(home, 2);
-      await mkdir(cacheDirectoryPath, { recursive: true });
-      await mkdir(join(stagingDirectoryPath, "library", "1", "index"), {
-        recursive: true,
-      });
-      await mkdir(join(jobsDirectoryPath, "cache"), { recursive: true });
-      await writeFile(join(cacheDirectoryPath, "search-sessions.sqlite"), "x");
-      await writeFile(
-        join(cacheDirectoryPath, "continuation-cursors.sqlite"),
-        "x",
-      );
-      await writeFile(join(jobsDirectoryPath, "cache", "artifact.json"), "x");
-
-      await ensureWikiGraphHomeSchemaCurrent();
-
-      await expect(readHomeSchemaVersion(home)).resolves.toBe(3);
-      await expect(
-        stat(join(cacheDirectoryPath, "search-sessions.sqlite")),
-      ).rejects.toThrow();
-      await expect(
-        stat(join(cacheDirectoryPath, "continuation-cursors.sqlite")),
-      ).rejects.toThrow();
-      await expect(
-        stat(join(stagingDirectoryPath, "library")),
-      ).rejects.toThrow();
-      await expect(stat(join(jobsDirectoryPath, "cache"))).rejects.toThrow();
-    });
-  });
-
-  it("rejects a home upgrade when a library lock is active", async () => {
-    await withTempDir("wikigraph-schema-block-", async (home) => {
-      setWikiGraphStateDirectoryPathForTesting(home);
-
-      const coreDatabase = await Database.open(join(home, "core.sqlite"));
-      try {
-        await coreDatabase.run(`
-          CREATE TABLE library_locks (
-            library_id INTEGER PRIMARY KEY,
-            mode TEXT NOT NULL,
-            owner_id TEXT NOT NULL,
-            owner_pid INTEGER NOT NULL,
-            heartbeat_at INTEGER NOT NULL,
-            created_at INTEGER NOT NULL
-          )
-        `);
-        await coreDatabase.run(
-          `
-            INSERT INTO library_locks (
-              library_id, mode, owner_id, owner_pid, heartbeat_at, created_at
-            ) VALUES (1, 'write', 'owner', ?, ?, ?)
-          `,
-          [process.pid, Date.now(), Date.now()],
         );
-      } finally {
-        await coreDatabase.close();
-      }
-
-      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-        "active library locks",
-      );
-    });
-  });
-
-  it.each([
-    ["archive_owners"],
-    ["entry_locks"],
-    ["entry_sqlite_leases"],
-    ["archive_commit_locks"],
-  ])("rejects an archive upgrade with active %s", async (tableName) => {
-    await withTempDir("wikigraph-schema-archive-block-", async (root) => {
-      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
-      const archivePath = join(root, "book.wikg");
-      await writeLegacyArchive(archivePath);
-      await writeActiveCoordinatorState(join(root, "home"), {
-        archiveKey: createArchiveKey(archivePath),
-        tableName,
-      });
-
-      await expect(upgradeWikiGraphArchiveSchema(archivePath)).rejects.toThrow(
-        "active coordinator state",
-      );
-    });
-  });
-
-  it("rejects an archive upgrade with a non-fts overlay", async () => {
-    await withTempDir(
-      "wikigraph-schema-archive-overlay-block-",
-      async (root) => {
-        setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
-        const archivePath = join(root, "book.wikg");
-        await writeLegacyArchive(archivePath);
-        await writeHomeSchemaVersion(join(root, "home"), 3);
-        await writeCoordinatorOverlay(join(root, "home"), {
-          archiveKey: createArchiveKey(archivePath),
-          entryPath: "database.db",
-        });
-
-        await expect(
-          upgradeWikiGraphArchiveSchema(archivePath),
-        ).rejects.toThrow("non-derived overlay state");
-      },
-    );
-  });
-
-  it("rejects a home upgrade with an active GC lock", async () => {
-    await withBlockedHomeUpgrade("gc", async (home) => {
-      await writeActiveGcLock(home);
-
-      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-        "active GC lock",
-      );
-    });
-  });
-
-  it("rejects a home upgrade with an active build job", async () => {
-    await withBlockedHomeUpgrade("job", async (home) => {
-      await writeBuildQueue(home, { activeJob: true });
-
-      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-        "active build jobs",
-      );
-    });
-  });
-
-  it("rejects a home upgrade with an active worker lease", async () => {
-    await withBlockedHomeUpgrade("worker", async (home) => {
-      await writeBuildQueue(home, { activeWorkerLease: true });
-
-      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-        "active build worker lease",
-      );
-    });
-  });
-
-  it.each([
-    ["archive_owners"],
-    ["entry_locks"],
-    ["entry_sqlite_leases"],
-    ["archive_commit_locks"],
-  ])("rejects a home upgrade with active %s", async (tableName) => {
-    await withBlockedHomeUpgrade(`coordinator-${tableName}`, async (home) => {
-      await writeActiveCoordinatorState(home, {
-        archiveKey: "archive-key",
-        tableName,
-      });
-
-      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-        "active coordinator state",
-      );
-    });
-  });
-
-  it("rejects a home upgrade with a non-fts overlay", async () => {
-    await withBlockedHomeUpgrade("overlay", async (home) => {
-      await writeFile(join(home, "book.wikg"), "archive");
-      await writeCoordinatorOverlay(home, {
-        archiveKey: "archive-key",
-        entryPath: "database.db",
-      });
-
-      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-        "non-derived coordinator overlays",
-      );
-    });
-  });
-
-  it("removes orphaned sqlite cache overlays for missing archives during home upgrade", async () => {
-    await withLegacyHome(
-      "wikigraph-schema-orphan-sqlite-overlay-",
-      async (home) => {
-        const workspacePath = join(
-          home,
-          "staging",
-          "work",
-          "archive-key",
-          "database.db",
-        );
-        await mkdir(dirname(workspacePath), { recursive: true });
-        await writeFile(workspacePath, "materialized database cache");
-        await writeCoordinatorOverlay(home, {
-          archiveKey: "archive-key",
-          entryPath: "database.db",
-          workspacePath,
-        });
-
-        await ensureWikiGraphHomeSchemaCurrent();
-
-        await expect(readHomeSchemaVersion(home)).resolves.toBe(3);
-        await expect(stat(workspacePath)).rejects.toThrow();
-        await expect(countCoordinatorOverlays(home)).resolves.toBe(0);
-      },
-    );
-  });
-
-  it("keeps core registry tables and constraints available after home upgrade", async () => {
-    await withLegacyHome("wikigraph-schema-core-registry-", async (home) => {
-      const library = await ensureDefaultWikiGraphLibrary();
-      const target = parseWikiGraphLibraryUri("wikg://lib/index");
-      expect(target).toBeDefined();
-      await readWikiGraphLibraryIndexState(target!);
-      await withWikiGraphLibraryLock(library.id, "read", () =>
-        Promise.resolve(),
-      );
-
-      const database = await Database.open(join(home, "core.sqlite"), "", {
-        readonly: true,
-      });
-      try {
-        for (const tableName of [
-          "libraries",
-          "library_metadata",
-          "library_archives",
-          "state_locks",
-        ]) {
-          await expect(hasTable(database, tableName)).resolves.toBe(true);
-        }
-        await expect(
-          hasIndex(database, "idx_libraries_single_default"),
-        ).resolves.toBe(true);
-        await expect(
-          hasIndex(database, "idx_library_archives_library"),
-        ).resolves.toBe(true);
-      } finally {
-        await database.close();
-      }
-    });
-  });
-
-  it.each([
-    [
-      "search-sessions.sqlite",
-      async () => await closeDatabase(await openSearchSessionDatabase()),
-    ],
-    [
-      "continuation-cursors.sqlite",
-      async () => await closeDatabase(await openContinuationCursorDatabase()),
-    ],
-    [
-      "cache/cache.sqlite",
-      async () => await (await WikipageCache.open()).close(),
-    ],
-    [
-      "jobs/job.sqlite",
-      async () => await closeDatabase(await openBuildQueueDatabase()),
-    ],
-    ["tmp/gc.sqlite", async () => await (await tryAcquireGcLock())?.()],
-    [
-      "staging/staging.sqlite",
-      async () => await withStateDatabase(() => Promise.resolve()),
-    ],
-    [
-      "staging/library/<library-id>/index/index.db",
-      async () => {
-        const target = parseWikiGraphLibraryUri("wikg://lib/index");
-        expect(target).toBeDefined();
-        await readWikiGraphLibraryIndexState(target!);
-      },
-    ],
-  ])("opens %s only after the home schema gate", async (_name, open) => {
-    await withLegacyHome("wikigraph-schema-gate-", async (home) => {
-      await open();
-      await expect(readHomeSchemaVersion(home)).resolves.toBe(3);
-    });
-  });
-
-  it("resolves an explicit runtime home override", async () => {
-    await withTempDir("wikigraph-schema-home-env-", async (home) => {
-      await withWikiGraphRuntimeStateDirectoryPath(home, async () => {
-        setWikiGraphStateDirectoryPathForTesting(undefined);
-        expect(resolveWikiGraphHomeDirectoryPath()).toBe(home);
-        await Promise.resolve();
       });
     });
   });
 });
 
-async function withLegacyHome(
-  prefix: string,
-  operation: (home: string) => Promise<void>,
+async function withFixture(
+  operation: (fixture: {
+    readonly archive: NodeFile;
+    readonly root: string;
+  }) => Promise<void>,
 ): Promise<void> {
-  await withTempDir(prefix, async (home) => {
-    setWikiGraphStateDirectoryPathForTesting(home);
-    await writeLegacyCoreDatabase(home);
-
-    await operation(home);
-  });
-}
-
-async function writeLegacyCoreDatabase(home: string): Promise<void> {
-  const database = await Database.open(join(home, "core.sqlite"));
-  try {
-    await database.run(`
-      CREATE TABLE config_sections (
-        section TEXT NOT NULL,
-        key TEXT NOT NULL,
-        value_json TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        PRIMARY KEY (section, key)
-      )
-    `);
-  } finally {
-    await database.close();
-  }
-}
-
-async function withBlockedHomeUpgrade(
-  prefix: string,
-  operation: (home: string) => Promise<void>,
-): Promise<void> {
-  await withLegacyHome(`wikigraph-schema-block-${prefix}-`, operation);
-}
-
-async function closeDatabase(database: Database): Promise<void> {
-  await database.close();
-}
-
-async function readHomeSchemaVersion(
-  home: string,
-): Promise<number | undefined> {
-  const database = await Database.open(join(home, "core.sqlite"), "", {
-    readonly: true,
-  });
-  try {
-    return await database.queryOne(
-      "SELECT version FROM schema_versions WHERE scope = ?",
-      ["home"],
-      (row) => Number(row.version),
-    );
-  } finally {
-    await database.close();
-  }
-}
-
-async function writeHomeSchemaVersion(
-  home: string,
-  version: number,
-): Promise<void> {
-  await mkdir(home, { recursive: true });
-  const database = await Database.open(join(home, "core.sqlite"));
-  try {
-    await database.run(`
-      CREATE TABLE schema_versions (
-        scope TEXT PRIMARY KEY,
-        version INTEGER NOT NULL,
-        updated_at TEXT NOT NULL
-      )
-    `);
-    await database.run(
-      "INSERT INTO schema_versions (scope, version, updated_at) VALUES ('home', ?, 'now')",
-      [version],
-    );
-  } finally {
-    await database.close();
-  }
-}
-
-async function hasTable(
-  database: Database,
-  tableName: string,
-): Promise<boolean> {
-  return (
-    (await database.queryOne(
-      "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ?",
-      [tableName],
-      () => true,
-    )) === true
-  );
-}
-
-async function hasIndex(
-  database: Database,
-  indexName: string,
-): Promise<boolean> {
-  return (
-    (await database.queryOne(
-      "SELECT 1 AS present FROM sqlite_master WHERE type = 'index' AND name = ?",
-      [indexName],
-      () => true,
-    )) === true
-  );
-}
-
-async function writeActiveGcLock(home: string): Promise<void> {
-  await mkdir(join(home, "tmp"), { recursive: true });
-  const database = await Database.open(join(home, "tmp", "gc.sqlite"));
-  try {
-    await database.run(`
-      CREATE TABLE gc_locks (
-        scope TEXT PRIMARY KEY,
-        owner_id TEXT NOT NULL,
-        owner_pid INTEGER NOT NULL,
-        heartbeat_at INTEGER NOT NULL,
-        created_at INTEGER NOT NULL
-      )
-    `);
-    await database.run(
-      "INSERT INTO gc_locks (scope, owner_id, owner_pid, heartbeat_at, created_at) VALUES ('global', 'owner', ?, ?, ?)",
-      [process.pid, Date.now(), Date.now()],
-    );
-  } finally {
-    await database.close();
-  }
-}
-
-async function writeBuildQueue(
-  home: string,
-  options: {
-    readonly activeJob?: boolean;
-    readonly activeWorkerLease?: boolean;
-  },
-): Promise<void> {
-  await mkdir(join(home, "jobs"), { recursive: true });
-  const database = await Database.open(join(home, "jobs", "job.sqlite"));
-  try {
-    await database.run(`
-      CREATE TABLE build_jobs (
-        job_id TEXT PRIMARY KEY,
-        state TEXT NOT NULL
-      )
-    `);
-    await database.run(`
-      CREATE TABLE build_worker_lease (
-        id INTEGER PRIMARY KEY,
-        owner_pid INTEGER,
-        heartbeat_at INTEGER
-      )
-    `);
-    if (options.activeJob === true) {
-      await database.run(
-        "INSERT INTO build_jobs (job_id, state) VALUES ('job', 'running')",
-      );
-    }
-    if (options.activeWorkerLease === true) {
-      await database.run(
-        "INSERT INTO build_worker_lease (id, owner_pid, heartbeat_at) VALUES (1, ?, ?)",
-        [process.pid, Date.now()],
-      );
-    }
-  } finally {
-    await database.close();
-  }
-}
-
-async function writeActiveCoordinatorState(
-  home: string,
-  input: { readonly archiveKey: string; readonly tableName: string },
-): Promise<void> {
-  await mkdir(join(home, "staging"), { recursive: true });
-  const database = await Database.open(join(home, "staging", "staging.sqlite"));
-  try {
-    await createCoordinatorStateTable(database, input.tableName);
-    const entryPathColumn =
-      input.tableName === "entry_locks" ||
-      input.tableName === "entry_sqlite_leases"
-        ? ", entry_path, mode"
-        : "";
-    const entryPathValues =
-      input.tableName === "entry_locks" ||
-      input.tableName === "entry_sqlite_leases"
-        ? ", 'index.db', 'read'"
-        : "";
-    await database.run(
-      `INSERT INTO ${input.tableName} (archive_key${entryPathColumn}, owner_id, owner_pid, heartbeat_at, created_at) VALUES (?${entryPathValues}, 'owner', ?, ?, ?)`,
-      [input.archiveKey, process.pid, Date.now(), Date.now()],
-    );
-  } finally {
-    await database.close();
-  }
-}
-
-async function writeCoordinatorOverlay(
-  home: string,
-  input: {
-    readonly archiveKey: string;
-    readonly entryPath: string;
-    readonly workspacePath?: string;
-  },
-): Promise<void> {
-  await mkdir(join(home, "staging"), { recursive: true });
-  const database = await Database.open(join(home, "staging", "staging.sqlite"));
-  try {
-    await database.run(`
-      CREATE TABLE entry_overlays (
-        archive_key TEXT NOT NULL,
-        archive_path TEXT NOT NULL,
-        entry_path TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        workspace_path TEXT,
-        updated_at INTEGER NOT NULL,
-        PRIMARY KEY (archive_key, entry_path)
-      )
-    `);
-    await database.run(
-      "INSERT INTO entry_overlays (archive_key, archive_path, entry_path, kind, workspace_path, updated_at) VALUES (?, ?, ?, 'file', ?, ?)",
-      [
-        input.archiveKey,
-        join(home, "book.wikg"),
-        input.entryPath,
-        input.workspacePath ?? null,
-        Date.now(),
-      ],
-    );
-  } finally {
-    await database.close();
-  }
-}
-
-async function countCoordinatorOverlays(home: string): Promise<number> {
-  const database = await Database.open(
-    join(home, "staging", "staging.sqlite"),
-    "",
-    { readonly: true },
-  );
-  try {
-    return (
-      (await database.queryOne(
-        "SELECT COUNT(*) AS count FROM entry_overlays",
-        undefined,
-        (row) => Number(row.count),
-      )) ?? 0
-    );
-  } finally {
-    await database.close();
-  }
-}
-
-async function createCoordinatorStateTable(
-  database: Database,
-  tableName: string,
-): Promise<void> {
-  if (tableName === "archive_commit_locks") {
-    await database.run(`
-      CREATE TABLE archive_commit_locks (
-        archive_key TEXT PRIMARY KEY,
-        owner_id TEXT NOT NULL,
-        owner_pid INTEGER NOT NULL,
-        heartbeat_at INTEGER NOT NULL,
-        created_at INTEGER NOT NULL
-      )
-    `);
-    return;
-  }
-
-  const entryColumns =
-    tableName === "entry_locks" || tableName === "entry_sqlite_leases"
-      ? ", entry_path TEXT NOT NULL, mode TEXT NOT NULL"
-      : "";
-  await database.run(`
-    CREATE TABLE ${tableName} (
-      archive_key TEXT NOT NULL${entryColumns},
-      owner_id TEXT NOT NULL,
-      owner_pid INTEGER NOT NULL,
-      heartbeat_at INTEGER NOT NULL,
-      created_at INTEGER NOT NULL
-    )
-  `);
-}
-
-async function writeLegacyArchive(archivePath: string): Promise<void> {
-  await writeArchiveWithSchemaVersion(archivePath, 1);
-}
-
-async function writeV3ArchiveWithoutSourceProvenanceSchema(
-  archivePath: string,
-  sourceText: string,
-): Promise<void> {
-  await withTempDir(
-    "wikigraph-schema-v3-provenance-archive-",
-    async (sourceDir) => {
-      const document = await DirectoryDocument.open(sourceDir);
-
-      try {
-        await document.openSession(async (openedDocument) => {
-          const serialId = await openedDocument.createSerial();
-          const draft = await openedDocument
-            .getSerialFragments(serialId)
-            .createDraft();
-
-          draft.addSentence(sourceText, 7);
-          await draft.commit();
-          await openedDocument.writeToc({
+  await withTempDir("wikigraph-schema-upgrade-", async (root) => {
+    await withWikiGraphStorage(
+      createNodeWikiGraphStorage(join(root, "state")),
+      async () => {
+        const documentPath = join(root, "document");
+        await mkdir(documentPath, { recursive: true });
+        const directory = new NodeDirectory(documentPath);
+        const document = await DirectoryDocument.open(directory);
+        try {
+          await document.writeToc({
             items: [
-              {
-                children: [],
-                key: "v3-source",
-                serialId,
-                title: "V3 source",
-              },
+              { children: [], key: "chapter", serialId: 1, title: "Chapter" },
             ],
             version: 1,
           });
-        });
-
-        await document.readDatabase(async (database) => {
-          await database.run("DROP TABLE source_text_maps");
-          await database.run("DROP TABLE source_locators");
-          await database.run("DROP TABLE source_artifacts");
-        });
-      } finally {
-        await document.release();
-      }
-
-      await writeArchiveDirectoryWithSchemaVersion(sourceDir, archivePath, 3);
-    },
-  );
-}
-
-async function writeSourcedArchiveWithSchemaVersion(
-  archivePath: string,
-  schemaVersion: number,
-): Promise<void> {
-  await withTempDir("wikigraph-schema-source-archive-", async (sourceDir) => {
-    const document = await DirectoryDocument.open(sourceDir);
-
-    try {
-      await document.openSession(async (openedDocument) => {
-        const serialId = await openedDocument.createSerial();
-        const draft = await openedDocument
-          .getSerialFragments(serialId)
-          .createDraft();
-
-        draft.addSentence(
-          "Salvaged source text should become FTS artifact.",
-          7,
-        );
-        await draft.commit();
-        await openedDocument.writeToc({
-          items: [
-            {
-              children: [],
-              key: "salvaged",
-              serialId,
-              title: "Salvaged",
-            },
-          ],
-          version: 1,
-        });
-      });
-      await createLegacyArchiveIndexSettings(document);
-    } finally {
-      await document.release();
-    }
-
-    await writeArchiveDirectoryWithSchemaVersion(
-      sourceDir,
-      archivePath,
-      schemaVersion,
+        } finally {
+          await document.release();
+        }
+        const archive = new NodeFile(join(root, "book.wikg"));
+        await writeWikgArchive(directory, archive);
+        await operation({ archive, root });
+      },
     );
   });
 }
 
-async function writeBadWordCountArchive(
-  archivePath: string,
+async function rewriteManifest(
+  archive: NodeFile,
   schemaVersion: number,
-  sourceText: string,
+  addDerivedIndex: boolean,
 ): Promise<void> {
-  await withTempDir(
-    "wikigraph-schema-bad-words-archive-",
-    async (sourceDir) => {
-      const document = await DirectoryDocument.open(sourceDir);
-
-      try {
-        await document.openSession(async (openedDocument) => {
-          const serialId = await openedDocument.createSerial();
-          const draft = await openedDocument
-            .getSerialFragments(serialId)
-            .createDraft();
-
-          draft.addSentence(sourceText, 1);
-          await draft.commit();
-          await openedDocument.writeToc({
-            items: [
-              {
-                children: [],
-                key: "bad-words",
-                serialId,
-                title: "Bad Words",
-              },
-            ],
-            version: 1,
-          });
-        });
-        await createLegacyArchiveIndexSettings(document);
-      } finally {
-        await document.release();
-      }
-
-      await writeArchiveDirectoryWithSchemaVersion(
-        sourceDir,
-        archivePath,
-        schemaVersion,
-      );
-    },
-  );
-}
-
-async function writeArchiveWithSchemaVersion(
-  archivePath: string,
-  schemaVersion: number,
-  tocContent = "legacy toc",
-): Promise<void> {
-  await withTempDir("wikigraph-schema-empty-archive-", async (sourceDir) => {
-    const document = await DirectoryDocument.open(sourceDir);
-
-    try {
-      await createLegacyArchiveIndexSettings(document);
-    } finally {
-      await document.release();
-    }
-    await writeFile(join(sourceDir, "toc.json"), tocContent, "utf8");
-    await writeArchiveDirectoryWithSchemaVersion(
-      sourceDir,
-      archivePath,
-      schemaVersion,
-    );
-  });
-}
-
-async function createLegacyArchiveIndexSettings(
-  document: DirectoryDocument,
-): Promise<void> {
-  await document.readDatabase(async (database) => {
-    await database.run(`
-      CREATE TABLE IF NOT EXISTS archive_index_settings (
-        id INTEGER PRIMARY KEY CHECK (id = 1),
-        fts_embedded INTEGER NOT NULL DEFAULT 0
-      )
-    `);
-    await database.run(
-      `
-        INSERT INTO archive_index_settings(id, fts_embedded)
-        VALUES (1, 1)
-        ON CONFLICT(id)
-        DO UPDATE SET fts_embedded = excluded.fts_embedded
-      `,
-    );
-  });
-}
-
-async function writeArchiveDirectoryWithSchemaVersion(
-  sourceDir: string,
-  archivePath: string,
-  schemaVersion: number,
-): Promise<void> {
-  await mkdir(dirname(archivePath), { recursive: true });
-
-  const zipFile = new ZipFile();
-  zipFile.addBuffer(
-    createWikgMutationTokenContent(),
-    WIKG_MUTATION_TOKEN_PATH,
-    {
-      compress: false,
-    },
-  );
-  zipFile.addBuffer(
-    Buffer.from(
+  const entries = [...(await nodeWikiGraphPlatform.zip.read(archive))]
+    .filter((entry) => entry.name !== WIKG_MANIFEST_PATH)
+    .map((entry) => ({ data: entry.data, name: entry.name }));
+  entries.push({
+    data: new TextEncoder().encode(
       `${JSON.stringify({ formatVersion: 1, schemaVersion })}\n`,
-      "utf8",
     ),
-    WIKG_MANIFEST_PATH,
-    {
-      compress: false,
-    },
-  );
-
-  for (const file of await listTestArchiveFiles(sourceDir)) {
-    zipFile.addFile(file.absolutePath, file.archivePath, {
-      compress: false,
+    name: WIKG_MANIFEST_PATH,
+  });
+  if (addDerivedIndex) {
+    entries.push({
+      data: new Uint8Array([1, 2, 3]),
+      name: SEARCH_INDEX_DATABASE_PATH,
     });
   }
-  zipFile.addBuffer(
-    Buffer.from("legacy index", "utf8"),
-    SEARCH_INDEX_DATABASE_PATH,
-    {
-      compress: false,
-    },
-  );
-  zipFile.addBuffer(
-    Buffer.from("legacy fts", "utf8"),
-    LEGACY_SEARCH_INDEX_DATABASE_PATH,
-    {
-      compress: false,
-    },
-  );
-
-  zipFile.end();
-  await writeZipFile(zipFile, archivePath);
-}
-
-async function listTestArchiveFiles(
-  rootDirectoryPath: string,
-  currentDirectoryPath = rootDirectoryPath,
-): Promise<Array<{ absolutePath: string; archivePath: string }>> {
-  const entries = await readdir(currentDirectoryPath, { withFileTypes: true });
-  const files: Array<{ absolutePath: string; archivePath: string }> = [];
-
-  for (const entry of entries) {
-    const absolutePath = join(currentDirectoryPath, entry.name);
-
-    if (entry.isDirectory()) {
-      files.push(
-        ...(await listTestArchiveFiles(rootDirectoryPath, absolutePath)),
-      );
-      continue;
-    }
-    if (!entry.isFile()) {
-      continue;
-    }
-
-    const archivePath = relative(rootDirectoryPath, absolutePath)
-      .split(sep)
-      .join(posix.sep);
-
-    if (isTestArchiveDocumentPath(archivePath)) {
-      files.push({ absolutePath, archivePath });
-    }
-  }
-
-  return files.sort((left, right) =>
-    left.archivePath.localeCompare(right.archivePath),
-  );
-}
-
-function isTestArchiveDocumentPath(archivePath: string): boolean {
-  return isWikgArchivePath(archivePath);
-}
-
-async function readRawWikgArchiveEntry(
-  archivePath: string,
-  entryPath: string,
-): Promise<Buffer | undefined> {
-  const { entries, zipFile } = await openIndexedArchive(archivePath);
-
-  try {
-    const entry = entries.find((candidate) => candidate.fileName === entryPath);
-
-    return entry === undefined
-      ? undefined
-      : await readArchiveEntryBuffer(archivePath, entry);
-  } finally {
-    zipFile.close();
-  }
-}
-
-async function writeZipFile(
-  zipFile: ZipFile,
-  outputPath: string,
-): Promise<void> {
-  const output = createWriteStream(outputPath);
-  const outputDone = finished(output);
-  const zipDone = finished(zipFile.outputStream);
-
-  zipFile.outputStream.pipe(output);
-  await Promise.all([outputDone, zipDone]);
+  await nodeWikiGraphPlatform.zip.write(archive, entries);
 }

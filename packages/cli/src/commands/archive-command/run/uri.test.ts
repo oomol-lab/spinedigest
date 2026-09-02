@@ -17,7 +17,7 @@ import {
 import {
   getWikiGraphStateDirectoryPathForTesting,
   setWikiGraphStateDirectoryPathForTesting,
-} from "../../../../../core/src/runtime/common/wiki-graph/dir.js";
+} from "../../../../../../test/helpers/wiki-graph-storage.js";
 import { readWikgArchiveEntry } from "../../../../../core/src/storage/wikg/archive/index.js";
 import { runArchiveChapterCommand } from "../chapter.js";
 import {
@@ -25,6 +25,11 @@ import {
   resolveArchiveRuntimeLocation,
 } from "./uri.js";
 import { createEmptyArchive } from "../../test-helpers.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+  NodeFile,
+} from "../../../runtime/node-platform.js";
 
 let previousStateDir: string | undefined;
 let tempDir: string;
@@ -46,7 +51,7 @@ describe("archive-command URI runtime resolution", () => {
     const source = join(tempDir, "book.wikg");
     await createEmptyArchive({ path: source, tempDir });
     const archive = await addWikiGraphLibraryArchive({
-      inputPath: source,
+      inputFile: new NodeFile(source),
       target,
       to: "books/book.wikg",
     });
@@ -60,9 +65,9 @@ describe("archive-command URI runtime resolution", () => {
       }),
     ).resolves.toStrictEqual({
       action: "get",
-      archivePath: `wikg://${archive.path}/entity/Q23`,
+      archivePath: `wikg://${getNodeResourcePath(archive.file!)}/entity/Q23`,
       format: "json",
-      objectId: `wikg://${archive.path}/entity/Q23`,
+      objectId: `wikg://${getNodeResourcePath(archive.file!)}/entity/Q23`,
     });
   });
 
@@ -84,8 +89,8 @@ describe("archive-command URI runtime resolution", () => {
     await expect(
       resolveArchiveRuntimeLocation(archive.uri),
     ).resolves.toMatchObject({
-      archivePath: archive.path,
-      locatedUri: `wikg://${archive.path}`,
+      archivePath: getNodeResourcePath(archive.file!),
+      locatedUri: `wikg://${getNodeResourcePath(archive.file!)}`,
     });
   });
 
@@ -111,7 +116,7 @@ describe("archive-command URI runtime resolution", () => {
 
   it("keeps explicit library index current after archive writes through a library locator", async () => {
     const library = await createWikiGraphLibrary({
-      folderPath: join(tempDir, "team-library"),
+      folder: new NodeDirectory(join(tempDir, "team-library")),
     });
     const target = parseWikiGraphLibraryUri(library.uri);
     expect(target).toBeDefined();
@@ -146,7 +151,7 @@ describe("archive-command URI runtime resolution", () => {
 
     await runArchiveChapterCommand({
       action: "add",
-      path: `wikg://${archive.path}`,
+      path: `wikg://${getNodeResourcePath(archive.file!)}`,
     });
 
     await expect(readWikiGraphLibraryIndexState(target)).resolves.toMatchObject(
@@ -182,7 +187,7 @@ describe("archive-command URI runtime resolution", () => {
     expect(target).toBeDefined();
     const archive = await addTestArchiveToLibrary(target!);
 
-    await new WikiGraphArchiveFile(archive.path).write(
+    await new WikiGraphArchiveFile(archive.file!).write(
       async (document) => {
         await replaceChapterFtsIndexArtifact(document, 1);
         await rebuildArchiveSearchIndex(document);
@@ -190,14 +195,14 @@ describe("archive-command URI runtime resolution", () => {
       { searchIndexWritebackPolicy: "archive" },
     );
     await expect(
-      readWikgArchiveEntry(archive.path, "index.db"),
+      readWikgArchiveEntry(getNodeResourcePath(archive.file!), "index.db"),
     ).resolves.toBeUndefined();
 
     await runArchiveChapterCommand({ action: "add", path: archive.uri });
 
-    await expect(readWikgArchiveEntry(archive.path, "index.db")).resolves.toBe(
-      undefined,
-    );
+    await expect(
+      readWikgArchiveEntry(getNodeResourcePath(archive.file!), "index.db"),
+    ).resolves.toBe(undefined);
     const state = await readWikiGraphLibraryIndexState(target!);
 
     expect(["current", "dirty"]).toContain(state.status);
@@ -211,7 +216,7 @@ async function addTestArchiveToLibrary(
   await createEmptyArchive({ path: source, tempDir });
 
   return await addWikiGraphLibraryArchive({
-    inputPath: source,
+    inputFile: new NodeFile(source),
     target,
     to: `${randomUUID()}.wikg`,
   });
@@ -221,7 +226,7 @@ async function createTestLibraryTarget(): Promise<
   NonNullable<ReturnType<typeof parseWikiGraphLibraryUri>>
 > {
   const library = await createWikiGraphLibrary({
-    folderPath: join(tempDir, `library-${randomUUID()}`),
+    folder: new NodeDirectory(join(tempDir, `library-${randomUUID()}`)),
   });
   const target = parseWikiGraphLibraryUri(library.uri);
 

@@ -1,52 +1,62 @@
-import { mkdir } from "../platform/index.js";
-import { join } from "../platform/index.js";
+import {
+  ensureRelativeDirectory,
+  ensureRelativeFile,
+  getWikiGraphStorage,
+  type Directory,
+  type File,
+} from "../platform/index.js";
 
-import { resolveWikiGraphJobsDirectoryPath } from "../common/wiki-graph/dir.js";
-
-export function getBuildQueueDatabasePath(): string {
-  return join(getBuildQueueStateDirectoryPath(), "job.sqlite");
+export async function createJobWorkspace(jobId: string): Promise<Directory> {
+  return await ensureRelativeDirectory(
+    getWikiGraphStorage().library,
+    `jobs/work/${jobId}`,
+  );
 }
 
-export async function createJobWorkspacePath(jobId: string): Promise<string> {
-  const workspacePath = join(getBuildJobWorkspaceRootPath(), jobId);
-
-  await mkdir(workspacePath, { recursive: true });
-  return workspacePath;
+export async function createJobCache(jobId: string): Promise<Directory> {
+  return await ensureRelativeDirectory(
+    getWikiGraphStorage().library,
+    `jobs/cache/${jobId}`,
+  );
 }
 
-export function getBuildJobWorkspaceRootPath(): string {
-  return join(getBuildQueueStateDirectoryPath(), "work");
+export async function createJobLog(jobId: string): Promise<Directory> {
+  return await ensureRelativeDirectory(
+    getWikiGraphStorage().library,
+    `jobs/logs/${jobId}`,
+  );
 }
 
-export async function createJobCachePath(jobId: string): Promise<string> {
-  const cachePath = join(getBuildJobCacheRootPath(), jobId);
-
-  await mkdir(cachePath, { recursive: true });
-  return cachePath;
+export async function createJobEvents(jobId: string): Promise<File> {
+  return await ensureRelativeFile(
+    getWikiGraphStorage().library,
+    `jobs/events/${jobId}.ndjson`,
+  );
 }
 
-function getBuildJobCacheRootPath(): string {
-  return join(getBuildQueueStateDirectoryPath(), "cache");
+export async function getBuildJobWorkspaceRoot(): Promise<Directory> {
+  return await ensureRelativeDirectory(
+    getWikiGraphStorage().library,
+    "jobs/work",
+  );
 }
 
-export async function createJobLogPath(jobId: string): Promise<string> {
-  const logPath = join(getBuildJobLogRootPath(), jobId);
-
-  await mkdir(logPath, { recursive: true });
-  return logPath;
+export async function removeJobResources(jobId: string): Promise<void> {
+  const jobs = await getWikiGraphStorage().library.getDirectory("jobs");
+  if (jobs === undefined) return;
+  for (const [parentName, childName, recursive] of [
+    ["work", jobId, true],
+    ["cache", jobId, true],
+    ["logs", jobId, true],
+    ["events", `${jobId}.ndjson`, false],
+  ] as const) {
+    const parent = await jobs.getDirectory(parentName);
+    if (parent !== undefined) await parent.remove(childName, { recursive });
+  }
 }
 
-function getBuildJobLogRootPath(): string {
-  return join(getBuildQueueStateDirectoryPath(), "logs");
-}
-
-export async function createJobEventsPath(jobId: string): Promise<string> {
-  const rootPath = join(getBuildQueueStateDirectoryPath(), "events");
-
-  await mkdir(rootPath, { recursive: true });
-  return join(rootPath, `${jobId}.ndjson`);
-}
-
-export function getBuildQueueStateDirectoryPath(): string {
-  return resolveWikiGraphJobsDirectoryPath();
+export async function removeJobWorkspace(jobId: string): Promise<void> {
+  const jobs = await getWikiGraphStorage().library.getDirectory("jobs");
+  const work = await jobs?.getDirectory("work");
+  if (work !== undefined) await work.remove(jobId, { recursive: true });
 }

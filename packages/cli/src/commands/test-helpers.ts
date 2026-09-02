@@ -6,13 +6,15 @@ import {
   TOC_FILE_VERSION,
   writeWikgArchive,
 } from "../../../core/src/index.js";
+import { NodeDirectory, NodeFile } from "../runtime/node-platform.js";
 
 export async function createEmptyArchive(input: {
   readonly tempDir: string;
   readonly path: string;
 }): Promise<void> {
   const sourceDir = await mkdtemp(join(input.tempDir, "wikg-source-"));
-  const document = await DirectoryDocument.open(sourceDir);
+  const directory = new NodeDirectory(sourceDir);
+  const document = await DirectoryDocument.open(directory);
 
   try {
     try {
@@ -22,7 +24,7 @@ export async function createEmptyArchive(input: {
     } finally {
       await document.release();
     }
-    await writeWikgArchive(sourceDir, input.path);
+    await writeWikgArchive(directory, new NodeFile(input.path));
   } finally {
     await rm(sourceDir, { force: true, recursive: true });
   }

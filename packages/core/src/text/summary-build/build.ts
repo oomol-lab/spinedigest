@@ -51,9 +51,9 @@ export async function buildSummaryFromReadyDocument(
       maxIterations: 5,
       scopes: WIKI_GRAPH_EDITOR_SCOPES,
       serialId: chapterId,
-      ...(options.logDirPath === undefined
+      ...(options.logDirectory === undefined
         ? {}
-        : { logDirPath: options.logDirPath }),
+        : { logDirectory: options.logDirectory }),
       ...(options.userLanguage === undefined
         ? {}
         : { userLanguage: options.userLanguage }),

@@ -351,7 +351,7 @@ async function ensureArchiveQueryIndexCache(
 ): Promise<void> {
   const location = await resolveArchiveRuntimeLocation(args.archivePath);
 
-  await new WikiGraphArchiveFile(location.archivePath).write(
+  await new WikiGraphArchiveFile(location.archiveFile).write(
     async (document) => {
       const scopedArgs = await createScopedQueryArgs(document, args);
       const options =

@@ -85,6 +85,9 @@ importers:
       "@ai-sdk/openai-compatible":
         specifier: ^2.0.41
         version: 2.0.41(zod@4.3.6)
+      "@noble/hashes":
+        specifier: ^2.4.0
+        version: 2.4.0
       ai:
         specifier: ^6.0.154
         version: 6.0.154(zod@4.3.6)
@@ -140,6 +143,9 @@ importers:
       "@ai-sdk/openai-compatible":
         specifier: ^2.0.41
         version: 2.0.41(zod@4.3.6)
+      "@noble/hashes":
+        specifier: ^2.4.0
+        version: 2.4.0
       ai:
         specifier: ^6.0.154
         version: 6.0.154(zod@4.3.6)
@@ -149,9 +155,6 @@ importers:
       jsonrepair:
         specifier: ^3.13.3
         version: 3.13.3
-      nunjucks:
-        specifier: ^3.2.4
-        version: 3.2.4
       saxes:
         specifier: ^6.0.0
         version: 6.0.0
@@ -652,6 +655,13 @@ packages:
     peerDependencies:
       "@emnapi/core": ^1.7.1
       "@emnapi/runtime": ^1.7.1
+
+  "@noble/hashes@2.4.0":
+    resolution:
+      {
+        integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==,
+      }
+    engines: { node: ">= 20.19.0" }
 
   "@npmcli/agent@4.0.0":
     resolution:
@@ -3606,6 +3616,8 @@ snapshots:
       "@emnapi/runtime": 1.9.2
       "@tybys/wasm-util": 0.10.1
     optional: true
+
+  "@noble/hashes@2.4.0": {}
 
   "@npmcli/agent@4.0.0":
     dependencies:

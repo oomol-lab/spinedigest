@@ -1,4 +1,3 @@
-import { binary as platformBinary } from "../../../runtime/platform/index.js";
 import { parseDocument } from "htmlparser2";
 
 import { countTextWords } from "../../../utils/text-word-count.js";
@@ -158,7 +157,7 @@ export class EpubContentLoader {
 }
 
 export async function analyzeSectionTargets(
-  archive: Pick<EpubArchive, "openReadStream">,
+  archive: Pick<EpubArchive, "readText">,
   targetsByPath: ReadonlyMap<string, readonly EpubSectionTarget[]>,
 ): Promise<ReadonlyMap<string, EpubSectionAnalysis>> {
   const analyses = new Map<string, EpubSectionAnalysis>();
@@ -207,18 +206,10 @@ function createTargetsBySectionId(
 }
 
 async function readArchiveText(
-  archive: Pick<EpubArchive, "openReadStream">,
+  archive: Pick<EpubArchive, "readText">,
   path: string,
 ): Promise<string> {
-  const stream = await archive.openReadStream(path);
-  stream.setEncoding("utf8");
-
-  let text = "";
-  for await (const chunk of stream as AsyncIterable<unknown>) {
-    text += toTextChunk(chunk);
-  }
-
-  return text;
+  return await archive.readText(path);
 }
 
 function parseHtmlSectionTexts(
@@ -809,16 +800,4 @@ function escapeCfiAssertion(value: string): string {
       "[]^(),;=".includes(character) ? `^${character}` : character,
     )
     .join("");
-}
-
-function toTextChunk(chunk: unknown): string {
-  if (typeof chunk === "string") {
-    return chunk;
-  }
-
-  if (platformBinary.isBuffer(chunk)) {
-    return (chunk as { toString(encoding?: string): string }).toString("utf8");
-  }
-
-  throw new Error("Unexpected HTML stream chunk type");
 }

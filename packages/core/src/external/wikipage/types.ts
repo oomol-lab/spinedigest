@@ -5,12 +5,14 @@ import type {
   WikiPageInfo,
 } from "./wikimedia-client/index.js";
 
+import type { Directory, File } from "../../runtime/platform/index.js";
+
 export interface WikipageResolverOptions {
-  readonly cacheDatabasePath?: string;
+  readonly cacheDatabaseFile?: File;
   readonly concurrency?: number;
   readonly fetch?: typeof fetch;
   readonly language?: string;
-  readonly logDirPath?: string;
+  readonly logDirectory?: Directory;
   readonly maxBatchSize?: number;
   readonly minRequestIntervalMs?: number;
   readonly normalizer?: DisambiguationProfileNormalizer;

@@ -27,9 +27,9 @@ export async function generateChapterGraph(
     const generation = new SerialGeneration({
       document: openedDocument,
       llm: options.llm,
-      ...(options.logDirPath === undefined
+      ...(options.logDirectory === undefined
         ? {}
-        : { logDirPath: options.logDirPath }),
+        : { logDirectory: options.logDirectory }),
     });
     await openedDocument.clearSerialReadingGraph(chapterId);
 
@@ -69,9 +69,9 @@ export async function generateChapterSummary(
     const generation = new SerialGeneration({
       document: openedDocument,
       llm: options.llm,
-      ...(options.logDirPath === undefined
+      ...(options.logDirectory === undefined
         ? {}
-        : { logDirPath: options.logDirPath }),
+        : { logDirectory: options.logDirectory }),
     });
 
     await generation.buildSummary(chapterId, {

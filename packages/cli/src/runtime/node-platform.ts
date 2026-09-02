@@ -1,30 +1,23 @@
 /* eslint-disable no-restricted-syntax, @typescript-eslint/parameter-properties */
 import * as asyncHooks from "node:async_hooks";
-import * as buffer from "node:buffer";
-import * as childProcess from "node:child_process";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as pathModule from "node:path";
 import * as process from "node:process";
-import * as stream from "node:stream";
-import * as streamPromises from "node:stream/promises";
-import * as timers from "node:timers/promises";
-import * as url from "node:url";
-import * as zlib from "node:zlib";
 import * as sqlite3 from "sqlite3";
 import * as yauzl from "yauzl";
 import * as yazl from "yazl";
-import { createInterface } from "node:readline";
+import { Environment, Loader, type LoaderSource } from "nunjucks";
 
 const nodeProcess =
   (process as unknown as { default?: typeof process }).default ?? process;
 
 import {
-  installLegacyRuntimePlatform,
   installWikiGraphPlatform,
   installWikiGraphStorage,
+  withWikiGraphStorage,
   type Directory,
   type File,
   type FileWriter,
@@ -32,9 +25,10 @@ import {
   type HostDatabaseRow,
   type HostDatabaseValue,
   type HostZipEntry,
-  type LegacyRuntimePlatform,
   type WikiGraphPlatform,
+  type WikiGraphStorage,
 } from "../../../core/src/runtime/platform/index.js";
+import { normalizeTemplateName } from "../../../core/src/runtime/common/template.js";
 
 /** Install the Node implementation used by the CLI and its workers. */
 export class NodeFile implements File {
@@ -45,10 +39,7 @@ export class NodeFile implements File {
     public readonly path: string,
     name = pathModule.basename(path),
   ) {
-    this.identity = crypto
-      .createHash("sha256")
-      .update(pathModule.resolve(path))
-      .digest("hex");
+    this.identity = encodeNodeResourceIdentity("file", path);
     this.name = name;
   }
 
@@ -64,10 +55,39 @@ export class NodeFile implements File {
   }
 
   public async getSize(): Promise<number> {
-    return (await fsPromises.stat(this.path)).size;
+    try {
+      return (await fsPromises.stat(this.path)).size;
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        return 0;
+      }
+      throw error;
+    }
+  }
+
+  public async getLastModified(): Promise<number | undefined> {
+    try {
+      return (await fsPromises.stat(this.path)).mtimeMs;
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        return undefined;
+      }
+      throw error;
+    }
   }
 
   public async openWriter(): Promise<FileWriter> {
+    await fsPromises.mkdir(pathModule.dirname(this.path), { recursive: true });
     const temporary = `${this.path}.tmp-${crypto.randomUUID()}`;
     const handle = await fsPromises.open(temporary, "wx");
     let closed = false;
@@ -100,10 +120,7 @@ export class NodeDirectory implements Directory {
   public readonly name: string;
 
   public constructor(public readonly path: string) {
-    this.identity = crypto
-      .createHash("sha256")
-      .update(`directory\0${pathModule.resolve(path)}`)
-      .digest("hex");
+    this.identity = encodeNodeResourceIdentity("directory", path);
     this.name = pathModule.basename(path);
   }
 
@@ -114,6 +131,22 @@ export class NodeDirectory implements Directory {
       return (await fsPromises.stat(file.path)).isFile() ? file : undefined;
     } catch {
       return undefined;
+    }
+  }
+
+  public async getLastModified(): Promise<number | undefined> {
+    try {
+      return (await fsPromises.stat(this.path)).mtimeMs;
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        return undefined;
+      }
+      throw error;
     }
   }
 
@@ -142,6 +175,7 @@ export class NodeDirectory implements Directory {
 
   public async createFile(name: string): Promise<File> {
     assertChildName(name);
+    await fsPromises.mkdir(this.path, { recursive: true });
     const file = new NodeFile(pathModule.join(this.path, name));
     await fsPromises.writeFile(file.path, "", { flag: "wx" });
     return file;
@@ -149,6 +183,7 @@ export class NodeDirectory implements Directory {
 
   public async createDirectory(name: string): Promise<Directory> {
     assertChildName(name);
+    await fsPromises.mkdir(this.path, { recursive: true });
     const directory = new NodeDirectory(pathModule.join(this.path, name));
     await fsPromises.mkdir(directory.path);
     return directory;
@@ -166,11 +201,54 @@ export class NodeDirectory implements Directory {
   }
 }
 
+function encodeNodeResourceIdentity(
+  kind: "directory" | "file",
+  path: string,
+): string {
+  return `node-${kind}:${Buffer.from(pathModule.resolve(path), "utf8").toString("base64url")}`;
+}
+
+function decodeNodeResourceIdentity(
+  identity: string,
+  kind: "directory" | "file",
+): string | undefined {
+  const prefix = `node-${kind}:`;
+  if (!identity.startsWith(prefix)) {
+    // State created before opaque resource identities stored native paths.
+    return pathModule.isAbsolute(identity) ? identity : undefined;
+  }
+  try {
+    return Buffer.from(identity.slice(prefix.length), "base64url").toString(
+      "utf8",
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+export function getNodeResourcePath(resource: File | Directory): string {
+  if (resource instanceof NodeFile || resource instanceof NodeDirectory) {
+    return resource.path;
+  }
+  if (
+    typeof resource === "object" &&
+    resource !== null &&
+    "path" in resource &&
+    typeof resource.path === "string"
+  ) {
+    return resource.path;
+  }
+  throw new TypeError("Expected a Node File or Directory resource");
+}
+
 function assertChildName(name: string): void {
   if (
     name.length === 0 ||
+    name === "." ||
+    name === ".." ||
     pathModule.isAbsolute(name) ||
-    name.split(pathModule.sep).some((part) => part === "..")
+    name.includes("/") ||
+    name.includes("\\")
   ) {
     throw new TypeError(`Directory child must be a relative name: ${name}`);
   }
@@ -338,89 +416,83 @@ export const nodeWikiGraphPlatform: WikiGraphPlatform = {
     create: <T>() => new asyncHooks.AsyncLocalStorage<T>(),
   },
   database: { open: openNodeDatabase },
+  resources: {
+    getDirectory: (identity) => {
+      const path = decodeNodeResourceIdentity(identity, "directory");
+      return Promise.resolve(
+        path === undefined ? undefined : new NodeDirectory(path),
+      );
+    },
+    getFile: (identity) => {
+      const path = decodeNodeResourceIdentity(identity, "file");
+      return Promise.resolve(
+        path === undefined ? undefined : new NodeFile(path),
+      );
+    },
+  },
+  templates: {
+    createEnvironment: (options) =>
+      new Environment(new NodeTemplateLoader(), options),
+  },
   zip: { read: readNodeZip, write: writeNodeZip },
 };
 
-const nodeLegacyRuntimePlatform: LegacyRuntimePlatform = {
-  binary: buffer.Buffer,
-  compression: { inflateRaw: zlib.inflateRaw },
-  crypto: {
-    createHash: crypto.createHash,
-    randomBytes: crypto.randomBytes,
-    randomUUID: crypto.randomUUID,
-  },
-  database: {
-    module: sqlite3,
-    open: openNativeNodeDatabase,
-  },
-  files: {
-    access: fsPromises.access,
-    appendFile: fsPromises.appendFile,
-    chmod: fsPromises.chmod,
-    constants: fs.constants,
-    copyFile: fsPromises.copyFile,
-    createReadStream: fs.createReadStream,
-    createWriteStream: fs.createWriteStream,
-    existsSync: fs.existsSync,
-    mkdir: fsPromises.mkdir,
-    mkdirSync: fs.mkdirSync,
-    mkdtemp: fsPromises.mkdtemp,
-    open: fsPromises.open,
-    opendir: fsPromises.opendir,
-    readFile: fsPromises.readFile,
-    readFileSync: fs.readFileSync,
-    readdir: fsPromises.readdir,
-    realpath: fsPromises.realpath,
-    rename: fsPromises.rename,
-    rm: fsPromises.rm,
-    rmdir: fsPromises.rmdir,
-    stat: fsPromises.stat,
-    statSync: fs.statSync,
-    unlink: fsPromises.unlink,
-    writeFile: fsPromises.writeFile,
-  },
-  paths: {
-    basename: pathModule.basename,
-    dirname: pathModule.dirname,
-    extname: pathModule.extname,
-    isAbsolute: pathModule.isAbsolute,
-    join: pathModule.join,
-    parse: pathModule.parse,
-    posix: pathModule.posix,
-    relative: pathModule.relative,
-    resolve: pathModule.resolve,
-  },
-  execution: {
-    argv: nodeProcess.argv,
-    cwd: nodeProcess.cwd.bind(nodeProcess),
-    env: nodeProcess.env,
-    kill: nodeProcess.kill.bind(nodeProcess),
-    once: nodeProcess.once.bind(nodeProcess),
-    pid: nodeProcess.pid,
-    removeListener: nodeProcess.removeListener.bind(nodeProcess),
-    stderr: nodeProcess.stderr,
-  },
-  streams: {
-    finished: streamPromises.finished,
-    PassThrough: stream.PassThrough,
-    pipeline: streamPromises.pipeline,
-    readLines: (input: NodeJS.ReadableStream) =>
-      createInterface({ input, crlfDelay: Infinity }),
-    Writable: stream.Writable,
-  },
-  subprocess: { spawn: childProcess.spawn },
-  system: { homedir: os.homedir, tmpdir: os.tmpdir },
-  timers: { sleep: timers.setTimeout },
-  url: { fileURLToPath: url.fileURLToPath },
-  zip: { open: yauzl.open, Writer: yazl.ZipFile },
-};
+class NodeTemplateLoader extends Loader {
+  public getSource(templateName: string): LoaderSource {
+    const name = normalizeTemplateName(templateName);
+    const filePath = pathModule.join(resolveNodeDataDirectory(), name);
+    return {
+      noCache: false,
+      path: name,
+      src: fs.readFileSync(filePath, "utf8"),
+    };
+  }
+}
 
-export function installNodeWikiGraphPlatform(): void {
-  installWikiGraphPlatform(nodeWikiGraphPlatform);
-  installLegacyRuntimePlatform(nodeLegacyRuntimePlatform);
-  const stateRoot = pathModule.join(os.homedir(), ".wikigraph");
-  installWikiGraphStorage({
+function resolveNodeDataDirectory(): string {
+  const injected = (globalThis as { __WIKIGRAPH_DATA_DIR__?: unknown })
+    .__WIKIGRAPH_DATA_DIR__;
+  if (typeof injected === "string" && injected !== "") return injected;
+  let directory = nodeProcess.cwd();
+  while (true) {
+    for (const candidate of [
+      pathModule.join(directory, "data"),
+      pathModule.join(directory, "packages", "core", "data"),
+    ]) {
+      try {
+        if (fs.statSync(candidate).isDirectory()) return candidate;
+      } catch {
+        // Keep looking toward the filesystem root.
+      }
+    }
+    const parent = pathModule.dirname(directory);
+    if (parent === directory)
+      throw new Error("Could not locate data directory");
+    directory = parent;
+  }
+}
+
+export function createNodeWikiGraphStorage(
+  stateRoot = pathModule.join(os.homedir(), ".wikigraph"),
+): WikiGraphStorage {
+  fs.mkdirSync(pathModule.join(stateRoot, "documents"), { recursive: true });
+  return {
     library: new NodeDirectory(stateRoot),
     documentStore: new NodeDirectory(pathModule.join(stateRoot, "documents")),
-  });
+  };
+}
+
+export function installNodeWikiGraphPlatform(stateRoot?: string): void {
+  installWikiGraphPlatform(nodeWikiGraphPlatform);
+  installWikiGraphStorage(createNodeWikiGraphStorage(stateRoot));
+}
+
+export async function withNodeWikiGraphStorage<T>(
+  stateRoot: string | undefined,
+  operation: () => Promise<T> | T,
+): Promise<T> {
+  return await withWikiGraphStorage(
+    stateRoot === undefined ? undefined : createNodeWikiGraphStorage(stateRoot),
+    operation,
+  );
 }

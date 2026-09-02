@@ -78,6 +78,11 @@ import {
   writeWikgObjectsToJsonl,
 } from "../../../packages/core/src/object-stream.js";
 import { withTempDir } from "../../helpers/temp.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+  NodeFile,
+} from "../../../packages/cli/src/runtime/node-platform.js";
 
 describe("facade/chapter graph", () => {
   it("rebuilds graph without duplicating source fragments", async () => {
@@ -147,15 +152,17 @@ describe("facade/chapter graph", () => {
           extractionPrompt: "Keep key beats",
           llm: {} as never,
           sourceText: input.sourceText,
-          workspacePath: `${path}/job-workspace`,
+          workspace: new NodeDirectory(`${path}/job-workspace`),
         });
 
         await expect(
           access(
-            `${artifact.documentPath}/fragments/serial-${chapter.chapterId}/fragment_0.json`,
+            `${getNodeResourcePath(artifact.documentDirectory)}/fragments/serial-${chapter.chapterId}/fragment_0.json`,
           ),
         ).resolves.toBeUndefined();
-        await expect(access(artifact.objectsPath)).resolves.toBeUndefined();
+        await expect(
+          access(getNodeResourcePath(artifact.objectsFile)),
+        ).resolves.toBeUndefined();
         await commitChapterGraphArtifact(document, artifact);
 
         await expect(
@@ -330,22 +337,26 @@ describe("facade/chapter graph", () => {
         const snapshot = await snapshotChapterSummaryInput(
           document,
           chapter.chapterId,
-          `${path}/job-workspace`,
+          new NodeDirectory(`${path}/job-workspace`),
         );
         const summary = await buildChapterSummaryArtifactFromSnapshot(
           chapter.chapterId,
           {
             llm: {} as never,
-            snapshotPath: snapshot.filePath,
-            workspacePath: `${path}/job-workspace`,
+            snapshotFile: snapshot.file,
+            workspace: new NodeDirectory(`${path}/job-workspace`),
           },
         );
 
-        expect(snapshot.filePath).toBe(
+        expect(getNodeResourcePath(snapshot.file)).toBe(
           `${path}/job-workspace/summary-input.json`,
         );
-        await expect(pathExists(snapshot.filePath)).resolves.toBe(true);
-        await expect(pathExists(snapshot.objectsPath)).resolves.toBe(true);
+        await expect(
+          pathExists(getNodeResourcePath(snapshot.file)),
+        ).resolves.toBe(true);
+        await expect(
+          pathExists(getNodeResourcePath(snapshot.objectsFile)),
+        ).resolves.toBe(true);
         await expect(
           pathExists(`${path}/job-workspace/summary-input-document`),
         ).resolves.toBe(false);
@@ -405,15 +416,15 @@ describe("facade/chapter graph", () => {
         const snapshot = await snapshotChapterSummaryInput(
           document,
           chapter.chapterId,
-          `${path}/job-workspace`,
+          new NodeDirectory(`${path}/job-workspace`),
         );
         const summary =
           await buildChapterSummaryArtifactFromReadingGraphObjects(
             chapter.chapterId,
             {
               llm: {} as never,
-              readingGraphObjectsPath: snapshot.objectsPath,
-              workspacePath: `${path}/job-workspace`,
+              readingGraphObjectsFile: snapshot.objectsFile,
+              workspace: new NodeDirectory(`${path}/job-workspace`),
             },
           );
 
@@ -470,7 +481,7 @@ describe("facade/chapter graph", () => {
         const snapshot = await snapshotChapterSummaryInput(
           document,
           chapter.chapterId,
-          `${path}/job-workspace`,
+          new NodeDirectory(`${path}/job-workspace`),
         );
         const unrelatedDocument = await DirectoryDocument.open(
           `${path}/unrelated-archive`,
@@ -483,8 +494,8 @@ describe("facade/chapter graph", () => {
               chapter.chapterId,
               {
                 llm: {} as never,
-                readingGraphObjectsPath: snapshot.objectsPath,
-                workspacePath: `${path}/job-workspace`,
+                readingGraphObjectsFile: snapshot.objectsFile,
+                workspace: new NodeDirectory(`${path}/job-workspace`),
               },
             );
           } finally {
@@ -506,8 +517,10 @@ async function createSingleChunkGraphArtifact(input: {
   chunkLabel: string;
   documentPath: string;
 }) {
-  const document = await DirectoryDocument.open(input.documentPath);
+  const documentDirectory = new NodeDirectory(input.documentPath);
+  const document = await DirectoryDocument.open(documentDirectory);
   const objectsPath = `${input.documentPath}.jsonl`;
+  const objectsFile = new NodeFile(objectsPath);
 
   try {
     await document.openSession(async (openedDocument) => {
@@ -552,7 +565,7 @@ async function createSingleChunkGraphArtifact(input: {
       await openedDocument.serials.setTopologyReady(input.chapterId);
     });
     await writeWikgObjectsToJsonl(
-      objectsPath,
+      objectsFile,
       createChapterReadingGraphObjectStream({
         chapterId: input.chapterId,
         document,
@@ -567,8 +580,8 @@ async function createSingleChunkGraphArtifact(input: {
 
   return {
     chapterId: input.chapterId,
-    documentPath: input.documentPath,
-    objectsPath,
+    documentDirectory,
+    objectsFile,
     parameter: {
       prompt: "test graph prompt",
     },

@@ -1,4 +1,4 @@
-import { createHash } from "../../../runtime/platform/index.js";
+import { createPortableHash as createHash } from "../../../utils/crypto.js";
 
 import { SEARCH_RANKING_VERSION } from "./schema.js";
 import type {

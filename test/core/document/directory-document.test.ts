@@ -121,7 +121,7 @@ describe("document/directory-document", () => {
               version: 1,
             });
           }),
-        ).rejects.toThrow(`File already exists: ${path}/toc.json`);
+        ).rejects.toThrow("File already exists: toc.json");
 
         await expect(
           access(`${path}/toc.json`, fsConstants.F_OK),

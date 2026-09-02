@@ -56,14 +56,19 @@ const queueMockState = vi.hoisted(() => ({
     | "graphed"
     | "summarized",
   job: {
+    archive: { path: "book.wikg" },
     archivePath: "book.wikg",
+    cache: { path: "/tmp/job-cache" },
     cachePath: "/tmp/job-cache",
     chapterId: 12,
+    events: { path: "events.ndjson" },
     eventsPath: "events.ndjson",
     jobId: "job-1",
+    log: { path: "/tmp/job-logs" },
     logPath: "/tmp/job-logs",
     state: "succeeded",
     target: "reading-summary",
+    workspace: { path: "/tmp/job-workspace" },
     workspacePath: "/tmp/job-workspace",
   } as Record<string, unknown>,
   readDocumentCalls: [] as string[],
@@ -179,8 +184,8 @@ vi.mock(
     WikiGraphArchiveFile: class {
       readonly #path: string;
 
-      public constructor(path: string) {
-        this.#path = path;
+      public constructor(path: string | { readonly path: string }) {
+        this.#path = typeof path === "string" ? path : path.path;
       }
 
       public async read(
@@ -229,9 +234,7 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
   addBuildJob: vi.fn((options: unknown) => {
     queueMockState.addCalls.push(options);
     return Promise.resolve({
-      archivePath: "book.wikg",
-      chapterId: 12,
-      jobId: "job-1",
+      ...queueMockState.job,
       state: "queued",
       target: "reading-summary",
     });
@@ -373,7 +376,8 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
   snapshotChapterSummaryInput: vi.fn(() => {
     queueMockState.stepLog.push("snapshot-summary");
     return Promise.resolve({
-      filePath: "/tmp/job-workspace/summary-input.json",
+      file: new NodeFile("/tmp/job-workspace/summary-input.json"),
+      objectsFile: new NodeFile("/tmp/job-workspace/summary-objects.jsonl"),
     });
   }),
   updateBuildJobTarget: vi.fn(),
@@ -447,6 +451,10 @@ import {
   runQueueWorker,
 } from "../../packages/cli/src/commands/index.js";
 import { setCLIQueueAutostartForTesting } from "../../packages/cli/src/runtime/context.js";
+import {
+  NodeDirectory,
+  NodeFile,
+} from "../../packages/cli/src/runtime/node-platform.js";
 
 describe("cli/queue", () => {
   beforeEach(() => {
@@ -479,19 +487,24 @@ describe("cli/queue", () => {
     queueMockState.loadRequiredStageConfigError = undefined;
     queueMockState.jobs = [];
     queueMockState.job = {
+      archive: new NodeFile("book.wikg"),
       archiveKey: "archive-key",
       archivePath: "book.wikg",
+      cache: new NodeDirectory("/tmp/job-cache"),
       cachePath: "/tmp/job-cache",
       chapterId: 12,
       createdAt: 1,
+      events: new NodeFile("events.ndjson"),
       eventsPath: "events.ndjson",
       jobId: "job-1",
+      log: new NodeDirectory("/tmp/job-logs"),
       logPath: "/tmp/job-logs",
       ownerId: "owner-1",
       queueRank: 10,
       state: "succeeded",
       target: "reading-summary",
       updatedAt: 2,
+      workspace: new NodeDirectory("/tmp/job-workspace"),
       workspacePath: "/tmp/job-workspace",
     };
     queueMockState.openPaths.length = 0;
@@ -579,7 +592,7 @@ describe("cli/queue", () => {
 
     expect(queueMockState.addCalls).toStrictEqual([
       {
-        archivePath: "book.wikg",
+        archive: new NodeFile("book.wikg"),
         boost: true,
         chapterId: 12,
         target: "reading-graph",
@@ -986,14 +999,20 @@ describe("cli/queue", () => {
     expect(queueMockState.writeCalls).toStrictEqual(["book.wikg", "book.wikg"]);
     expect(queueMockState.buildGraphCalls).toHaveLength(1);
     expect(queueMockState.buildSummaryCalls).toHaveLength(1);
-    expect(queueMockState.buildSummaryCalls[0]).toMatchObject({
-      snapshotPath: "/tmp/job-workspace/summary-input.json",
-      workspacePath: "/tmp/job-workspace",
-    });
-    expect(queueMockState.createStageLLMCalls[0]).toMatchObject({
-      cacheDirPath: "/tmp/job-cache",
-      logDirPath: "/tmp/job-logs",
-    });
+    const summaryOptions = queueMockState.buildSummaryCalls[0] as {
+      readonly snapshotFile: { readonly path: string };
+      readonly workspace: { readonly path: string };
+    };
+    expect(summaryOptions.snapshotFile.path).toBe(
+      "/tmp/job-workspace/summary-input.json",
+    );
+    expect(summaryOptions.workspace.path).toBe("/tmp/job-workspace");
+    const stageLLMOptions = queueMockState.createStageLLMCalls[0] as {
+      readonly cacheDirectory: { readonly path: string };
+      readonly logDirectory: { readonly path: string };
+    };
+    expect(stageLLMOptions.cacheDirectory.path).toBe("/tmp/job-cache");
+    expect(stageLLMOptions.logDirectory.path).toBe("/tmp/job-logs");
     expect(queueMockState.buildSummaryCalls[0]).not.toHaveProperty(
       "sourceDocumentPath",
     );
@@ -1323,16 +1342,18 @@ describe("cli/queue", () => {
       wikispine: {
         provider: "fetch",
       },
-      workspacePath: "/tmp/job-workspace",
     });
     const knowledgeGraphOptions = queueMockState
       .buildKnowledgeGraphCalls[0] as {
       readonly resolverOptions?: Record<string, unknown>;
+      readonly workspace: { readonly path: string };
     };
 
-    expect(knowledgeGraphOptions.resolverOptions).toMatchObject({
-      logDirPath: "/tmp/job-logs",
-    });
+    expect(knowledgeGraphOptions.workspace.path).toBe("/tmp/job-workspace");
+    const resolverLogDirectory = knowledgeGraphOptions.resolverOptions?.[
+      "logDirectory"
+    ] as { readonly path: string };
+    expect(resolverLogDirectory.path).toBe("/tmp/job-logs");
     expect(knowledgeGraphOptions.resolverOptions?.normalizer).toEqual(
       expect.any(Function),
     );

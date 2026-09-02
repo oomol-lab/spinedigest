@@ -1,3 +1,5 @@
+import type { Directory, File } from "../platform/index.js";
+
 export const BUILD_JOB_STATES = [
   "queued",
   "running",
@@ -49,28 +51,27 @@ export interface BuildJobTokenUsage {
 }
 
 export interface BuildJob {
+  readonly archive: File;
   readonly archiveKey: string;
-  readonly archivePath: string;
-  readonly cachePath: string;
+  readonly cache: Directory;
   readonly chapterId: number;
   readonly createdAt: number;
   readonly currentStep?: BuildJobTarget;
   readonly errorJSON?: string;
-  readonly eventsPath: string;
+  readonly events: File;
   readonly finishedAt?: number;
   readonly jobId: string;
   readonly inputRevision?: number;
-  readonly logPath: string;
+  readonly log: Directory;
   readonly llmJSON?: string;
   readonly ownerId?: string;
-  readonly ownerPid?: number;
   readonly prompt?: string;
   readonly queueRank: number;
   readonly state: BuildJobState;
   readonly readingSummaryStartedAt?: number;
   readonly target: BuildJobTarget;
   readonly updatedAt: number;
-  readonly workspacePath: string;
+  readonly workspace: Directory;
 }
 
 export type BuildJobEvent =
@@ -130,7 +131,7 @@ export type BuildJobEvent =
     };
 
 export interface AddBuildJobOptions {
-  readonly archivePath: string;
+  readonly archive: File;
   readonly boost?: boolean;
   readonly chapterId: number;
   readonly jobId?: string;
@@ -142,7 +143,7 @@ export interface AddBuildJobOptions {
 export interface BuildJobListOptions {
   readonly activeOnly?: boolean;
   readonly all?: boolean;
-  readonly archivePath?: string;
+  readonly archive?: File;
 }
 
 export interface BuildJobWorkerOptions {
@@ -153,6 +154,7 @@ export interface BuildJobWorkerOptions {
     context: BuildJobExecutionContext,
   ) => Promise<void>;
   readonly idleTimeoutMs?: number;
+  readonly signal?: AbortSignal;
 }
 
 export interface BuildJobExecutionContext {

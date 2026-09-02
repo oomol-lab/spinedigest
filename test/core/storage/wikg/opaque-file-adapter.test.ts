@@ -7,12 +7,10 @@ import { WikiGraph } from "../../../../packages/core/src/api/app.js";
 import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
 import {
   installWikiGraphPlatform,
-  installLegacyRuntimePlatform,
   type Directory,
   type File,
   type HostDatabaseConnection,
   type HostZipEntry,
-  type LegacyRuntimePlatform,
   type WikiGraphPlatform,
   withWikiGraphStorage,
 } from "../../../../packages/core/src/runtime/platform/index.js";
@@ -52,7 +50,6 @@ describe("opaque archive File adapter", () => {
       expect(archive).toBeDefined();
 
       installWikiGraphPlatform(nodeWikiGraphPlatform);
-      installLegacyRuntimePlatform(throwingLegacyRuntime);
       const originalWorkingDirectory = process.cwd();
       process.chdir(decoyDirectoryPath);
       try {
@@ -102,7 +99,6 @@ describe("opaque archive File adapter", () => {
         library: wrapDirectory(new NodeDirectory(`${path}/storage/library`)),
       };
       installWikiGraphPlatform(opaqueNodePlatform);
-      installLegacyRuntimePlatform(throwingLegacyRuntime);
 
       const directDocumentRoot =
         await storage.documentStore.createDirectory("direct-document");
@@ -161,7 +157,6 @@ describe("opaque archive File adapter", () => {
         expect(maximumActiveWrites).toBe(1);
         await expect(readTitle(archive)).resolves.toBe("Final title");
       });
-      installLegacyRuntimePlatform(throwingLegacyRuntime);
 
       expect(await storage.documentStore.list()).toEqual([]);
 
@@ -274,6 +269,20 @@ const opaqueNodePlatform: WikiGraphPlatform = {
     open: async (file, options): Promise<HostDatabaseConnection> =>
       await nodeWikiGraphPlatform.database.open(unwrapFile(file), options),
   },
+  resources: {
+    getDirectory: async (identity) => {
+      const directory =
+        await nodeWikiGraphPlatform.resources.getDirectory(identity);
+      return directory === undefined
+        ? undefined
+        : wrapDirectory(directory as NodeDirectory);
+    },
+    getFile: async (identity) => {
+      const file = await nodeWikiGraphPlatform.resources.getFile(identity);
+      return file === undefined ? undefined : wrapFile(file as NodeFile);
+    },
+  },
+  templates: nodeWikiGraphPlatform.templates,
   zip: {
     read: async (file): Promise<readonly HostZipEntry[]> =>
       await nodeWikiGraphPlatform.zip.read(unwrapFile(file)),
@@ -281,17 +290,6 @@ const opaqueNodePlatform: WikiGraphPlatform = {
       await nodeWikiGraphPlatform.zip.write(unwrapFile(file), entries),
   },
 };
-
-const throwingLegacyRuntime = new Proxy(
-  {},
-  {
-    get: (_target, property) => {
-      throw new Error(
-        `Opaque File flow accessed legacy runtime service: ${String(property)}`,
-      );
-    },
-  },
-) as LegacyRuntimePlatform;
 
 function unwrapFile(file: File): NodeFile {
   const backing = backingFiles.get(file);
@@ -319,7 +317,10 @@ async function createSeedArchive(root: string): Promise<string> {
       });
     });
     const archivePath = `${root}/book.wikg`;
-    await new WikiGraphArchive(document, document.path).saveAs(archivePath);
+    await new WikiGraphArchive(
+      document,
+      new NodeDirectory(`${root}/document`),
+    ).saveAs(new NodeFile(archivePath));
     return archivePath;
   } finally {
     await document.release();

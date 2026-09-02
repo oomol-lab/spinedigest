@@ -1,7 +1,7 @@
 import {
-  AsyncLocalStorage,
-  resolve,
+  getWikiGraphPlatform,
   type Directory,
+  type HostAsyncContext,
 } from "../../runtime/platform/index.js";
 import { z } from "zod";
 
@@ -30,7 +30,6 @@ import {
 } from "../stores/index.js";
 import { ObjectMetadataKind, type SentenceId } from "../types.js";
 import { DirectoryDocumentContext } from "./context.js";
-import { LOCAL_DOCUMENT_FILE_STORE } from "./file-store.js";
 import { DirectoryFileStore } from "./directory-file-store.js";
 import {
   getCoverDataPath,
@@ -78,17 +77,19 @@ export class DirectoryDocument implements Document {
   readonly #database: Database;
   readonly #fileStore: DocumentFileStore;
   readonly #textStreams: TextStreams;
-  readonly #contextScope = new AsyncLocalStorage<DirectoryDocumentContext>();
+  readonly #contextScope: HostAsyncContext<DirectoryDocumentContext>;
 
   public constructor(
     database: Database,
     textStreams: TextStreams,
     path: string,
-    fileStore: DocumentFileStore = LOCAL_DOCUMENT_FILE_STORE,
+    fileStore: DocumentFileStore,
   ) {
     this.#database = database;
     this.#fileStore = fileStore;
     this.#textStreams = textStreams;
+    this.#contextScope =
+      getWikiGraphPlatform().asyncContext.create<DirectoryDocumentContext>();
     this.chunks = new ChunkStore(database);
     this.fragmentGroups = new FragmentGroupStore(database);
     this.graphBuildParameters = new GraphBuildParameterStore(database);
@@ -106,20 +107,20 @@ export class DirectoryDocument implements Document {
   }
 
   public static async open(
-    documentPath: string | Directory,
+    directoryOrIdentity: Directory | string,
     options: { readonly fileStore?: DocumentFileStore } = {},
   ): Promise<DirectoryDocument> {
-    const resolvedDocumentPath =
-      typeof documentPath === "string" ? resolve(documentPath) : "";
-    const fileStore =
-      options.fileStore ??
-      (typeof documentPath === "string"
-        ? LOCAL_DOCUMENT_FILE_STORE
-        : new DirectoryFileStore(documentPath));
-    return await DirectoryDocument.#openFileStore(
-      resolvedDocumentPath,
-      fileStore,
-    );
+    const directory =
+      typeof directoryOrIdentity === "string"
+        ? await getWikiGraphPlatform().resources.getDirectory(
+            directoryOrIdentity,
+          )
+        : directoryOrIdentity;
+    if (directory === undefined) {
+      throw new Error("Host directory is unavailable");
+    }
+    const fileStore = options.fileStore ?? new DirectoryFileStore(directory);
+    return await DirectoryDocument.#openFileStore("", fileStore);
   }
 
   /** Open a document whose files are addressed only by logical relative names. */
@@ -188,10 +189,10 @@ export class DirectoryDocument implements Document {
   }
 
   public static async openSession<T>(
-    documentPath: string,
+    directory: Directory,
     operation: (document: DirectoryDocument) => Promise<T> | T,
   ): Promise<T> {
-    const document = await DirectoryDocument.open(documentPath);
+    const document = await DirectoryDocument.open(directory);
 
     try {
       return await document.openSession(async () => await operation(document));

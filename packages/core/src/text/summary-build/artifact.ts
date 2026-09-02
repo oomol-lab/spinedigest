@@ -1,5 +1,8 @@
-import { mkdir } from "../../runtime/platform/index.js";
-import { join } from "../../runtime/platform/index.js";
+import {
+  ensureRelativeFile,
+  type Directory,
+  type File,
+} from "../../runtime/platform/index.js";
 
 import type { Document, ReadonlyDocument } from "../../document/index.js";
 import {
@@ -39,30 +42,30 @@ export async function buildChapterSummaryArtifact(
   chapterId: number,
   options: BuildChapterSummaryArtifactOptions,
 ): Promise<string> {
-  const readingGraphObjectsPath = options.readingGraphObjectsPath;
+  const readingGraphObjectsFile = options.readingGraphObjectsFile;
 
-  if (readingGraphObjectsPath !== undefined) {
+  if (readingGraphObjectsFile !== undefined) {
     return await buildChapterSummaryArtifactFromReadingGraphObjects(chapterId, {
       ...options,
-      readingGraphObjectsPath,
+      readingGraphObjectsFile,
     });
   }
 
-  const snapshotPath = options.snapshotPath;
+  const snapshotFile = options.snapshotFile;
 
-  if (snapshotPath !== undefined) {
+  if (snapshotFile !== undefined) {
     return await buildChapterSummaryArtifactFromSnapshot(chapterId, {
       ...options,
-      snapshotPath,
+      snapshotFile,
     });
   }
 
-  const sourceDocumentPath = options.sourceDocumentPath;
+  const sourceDocumentDirectory = options.sourceDocumentDirectory;
 
-  if (sourceDocumentPath !== undefined) {
+  if (sourceDocumentDirectory !== undefined) {
     return await buildChapterSummaryArtifactFromDocumentSnapshot(chapterId, {
       ...options,
-      sourceDocumentPath,
+      sourceDocumentDirectory,
     });
   }
 
@@ -76,22 +79,22 @@ export async function buildChapterSummaryArtifact(
 export async function buildChapterSummaryArtifactFromSnapshot(
   chapterId: number,
   options: BuildChapterSummaryArtifactOptions & {
-    readonly snapshotPath: string;
+    readonly snapshotFile: File;
   },
 ): Promise<string> {
-  const snapshot = await readSummaryInputSnapshot(options.snapshotPath);
+  const snapshot = await readSummaryInputSnapshot(options.snapshotFile);
   return await buildSummaryFromSnapshot(snapshot, chapterId, options);
 }
 
 export async function buildChapterSummaryArtifactFromReadingGraphObjects(
   chapterId: number,
   options: BuildChapterSummaryArtifactOptions & {
-    readonly readingGraphObjectsPath: string;
+    readonly readingGraphObjectsFile: File;
   },
 ): Promise<string> {
   const snapshot = await createSummaryInputSnapshotFromReadingGraphObjects(
     chapterId,
-    readWikgObjectsFromJsonl(options.readingGraphObjectsPath),
+    readWikgObjectsFromJsonl(options.readingGraphObjectsFile),
   );
 
   return await buildSummaryFromSnapshot(snapshot, chapterId, options);
@@ -118,12 +121,14 @@ export async function commitChapterSummaryArtifact(
 export async function snapshotChapterSummaryInput(
   document: ReadonlyDocument,
   chapterId: number,
-  workspacePath: string,
+  workspace: Directory,
 ): Promise<ChapterSummaryInputSnapshot> {
-  const filePath = join(workspacePath, "summary-input.json");
-  const objectsPath = join(workspacePath, "reading-graph.jsonl");
+  const file = await ensureRelativeFile(workspace, "summary-input.json");
+  const objectsFile = await ensureRelativeFile(
+    workspace,
+    "reading-graph.jsonl",
+  );
 
-  await mkdir(workspacePath, { recursive: true });
   await requireStage(document, chapterId, "graphed");
 
   const fragments = await readSerialFragments(document, chapterId);
@@ -136,7 +141,7 @@ export async function snapshotChapterSummaryInput(
     )
   ).flat();
 
-  await writeSummaryInputSnapshot(filePath, {
+  await writeSummaryInputSnapshot(file, {
     chunks: await document.chunks.listBySerial(chapterId),
     fragmentGroups: await document.fragmentGroups.listBySerial(chapterId),
     fragments,
@@ -153,27 +158,29 @@ export async function snapshotChapterSummaryInput(
     snakes,
   });
   await writeWikgObjectsToJsonl(
-    objectsPath,
+    objectsFile,
     createChapterReadingGraphObjectStream({
       chapterId,
       document,
     }),
   );
 
-  return { filePath, objectsPath };
+  return { file, objectsFile };
 }
 
 async function buildChapterSummaryArtifactFromDocumentSnapshot(
   chapterId: number,
   options: BuildChapterSummaryArtifactOptions & {
-    readonly sourceDocumentPath: string;
+    readonly sourceDocumentDirectory: Directory;
   },
 ): Promise<string> {
-  const document = await DirectoryDocument.open(options.sourceDocumentPath);
+  const document = await DirectoryDocument.open(
+    options.sourceDocumentDirectory,
+  );
 
   try {
     return await buildChapterSummaryArtifactFromDocument(
-      createFragmentBackedDocument(document, options.sourceDocumentPath),
+      createFragmentBackedDocument(document, options.sourceDocumentDirectory),
       chapterId,
       options,
     );

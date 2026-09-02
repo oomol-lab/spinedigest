@@ -11,6 +11,10 @@ import {
 } from "../../../../packages/core/src/external/wikipage/index.js";
 import { listCandidateSelectableQids } from "../../../../packages/core/src/external/wikimatch/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
+import {
+  NodeDirectory,
+  NodeFile,
+} from "../../../../packages/cli/src/runtime/node-platform.js";
 
 describe("wikipage/resolver", () => {
   it("resolves qids, expands disambiguation pages, and reuses cache", async () => {
@@ -24,7 +28,7 @@ describe("wikipage/resolver", () => {
         readonly total: number;
       }> = [];
       const resolver = await WikipageResolver.open({
-        cacheDatabasePath: `${path}/cache.sqlite`,
+        cacheDatabaseFile: new NodeFile(`${path}/cache.sqlite`),
         fetch,
         language: "en",
         minRequestIntervalMs: 0,
@@ -134,15 +138,15 @@ describe("wikipage/resolver", () => {
 
       await withLoggingContext(
         {
-          logDirPath: path,
+          logDirectory: new NodeDirectory(path),
           operation: "wikipage-test",
         },
         async () => {
           const resolver = await WikipageResolver.open({
-            cacheDatabasePath: `${path}/cache.sqlite`,
+            cacheDatabaseFile: new NodeFile(`${path}/cache.sqlite`),
             fetch: createMockFetch(calls),
             language: "en",
-            logDirPath: path,
+            logDirectory: new NodeDirectory(path),
             minRequestIntervalMs: 0,
             retryBaseDelayMs: 0,
           });
@@ -206,15 +210,15 @@ describe("wikipage/resolver", () => {
       await expect(
         withLoggingContext(
           {
-            logDirPath: path,
+            logDirectory: new NodeDirectory(path),
             operation: "wikipage-test",
           },
           async () => {
             const resolver = await WikipageResolver.open({
-              cacheDatabasePath: `${path}/cache.sqlite`,
+              cacheDatabaseFile: new NodeFile(`${path}/cache.sqlite`),
               fetch: failingFetch,
               language: "en",
-              logDirPath: path,
+              logDirectory: new NodeDirectory(path),
               minRequestIntervalMs: 0,
               retryBaseDelayMs: 0,
               retryTimes: 0,
@@ -248,15 +252,15 @@ describe("wikipage/resolver", () => {
       await expect(
         withLoggingContext(
           {
-            logDirPath: path,
+            logDirectory: new NodeDirectory(path),
             operation: "wikipage-test",
           },
           async () => {
             const resolver = await WikipageResolver.open({
-              cacheDatabasePath: `${path}/cache.sqlite`,
+              cacheDatabaseFile: new NodeFile(`${path}/cache.sqlite`),
               fetch: createMockFetch(calls),
               language: "en",
-              logDirPath: path,
+              logDirectory: new NodeDirectory(path),
               minRequestIntervalMs: 0,
               retryBaseDelayMs: 0,
             });
@@ -265,6 +269,7 @@ describe("wikipage/resolver", () => {
               const runDirName = await readOnlyRunDirName(path);
               await mkdir(
                 `${path}/${runDirName}/artifacts/wikipage/wikipage-fetch.jsonl`,
+                { recursive: true },
               );
 
               return await resolver.resolveQids(["Q1"]);
@@ -290,7 +295,7 @@ describe("wikipage/resolver", () => {
       let failedOnce = false;
       const calls: string[] = [];
       const resolver = await WikipageResolver.open({
-        cacheDatabasePath: `${path}/cache.sqlite`,
+        cacheDatabaseFile: new NodeFile(`${path}/cache.sqlite`),
         fetch: ((input: string | URL | Request) => {
           const url = new URL(input instanceof Request ? input.url : input);
           calls.push(url.toString());
@@ -331,7 +336,7 @@ describe("wikipage/resolver", () => {
       const fetch = createMockFetch(calls);
       const cacheDatabasePath = `${path}/cache.sqlite`;
       const enResolver = await WikipageResolver.open({
-        cacheDatabasePath,
+        cacheDatabaseFile: new NodeFile(cacheDatabasePath),
         fetch,
         language: "en",
         minRequestIntervalMs: 0,
@@ -351,7 +356,7 @@ describe("wikipage/resolver", () => {
       }
 
       const zhResolver = await WikipageResolver.open({
-        cacheDatabasePath,
+        cacheDatabaseFile: new NodeFile(cacheDatabasePath),
         fetch,
         language: "zh",
         minRequestIntervalMs: 0,
@@ -380,7 +385,7 @@ describe("wikipage/resolver", () => {
     await withTempDir("wikigraph-wikipage-", async (path) => {
       const calls: string[] = [];
       const resolver = await WikipageResolver.open({
-        cacheDatabasePath: `${path}/cache.sqlite`,
+        cacheDatabaseFile: new NodeFile(`${path}/cache.sqlite`),
         fetch: await createYangshanMockFetch(calls),
         language: "zh",
         minRequestIntervalMs: 0,
@@ -455,7 +460,7 @@ describe("wikipage/resolver", () => {
       const cacheDatabasePath = `${path}/cache.sqlite`;
       let normalizerCalls = 0;
       const firstResolver = await WikipageResolver.open({
-        cacheDatabasePath,
+        cacheDatabaseFile: new NodeFile(cacheDatabasePath),
         fetch: createMockFetch(calls),
         language: "en",
         minRequestIntervalMs: 0,
@@ -504,7 +509,7 @@ describe("wikipage/resolver", () => {
 
       const callCountAfterFailure = calls.length;
       const secondResolver = await WikipageResolver.open({
-        cacheDatabasePath,
+        cacheDatabaseFile: new NodeFile(cacheDatabasePath),
         fetch: createMockFetch(calls),
         language: "en",
         minRequestIntervalMs: 0,
@@ -543,7 +548,7 @@ describe("wikipage/resolver", () => {
           retryAfter: "1969-01-01T00:00:00.000Z",
         },
       );
-      const cache = await WikipageCache.open(cacheDatabasePath);
+      const cache = await WikipageCache.open(new NodeFile(cacheDatabasePath));
 
       try {
         expect(
@@ -554,7 +559,7 @@ describe("wikipage/resolver", () => {
       }
 
       const thirdResolver = await WikipageResolver.open({
-        cacheDatabasePath,
+        cacheDatabaseFile: new NodeFile(cacheDatabasePath),
         fetch: createMockFetch(calls),
         language: "en",
         minRequestIntervalMs: 0,
@@ -599,7 +604,7 @@ describe("wikipage/resolver", () => {
       const fetch = createMockFetch(calls);
       const cacheDatabasePath = `${path}/cache.sqlite`;
       const firstResolver = await WikipageResolver.open({
-        cacheDatabasePath,
+        cacheDatabaseFile: new NodeFile(cacheDatabasePath),
         fetch,
         language: "en",
         minRequestIntervalMs: 0,
@@ -620,7 +625,7 @@ describe("wikipage/resolver", () => {
 
       const firstCallCount = calls.length;
       const secondResolver = await WikipageResolver.open({
-        cacheDatabasePath,
+        cacheDatabaseFile: new NodeFile(cacheDatabasePath),
         fetch,
         language: "en",
         minRequestIntervalMs: 0,
@@ -649,7 +654,7 @@ describe("wikipage/resolver", () => {
     await withTempDir("wikigraph-wikipage-", async (path) => {
       const cacheDatabasePath = `${path}/cache.sqlite`;
       const database = await Database.open(
-        cacheDatabasePath,
+        new NodeFile(cacheDatabasePath),
         `
 CREATE TABLE qid_cache (
   qid TEXT PRIMARY KEY,
@@ -697,7 +702,7 @@ INSERT INTO qid_cache (
 
       const calls: string[] = [];
       const resolver = await WikipageResolver.open({
-        cacheDatabasePath,
+        cacheDatabaseFile: new NodeFile(cacheDatabasePath),
         fetch: createMockFetch(calls),
         language: "en",
         minRequestIntervalMs: 0,
@@ -839,11 +844,11 @@ async function createYangshanMockFetch(calls: string[]): Promise<typeof fetch> {
   }) as typeof fetch;
 }
 
-async function readWikipageFetchLog(logDirPath: string): Promise<string> {
-  const runDirName = await readOnlyRunDirName(logDirPath);
+async function readWikipageFetchLog(logDirectory: string): Promise<string> {
+  const runDirName = await readOnlyRunDirName(logDirectory);
 
   return await readFile(
-    `${logDirPath}/${runDirName}/artifacts/wikipage/wikipage-fetch.jsonl`,
+    `${logDirectory}/${runDirName}/artifacts/wikipage/wikipage-fetch.jsonl`,
     "utf8",
   );
 }
@@ -903,8 +908,8 @@ WHERE qid = ?
   }
 }
 
-async function readOnlyRunDirName(logDirPath: string): Promise<string> {
-  const entries = await readdir(logDirPath, { withFileTypes: true });
+async function readOnlyRunDirName(logDirectory: string): Promise<string> {
+  const entries = await readdir(logDirectory, { withFileTypes: true });
   const runEntries = entries.filter((entry) => entry.isDirectory());
 
   expect(runEntries).toHaveLength(1);

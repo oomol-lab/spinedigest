@@ -1,6 +1,5 @@
 import type { LanguageModel } from "ai";
 
-import { resolveDataDirPath } from "../runtime/common/data-dir.js";
 import type { Language } from "../runtime/common/language.js";
 import type { WikiGraphScope } from "../runtime/common/llm-scope.js";
 import { withLoggingContext } from "../runtime/common/logging.js";
@@ -31,15 +30,16 @@ import type { WikiGraphArchive } from "./wiki-graph-archive.js";
 import type { ChapterStage } from "./chapter/index.js";
 import { resolveExtractionPrompt } from "./prompts.js";
 import {
+  type Directory,
   type File,
   type WikiGraphStorage,
   withWikiGraphStorage,
 } from "../runtime/platform/index.js";
 
 export interface WikiGraphLLMOptions {
-  readonly cacheDirPath?: string;
+  readonly cacheDirectory?: Directory;
   readonly concurrent?: number;
-  readonly logDirPath?: string;
+  readonly logDirectory?: Directory;
   readonly model: LanguageModel;
   readonly retryIntervalSeconds?: number;
   readonly retryTimes?: number;
@@ -50,7 +50,7 @@ export interface WikiGraphLLMOptions {
 }
 
 export interface WikiGraphOptions {
-  readonly debugLogDirPath?: string;
+  readonly debugLogDirectory?: Directory;
   readonly llm?: LanguageModel | WikiGraphLLMOptions;
   readonly storage?: WikiGraphStorage;
   readonly verbose?: boolean;
@@ -61,7 +61,7 @@ export type WikiGraphOpenSessionOptions = DigestDocumentSessionOptions;
 export interface WikiGraphSourceSessionOptions extends DigestDocumentSessionOptions {
   readonly extractionPrompt?: string;
   readonly onProgress?: WikiGraphProgressCallback;
-  readonly path: string;
+  readonly file: File;
   readonly targetStage?: ChapterStage;
   readonly userLanguage?: Language;
 }
@@ -78,14 +78,14 @@ export interface WikiGraphTextStreamSessionOptions extends DigestDocumentSession
 }
 
 export class WikiGraph {
-  readonly #debugLogDirPath: string | undefined;
+  readonly #debugLogDirectory: Directory | undefined;
   readonly #llm: LLM<WikiGraphScope> | undefined;
   readonly #storage: WikiGraphStorage | undefined;
   readonly #verbose: boolean;
 
   public constructor(options: WikiGraphOptions) {
     this.#storage = options.storage;
-    this.#debugLogDirPath = options.debugLogDirPath;
+    this.#debugLogDirectory = options.debugLogDirectory;
     this.#verbose = options.verbose ?? false;
     if (options.llm === undefined) {
       this.#llm = undefined;
@@ -94,7 +94,6 @@ export class WikiGraph {
     const llmOptions = normalizeLLMOptions(options.llm);
 
     this.#llm = new LLM<WikiGraphScope>({
-      dataDirPath: resolveDataDirPath(),
       sampling: createDefaultWikiGraphSampling({
         ...(llmOptions.temperature === undefined
           ? {}
@@ -145,15 +144,15 @@ export class WikiGraph {
               ? {}
               : { onProgress: options.onProgress }),
             stream: options.stream,
-            ...(this.#debugLogDirPath === undefined
+            ...(this.#debugLogDirectory === undefined
               ? {}
-              : { logDirPath: this.#debugLogDirPath }),
+              : { logDirectory: this.#debugLogDirectory }),
             ...(options.bookLanguage === undefined
               ? {}
               : { bookLanguage: options.bookLanguage }),
-            ...(options.documentDirPath === undefined
+            ...(options.documentDirectory === undefined
               ? {}
-              : { documentDirPath: options.documentDirPath }),
+              : { documentDirectory: options.documentDirectory }),
             ...(options.sourceFormat === undefined
               ? {}
               : { sourceFormat: options.sourceFormat }),
@@ -182,18 +181,13 @@ export class WikiGraph {
   }
 
   public async openSession<T>(
-    path: File | string,
+    file: File,
     operation: (digest: WikiGraphArchive) => Promise<T> | T,
-    options: WikiGraphOpenSessionOptions = {},
+    _options: WikiGraphOpenSessionOptions = {},
   ): Promise<T> {
     return await this.#withLogging(
       "open-wikg",
-      async () =>
-        await new WikiGraphArchiveFile(path).read(operation, {
-          ...(options.documentDirPath === undefined
-            ? {}
-            : { documentDirPath: options.documentDirPath }),
-        }),
+      async () => await new WikiGraphArchiveFile(file).read(operation),
     );
   }
 
@@ -206,13 +200,13 @@ export class WikiGraph {
       ...(options.onProgress === undefined
         ? {}
         : { onProgress: options.onProgress }),
-      path: options.path,
-      ...(this.#debugLogDirPath === undefined
+      file: options.file,
+      ...(this.#debugLogDirectory === undefined
         ? {}
-        : { logDirPath: this.#debugLogDirPath }),
-      ...(options.documentDirPath === undefined
+        : { logDirectory: this.#debugLogDirectory }),
+      ...(options.documentDirectory === undefined
         ? {}
-        : { documentDirPath: options.documentDirPath }),
+        : { documentDirectory: options.documentDirectory }),
       ...(options.targetStage === undefined
         ? {}
         : { targetStage: options.targetStage }),
@@ -249,9 +243,9 @@ export class WikiGraph {
         await withLoggingContext(
           {
             operation,
-            ...(this.#debugLogDirPath === undefined
+            ...(this.#debugLogDirectory === undefined
               ? {}
-              : { logDirPath: this.#debugLogDirPath }),
+              : { logDirectory: this.#debugLogDirectory }),
             ...(this.#verbose ? { verbose: true } : {}),
           },
           task,

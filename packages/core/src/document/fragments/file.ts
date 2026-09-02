@@ -1,5 +1,7 @@
-import { binary as platformBinary } from "../../runtime/platform/index.js";
-import { join, resolve } from "../../runtime/platform/index.js";
+import {
+  basenameRelativePath,
+  dirnameRelativePath,
+} from "../../utils/relative-path.js";
 
 import type { SentenceRecord } from "../types.js";
 import { DEFAULT_FRAGMENT_FILE_ACCESS } from "./file-access.js";
@@ -23,9 +25,7 @@ export function parseFragmentFileContent(
     throw new Error(`Fragment file does not exist: ${fragmentPath}`);
   }
 
-  const rawContent = JSON.parse(
-    platformBinary.from(content).toString("utf8"),
-  ) as unknown;
+  const rawContent = JSON.parse(new TextDecoder().decode(content)) as unknown;
 
   if (typeof rawContent !== "object" || rawContent === null) {
     throw new TypeError("Fragment file must be an object");
@@ -52,8 +52,8 @@ async function readFragmentFileContent(
     return await fileAccess.readFile(fragmentPath);
   }
 
-  const directoryPath = resolve(join(fragmentPath, ".."));
-  const fileName = fragmentPath.slice(directoryPath.length + 1);
+  const directoryPath = dirnameRelativePath(fragmentPath);
+  const fileName = basenameRelativePath(fragmentPath);
 
   return (await fileAccess.listFileContents(directoryPath)).get(fileName);
 }

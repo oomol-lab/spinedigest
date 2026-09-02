@@ -13,7 +13,7 @@ export async function commitChapterKnowledgeGraphArtifact(
 ): Promise<void> {
   const objects = await collectChapterKnowledgeGraphObjects(
     artifact.chapterId,
-    readWikgObjectsFromJsonl(artifact.objectsPath),
+    readWikgObjectsFromJsonl(artifact.objectsFile),
   );
   const mentions = objects.mentions;
   const mentionLinks = objects.mentionLinks;

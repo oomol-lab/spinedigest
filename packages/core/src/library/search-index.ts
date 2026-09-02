@@ -1,11 +1,17 @@
-import { createHash } from "../runtime/platform/index.js";
-import { mkdir, readdir, rm } from "../runtime/platform/index.js";
-import { join } from "../runtime/platform/index.js";
+import { createPortableHash as createHash } from "../utils/crypto.js";
+import {
+  ensureRelativeDirectory,
+  ensureRelativeFile,
+  getWikiGraphStorage,
+  isDirectory,
+  readHostEntrySize,
+  type Directory,
+  type File,
+} from "../runtime/platform/index.js";
 
 import { Database, getNumber, getString } from "../document/database.js";
-import { ensureWikiGraphHomeSchemaCurrent } from "../document/home-schema-upgrade.js";
 import { SEARCH_INDEX_SCHEMA_SQL } from "../document/schema.js";
-import { openSharedStateDatabase } from "../document/index.js";
+import { openWikiGraphStateDatabase } from "../document/index.js";
 import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
 import {
   assertArchiveIndexArtifactsReady,
@@ -44,13 +50,7 @@ import {
   TEXT_SENTENCE_KIND,
 } from "../retrieval/search-index/index.js";
 import { createSearchTokenPlan } from "../retrieval/search-index/search/tokenizer.js";
-import { readPathSize } from "../runtime/gc/files.js";
 import type { GcContext, GcJobResult } from "../runtime/gc/index.js";
-import {
-  resolveWikiGraphCoreDatabasePath,
-  resolveWikiGraphStagingDirectoryPath,
-} from "../runtime/common/wiki-graph/dir.js";
-import { isNodeError } from "../utils/node-error.js";
 import {
   listWikiGraphLibraryArchives,
   type WikiGraphLibraryArchiveRecord,
@@ -193,8 +193,8 @@ export async function cleanWikiGraphLibraryIndex(
   const library = await resolveWikiGraphLibrary(target);
 
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
-    await mkdir(createLibraryIndexDirectory(library), { recursive: true });
-    await rm(createLibraryIndexDatabasePath(library), { force: true });
+    const index = await library.staging.getDirectory("index");
+    if (index !== undefined) await index.remove("index.db");
     return await readWikiGraphLibraryIndexState(target);
   });
 }
@@ -203,7 +203,7 @@ export async function markWikiGraphLibraryIndexDirty(
   targetOrLibrary: ParsedWikiGraphLibraryUri | WikiGraphLibraryRecord,
 ): Promise<void> {
   const library =
-    "folderPath" in targetOrLibrary
+    "folder" in targetOrLibrary
       ? targetOrLibrary
       : await resolveWikiGraphLibrary(targetOrLibrary);
 
@@ -247,7 +247,7 @@ export async function assertWikiGraphLibraryQueryArtifactsReady(
     if (!archive.exists || archive.status !== "present") {
       continue;
     }
-    await new WikiGraphArchiveFile(archive.path).readDocument(
+    await new WikiGraphArchiveFile(requireArchiveFile(archive)).readDocument(
       async (archiveDocument) => {
         try {
           await assertArchiveIndexArtifactsReady(archiveDocument);
@@ -272,7 +272,7 @@ export async function assertWikiGraphLibraryHasQueryableArtifacts(
       continue;
     }
     const queryableChapters = await new WikiGraphArchiveFile(
-      archive.path,
+      requireArchiveFile(archive),
     ).readDocument(
       async (archiveDocument) =>
         await listArchiveQueryableChapterIds(archiveDocument),
@@ -464,26 +464,23 @@ function parseIndexedObjectUri(objectUri: string):
 export async function runLibraryIndexGc(
   context: GcContext,
 ): Promise<GcJobResult> {
-  const rootPath = join(resolveWikiGraphStagingDirectoryPath(), "library");
+  const staging = await getWikiGraphStorage().library.getDirectory("staging");
+  const root = await staging?.getDirectory("library");
+  if (root === undefined) {
+    return { freedBytes: 0, removed: 0, scanned: 0 };
+  }
   const knownLibraryIds = await listKnownLibraryIds();
   if (knownLibraryIds === undefined) {
     return { freedBytes: 0, removed: 0, scanned: 0 };
   }
   const validLibraryIds = new Set(knownLibraryIds.map((id) => String(id)));
-  const entries = await readdir(rootPath, { withFileTypes: true }).catch(
-    (error: unknown) => {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return [];
-      }
-      throw error;
-    },
-  );
+  const entries = await root.list();
   let scanned = 0;
   let removed = 0;
   let freedBytes = 0;
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) {
+    if (!isDirectory(entry)) {
       continue;
     }
     scanned += 1;
@@ -497,11 +494,10 @@ export async function runLibraryIndexGc(
     ) {
       continue;
     }
-    const path = join(rootPath, entry.name);
-    const bytes = await readPathSize(path);
+    const bytes = await readHostEntrySize(entry);
 
     if (!context.dryRun) {
-      await rm(path, { force: true, recursive: true });
+      await root.remove(entry.name, { recursive: true });
     }
     removed += 1;
     freedBytes += bytes;
@@ -526,7 +522,7 @@ async function replaceLibrarySearchIndex(
     let vectorDone = 0;
 
     for (const archive of archives) {
-      await new WikiGraphArchiveFile(archive.path).readDocument(
+      await new WikiGraphArchiveFile(requireArchiveFile(archive)).readDocument(
         async (archiveDocument) => {
           for await (const batch of streamArchiveIndexProjection(
             archiveDocument,
@@ -739,10 +735,7 @@ function createLibraryIndexSourceFingerprint(
 }
 
 async function listKnownLibraryIds(): Promise<readonly number[] | undefined> {
-  const database = await openSharedStateDatabase(
-    resolveWikiGraphCoreDatabasePath(),
-    "",
-  );
+  const database = await openWikiGraphStateDatabase("core.sqlite", "");
 
   try {
     return await database.queryAll(
@@ -783,14 +776,19 @@ async function setStateValue(
   );
 }
 
-function createLibraryIndexDirectory(library: WikiGraphLibraryRecord): string {
-  return join(library.stagingPath, "index");
+async function createLibraryIndexDirectory(
+  library: WikiGraphLibraryRecord,
+): Promise<Directory> {
+  return await ensureRelativeDirectory(library.staging, "index");
 }
 
-function createLibraryIndexDatabasePath(
+async function createLibraryIndexDatabaseFile(
   library: WikiGraphLibraryRecord,
-): string {
-  return join(createLibraryIndexDirectory(library), "index.db");
+): Promise<File> {
+  return await ensureRelativeFile(
+    await createLibraryIndexDirectory(library),
+    "index.db",
+  );
 }
 
 function isMissingSqliteOpenError(error: unknown): boolean {
@@ -800,6 +798,15 @@ function isMissingSqliteOpenError(error: unknown): boolean {
     "code" in error &&
     (error as { readonly code?: unknown }).code === "SQLITE_CANTOPEN"
   );
+}
+
+function requireArchiveFile(
+  archive: WikiGraphLibraryArchiveRecord,
+): NonNullable<WikiGraphLibraryArchiveRecord["file"]> {
+  if (archive.file === undefined) {
+    throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
+  }
+  return archive.file;
 }
 
 class LibraryIndexDocument {
@@ -829,12 +836,8 @@ class LibraryIndexDocument {
     operation: (database: Database) => Promise<T> | T,
     readonly: boolean,
   ): Promise<T> {
-    await ensureWikiGraphHomeSchemaCurrent();
-    await mkdir(createLibraryIndexDirectory(this.#library), {
-      recursive: true,
-    });
     const database = await Database.open(
-      createLibraryIndexDatabasePath(this.#library),
+      await createLibraryIndexDatabaseFile(this.#library),
       readonly ? "" : SEARCH_INDEX_SCHEMA_SQL,
       { readonly },
     );

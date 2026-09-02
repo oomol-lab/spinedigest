@@ -1,11 +1,11 @@
 import {
-  formatWikiGraphCommandUri,
   isArchiveSearchIndexCurrent,
   listChapters,
   type ChapterEntry,
   type IndexArtifactCoverageRecord,
   type ReadonlyDocument,
 } from "wiki-graph-core";
+import { formatWikiGraphCommandUri } from "../../support/index.js";
 
 import type { CLIArchiveArguments } from "../../args/index.js";
 import { loadCLIConfig } from "../../runtime/config.js";

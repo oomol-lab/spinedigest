@@ -6,7 +6,7 @@ import type {
   SourceTextStream,
 } from "../types.js";
 import type { SourceArtifactInput } from "../../../document/types.js";
-import { basename } from "../../../runtime/platform/index.js";
+import type { File } from "../../../runtime/platform/index.js";
 
 import { normalizeFragment } from "./archive.js";
 import { EpubArchive } from "./archive.js";
@@ -99,7 +99,7 @@ export class EpubSourceDocument implements SourceDocument {
     const artifact: SourceArtifactInput = {
       digest: archive.digest,
       mediaType: "application/epub+zip",
-      name: basename(archive.path),
+      name: archive.name,
       ...(packageData.metadata.identifier === null
         ? {}
         : { identifier: packageData.metadata.identifier }),
@@ -154,10 +154,10 @@ export class EpubSourceAdapter implements SourceAdapter {
   }
 
   public async openSession<T>(
-    path: string,
+    file: File,
     operation: (document: SourceDocument) => Promise<T>,
   ): Promise<T> {
-    const archive = await EpubArchive.open(path);
+    const archive = await EpubArchive.open(file);
 
     try {
       const document = await EpubSourceDocument.open(archive);

@@ -1,7 +1,10 @@
-import { readdir, rm, rmdir, stat } from "../platform/index.js";
-import { join } from "../platform/index.js";
-
-import { isNodeError } from "../../utils/node-error.js";
+import {
+  getHostEntryLastModified,
+  isDirectory,
+  readHostEntrySize,
+  type Directory,
+  type File,
+} from "../platform/index.js";
 
 const DISPOSABLE_DIRECTORY_ENTRIES = new Set([".DS_Store"]);
 const DISPOSABLE_DIRECTORY_TTL_MS = 60_000;
@@ -11,179 +14,72 @@ export function isDisposableDirectoryEntry(name: string): boolean {
 }
 
 export async function removeDisposableDirectory(
-  directoryPath: string,
+  parent: Directory,
+  directory: Directory,
 ): Promise<number> {
-  const entries = await readdir(directoryPath).catch((error: unknown) => {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return undefined;
-    }
-
-    throw error;
-  });
-
-  if (entries === undefined) {
+  const entries = await directory.list();
+  if (entries.some((entry) => !isDisposableDirectoryEntry(entry.name))) {
     return 0;
   }
-  if (entries.some((entry: any) => !isDisposableDirectoryEntry(entry))) {
-    return 0;
-  }
-
-  let freedBytes = 0;
-
-  for (const entry of entries) {
-    const path = join(directoryPath, entry);
-
-    freedBytes += await readPathSize(path);
-    await rm(path, { force: true, recursive: true });
-  }
-
-  await rmdir(directoryPath).catch((error: unknown) => {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return;
-    }
-
-    throw error;
-  });
+  const freedBytes = await readPathSize(directory);
+  await parent.remove(directory.name, { recursive: true });
   return freedBytes;
 }
 
 export async function removeDisposableChildDirectories(
-  rootPath: string,
+  root: Directory,
 ): Promise<{
   readonly freedBytes: number;
   readonly removed: number;
   readonly scanned: number;
 }> {
-  const entries = await readdir(rootPath, { withFileTypes: true }).catch(
-    (error: unknown) => {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return [];
-      }
-
-      throw error;
-    },
-  );
   let freedBytes = 0;
   let removed = 0;
   let scanned = 0;
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
+  for (const entry of await root.list()) {
+    if (!isDirectory(entry)) continue;
     scanned += 1;
-    const directoryPath = join(rootPath, entry.name);
-    const stats = await stat(directoryPath).catch((error: unknown) => {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    });
-
+    const modifiedAt = await getHostEntryLastModified(entry);
     if (
-      stats === undefined ||
-      Date.now() - stats.mtimeMs < DISPOSABLE_DIRECTORY_TTL_MS
+      modifiedAt === undefined ||
+      Date.now() - modifiedAt < DISPOSABLE_DIRECTORY_TTL_MS
     ) {
       continue;
     }
-
-    const removedBytes = await removeDisposableDirectory(directoryPath);
-
-    if (await pathExists(directoryPath)) {
-      freedBytes += removedBytes;
-      continue;
+    const bytes = await removeDisposableDirectory(root, entry);
+    if (bytes > 0 || (await root.getDirectory(entry.name)) === undefined) {
+      freedBytes += bytes;
+      removed += 1;
     }
-
-    freedBytes += removedBytes;
-    removed += 1;
   }
-
   return { freedBytes, removed, scanned };
 }
 
 export async function removeDisposableDescendantDirectories(
-  rootPath: string,
+  root: Directory,
 ): Promise<{
   readonly freedBytes: number;
   readonly removed: number;
   readonly scanned: number;
 }> {
-  const entries = await readdir(rootPath, { withFileTypes: true }).catch(
-    (error: unknown) => {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return [];
-      }
-
-      throw error;
-    },
-  );
   let freedBytes = 0;
   let removed = 0;
   let scanned = 0;
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
-      continue;
+  for (const entry of await root.list()) {
+    if (!isDirectory(entry)) continue;
+    const child = await removeDisposableDescendantDirectories(entry);
+    freedBytes += child.freedBytes;
+    removed += child.removed;
+    scanned += child.scanned + 1;
+    const bytes = await removeDisposableDirectory(root, entry);
+    if (bytes > 0 || (await root.getDirectory(entry.name)) === undefined) {
+      freedBytes += bytes;
+      removed += 1;
     }
-
-    const directoryPath = join(rootPath, entry.name);
-    const childResult =
-      await removeDisposableDescendantDirectories(directoryPath);
-
-    freedBytes += childResult.freedBytes;
-    removed += childResult.removed;
-    scanned += childResult.scanned + 1;
-
-    const removedBytes = await removeDisposableDirectory(directoryPath);
-
-    if (await pathExists(directoryPath)) {
-      freedBytes += removedBytes;
-      continue;
-    }
-
-    freedBytes += removedBytes;
-    removed += 1;
   }
-
   return { freedBytes, removed, scanned };
 }
 
-export async function readPathSize(path: string): Promise<number> {
-  try {
-    const stats = await stat(path);
-
-    if (stats.isDirectory()) {
-      const entries = await readdir(path);
-      let size = 0;
-
-      for (const entry of entries) {
-        size += await readPathSize(join(path, entry));
-      }
-
-      return size;
-    }
-
-    return stats.size;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return 0;
-    }
-
-    throw error;
-  }
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return false;
-    }
-
-    throw error;
-  }
+export async function readPathSize(entry: File | Directory): Promise<number> {
+  return await readHostEntrySize(entry);
 }

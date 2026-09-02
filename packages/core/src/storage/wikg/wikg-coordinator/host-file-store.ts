@@ -44,8 +44,8 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
   public documentIdentity(): string {
     return this.#session.archiveIdentity;
   }
-  public searchIndexLockKey(): object {
-    return this.#session;
+  public searchIndexLockKey(): string {
+    return this.#session.searchCacheIdentity;
   }
 
   public async resolveDatabasePath(): Promise<File> {
@@ -57,10 +57,15 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
   }
 
   public async resolveSearchIndexDatabasePath(): Promise<File> {
-    this.#searchIndexDatabase = await this.#session.materializeDatabase(
-      SEARCH_INDEX_DATABASE_ENTRY_PATH,
-      { createIfMissing: !this.#readonlyDatabase },
-    );
+    this.#searchIndexDatabase ??=
+      this.#searchIndexWritebackPolicy === "cache"
+        ? await this.#session.materializeSearchIndexCache({
+            createIfMissing: !this.#readonlyDatabase,
+          })
+        : await this.#session.materializeDatabase(
+            SEARCH_INDEX_DATABASE_ENTRY_PATH,
+            { createIfMissing: !this.#readonlyDatabase },
+          );
     return this.#searchIndexDatabase;
   }
 
@@ -71,15 +76,15 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
   }
 
   public markSearchIndexDatabaseDirty(): void {
-    if (
-      !this.#readonlyDatabase &&
-      this.#searchIndexWritebackPolicy === "archive" &&
-      this.#searchIndexDatabase !== undefined
-    ) {
-      this.#session.markDatabaseDirty(
-        SEARCH_INDEX_DATABASE_ENTRY_PATH,
-        this.#searchIndexDatabase,
-      );
+    if (!this.#readonlyDatabase && this.#searchIndexDatabase !== undefined) {
+      if (this.#searchIndexWritebackPolicy === "archive") {
+        this.#session.markDatabaseDirty(
+          SEARCH_INDEX_DATABASE_ENTRY_PATH,
+          this.#searchIndexDatabase,
+        );
+      } else {
+        this.#session.markSearchIndexCacheDirty(this.#searchIndexDatabase);
+      }
     }
   }
 
@@ -103,7 +108,16 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
   }
 
   public async deleteFile(path: string): Promise<void> {
-    this.#session.deleteEntry(toEntryPath(path));
+    const entryPath = toEntryPath(path);
+    if (
+      entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH &&
+      this.#searchIndexWritebackPolicy === "cache"
+    ) {
+      this.#searchIndexDatabase = undefined;
+      this.#session.deleteSearchIndexCache();
+      return;
+    }
+    this.#session.deleteEntry(entryPath);
   }
 
   public async deleteTree(path: string): Promise<void> {

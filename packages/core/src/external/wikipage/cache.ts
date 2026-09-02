@@ -1,11 +1,7 @@
-import { stat } from "../../runtime/platform/index.js";
-
-import { resolveWikiGraphCacheDatabasePath } from "../../runtime/common/wiki-graph/dir.js";
 import { getNumber } from "../../document/database.js";
-import { openSharedStateDatabase } from "../../document/index.js";
-import type { Database } from "../../document/index.js";
+import { Database, openWikiGraphStateDatabase } from "../../document/index.js";
+import { type File } from "../../runtime/platform/index.js";
 import type { GcContext, GcJobResult } from "../../runtime/gc/index.js";
-import { isNodeError } from "../../utils/node-error.js";
 
 import type {
   CachedDisambiguationRecord,
@@ -66,12 +62,14 @@ export class WikipageCache implements EnrichmentStore {
     this.#database = database;
   }
 
-  public static async open(path?: string): Promise<WikipageCache> {
-    const databasePath = path ?? resolveWikiGraphCacheDatabasePath();
-    const database = await openSharedStateDatabase(
-      databasePath,
-      WIKIPAGE_CACHE_SCHEMA_SQL,
-    );
+  public static async open(file?: File): Promise<WikipageCache> {
+    const database =
+      file === undefined
+        ? await openWikiGraphStateDatabase(
+            "cache/cache.sqlite",
+            WIKIPAGE_CACHE_SCHEMA_SQL,
+          )
+        : await Database.open(file, WIKIPAGE_CACHE_SCHEMA_SQL);
 
     try {
       await migrateWikipageCacheSchema(database);
@@ -226,24 +224,14 @@ ON CONFLICT(qid, wiki) DO UPDATE SET
 export async function runWikipageCacheGc(
   context: GcContext,
 ): Promise<GcJobResult> {
-  const databasePath = resolveWikiGraphCacheDatabasePath();
-  const beforeBytes = await readFileSize(databasePath);
-
-  if (beforeBytes === undefined) {
-    return {
-      freedBytes: 0,
-      removed: 0,
-      scanned: 0,
-    };
-  }
-
-  const database = await openSharedStateDatabase(
-    databasePath,
+  const database = await openWikiGraphStateDatabase(
+    "cache/cache.sqlite",
     WIKIPAGE_CACHE_SCHEMA_SQL,
   );
 
   try {
     await migrateWikipageCacheSchema(database);
+    const beforeBytes = await readDatabaseSize(database);
 
     const scanned = await countWikipageCacheRows(database);
     const cutoff = new Date(context.now - WIKIPAGE_CACHE_TTL_MS).toISOString();
@@ -262,12 +250,12 @@ export async function runWikipageCacheGc(
       await database.run("VACUUM");
     }
 
-    const afterBytes = await readFileSize(databasePath);
+    const afterBytes = await readDatabaseSize(database);
 
     return {
       freedBytes: context.dryRun
         ? estimateDryRunFreedBytes(beforeBytes, scanned, expired)
-        : Math.max(0, beforeBytes - (afterBytes ?? 0)),
+        : Math.max(0, beforeBytes - afterBytes),
       removed: expired,
       scanned,
     };
@@ -415,16 +403,16 @@ ${checkedBefore === undefined ? "" : "WHERE checked_at < ?"}
   );
 }
 
-async function readFileSize(path: string): Promise<number | undefined> {
-  try {
-    return (await stat(path)).size;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return undefined;
-    }
-
-    throw error;
-  }
+async function readDatabaseSize(database: Database): Promise<number> {
+  const pageCount =
+    (await database.queryOne("PRAGMA page_count", undefined, (row) =>
+      getNumber(row, "page_count"),
+    )) ?? 0;
+  const pageSize =
+    (await database.queryOne("PRAGMA page_size", undefined, (row) =>
+      getNumber(row, "page_size"),
+    )) ?? 0;
+  return pageCount * pageSize;
 }
 
 function mapQidRecord(row: SqlRow): CachedQidRecord {

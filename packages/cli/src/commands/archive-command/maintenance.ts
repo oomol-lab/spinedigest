@@ -10,6 +10,7 @@ import { writeBinaryToStdout, writeTextToStdout } from "../../support/index.js";
 import { formatCLIJSON } from "../../support/index.js";
 import { writeArchiveDocument } from "./run/document.js";
 import { resolveArchiveRuntimeLocation } from "./run/uri.js";
+import { NodeFile } from "../../runtime/node-platform.js";
 
 export async function runArchiveMetaCommand(
   args: CLIArchiveMetadataArguments,
@@ -21,7 +22,7 @@ export async function runArchiveMetaCommand(
 
   const app = new WikiGraph({});
   const location = await resolveArchiveRuntimeLocation(args.inputPath);
-  await app.openSession(location.archivePath, async (digest) => {
+  await app.openSession(new NodeFile(location.archivePath), async (digest) => {
     await writeArchiveMeta(await digest.readMeta(), {
       json: args.json ?? false,
     });
@@ -33,7 +34,7 @@ export async function runArchiveCoverCommand(
 ): Promise<void> {
   const app = new WikiGraph({});
   const location = await resolveArchiveRuntimeLocation(args.inputPath);
-  await app.openSession(location.archivePath, async (digest) => {
+  await app.openSession(new NodeFile(location.archivePath), async (digest) => {
     if (process.stdout.isTTY === true) {
       throw new Error(
         "Refusing to write binary cover data to an interactive terminal. Redirect stdout or pipe it.",

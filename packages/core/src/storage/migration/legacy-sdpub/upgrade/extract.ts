@@ -1,90 +1,76 @@
-import { createWriteStream } from "../../../../runtime/platform/index.js";
-import { mkdir } from "../../../../runtime/platform/index.js";
-import { dirname, resolve } from "../../../../runtime/platform/index.js";
-import { pipeline } from "../../../../runtime/platform/index.js";
-
-import type {
-  Entry,
-  ZipFile as YauzlZipFile,
+import {
+  ensureRelativeDirectory,
+  getWikiGraphPlatform,
+  type Directory,
+  type File,
 } from "../../../../runtime/platform/index.js";
 
-import {
-  assertWithinDirectory,
-  indexArchiveEntries,
-  isLegacySdpubPath,
-  normalizeArchivePath,
-  openArchive,
-  openArchiveEntryStream,
-  readArchiveEntryText,
-} from "./archive.js";
-
 const LEGACY_FORMAT_VERSION = 1;
+const LEGACY_SDPUB_PATTERNS = [
+  /^manifest\.json$/u,
+  /^database\.db$/u,
+  /^toc\.json$/u,
+  /^cover\/(?:data\.bin|info\.json)$/u,
+  /^summaries\/serial-\d+\.txt$/u,
+  /^fragments\/serial-\d+\/fragment_\d+\.json$/u,
+] as const;
 
 export async function extractLegacySdpubArchive(
-  inputPath: string,
-  outputDirectoryPath: string,
+  inputFile: File,
+  outputDirectory: Directory,
 ): Promise<void> {
-  const zipFile = await openArchive(inputPath);
-
-  try {
-    const entries = await indexArchiveEntries(zipFile);
-
-    await assertLegacySdpubArchive(zipFile, entries);
-    for (const entry of entries) {
-      const archivePath = normalizeArchivePath(entry.fileName);
-
-      if (archivePath === "" || !isLegacySdpubPath(archivePath)) {
-        continue;
-      }
-
-      const targetPath = resolve(outputDirectoryPath, archivePath);
-
-      assertWithinDirectory(outputDirectoryPath, targetPath, archivePath);
-      await mkdir(dirname(targetPath), { recursive: true });
-      await pipeline(
-        await openArchiveEntryStream(zipFile, entry),
-        createWriteStream(targetPath),
-      );
-    }
-  } finally {
-    zipFile.close();
-  }
-}
-
-async function assertLegacySdpubArchive(
-  zipFile: YauzlZipFile,
-  entries: readonly Entry[],
-): Promise<void> {
-  const paths = new Set(
-    entries.map((entry: any) => normalizeArchivePath(entry.fileName)),
-  );
-
+  const entries = await getWikiGraphPlatform().zip.read(inputFile);
+  const paths = new Set(entries.map((entry) => normalize(entry.name)));
   if (!paths.has("database.db") || !paths.has("toc.json")) {
     throw new Error("Unsupported legacy sdpub archive.");
   }
-  if (paths.has("manifest.json")) {
-    const manifestEntry = entries.find(
-      (entry: any) => normalizeArchivePath(entry.fileName) === "manifest.json",
-    );
-
-    if (manifestEntry === undefined) {
-      throw new Error("Unsupported legacy sdpub archive.");
-    }
-
-    assertSupportedManifest(await readArchiveEntryText(zipFile, manifestEntry));
+  const manifest = entries.find(
+    (entry) => normalize(entry.name) === "manifest.json",
+  );
+  if (manifest !== undefined) {
+    assertSupportedManifest(new TextDecoder().decode(manifest.data));
   }
+
+  for (const entry of entries) {
+    const name = normalize(entry.name);
+    if (
+      name === "" ||
+      !LEGACY_SDPUB_PATTERNS.some((pattern) => pattern.test(name))
+    ) {
+      continue;
+    }
+    const parts = name.split("/");
+    const fileName = parts.pop();
+    if (!fileName) continue;
+    const parent = await ensureRelativeDirectory(
+      outputDirectory,
+      parts.join("/"),
+    );
+    const file =
+      (await parent.getFile(fileName)) ?? (await parent.createFile(fileName));
+    const writer = await file.openWriter();
+    try {
+      await writer.write(entry.data);
+      await writer.commit();
+    } catch (error) {
+      await writer.abort().catch(() => undefined);
+      throw error;
+    }
+  }
+}
+
+function normalize(name: string): string {
+  const parts = name.replaceAll("\\", "/").split("/").filter(Boolean);
+  if (parts.some((part) => part === "." || part === "..")) return "";
+  return parts.join("/");
 }
 
 function assertSupportedManifest(content: string): void {
   try {
     const parsed = JSON.parse(content) as { readonly formatVersion?: unknown };
-
-    if (parsed.formatVersion === LEGACY_FORMAT_VERSION) {
-      return;
-    }
+    if (parsed.formatVersion === LEGACY_FORMAT_VERSION) return;
   } catch {
-    throw new Error("Unsupported legacy sdpub archive.");
+    // Report a uniform unsupported-archive error below.
   }
-
   throw new Error("Unsupported legacy sdpub archive.");
 }

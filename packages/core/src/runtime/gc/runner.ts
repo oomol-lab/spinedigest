@@ -1,13 +1,16 @@
-import { mkdir, readFile, writeFile } from "../platform/index.js";
-import { join } from "../platform/index.js";
-
-import { resolveWikiGraphStateRootPath } from "../common/wiki-graph/temp.js";
+import {
+  ensureRelativeFile,
+  getRelativeFile,
+  getWikiGraphStorage,
+  readFileText,
+  writeFileContent,
+} from "../platform/index.js";
 import { runSearchCacheGc } from "../../retrieval/query/index.js";
 import { runBuildQueueGc } from "../../api/index.js";
 import { runWikgCoordinatorGc } from "../../storage/wikg/index.js";
 import { runWikipageCacheGc } from "../../external/wikipage/index.js";
 import { runLibraryIndexGc } from "../../library/index.js";
-import { formatError } from "../../utils/node-error.js";
+import { formatError } from "../../utils/host-error.js";
 
 import { tryAcquireGcLock } from "./lock.js";
 import { runTempDirectoryGc } from "./temp.js";
@@ -54,7 +57,6 @@ export async function tryRunWikiGraphGc(
   } = {},
 ): Promise<GcRunReport> {
   const startedAt = Date.now();
-  const stateDirectoryPath = resolveWikiGraphStateRootPath();
   const release = await tryAcquireGcLock();
 
   if (release === undefined) {
@@ -72,7 +74,7 @@ export async function tryRunWikiGraphGc(
   try {
     if (
       options.opportunistic === true &&
-      !(await shouldRunOpportunisticGc(stateDirectoryPath, startedAt))
+      !(await shouldRunOpportunisticGc(startedAt))
     ) {
       return {
         finishedAt: Date.now(),
@@ -89,7 +91,6 @@ export async function tryRunWikiGraphGc(
       dryRun: options.dryRun === true,
       force: options.force === true,
       now: startedAt,
-      stateDirectoryPath,
     };
     const jobs: GcJobReport[] = [];
 
@@ -107,9 +108,7 @@ export async function tryRunWikiGraphGc(
       startedAt,
     };
 
-    await writeLastGcRunAt(stateDirectoryPath, report.finishedAt).catch(
-      () => undefined,
-    );
+    await writeLastGcRunAt(report.finishedAt).catch(() => undefined);
     return report;
   } finally {
     await release();
@@ -144,16 +143,13 @@ function sum(jobs: readonly GcJobReport[], key: keyof GcJobReport): number {
   }, 0);
 }
 
-async function shouldRunOpportunisticGc(
-  stateDirectoryPath: string,
-  now: number,
-): Promise<boolean> {
+async function shouldRunOpportunisticGc(now: number): Promise<boolean> {
+  const file = await getRelativeFile(
+    getWikiGraphStorage().library,
+    "tmp/gc.last-run",
+  );
   const lastRunAt = Number(
-    (
-      await readFile(createLastGcRunPath(stateDirectoryPath), "utf8").catch(
-        () => "",
-      )
-    ).trim(),
+    (file === undefined ? "" : await readFileText(file).catch(() => "")).trim(),
   );
 
   return (
@@ -162,14 +158,10 @@ async function shouldRunOpportunisticGc(
   );
 }
 
-async function writeLastGcRunAt(
-  stateDirectoryPath: string,
-  at: number,
-): Promise<void> {
-  await mkdir(stateDirectoryPath, { recursive: true });
-  await writeFile(createLastGcRunPath(stateDirectoryPath), `${at}\n`, "utf8");
-}
-
-function createLastGcRunPath(stateDirectoryPath: string): string {
-  return join(stateDirectoryPath, "gc.last-run");
+async function writeLastGcRunAt(at: number): Promise<void> {
+  const file = await ensureRelativeFile(
+    getWikiGraphStorage().library,
+    "tmp/gc.last-run",
+  );
+  await writeFileContent(file, `${at}\n`);
 }

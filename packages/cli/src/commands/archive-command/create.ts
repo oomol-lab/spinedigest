@@ -1,20 +1,21 @@
-import { rename, rm, stat } from "fs/promises";
+import { mkdtemp, rename, rm, stat } from "fs/promises";
 import { basename, dirname, join } from "path";
+import { tmpdir } from "os";
 
 import {
   DirectoryDocument,
   formatLocatedWikiGraphUri,
-  formatWikiGraphCommandUri,
   TOC_FILE_VERSION,
   writeWikgArchive,
 } from "wiki-graph-core";
-import { createWikiGraphTempDirectory } from "../../../../core/src/runtime/common/wiki-graph/temp.js";
+import { NodeDirectory, NodeFile } from "../../runtime/node-platform.js";
 
 import type { CLIArchiveArguments } from "../../args/index.js";
 import { runConvertCommand } from "../convert.js";
 import {
   formatCLIJSON,
   formatCliCommand,
+  formatWikiGraphCommandUri,
   writeTextToStdout,
 } from "../../support/index.js";
 
@@ -53,8 +54,11 @@ async function writeCreatedArchiveFile(
 }
 
 async function createEmptyArchive(outputPath: string): Promise<void> {
-  const directoryPath = await createWikiGraphTempDirectory("archive-write");
-  const document = await DirectoryDocument.open(directoryPath);
+  const directoryPath = await mkdtemp(
+    join(tmpdir(), "wikigraph-archive-write-"),
+  );
+  const directory = new NodeDirectory(directoryPath);
+  const document = await DirectoryDocument.open(directory);
 
   try {
     try {
@@ -67,7 +71,7 @@ async function createEmptyArchive(outputPath: string): Promise<void> {
     } finally {
       await document.release();
     }
-    await writeWikgArchive(directoryPath, outputPath);
+    await writeWikgArchive(directory, new NodeFile(outputPath));
   } finally {
     await rm(directoryPath, { force: true, recursive: true });
   }

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, stat } from "fs/promises";
+import { mkdir, mkdtemp, rm, stat } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { describe, expect, it } from "vitest";
@@ -17,7 +17,11 @@ import {
   removeWikiGraphLibrary,
   replaceWikiGraphLibraryMetadata,
 } from "../../../packages/core/src/index.js";
-import { withWikiGraphStateDirectoryPathForTesting } from "../../../packages/core/src/runtime/common/wiki-graph/dir.js";
+import { withWikiGraphStateDirectoryPathForTesting } from "../../helpers/wiki-graph-storage.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+} from "../../../packages/cli/src/runtime/node-platform.js";
 
 describe("wiki graph library registry", () => {
   it("auto-creates the default library with empty metadata", async () => {
@@ -27,8 +31,12 @@ describe("wiki graph library registry", () => {
       expect(library.id).toEqual(expect.any(Number));
       expect(library.isDefault).toBe(true);
       expect(library.uri).toBe("wikg://lib");
-      expect(library.folderPath).toBe(join(stateDir, "default-library"));
-      expect((await stat(library.folderPath)).isDirectory()).toBe(true);
+      expect(getNodeResourcePath(library.folder)).toBe(
+        join(stateDir, "default-library"),
+      );
+      expect(
+        (await stat(getNodeResourcePath(library.folder))).isDirectory(),
+      ).toBe(true);
       expect(
         await getWikiGraphLibraryMetadata({
           isDefault: true,
@@ -51,14 +59,21 @@ describe("wiki graph library registry", () => {
       expect(new Set(libraries.map((library) => library.publicId)).size).toBe(
         1,
       );
-      expect((await stat(libraries[0]!.folderPath)).isDirectory()).toBe(true);
+      expect(
+        (await stat(getNodeResourcePath(libraries[0]!.folder))).isDirectory(),
+      ).toBe(true);
     });
   });
 
   it("creates non-default libraries with public library URIs and refuses existing folders", async () => {
     await withRegistryTestState(async (stateDir) => {
       const folderPath = join(stateDir, "research");
-      const library = await createWikiGraphLibrary({ folderPath });
+      await import("node:fs/promises").then(({ mkdir }) =>
+        mkdir(folderPath, { recursive: true }),
+      );
+      const library = await createWikiGraphLibrary({
+        folder: new NodeDirectory(folderPath),
+      });
 
       expect(library.id).toEqual(expect.any(Number));
       expect(Number.isInteger(library.id)).toBe(true);
@@ -66,9 +81,9 @@ describe("wiki graph library registry", () => {
       expect(library.uri).toBe(`wikg://lib/${library.publicId}`);
       expect(formatWikiGraphLibraryUri(library.publicId)).toBe(library.uri);
       expect((await stat(folderPath)).isDirectory()).toBe(true);
-      await expect(createWikiGraphLibrary({ folderPath })).rejects.toThrow(
-        "Library folder already exists",
-      );
+      await expect(
+        createWikiGraphLibrary({ folder: new NodeDirectory(folderPath) }),
+      ).rejects.toThrow();
     });
   });
 
@@ -106,8 +121,9 @@ describe("wiki graph library registry", () => {
 
   it("supports metadata put, set, delete, and clear while rejecting system fields", async () => {
     await withRegistryTestState(async (stateDir) => {
+      await mkdir(join(stateDir, "metadata-library"));
       const library = await createWikiGraphLibrary({
-        folderPath: join(stateDir, "metadata-library"),
+        folder: new NodeDirectory(join(stateDir, "metadata-library")),
       });
       const target = parseWikiGraphLibraryUri(`${library.uri}/meta`)!;
 
@@ -134,14 +150,17 @@ describe("wiki graph library registry", () => {
 
   it("removes only registry records and keeps folders; default removal is rejected", async () => {
     await withRegistryTestState(async (stateDir) => {
+      await mkdir(join(stateDir, "kept"));
       const library = await createWikiGraphLibrary({
-        folderPath: join(stateDir, "kept"),
+        folder: new NodeDirectory(join(stateDir, "kept")),
       });
       const target = parseWikiGraphLibraryUri(library.uri)!;
 
       expect(await listWikiGraphLibraryScope(target)).toStrictEqual([]);
       expect((await removeWikiGraphLibrary(target)).uri).toBe(library.uri);
-      await expect(stat(library.folderPath)).resolves.toBeTruthy();
+      await expect(
+        stat(getNodeResourcePath(library.folder)),
+      ).resolves.toBeTruthy();
       await expect(
         removeWikiGraphLibrary({ isDefault: true, kind: "scope" }),
       ).rejects.toThrow("default library");

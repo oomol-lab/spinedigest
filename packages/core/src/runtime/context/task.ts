@@ -1,12 +1,16 @@
-import { mkdir, readFile, rm, writeFile } from "../platform/index.js";
-import { join, resolve } from "../platform/index.js";
 import { z } from "zod";
 
+import {
+  ensureRelativeDirectory,
+  ensureRelativeFile,
+  getRelativeFile,
+  readFileText,
+  writeFileContent,
+  type Directory,
+} from "../platform/index.js";
 import { createHash } from "../../utils/hash.js";
-import { isNodeError } from "../../utils/node-error.js";
 
 export const WIKI_GRAPH_CONTEXT_VERSION = 1;
-
 const TASK_STATUS_VERSION = 1;
 
 const taskStatusSchema = z.object({
@@ -26,7 +30,7 @@ export interface WikiGraphTaskIdentity {
 }
 
 export interface WikiGraphTaskContextOptions {
-  readonly rootDirPath: string;
+  readonly root: Directory;
 }
 
 export interface WikiGraphTaskRun<T> {
@@ -34,91 +38,71 @@ export interface WikiGraphTaskRun<T> {
   run(operation: (task: WikiGraphTask) => Promise<T> | T): Promise<T>;
 }
 
-interface TaskStatus {
-  readonly completedAt?: string | undefined;
-  readonly startedAt: string;
-  readonly status: "running" | "succeeded";
-  readonly version: typeof TASK_STATUS_VERSION;
-}
+type TaskStatus = z.infer<typeof taskStatusSchema>;
 
 export class WikiGraphTaskContext {
-  readonly #rootDirPath: string;
+  readonly #root: Directory;
 
   public constructor(options: WikiGraphTaskContextOptions) {
-    this.#rootDirPath = resolve(options.rootDirPath);
+    this.#root = options.root;
   }
 
   public createTask(identity: WikiGraphTaskIdentity): WikiGraphTask {
-    const taskId = createWikiGraphTaskId(identity);
-
-    return new WikiGraphTask(taskId, join(this.#rootDirPath, taskId));
+    return new WikiGraphTask(createWikiGraphTaskId(identity), this.#root);
   }
 
   public async runTask<T>(
     identity: WikiGraphTaskIdentity,
     operation: (task: WikiGraphTask) => Promise<T> | T,
   ): Promise<T> {
-    const task = this.createTask(identity);
-
-    return await task.run(operation);
+    return await this.createTask(identity).run(operation);
   }
 }
 
 export class WikiGraphTask {
   readonly #id: string;
-  readonly #path: string;
+  readonly #root: Directory;
+  #directory: Directory | undefined;
 
-  public constructor(id: string, path: string) {
+  public constructor(id: string, root: Directory) {
     this.#id = id;
-    this.#path = resolve(path);
+    this.#root = root;
   }
 
-  public get artifactDirPath(): string {
-    return join(this.#path, "artifacts");
+  public async artifactDirectory(): Promise<Directory> {
+    return await ensureRelativeDirectory(
+      await this.#getDirectory(),
+      "artifacts",
+    );
   }
 
   public get id(): string {
     return this.#id;
   }
 
-  public get path(): string {
-    return this.#path;
-  }
-
   public async readStatus(): Promise<TaskStatus | undefined> {
-    try {
-      const status = JSON.parse(
-        await readFile(this.#getStatusPath(), "utf8"),
-      ) as unknown;
-
-      return taskStatusSchema.parse(status);
-    } catch (error) {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
+    const file = await getRelativeFile(this.#root, `${this.#id}/status.json`);
+    if (file === undefined) return undefined;
+    return taskStatusSchema.parse(JSON.parse(await readFileText(file)));
   }
 
   public async run<T>(
     operation: (task: WikiGraphTask) => Promise<T> | T,
   ): Promise<T> {
     await this.#begin();
-
     const result = await operation(this);
-
     await this.#complete();
     await this.remove();
     return result;
   }
 
   public async remove(): Promise<void> {
-    await rm(this.#path, { force: true, recursive: true });
+    await this.#root.remove(this.#id, { recursive: true });
+    this.#directory = undefined;
   }
 
   async #begin(): Promise<void> {
-    await mkdir(this.artifactDirPath, { recursive: true });
+    await this.artifactDirectory();
     await this.#writeStatus({
       startedAt: new Date().toISOString(),
       status: "running",
@@ -127,27 +111,28 @@ export class WikiGraphTask {
   }
 
   async #complete(): Promise<void> {
-    const existingStatus = await this.readStatus();
-
+    const existing = await this.readStatus();
     await this.#writeStatus({
       completedAt: new Date().toISOString(),
-      startedAt: existingStatus?.startedAt ?? new Date().toISOString(),
+      startedAt: existing?.startedAt ?? new Date().toISOString(),
       status: "succeeded",
       version: TASK_STATUS_VERSION,
     });
   }
 
   async #writeStatus(status: TaskStatus): Promise<void> {
-    await mkdir(this.#path, { recursive: true });
-    await writeFile(
-      this.#getStatusPath(),
-      `${JSON.stringify(status, null, 2)}\n`,
-      "utf8",
+    const file = await ensureRelativeFile(
+      await this.#getDirectory(),
+      "status.json",
     );
+    await writeFileContent(file, `${JSON.stringify(status, null, 2)}\n`);
   }
 
-  #getStatusPath(): string {
-    return join(this.#path, "status.json");
+  async #getDirectory(): Promise<Directory> {
+    this.#directory ??=
+      (await this.#root.getDirectory(this.#id)) ??
+      (await this.#root.createDirectory(this.#id));
+    return this.#directory;
   }
 }
 

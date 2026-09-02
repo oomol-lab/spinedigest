@@ -1,9 +1,8 @@
-import { rm } from "../platform/index.js";
 import { readPathSize, removeDisposableChildDirectories } from "../gc/files.js";
 import type { GcContext, GcJobResult } from "../gc/index.js";
-import { getBuildJobWorkspaceRootPath } from "./paths.js";
+import { getBuildJobWorkspaceRoot, removeJobResources } from "./paths.js";
 import { openBuildQueueDatabase } from "./database.js";
-import { getNumber, mapBuildJob } from "./row.js";
+import { getNumber, hydrateBuildJob, mapBuildJob } from "./row.js";
 import type { BuildJobState } from "./types.js";
 
 export async function cleanBuildJobs(
@@ -28,12 +27,8 @@ WHERE state IN (${placeholders})
       [...states, cutoff],
       mapBuildJob,
     );
-
     for (const job of jobs) {
-      await rm(job.workspacePath, { force: true, recursive: true });
-      await rm(job.cachePath, { force: true, recursive: true });
-      await rm(job.logPath, { force: true, recursive: true });
-      await rm(job.eventsPath, { force: true });
+      await removeJobResources(job.jobId);
       await state.run("DELETE FROM build_jobs WHERE job_id = ?", [job.jobId]);
     }
 
@@ -57,7 +52,7 @@ export async function runBuildQueueGc(
       undefined,
       (row) => getNumber(row, "count"),
     );
-    const jobs = await state.queryAll(
+    const storedJobs = await state.queryAll(
       `
 SELECT *
 FROM build_jobs
@@ -67,21 +62,21 @@ WHERE state IN ('succeeded', 'failed', 'canceled')
       [cutoff],
       mapBuildJob,
     );
+    const jobs = await Promise.all(storedJobs.map(hydrateBuildJob));
     const childDirectories = context.dryRun
       ? { freedBytes: 0, removed: 0, scanned: 0 }
-      : await removeDisposableChildDirectories(getBuildJobWorkspaceRootPath());
+      : await removeDisposableChildDirectories(
+          await getBuildJobWorkspaceRoot(),
+        );
     let freedBytes = 0;
 
     for (const job of jobs) {
-      freedBytes += await readPathSize(job.workspacePath);
-      freedBytes += await readPathSize(job.cachePath);
-      freedBytes += await readPathSize(job.logPath);
-      freedBytes += await readPathSize(job.eventsPath);
+      freedBytes += await readPathSize(job.workspace);
+      freedBytes += await readPathSize(job.cache);
+      freedBytes += await readPathSize(job.log);
+      freedBytes += await readPathSize(job.events);
       if (!context.dryRun) {
-        await rm(job.workspacePath, { force: true, recursive: true });
-        await rm(job.cachePath, { force: true, recursive: true });
-        await rm(job.logPath, { force: true, recursive: true });
-        await rm(job.eventsPath, { force: true });
+        await removeJobResources(job.jobId);
         await state.run("DELETE FROM build_jobs WHERE job_id = ?", [job.jobId]);
       }
     }

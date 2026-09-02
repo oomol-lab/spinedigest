@@ -20,6 +20,7 @@ import {
   writeTextFileToStdout,
 } from "../support/index.js";
 import { createCLIProgressRenderer } from "../runtime/index.js";
+import { NodeDirectory, NodeFile } from "../runtime/node-platform.js";
 
 type TextCLIFormat = Extract<CLIFormat, "markdown" | "txt">;
 
@@ -98,7 +99,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     }
 
     try {
-      await app.openSession(input.path, async (digest) => {
+      await app.openSession(new NodeFile(input.path), async (digest) => {
         await writeDigestOutput(digest, output);
       });
       return;
@@ -124,7 +125,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
         {
           ...(digestDirPath === undefined
             ? {}
-            : { documentDirPath: digestDirPath }),
+            : { documentDirectory: new NodeDirectory(digestDirPath) }),
           ...(progressRenderer.onProgress === undefined
             ? {}
             : { onProgress: progressRenderer.onProgress }),
@@ -146,11 +147,11 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
           {
             ...(digestDirPath === undefined
               ? {}
-              : { documentDirPath: digestDirPath }),
+              : { documentDirectory: new NodeDirectory(digestDirPath) }),
             ...(progressRenderer.onProgress === undefined
               ? {}
               : { onProgress: progressRenderer.onProgress }),
-            path: input.path,
+            file: new NodeFile(input.path),
             ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
             targetStage,
           },
@@ -164,11 +165,11 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
           {
             ...(digestDirPath === undefined
               ? {}
-              : { documentDirPath: digestDirPath }),
+              : { documentDirectory: new NodeDirectory(digestDirPath) }),
             ...(progressRenderer.onProgress === undefined
               ? {}
               : { onProgress: progressRenderer.onProgress }),
-            path: input.path,
+            file: new NodeFile(input.path),
             ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
             targetStage,
           },
@@ -182,11 +183,11 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
           {
             ...(digestDirPath === undefined
               ? {}
-              : { documentDirPath: digestDirPath }),
+              : { documentDirectory: new NodeDirectory(digestDirPath) }),
             ...(progressRenderer.onProgress === undefined
               ? {}
               : { onProgress: progressRenderer.onProgress }),
-            path: input.path,
+            file: new NodeFile(input.path),
             ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
             targetStage,
           },
@@ -288,14 +289,14 @@ async function writeDigestToFile(
 ): Promise<void> {
   switch (format) {
     case "epub":
-      await digest.exportEpub(path);
+      await digest.exportEpub(new NodeFile(path));
       return;
     case "markdown":
     case "txt":
-      await digest.exportText(path);
+      await digest.exportText(new NodeFile(path));
       return;
     case "wikg":
-      await digest.saveAs(path);
+      await digest.saveAs(new NodeFile(path));
       return;
   }
 }

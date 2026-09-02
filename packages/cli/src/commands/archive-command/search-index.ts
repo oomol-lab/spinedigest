@@ -37,7 +37,7 @@ export async function runArchiveIndexCommand(
 async function readIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
   const location = await resolveArchiveRuntimeLocation(args.archivePath);
 
-  await new WikiGraphArchiveFile(location.archivePath).readDocument(
+  await new WikiGraphArchiveFile(location.archiveFile).readDocument(
     async (document) => {
       await writeIndexOutput(args, {
         capabilities: await readSearchIndexCapabilityStatus(document),
@@ -54,7 +54,7 @@ async function syncIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
     throttleMs: INDEX_PROGRESS_OUTPUT_INTERVAL_MS,
   });
 
-  await new WikiGraphArchiveFile(location.archivePath).write(
+  await new WikiGraphArchiveFile(location.archiveFile).write(
     async (document) => {
       await writer.write({
         json: { type: "started" },
@@ -127,7 +127,7 @@ async function syncIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
 async function cleanIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
   const location = await resolveArchiveRuntimeLocation(args.archivePath);
 
-  await new WikiGraphArchiveFile(location.archivePath).write(
+  await new WikiGraphArchiveFile(location.archiveFile).write(
     async (document) => {
       await document.deleteSearchIndexDatabase();
       await writeIndexOutput(args, {

@@ -1,14 +1,11 @@
-import { runtimeContext as platformRuntime } from "../runtime/platform/index.js";
 import { getNumber, getString, type Database } from "../document/database.js";
-import { openSharedStateDatabase } from "../document/index.js";
-import { resolveWikiGraphCoreDatabasePath } from "../runtime/common/wiki-graph/dir.js";
+import { openWikiGraphStateDatabase } from "../document/index.js";
 import {
   acquireStateLock,
   isStateLocked,
   withStateLock,
   type StateLockMode,
 } from "../state-lock.js";
-import { isNodeError } from "../utils/node-error.js";
 
 const LEGACY_LIBRARY_LOCK_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS library_locks (
@@ -31,7 +28,7 @@ export async function withWikiGraphLibraryLock<T>(
   operation: () => Promise<T> | T,
 ): Promise<T> {
   return await withStateLock(
-    createLibraryLockOptions(libraryId, mode),
+    await createLibraryLockOptions(libraryId, mode),
     operation,
   );
 }
@@ -41,7 +38,7 @@ export async function acquireWikiGraphLibraryLock(
   mode: LibraryLockMode,
 ): Promise<() => Promise<void>> {
   const release = await acquireStateLock(
-    createLibraryLockOptions(libraryId, mode),
+    await createLibraryLockOptions(libraryId, mode),
   );
 
   if (release === undefined) {
@@ -56,7 +53,7 @@ export async function tryAcquireWikiGraphLibraryLock(
   mode: LibraryLockMode,
 ): Promise<(() => Promise<void>) | undefined> {
   return await acquireStateLock({
-    ...createLibraryLockOptions(libraryId, mode),
+    ...(await createLibraryLockOptions(libraryId, mode)),
     wait: false,
   });
 }
@@ -66,7 +63,7 @@ export async function isWikiGraphLibraryLocked(
 ): Promise<boolean> {
   return (
     (await isStateLocked({
-      databasePath: resolveWikiGraphCoreDatabasePath(),
+      stateDatabaseName: "core.sqlite",
       resourceKey: formatLibraryResourceKey(libraryId),
       scope: LIBRARY_LOCK_SCOPE,
       staleMs: LIBRARY_LOCK_STALE_MS,
@@ -74,9 +71,12 @@ export async function isWikiGraphLibraryLocked(
   );
 }
 
-function createLibraryLockOptions(libraryId: number, mode: LibraryLockMode) {
+async function createLibraryLockOptions(
+  libraryId: number,
+  mode: LibraryLockMode,
+) {
   return {
-    databasePath: resolveWikiGraphCoreDatabasePath(),
+    stateDatabaseName: "core.sqlite",
     mode,
     resourceKey: formatLibraryResourceKey(libraryId),
     scope: LIBRARY_LOCK_SCOPE,
@@ -110,8 +110,8 @@ async function isLegacyWikiGraphLibraryLocked(
 }
 
 async function openLegacyLibraryLockDatabase(): Promise<Database> {
-  const database = await openSharedStateDatabase(
-    resolveWikiGraphCoreDatabasePath(),
+  const database = await openWikiGraphStateDatabase(
+    "core.sqlite",
     LEGACY_LIBRARY_LOCK_SCHEMA_SQL,
   );
 
@@ -137,25 +137,6 @@ async function ensureLegacyLibraryLockColumns(
   }
 }
 
-function isLockActive(lock: {
-  readonly heartbeatAt: number;
-  readonly ownerPid: number;
-}): boolean {
-  return (
-    Date.now() - lock.heartbeatAt <= LIBRARY_LOCK_STALE_MS &&
-    isProcessAlive(lock.ownerPid)
-  );
-}
-
-function isProcessAlive(pid: number): boolean {
-  try {
-    platformRuntime.kill(pid, 0);
-    return true;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ESRCH") {
-      return false;
-    }
-
-    return true;
-  }
+function isLockActive(lock: { readonly heartbeatAt: number }): boolean {
+  return Date.now() - lock.heartbeatAt <= LIBRARY_LOCK_STALE_MS;
 }

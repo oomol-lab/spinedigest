@@ -1,4 +1,5 @@
 import type { Language } from "../../runtime/common/language.js";
+import type { Directory } from "../../runtime/platform/index.js";
 import type { WikiGraphScope } from "../../runtime/common/llm-scope.js";
 import type { LLM } from "../../external/llm/index.js";
 export { CHAPTER_STAGES } from "../../document/chapter/index.js";
@@ -61,7 +62,7 @@ export interface AdvanceChapterStagesOptions {
   readonly chapterId?: number;
   readonly extractionPrompt?: string;
   readonly llm: LLM<WikiGraphScope>;
-  readonly logDirPath?: string;
+  readonly logDirectory?: Directory;
   readonly onProgress?: AdvanceChapterStagesProgressCallback;
   readonly targetStage: ChapterStage;
   readonly userLanguage?: Language;

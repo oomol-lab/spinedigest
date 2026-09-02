@@ -1,9 +1,9 @@
-import { rm } from "../platform/index.js";
 import type { Database } from "../../document/index.js";
 import { formatErrorEvent } from "./helpers.js";
 import { appendBuildJobEvent } from "./events.js";
 import { openBuildQueueDatabase, requireBuildJobById } from "./database.js";
 import type { BuildJob, BuildJobTarget } from "./types.js";
+import { removeJobWorkspace } from "./paths.js";
 
 export async function markBuildJobCanceling(
   state: Database,
@@ -117,7 +117,7 @@ WHERE job_id = ?
         state: "succeeded",
         type: "succeeded",
       });
-      await rm(job.workspacePath, { force: true, recursive: true });
+      await removeJobWorkspace(job.jobId);
     });
   } finally {
     await state.close();

@@ -89,9 +89,9 @@ async function advanceEntriesToGraphed(
     await generateChapterGraph(document, entry.chapterId, {
       extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
       llm: options.llm,
-      ...(options.logDirPath === undefined
+      ...(options.logDirectory === undefined
         ? {}
-        : { logDirPath: options.logDirPath }),
+        : { logDirectory: options.logDirectory }),
       ...(options.userLanguage === undefined
         ? {}
         : { userLanguage: options.userLanguage }),
@@ -141,9 +141,9 @@ async function advanceEntriesToSummarized(
     });
     await generateChapterSummary(document, entry.chapterId, {
       llm: options.llm,
-      ...(options.logDirPath === undefined
+      ...(options.logDirectory === undefined
         ? {}
-        : { logDirPath: options.logDirPath }),
+        : { logDirectory: options.logDirectory }),
       ...(options.userLanguage === undefined
         ? {}
         : { userLanguage: options.userLanguage }),

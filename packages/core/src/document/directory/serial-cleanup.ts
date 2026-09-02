@@ -1,4 +1,4 @@
-import { isNodeError } from "../../utils/node-error.js";
+import { isHostError } from "../../utils/host-error.js";
 import type { Database } from "../database.js";
 import type {
   GraphBuildParameterStore,
@@ -211,7 +211,7 @@ async function rollbackCreatedFiles(
     try {
       await fileStore.deleteFile(path);
     } catch (error) {
-      if (isNodeError(error) && error.code === "ENOENT") {
+      if (isHostError(error) && error.code === "ENOENT") {
         continue;
       }
 

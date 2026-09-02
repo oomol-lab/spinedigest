@@ -1,16 +1,17 @@
-import { binary as platformBinary } from "../../../runtime/platform/index.js";
-import { createWriteStream } from "../../../runtime/platform/index.js";
-import { mkdir, open as openFile } from "../../../runtime/platform/index.js";
-import { dirname } from "../../../runtime/platform/index.js";
-import { finished } from "../../../runtime/platform/index.js";
-
-import { ZipFile as YazlZipFile } from "../../../runtime/platform/index.js";
-
-import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 import {
-  listDocumentFiles,
-  shouldWriteDocumentFile,
-} from "./document-files.js";
+  getWikiGraphPlatform,
+  resolveHostDirectory,
+  resolveHostFile,
+  type Directory,
+  type File,
+  type HostZipEntry,
+} from "../../../runtime/platform/index.js";
+import {
+  LEGACY_SEARCH_INDEX_DATABASE_PATH,
+  WIKG_MANIFEST_PATH,
+  WIKG_MUTATION_TOKEN_PATH,
+} from "./constants.js";
+import { shouldWriteDocumentFile } from "./document-files.js";
 import {
   createWikgMutationTokenContent,
   WIKG_MANIFEST_CONTENT,
@@ -18,165 +19,117 @@ import {
 import {
   isWikgArchivePath,
   normalizeArchivePath,
-  sortArchiveEntriesForWrite,
   sortArchiveEntryPathsForWrite,
 } from "./paths.js";
 import type { WikgArchiveOverlay } from "./types.js";
-import { openIndexedArchive, readArchiveEntryBufferFromFile } from "./zip.js";
 
 export async function writeWikgArchive(
-  documentDirectoryPath: string,
-  outputPath: string,
+  documentDirectoryRef: Directory | string,
+  outputFileRef: File | string,
 ): Promise<void> {
-  await mkdir(dirname(outputPath), { recursive: true });
+  await writeWikgArchiveFromDirectory(documentDirectoryRef, outputFileRef);
+}
 
-  const zipFile = new YazlZipFile();
-  const files = await listDocumentFiles(documentDirectoryPath);
-  const entries = sortArchiveEntriesForWrite([
-    {
-      archivePath: WIKG_MUTATION_TOKEN_PATH,
-      content: createWikgMutationTokenContent(),
-    },
-    {
-      archivePath: WIKG_MANIFEST_PATH,
-      content: platformBinary.from(WIKG_MANIFEST_CONTENT, "utf8"),
-    },
-    ...files.filter((file) =>
-      shouldWriteDocumentFile({
-        archivePath: file.archivePath,
-      }),
-    ),
-  ]);
-
-  for (const entry of entries) {
-    if ("content" in entry) {
-      zipFile.addBuffer(entry.content, entry.archivePath, {
-        compress: false,
-      });
-    } else {
-      zipFile.addFile(entry.absolutePath, entry.archivePath, {
-        compress: false,
-      });
+export async function writeWikgArchiveFromDirectory(
+  documentDirectoryRef: Directory | string,
+  outputFileRef: File | string,
+): Promise<void> {
+  const documentDirectory = await resolveHostDirectory(documentDirectoryRef);
+  const outputFile = await resolveHostFile(outputFileRef);
+  const entries = new Map<string, Uint8Array>();
+  entries.set(WIKG_MUTATION_TOKEN_PATH, createWikgMutationTokenContent());
+  entries.set(
+    WIKG_MANIFEST_PATH,
+    new TextEncoder().encode(WIKG_MANIFEST_CONTENT),
+  );
+  for (const entry of await listHostDocumentFiles(documentDirectory)) {
+    if (
+      isWikgArchivePath(entry.name) &&
+      shouldWriteDocumentFile({ archivePath: entry.name })
+    ) {
+      entries.set(entry.name, entry.data);
     }
   }
-
-  zipFile.end();
-  await writeZipFile(zipFile, outputPath);
+  await writeEntries(outputFile, entries);
 }
 
 export async function writeWikgArchiveWithOverlays(
-  inputPath: string,
-  outputPath: string,
+  inputFileRef: File | string,
+  outputFileRef: File | string,
   overlays: readonly WikgArchiveOverlay[],
   options: { readonly preserveMutationToken?: boolean } = {},
 ): Promise<void> {
-  await mkdir(dirname(outputPath), { recursive: true });
-
-  const { entries: sourceEntries, zipFile } =
-    await openIndexedArchive(inputPath);
-  const overlayByPath = new Map(
-    overlays.map((overlay) => [
-      normalizeArchivePath(overlay.entryPath),
-      overlay,
-    ]),
+  const inputFile = await resolveHostFile(inputFileRef);
+  const outputFile = await resolveHostFile(outputFileRef);
+  const entries = new Map<string, Uint8Array>();
+  for (const entry of await getWikiGraphPlatform().zip.read(inputFile)) {
+    const name = normalizeArchivePath(entry.name);
+    if (name !== "" && isWikgArchivePath(name)) entries.set(name, entry.data);
+  }
+  for (const overlay of overlays) {
+    const name = normalizeArchivePath(overlay.entryPath);
+    if (!isWikgArchivePath(name)) continue;
+    if (overlay.kind === "deleted") entries.delete(name);
+    else {
+      const content = await overlay.file.read();
+      entries.set(
+        name,
+        typeof content === "string"
+          ? new TextEncoder().encode(content)
+          : content,
+      );
+    }
+  }
+  entries.delete(LEGACY_SEARCH_INDEX_DATABASE_PATH);
+  entries.set(
+    WIKG_MUTATION_TOKEN_PATH,
+    options.preserveMutationToken === true &&
+      entries.has(WIKG_MUTATION_TOKEN_PATH)
+      ? (entries.get(WIKG_MUTATION_TOKEN_PATH) as Uint8Array)
+      : createWikgMutationTokenContent(),
   );
-  const entryPaths = new Set<string>();
-
-  for (const entry of sourceEntries) {
-    const archivePath = normalizeArchivePath(entry.fileName);
-
-    if (archivePath !== "" && isWikgArchivePath(archivePath)) {
-      entryPaths.add(archivePath);
-    }
-  }
-  for (const overlay of overlayByPath.values()) {
-    const archivePath = normalizeArchivePath(overlay.entryPath);
-
-    if (archivePath !== "" && isWikgArchivePath(archivePath)) {
-      entryPaths.add(archivePath);
-    }
-  }
-  entryPaths.add(WIKG_MUTATION_TOKEN_PATH);
-  entryPaths.add(WIKG_MANIFEST_PATH);
-
-  const outputZipFile = new YazlZipFile();
-  const sourceFile = await openFile(inputPath, "r");
-
-  try {
-    for (const entryPath of sortArchiveEntryPathsForWrite(entryPaths)) {
-      const overlay = overlayByPath.get(entryPath);
-
-      if (entryPath === WIKG_MUTATION_TOKEN_PATH) {
-        if (options.preserveMutationToken === true) {
-          const sourceEntry = sourceEntries.find(
-            (candidate) =>
-              normalizeArchivePath(candidate.fileName) === entryPath,
-          );
-
-          if (sourceEntry !== undefined) {
-            outputZipFile.addBuffer(
-              await readArchiveEntryBufferFromFile(sourceFile, sourceEntry),
-              entryPath,
-              { compress: false },
-            );
-            continue;
-          }
-        }
-
-        outputZipFile.addBuffer(createWikgMutationTokenContent(), entryPath, {
-          compress: false,
-        });
-        continue;
-      }
-      if (entryPath === WIKG_MANIFEST_PATH) {
-        outputZipFile.addBuffer(
-          platformBinary.from(WIKG_MANIFEST_CONTENT, "utf8"),
-          entryPath,
-          { compress: false },
-        );
-        continue;
-      }
-      if (overlay?.kind === "deleted") {
-        continue;
-      }
-      if (overlay?.kind === "file") {
-        outputZipFile.addFile(overlay.workspacePath, entryPath, {
-          compress: false,
-        });
-        continue;
-      }
-
-      const sourceEntry = sourceEntries.find(
-        (candidate) => normalizeArchivePath(candidate.fileName) === entryPath,
-      );
-
-      if (sourceEntry === undefined) {
-        continue;
-      }
-
-      outputZipFile.addBuffer(
-        await readArchiveEntryBufferFromFile(sourceFile, sourceEntry),
-        entryPath,
-        { compress: false },
-      );
-    }
-  } finally {
-    await sourceFile.close();
-    zipFile.close();
-  }
-
-  outputZipFile.end();
-  await writeZipFile(outputZipFile, outputPath);
+  entries.set(
+    WIKG_MANIFEST_PATH,
+    new TextEncoder().encode(WIKG_MANIFEST_CONTENT),
+  );
+  await writeEntries(outputFile, entries);
 }
 
-async function writeZipFile(
-  zipFile: YazlZipFile,
-  outputPath: string,
+async function writeEntries(
+  outputFile: File,
+  entries: ReadonlyMap<string, Uint8Array>,
 ): Promise<void> {
-  const output = createWriteStream(outputPath);
-  const outputDone = finished(output);
-  const zipDone = finished(zipFile.outputStream);
+  await getWikiGraphPlatform().zip.write(
+    outputFile,
+    sortArchiveEntryPathsForWrite(entries.keys()).map((name) => ({
+      data: entries.get(name) as Uint8Array,
+      name,
+    })),
+  );
+}
 
-  zipFile.outputStream.pipe(output);
-  await Promise.all([outputDone, zipDone]);
+async function listHostDocumentFiles(
+  directory: Directory,
+  prefix = "",
+): Promise<HostZipEntry[]> {
+  const output: HostZipEntry[] = [];
+  const children = [...(await directory.list())].sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+  for (const child of children) {
+    const name = prefix === "" ? child.name : `${prefix}/${child.name}`;
+    if ("read" in child) {
+      const content = await child.read();
+      output.push({
+        data:
+          typeof content === "string"
+            ? new TextEncoder().encode(content)
+            : content,
+        name,
+      });
+    } else {
+      output.push(...(await listHostDocumentFiles(child, name)));
+    }
+  }
+  return output;
 }

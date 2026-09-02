@@ -1,7 +1,4 @@
-import { stat, type File } from "../../runtime/platform/index.js";
-import { join, resolve } from "../../runtime/platform/index.js";
-
-import { isNodeError } from "../../utils/node-error.js";
+import type { File } from "../../runtime/platform/index.js";
 import { Database } from "../database.js";
 import {
   SEARCH_INDEX_SCHEMA_SQL,
@@ -19,7 +16,7 @@ export async function openSearchIndexDatabase<T>(input: {
   readonly readonly: boolean;
 }): Promise<T> {
   return await withSearchIndexLifecycleLock(
-    input.fileStore.searchIndexLockKey?.() ?? resolve(input.documentPath),
+    input.fileStore.searchIndexLockKey?.() ?? input.fileStore,
     () => openSearchIndexDatabaseLocked(input),
   );
 }
@@ -30,12 +27,12 @@ async function openSearchIndexDatabaseLocked<T>(input: {
   readonly operation: (database: Database) => Promise<T> | T;
   readonly readonly: boolean;
 }): Promise<T> {
-  let databasePath =
-    input.fileStore.resolveSearchIndexDatabasePath === undefined
-      ? join(input.documentPath, "index.db")
-      : await input.fileStore.resolveSearchIndexDatabasePath(
-          input.documentPath,
-        );
+  if (input.fileStore.resolveSearchIndexDatabasePath === undefined) {
+    throw new Error("Document store does not provide a search index database");
+  }
+  let databasePath = await input.fileStore.resolveSearchIndexDatabasePath(
+    input.documentPath,
+  );
   let shouldInitialize =
     !input.readonly && (await isMissingOrEmptyFile(databasePath));
 
@@ -47,12 +44,9 @@ async function openSearchIndexDatabaseLocked<T>(input: {
     if (input.readonly) {
       throw new Error("Search index cache is missing: index.db");
     }
-    databasePath =
-      input.fileStore.resolveSearchIndexDatabasePath === undefined
-        ? join(input.documentPath, "index.db")
-        : await input.fileStore.resolveSearchIndexDatabasePath(
-            input.documentPath,
-          );
+    databasePath = await input.fileStore.resolveSearchIndexDatabasePath(
+      input.documentPath,
+    );
     shouldInitialize = true;
   }
 
@@ -102,28 +96,17 @@ async function withSearchIndexLifecycleLock<T>(
   }
 }
 
-async function isMissingOrEmptyFile(path: File | string): Promise<boolean> {
-  if (typeof path !== "string") {
-    if (path.size !== undefined) return path.size === 0;
-    if (path.getSize !== undefined) return (await path.getSize()) === 0;
-    const content = await path.read();
-    return typeof content === "string"
-      ? content.length === 0
-      : content.byteLength === 0;
-  }
-  const stats = await stat(path).catch((error: unknown) => {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return undefined;
-    }
-
-    throw error;
-  });
-
-  return stats === undefined || stats.size === 0;
+async function isMissingOrEmptyFile(file: File): Promise<boolean> {
+  if (file.size !== undefined) return file.size === 0;
+  if (file.getSize !== undefined) return (await file.getSize()) === 0;
+  const content = await file.read();
+  return typeof content === "string"
+    ? content.length === 0
+    : content.byteLength === 0;
 }
 
 async function isSearchIndexDatabaseCompatible(
-  databasePath: File | string,
+  databasePath: File,
 ): Promise<boolean> {
   const database = await Database.open(databasePath, "", {
     readonly: true,
@@ -158,10 +141,15 @@ async function deleteSearchIndexDatabaseFile(
 ): Promise<void> {
   try {
     await fileStore.deleteFile(
-      documentPath === "" ? "index.db" : join(documentPath, "index.db"),
+      documentPath === "" ? "index.db" : `${documentPath}/index.db`,
     );
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
       return;
     }
 

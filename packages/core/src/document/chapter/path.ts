@@ -1,4 +1,5 @@
-import { randomBytes } from "../../runtime/platform/index.js";
+import { bytesToHex } from "../../utils/bytes.js";
+import { randomBytes } from "../../utils/crypto.js";
 
 import type { TocItem } from "../../text/source/index.js";
 
@@ -83,7 +84,7 @@ export function createChapterKey(existingKeys: ReadonlySet<string>): string {
     attempt < CREATE_CHAPTER_KEY_MAX_ATTEMPTS;
     attempt += 1
   ) {
-    const candidate = randomBytes(CHAPTER_KEY_RANDOM_BYTES).toString("hex");
+    const candidate = bytesToHex(randomBytes(CHAPTER_KEY_RANDOM_BYTES));
 
     try {
       validateChapterKey(candidate);

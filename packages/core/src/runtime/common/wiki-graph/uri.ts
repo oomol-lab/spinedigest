@@ -1,7 +1,3 @@
-import { runtimeContext as platformRuntime } from "../../platform/index.js";
-import { isAbsolute, relative, resolve } from "../../platform/index.js";
-import { homedir } from "../../platform/index.js";
-
 import { RESERVED_LIBRARY_URI_SEGMENTS } from "../../../library/segments.js";
 
 export const WIKI_GRAPH_URI_PREFIX = "wikg://";
@@ -225,11 +221,7 @@ function isLibraryScopeSegment(segment: string): boolean {
 }
 
 function resolveArchivePath(archivePath: string): string {
-  if (archivePath.startsWith("~/")) {
-    return resolve(homedir(), archivePath.slice(2));
-  }
-
-  return resolve(archivePath);
+  return archivePath.replaceAll("\\", "/");
 }
 
 export function formatLocatedWikiGraphUri(
@@ -250,30 +242,9 @@ export function formatLocatedWikiGraphUri(
 export function formatWikiGraphCommandUri(
   archivePath: string,
   objectUri?: string,
-  cwd = platformRuntime.cwd(),
+  _cwd?: string,
 ): string {
-  return formatLocatedWikiGraphUri(
-    formatCommandArchivePath(archivePath, cwd),
-    objectUri,
-  );
-}
-
-function formatCommandArchivePath(archivePath: string, cwd: string): string {
-  const resolvedCwd = resolve(cwd);
-  const resolvedArchivePath = isAbsolute(archivePath)
-    ? resolve(archivePath)
-    : resolve(resolvedCwd, archivePath);
-  const relativeArchivePath = relative(resolvedCwd, resolvedArchivePath);
-
-  if (
-    relativeArchivePath !== "" &&
-    !relativeArchivePath.startsWith("..") &&
-    !isAbsolute(relativeArchivePath)
-  ) {
-    return relativeArchivePath;
-  }
-
-  return resolvedArchivePath;
+  return formatLocatedWikiGraphUri(archivePath, objectUri);
 }
 
 export function formatLocatedChapterUri(

@@ -1,13 +1,13 @@
-import { appendFile, readFile } from "../platform/index.js";
+import { appendFileText, readFileText } from "../platform/index.js";
 import type { BuildJob, BuildJobEvent } from "./types.js";
 
 export async function readBuildJobEvents(
-  job: Pick<BuildJob, "eventsPath">,
+  job: Pick<BuildJob, "events">,
 ): Promise<BuildJobEvent[]> {
   let content: string;
 
   try {
-    content = await readFile(job.eventsPath, "utf8");
+    content = await readFileText(job.events);
   } catch {
     return [];
   }
@@ -19,7 +19,7 @@ export async function readBuildJobEvents(
 }
 
 export async function appendBuildJobEvent(
-  job: Pick<BuildJob, "eventsPath" | "jobId">,
+  job: Pick<BuildJob, "events" | "jobId">,
   event: BuildJobEvent,
 ): Promise<void> {
   const seq = (await readLastBuildJobEventSeq(job)) + 1;
@@ -29,11 +29,11 @@ export async function appendBuildJobEvent(
     seq,
   };
 
-  await appendFile(job.eventsPath, `${JSON.stringify(nextEvent)}\n`, "utf8");
+  await appendFileText(job.events, `${JSON.stringify(nextEvent)}\n`);
 }
 
 async function readLastBuildJobEventSeq(
-  job: Pick<BuildJob, "eventsPath">,
+  job: Pick<BuildJob, "events">,
 ): Promise<number> {
   const events = await readBuildJobEvents(job);
 

@@ -1,4 +1,4 @@
-import { createHash as createNodeHash } from "../runtime/platform/index.js";
+import { createPortableHash } from "./crypto.js";
 
 const UNSERIALIZABLE = Symbol("UNSERIALIZABLE");
 
@@ -10,7 +10,7 @@ export function createHash(value: unknown): string {
 
 class HashComputation {
   readonly #activeObjects = new Set<object>();
-  readonly #hash = createNodeHash("sha512");
+  readonly #hash = createPortableHash("sha512");
   readonly #resolvingObjects = new Set<object>();
 
   public run(value: unknown): string {

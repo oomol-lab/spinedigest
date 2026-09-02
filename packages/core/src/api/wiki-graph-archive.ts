@@ -1,5 +1,5 @@
 import type { ReadonlyDocument } from "../document/index.js";
-import type { File } from "../runtime/platform/index.js";
+import type { Directory, File } from "../runtime/platform/index.js";
 import { writeEpub, writePlainText } from "../text/output/index.js";
 import type {
   BookMeta,
@@ -9,21 +9,21 @@ import type {
 } from "../text/source/index.js";
 
 import {
-  readWikgArchiveFormatVersion,
   readWikgArchiveEntry,
-  writeWikgArchive,
+  WIKG_FORMAT_VERSION,
+  writeWikgArchiveFromDirectory,
 } from "../storage/wikg/index.js";
 import type { ChapterStage } from "./chapter/index.js";
 import type { WikiGraphSerialEntry } from "./types.js";
 
 export class WikiGraphArchive {
   readonly #document: ReadonlyDocument;
-  readonly #source: File | string;
+  readonly #source: Directory | File;
   readonly #sourceKind: "archive" | "directory";
 
   public constructor(
     document: ReadonlyDocument,
-    source: File | string,
+    source: Directory | File,
     options: { readonly sourceKind?: "archive" | "directory" } = {},
   ) {
     this.#document = document;
@@ -31,17 +31,17 @@ export class WikiGraphArchive {
     this.#sourceKind = options.sourceKind ?? "directory";
   }
 
-  public async exportEpub(path: string): Promise<void> {
+  public async exportEpub(file: File): Promise<void> {
     await writeEpub({
       document: this.#document,
-      path,
+      file,
     });
   }
 
-  public async exportText(path: string): Promise<void> {
+  public async exportText(file: File): Promise<void> {
     await writePlainText({
       document: this.#document,
-      path,
+      file,
     });
   }
 
@@ -59,12 +59,13 @@ export class WikiGraphArchive {
 
   public async readArchiveFormatVersion(): Promise<number> {
     if (this.#sourceKind === "directory") {
-      if (typeof this.#source !== "string") {
-        throw new Error("A document directory cannot be represented by File");
-      }
-      return await readWikgArchiveFormatVersion(this.#source);
+      return WIKG_FORMAT_VERSION;
     }
-    const manifest = await readWikgArchiveEntry(this.#source, "manifest.json");
+    const source = this.#source;
+    if (!("read" in source)) {
+      throw new Error("Archive source must be a host File.");
+    }
+    const manifest = await readWikgArchiveEntry(source, "manifest.json");
     if (manifest === undefined) throw new Error("WIKG manifest is missing");
     const parsed = JSON.parse(new TextDecoder().decode(manifest)) as {
       formatVersion: number;
@@ -141,14 +142,12 @@ export class WikiGraphArchive {
     });
   }
 
-  public async saveAs(path: string): Promise<void> {
-    if (this.#sourceKind !== "directory" || typeof this.#source !== "string") {
-      throw new Error(
-        "saveAs(path) is unavailable for an opened archive; use a host File writer.",
-      );
+  public async saveAs(file: File): Promise<void> {
+    if (this.#sourceKind !== "directory" || "read" in this.#source) {
+      throw new Error("saveAs(file) is unavailable for an opened archive.");
     }
     await flushDocument(this.#document);
-    await writeWikgArchive(this.#source, path);
+    await writeWikgArchiveFromDirectory(this.#source, file);
   }
 }
 

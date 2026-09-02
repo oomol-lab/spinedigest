@@ -1,13 +1,10 @@
-import { binary as platformBinary } from "../../../runtime/platform/index.js";
-import { createWriteStream } from "../../../runtime/platform/index.js";
-import { dirname, extname } from "../../../runtime/platform/index.js";
-import { finished } from "../../../runtime/platform/index.js";
-
-import { mkdir } from "../../../runtime/platform/index.js";
-import { ZipFile } from "../../../runtime/platform/index.js";
+import {
+  getWikiGraphPlatform,
+  type File,
+  type HostZipEntry,
+} from "../../../runtime/platform/index.js";
 
 import type { BookMeta, SourceAsset } from "../../source/index.js";
-
 import type { EpubBook } from "./model.js";
 import { normalizeLanguage } from "./shared.js";
 import { renderCoverPage } from "./templates.js";
@@ -21,62 +18,40 @@ const EPUB_CONTAINER_XML = `<?xml version="1.0" encoding="UTF-8"?>
 `;
 
 export async function writeEpubArchive(
-  path: string,
+  file: File,
   book: EpubBook,
 ): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-
-  const zip = new ZipFile();
-
-  zip.addBuffer(platformBinary.from("application/epub+zip"), "mimetype", {
-    compress: false,
-  });
-  zip.addBuffer(
-    platformBinary.from(EPUB_CONTAINER_XML, "utf8"),
-    "META-INF/container.xml",
-  );
-  zip.addBuffer(
-    platformBinary.from(book.packageOpf, "utf8"),
-    "OEBPS/package.opf",
-  );
-  zip.addBuffer(platformBinary.from(book.navXhtml, "utf8"), "OEBPS/nav.xhtml");
-
-  for (const section of book.sections) {
-    zip.addBuffer(
-      platformBinary.from(section.xhtml, "utf8"),
-      `OEBPS/${section.href}`,
-    );
-  }
+  const entries: HostZipEntry[] = [
+    textEntry("mimetype", "application/epub+zip"),
+    textEntry("META-INF/container.xml", EPUB_CONTAINER_XML),
+    textEntry("OEBPS/package.opf", book.packageOpf),
+    textEntry("OEBPS/nav.xhtml", book.navXhtml),
+    ...book.sections.map((section) =>
+      textEntry(`OEBPS/${section.href}`, section.xhtml),
+    ),
+  ];
 
   if (book.cover !== undefined) {
     const coverImageHref = createCoverImageHref(book.cover);
     const language = normalizeLanguage(book.meta.language);
-
-    zip.addBuffer(
-      platformBinary.from(book.cover.data),
-      `OEBPS/${coverImageHref}`,
-    );
-    zip.addBuffer(
-      platformBinary.from(
+    entries.push(
+      { data: book.cover.data, name: `OEBPS/${coverImageHref}` },
+      textEntry(
+        "OEBPS/text/cover.xhtml",
         createCoverPage(book.meta, coverImageHref, language),
-        "utf8",
       ),
-      "OEBPS/text/cover.xhtml",
     );
   }
 
-  zip.end();
-
-  const output = createWriteStream(path);
-  const outputDone = finished(output);
-  const zipDone = finished(zip.outputStream);
-
-  zip.outputStream.pipe(output);
-  await Promise.all([outputDone, zipDone]);
+  await getWikiGraphPlatform().zip.write(file, entries);
 }
 
 export function createCoverImageHref(cover: SourceAsset): string {
   return `images/cover${normalizeCoverExtension(cover)}`;
+}
+
+function textEntry(name: string, text: string): HostZipEntry {
+  return { data: new TextEncoder().encode(text), name };
 }
 
 function createCoverPage(
@@ -84,21 +59,18 @@ function createCoverPage(
   coverImageHref: string,
   language: string,
 ): string {
-  const title = meta.title?.trim() || "Untitled";
-
   return renderCoverPage({
     coverImageHref,
     language,
-    title,
+    title: meta.title?.trim() || "Untitled",
   });
 }
 
 function normalizeCoverExtension(cover: SourceAsset): string {
-  const pathExtension = extname(cover.path).toLowerCase();
-
-  if (pathExtension !== "") {
-    return pathExtension;
-  }
+  const name = cover.path.split("/").at(-1) ?? cover.path;
+  const dot = name.lastIndexOf(".");
+  const extension = dot > 0 ? name.slice(dot).toLowerCase() : "";
+  if (extension !== "") return extension;
 
   switch (cover.mediaType) {
     case "image/gif":

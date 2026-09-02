@@ -1,4 +1,5 @@
 import type { LanguageModel, ModelMessage } from "ai";
+import type { Directory } from "../../runtime/platform/index.js";
 
 export type LLMessage = ModelMessage;
 export type LLMModel = LanguageModel;
@@ -49,9 +50,8 @@ export type LLMTokenUsageCallback = (
 
 export interface LLMOptions<S extends string> {
   readonly model: LLMModel;
-  readonly dataDirPath: string;
-  readonly logDirPath?: string;
-  readonly cacheDirPath?: string;
+  readonly cacheDirectory?: Directory;
+  readonly logDirectory?: Directory;
   readonly concurrent?: number;
   readonly stream?: boolean;
   readonly timeout?: number;

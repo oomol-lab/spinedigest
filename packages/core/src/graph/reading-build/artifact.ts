@@ -1,5 +1,7 @@
-import { mkdir, rm } from "../../runtime/platform/index.js";
-import { join } from "../../runtime/platform/index.js";
+import {
+  ensureRelativeDirectory,
+  ensureRelativeFile,
+} from "../../runtime/platform/index.js";
 
 import type { Document } from "../../document/index.js";
 import {
@@ -33,34 +35,40 @@ export async function buildChapterGraphArtifact(
   chapterId: number,
   options: BuildChapterGraphArtifactOptions,
 ): Promise<ChapterGraphBuildArtifact> {
-  const documentPath = join(options.workspacePath, "graph-document");
-  const objectsPath = join(options.workspacePath, "reading-graph.jsonl");
+  if ((await options.workspace.getDirectory("graph-document")) !== undefined) {
+    await options.workspace.remove("graph-document", { recursive: true });
+  }
+  const documentDirectory = await ensureRelativeDirectory(
+    options.workspace,
+    "graph-document",
+  );
+  const objectsFile = await ensureRelativeFile(
+    options.workspace,
+    "reading-graph.jsonl",
+  );
   const parameter = createGraphBuildParameterInput(options);
 
-  await rm(documentPath, { force: true, recursive: true });
-  await mkdir(options.workspacePath, { recursive: true });
-
-  const document = await DirectoryDocument.open(documentPath);
+  const document = await DirectoryDocument.open(documentDirectory);
 
   try {
     await document.openSession(async (openedDocument) => {
       await openedDocument.serials.createWithId(chapterId);
       await writeGraphArtifactSourceFragments(
-        documentPath,
+        documentDirectory,
         chapterId,
         options.sourceText,
       );
       const artifactDocument = createFragmentBackedDocument(
         openedDocument,
-        documentPath,
+        documentDirectory,
       );
 
       await new SerialGeneration({
         document: artifactDocument,
         llm: options.llm,
-        ...(options.logDirPath === undefined
+        ...(options.logDirectory === undefined
           ? {}
-          : { logDirPath: options.logDirPath }),
+          : { logDirectory: options.logDirectory }),
       }).buildTopologyInto(
         chapterId,
         createTopologyOptions(options),
@@ -68,10 +76,10 @@ export async function buildChapterGraphArtifact(
       );
     });
     await writeWikgObjectsToJsonl(
-      objectsPath,
+      objectsFile,
       createChapterReadingGraphObjectStream({
         chapterId,
-        document: createFragmentBackedDocument(document, documentPath),
+        document: createFragmentBackedDocument(document, documentDirectory),
         parameter,
       }),
     );
@@ -81,8 +89,8 @@ export async function buildChapterGraphArtifact(
 
   return {
     chapterId,
-    documentPath,
-    objectsPath,
+    documentDirectory,
+    objectsFile,
     parameter,
   };
 }
@@ -93,7 +101,7 @@ export async function commitChapterGraphArtifact(
 ): Promise<ChapterDetails> {
   const graph = await collectReadingGraphObjects(
     artifact.chapterId,
-    readWikgObjectsFromJsonl(artifact.objectsPath),
+    readWikgObjectsFromJsonl(artifact.objectsFile),
   );
 
   await document.openSession(async (openedDocument) => {

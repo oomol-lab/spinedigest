@@ -10,6 +10,7 @@ import {
   type WikgObject,
 } from "../../packages/core/src/object-stream.js";
 import { withTempDir } from "../helpers/temp.js";
+import { NodeFile } from "../../packages/cli/src/runtime/node-platform.js";
 
 async function collect<T>(items: AsyncIterable<T>): Promise<T[]> {
   const collected: T[] = [];
@@ -57,17 +58,15 @@ describe("wikg object streams", () => {
         { type: "end" },
       ];
       const filePath = `${path}/objects.jsonl`;
+      const file = new NodeFile(filePath);
 
-      await writeWikgObjectsToJsonl(filePath, objects);
+      await writeWikgObjectsToJsonl(file, objects);
 
       await expect(
-        collect(readWikgObjectsFromJsonl(filePath)),
+        collect(readWikgObjectsFromJsonl(file)),
       ).resolves.toStrictEqual(objects);
       await expect(
-        collectChapterKnowledgeGraphObjects(
-          1,
-          readWikgObjectsFromJsonl(filePath),
-        ),
+        collectChapterKnowledgeGraphObjects(1, readWikgObjectsFromJsonl(file)),
       ).resolves.toMatchObject({
         mentionLinks: [
           {
@@ -96,11 +95,12 @@ describe("wikg object streams", () => {
   it("rejects malformed JSONL lines", async () => {
     await withTempDir("wikg-object-stream-", async (path) => {
       const filePath = `${path}/objects.jsonl`;
+      const file = new NodeFile(filePath);
 
       await writeFile(filePath, "{bad json}\n", "utf8");
 
-      await expect(collect(readWikgObjectsFromJsonl(filePath))).rejects.toThrow(
-        `Invalid WikgObject JSONL record at ${filePath}:1`,
+      await expect(collect(readWikgObjectsFromJsonl(file))).rejects.toThrow(
+        "Invalid WikgObject JSONL record at objects.jsonl:1",
       );
     });
   });

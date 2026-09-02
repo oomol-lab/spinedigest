@@ -1,36 +1,59 @@
 import {
-  mkdir,
-  readFile,
-  readdir,
-  writeFile,
+  ensureRelativeDirectory,
+  ensureRelativeFile,
+  getRelativeDirectory,
+  getRelativeFile,
+  isDirectory,
+  writeFileContent,
+  type Directory,
 } from "../../runtime/platform/index.js";
-
-import { isNodeError } from "../../utils/node-error.js";
+import { dirnameRelativePath } from "../../utils/relative-path.js";
 import type { FragmentFileAccess, FragmentWriter } from "./types.js";
 
+export function createDirectoryFragmentAccess(root: Directory): {
+  readonly fileAccess: FragmentFileAccess;
+  readonly writer: FragmentWriter;
+} {
+  return {
+    fileAccess: {
+      ensureDirectory: async (path) => {
+        await ensureRelativeDirectory(root, path);
+      },
+      listFiles: async (path) => {
+        const directory = await getRelativeDirectory(root, path);
+        if (directory === undefined) return [];
+        return (await directory.list())
+          .filter((entry) => !isDirectory(entry))
+          .map((entry) => entry.name);
+      },
+      readFile: async (path) => {
+        const file = await getRelativeFile(root, path);
+        if (file === undefined) return undefined;
+        const content = await file.read();
+        return typeof content === "string"
+          ? new TextEncoder().encode(content)
+          : content;
+      },
+    },
+    writer: {
+      write: async (path, content) => {
+        await ensureRelativeDirectory(root, dirnameRelativePath(path));
+        await writeFileContent(await ensureRelativeFile(root, path), content);
+      },
+    },
+  };
+}
+
+function unavailable(): never {
+  throw new Error("Fragment storage requires a host Directory adapter.");
+}
+
 export const DEFAULT_FRAGMENT_WRITER: FragmentWriter = {
-  write: async (path, content) => {
-    await writeFile(path, content, "utf8");
-  },
+  write: async () => unavailable(),
 };
 
 export const DEFAULT_FRAGMENT_FILE_ACCESS: FragmentFileAccess = {
-  ensureDirectory: async (path) => {
-    await mkdir(path, { recursive: true });
-  },
-  listFiles: async (path) =>
-    (await readdir(path, { withFileTypes: true }))
-      .filter((entry: any) => entry.isFile())
-      .map((entry: any) => entry.name),
-  readFile: async (path) => {
-    try {
-      return await readFile(path);
-    } catch (error) {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
-  },
+  ensureDirectory: async () => unavailable(),
+  listFiles: async () => unavailable(),
+  readFile: async () => unavailable(),
 };

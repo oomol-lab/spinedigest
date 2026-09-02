@@ -4,6 +4,9 @@ import type {
   HostZipEntry,
 } from "../../../runtime/platform/index.js";
 import {
+  ensureRelativeDirectory,
+  ensureRelativeFile,
+  getRelativeDirectory,
   getWikiGraphPlatform,
   getWikiGraphStorage,
 } from "../../../runtime/platform/index.js";
@@ -31,6 +34,7 @@ import {
 } from "./constants.js";
 import { HostWikgDocumentFileStore } from "./host-file-store.js";
 import type { WorkspaceWritebackPolicy } from "./types.js";
+import { createPortableHash } from "../../../utils/crypto.js";
 
 type Overlay =
   | { readonly kind: "deleted" }
@@ -57,6 +61,9 @@ export async function withHostArchiveSession<T>(
     const session = await HostWikgArchiveSession.open(archive);
     try {
       return await operation(session);
+    } catch (error) {
+      session.abort();
+      throw error;
     } finally {
       await session.close();
     }
@@ -75,18 +82,27 @@ export class HostWikgArchiveSession {
   readonly #overlays = new Map<string, Overlay>();
   readonly #workspaceName: string;
   readonly #workspace: Directory;
+  readonly #initialSearchCacheKey: string;
+  #searchCacheKey: string;
+  #searchCacheFile: File | undefined;
+  #searchCacheDirty = false;
+  #searchCacheDelete = false;
   #closed = false;
+  #aborted = false;
 
   public constructor(
     archive: File,
     entries: Map<string, Uint8Array>,
     workspaceName: string,
     workspace: Directory,
+    searchCacheKey: string,
   ) {
     this.#archive = archive;
     this.#entries = entries;
     this.#workspaceName = workspaceName;
     this.#workspace = workspace;
+    this.#initialSearchCacheKey = searchCacheKey;
+    this.#searchCacheKey = searchCacheKey;
   }
 
   public static async open(archive: File): Promise<HostWikgArchiveSession> {
@@ -116,6 +132,7 @@ export class HostWikgArchiveSession {
       entries,
       workspaceName,
       workspace,
+      createSearchCacheKey(archive, entries),
     );
   }
 
@@ -132,13 +149,8 @@ export class HostWikgArchiveSession {
     return this.#archive.identity;
   }
 
-  public async materializeReadWorkspace<T>(
-    _directoryPath: string | undefined,
-    _operation: (documentDirectoryPath: string) => Promise<T> | T,
-  ): Promise<T> {
-    throw new Error(
-      "Opaque archive files cannot be materialized to an operating-system path.",
-    );
+  public get searchCacheIdentity(): string {
+    return `wikg-search-cache:${this.#searchCacheKey}`;
   }
 
   public listEntries(): readonly string[] {
@@ -193,6 +205,38 @@ export class HostWikgArchiveSession {
     return file;
   }
 
+  public async materializeSearchIndexCache(options: {
+    readonly createIfMissing: boolean;
+  }): Promise<File> {
+    if (this.#searchCacheFile !== undefined) return this.#searchCacheFile;
+
+    const persistent = this.#searchCacheDelete
+      ? undefined
+      : await this.#getPersistentSearchIndexCache(
+          this.#initialSearchCacheKey,
+          false,
+        );
+    const content =
+      (persistent === undefined ? undefined : await readBytes(persistent)) ??
+      (await this.readEntry(SEARCH_INDEX_DATABASE_ENTRY_PATH)) ??
+      (await this.readEntry(LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH));
+    if (content === undefined && !options.createIfMissing) {
+      throw new Error(
+        `Archive SQLite entry is missing: ${SEARCH_INDEX_DATABASE_ENTRY_PATH}`,
+      );
+    }
+
+    const file = await this.#workspaceFile(SEARCH_INDEX_DATABASE_ENTRY_PATH);
+    await replaceFile(file, content ?? new Uint8Array());
+    this.#searchCacheFile = file;
+    // Materializing an archive-backed index establishes the durable external
+    // cache even when the caller only reads it.
+    if (persistent === undefined && content !== undefined) {
+      this.#searchCacheDirty = true;
+    }
+    return file;
+  }
+
   public markDatabaseDirty(path: string, file: File): void {
     const entryPath = normalizeArchivePath(path);
     this.#overlays.set(entryPath, { file, kind: "file" });
@@ -206,16 +250,33 @@ export class HostWikgArchiveSession {
     }
   }
 
+  public markSearchIndexCacheDirty(file: File): void {
+    this.#searchCacheFile = file;
+    this.#searchCacheDirty = true;
+    this.#searchCacheDelete = false;
+  }
+
+  public deleteSearchIndexCache(): void {
+    this.#searchCacheFile = undefined;
+    this.#searchCacheDirty = false;
+    this.#searchCacheDelete = true;
+  }
+
   public async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
     try {
-      if (this.#overlays.size > 0) await this.#commit();
+      if (!this.#aborted && this.#overlays.size > 0) await this.#commit();
+      if (!this.#aborted) await this.#settleSearchIndexCache();
     } finally {
       await getWikiGraphStorage()
         .documentStore.remove(this.#workspaceName, { recursive: true })
         .catch(() => undefined);
     }
+  }
+
+  public abort(): void {
+    this.#aborted = true;
   }
 
   async #workspaceFile(path: string): Promise<File> {
@@ -243,9 +304,10 @@ export class HostWikgArchiveSession {
     paths.add(WIKG_MUTATION_TOKEN_PATH);
 
     const entries: HostZipEntry[] = [];
+    const mutationToken = createWikgMutationTokenBytes();
     for (const path of sortArchiveEntryPathsForWrite(paths)) {
       if (path === WIKG_MUTATION_TOKEN_PATH) {
-        entries.push({ data: createWikgMutationTokenBytes(), name: path });
+        entries.push({ data: mutationToken, name: path });
         continue;
       }
       if (path === WIKG_MANIFEST_PATH) {
@@ -259,7 +321,62 @@ export class HostWikgArchiveSession {
       if (content !== undefined) entries.push({ data: content, name: path });
     }
     await getWikiGraphPlatform().zip.write(this.#archive, entries);
+    this.#searchCacheKey = createSearchCacheKeyFromToken(mutationToken);
   }
+
+  async #settleSearchIndexCache(): Promise<void> {
+    if (
+      this.#searchCacheDelete ||
+      this.#initialSearchCacheKey !== this.#searchCacheKey
+    ) {
+      await this.#removePersistentSearchIndexCache(this.#initialSearchCacheKey);
+    }
+    if (!this.#searchCacheDirty || this.#searchCacheFile === undefined) return;
+
+    const persistent = await this.#getPersistentSearchIndexCache(
+      this.#searchCacheKey,
+      true,
+    );
+    if (persistent === undefined) {
+      throw new Error("Could not create the persistent search index cache");
+    }
+    await replaceFile(persistent, await readBytes(this.#searchCacheFile));
+  }
+
+  async #getPersistentSearchIndexCache(
+    key: string,
+    create: boolean,
+  ): Promise<File | undefined> {
+    const root = getWikiGraphStorage().documentStore;
+    const archiveCache = create
+      ? await ensureRelativeDirectory(root, `.wikg-cache/${key}`)
+      : await getRelativeDirectory(root, `.wikg-cache/${key}`);
+    if (archiveCache === undefined) return undefined;
+    return create
+      ? await ensureRelativeFile(archiveCache, "index.db")
+      : await archiveCache.getFile("index.db");
+  }
+
+  async #removePersistentSearchIndexCache(key: string): Promise<void> {
+    const cacheRoot =
+      await getWikiGraphStorage().documentStore.getDirectory(".wikg-cache");
+    const archiveCache = await cacheRoot?.getDirectory(key);
+    await archiveCache?.remove("index.db").catch(() => undefined);
+  }
+}
+
+function createSearchCacheKey(
+  archive: File,
+  entries: ReadonlyMap<string, Uint8Array>,
+): string {
+  const mutationToken = entries.get(WIKG_MUTATION_TOKEN_PATH);
+  return mutationToken === undefined
+    ? createPortableHash("sha256").update(archive.identity).digest("hex")
+    : createSearchCacheKeyFromToken(mutationToken);
+}
+
+function createSearchCacheKeyFromToken(token: Uint8Array): string {
+  return createPortableHash("sha256").update(token).digest("hex");
 }
 
 async function createWorkspaceName(root: Directory): Promise<string> {

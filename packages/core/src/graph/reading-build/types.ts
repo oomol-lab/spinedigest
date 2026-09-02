@@ -2,11 +2,12 @@ import type { LLM } from "../../external/llm/index.js";
 import type { Language } from "../../runtime/common/language.js";
 import type { WikiGraphScope } from "../../runtime/common/llm-scope.js";
 import type { SerialProgressSink } from "../../serial.js";
+import type { Directory, File } from "../../runtime/platform/index.js";
 
 export interface ChapterGraphBuildArtifact {
-  readonly documentPath: string;
+  readonly documentDirectory: Directory;
   readonly chapterId: number;
-  readonly objectsPath: string;
+  readonly objectsFile: File;
   readonly parameter: GraphBuildParameterInput;
 }
 
@@ -18,9 +19,9 @@ export interface GraphBuildParameterInput {
 export interface BuildChapterGraphArtifactOptions {
   readonly extractionPrompt?: string;
   readonly llm: LLM<WikiGraphScope>;
-  readonly logDirPath?: string;
+  readonly logDirectory?: Directory;
   readonly progressTracker?: SerialProgressSink;
   readonly sourceText: readonly string[];
   readonly userLanguage?: Language;
-  readonly workspacePath: string;
+  readonly workspace: Directory;
 }

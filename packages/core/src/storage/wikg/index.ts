@@ -9,6 +9,7 @@ export {
   WIKG_FORMAT_VERSION,
   WIKG_SCHEMA_VERSION,
   writeWikgArchive,
+  writeWikgArchiveFromDirectory,
   writeWikgArchiveWithOverlays,
 } from "./archive/index.js";
 export type { WikgArchiveOverlay } from "./archive/index.js";

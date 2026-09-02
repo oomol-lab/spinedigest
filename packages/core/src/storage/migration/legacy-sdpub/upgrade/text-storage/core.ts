@@ -1,5 +1,4 @@
-import { rm } from "../../../../../runtime/platform/index.js";
-import { join } from "../../../../../runtime/platform/index.js";
+import type { Directory } from "../../../../../runtime/platform/index.js";
 
 import { Database } from "../../../../../document/database.js";
 import {
@@ -13,13 +12,13 @@ import { writeLegacySourceTextStream } from "./source-text.js";
 import type { SentenceIndexRemap } from "./types.js";
 
 export async function migrateLegacyTextStorage(
-  workspacePath: string,
+  workspace: Directory,
 ): Promise<void> {
-  const sourceSerials = await listLegacySourceSerials(workspacePath);
+  const sourceSerials = await listLegacySourceSerials(workspace);
   const remaps = new Map<number, SentenceIndexRemap>();
 
   for (const serialId of sourceSerials) {
-    const fragments = await readLegacySourceFragments(workspacePath, serialId);
+    const fragments = await readLegacySourceFragments(workspace, serialId);
     const plan = createDuplicateHalfCanonicalizationPlan(fragments);
     const canonicalFragments = plan?.canonicalFragments ?? fragments;
     const fragmentIdMap = plan?.fragmentIdMap ?? new Map<number, number>();
@@ -79,10 +78,13 @@ export async function migrateLegacyTextStorage(
       serialId,
     });
 
-    const database = await Database.open(join(workspacePath, "database.db"));
+    const databaseFile = await workspace.getFile("database.db");
+    if (databaseFile === undefined)
+      throw new Error("Legacy database is missing.");
+    const database = await Database.open(databaseFile);
 
     try {
-      await writeLegacySourceTextStream(database, workspacePath, {
+      await writeLegacySourceTextStream(database, workspace, {
         fragments: canonicalFragments,
         serialId,
         text: textParts.join(""),
@@ -92,8 +94,12 @@ export async function migrateLegacyTextStorage(
     }
   }
 
-  await migrateLegacySentenceReferences(workspacePath, remaps);
-  await migrateLegacySummariesToTextStreams(workspacePath);
-  await rm(join(workspacePath, "fragments"), { force: true, recursive: true });
-  await rm(join(workspacePath, "summaries"), { force: true, recursive: true });
+  await migrateLegacySentenceReferences(workspace, remaps);
+  await migrateLegacySummariesToTextStreams(workspace);
+  await workspace
+    .remove("fragments", { recursive: true })
+    .catch(() => undefined);
+  await workspace
+    .remove("summaries", { recursive: true })
+    .catch(() => undefined);
 }

@@ -1,6 +1,4 @@
-import { setTimeout as sleep } from "../../../runtime/platform/index.js";
-
-import { createCache, ensureDirectoryPath } from "./files.js";
+import { createCache } from "./files.js";
 import { normalizeGenerationInput } from "./generation.js";
 import {
   formatRequestMessages,
@@ -18,13 +16,12 @@ import {
   type ModelMessage,
   type SystemModelMessage,
 } from "ai";
-import type { Environment } from "nunjucks";
 
 import { getLogger } from "../../../runtime/common/logging.js";
 import { createEnv } from "../../../runtime/common/template.js";
 import { AsyncSemaphore } from "../../../utils/async-semaphore.js";
 import { createHash } from "../../../utils/hash.js";
-import { formatError } from "../../../utils/node-error.js";
+import { formatError } from "../../../utils/host-error.js";
 import type { LLMCache } from "../cache.js";
 import { LLMContext, type LLMContextRequestInput } from "../context.js";
 import { LLMPaymentRequiredError } from "../errors.js";
@@ -58,7 +55,9 @@ type LLMRequestSessionInput<S extends string> = Omit<
 export class LLM<S extends string> {
   readonly #cache: LLMCache | undefined;
   readonly #lazyRequestLimiter: AsyncSemaphore;
-  readonly #logDirPath: string | undefined;
+  readonly #logDirectory:
+    | import("../../../runtime/platform/index.js").Directory
+    | undefined;
   readonly #model: LLMModel;
   readonly #modelProvider: string | undefined;
   readonly #modelId: string;
@@ -70,7 +69,7 @@ export class LLM<S extends string> {
   readonly #retryTimes: number;
   readonly #sampling: SamplingScopeConfig<S> | undefined;
   readonly #stream: boolean;
-  readonly #templateEnvironment: Environment;
+  readonly #templateEnvironment: ReturnType<typeof createEnv>;
   readonly #temperature: TemperatureSetting;
   readonly #timeoutMs: number;
   readonly #topP: TemperatureSetting;
@@ -107,9 +106,9 @@ export class LLM<S extends string> {
         : { provider: modelInfo.provider }),
       ...(sampling === undefined ? {} : { sampling }),
     });
-    this.#cache = createCache(options.cacheDirPath);
+    this.#cache = createCache(options.cacheDirectory);
     this.#lazyRequestLimiter = new AsyncSemaphore(concurrent);
-    this.#logDirPath = ensureDirectoryPath(options.logDirPath);
+    this.#logDirectory = options.logDirectory;
     this.#model = options.model;
     this.#modelProvider = modelInfo.provider;
     this.#modelId = modelInfo.modelId;
@@ -121,7 +120,7 @@ export class LLM<S extends string> {
     this.#retryTimes = options.retryTimes ?? 5;
     this.#sampling = sampling;
     this.#stream = stream;
-    this.#templateEnvironment = createEnv(options.dataDirPath);
+    this.#templateEnvironment = createEnv();
     this.#temperature = temperature;
     this.#timeoutMs = timeout;
     this.#topP = topP;
@@ -223,7 +222,7 @@ export class LLM<S extends string> {
             topP: resolvedTopP ?? null,
           })
         : undefined;
-    const requestLog = createRequestLog(this.#logDirPath);
+    const requestLog = createRequestLog(this.#logDirectory);
 
     if (requestLog.filePath !== undefined && input.logFiles !== undefined) {
       input.logFiles.push(requestLog.filePath);
@@ -350,9 +349,7 @@ export class LLM<S extends string> {
         );
 
         if (attempt < this.#retryTimes && this.#retryIntervalSeconds > 0) {
-          await sleep(this.#retryIntervalSeconds * 1000, undefined, {
-            signal: input.signal,
-          });
+          await delay(this.#retryIntervalSeconds * 1000, input.signal);
         }
       }
     }
@@ -421,4 +418,25 @@ export class LLM<S extends string> {
       return;
     }
   }
+}
+
+async function delay(
+  milliseconds: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    if (signal?.aborted === true) {
+      reject(signal.reason);
+      return;
+    }
+    const timeout = globalThis.setTimeout(resolve, milliseconds);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        globalThis.clearTimeout(timeout);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
+  });
 }

@@ -1,8 +1,7 @@
-import { type WritableStream } from "../../runtime/platform/index.js";
 import {
-  createReadStream,
-  createWriteStream,
-  readLines,
+  readFileText,
+  writeFileContent,
+  type File,
 } from "../../runtime/platform/index.js";
 import { z } from "zod";
 
@@ -102,30 +101,26 @@ function formatSentenceId(sentenceId: SentenceId): string {
 }
 
 export async function writeJsonl<T>(
-  path: string,
+  file: File,
   records: AsyncIterable<T> | Iterable<T>,
   parseRecord: (record: unknown) => T,
 ): Promise<void> {
-  const stream = createWriteStream(path, { encoding: "utf8", flags: "wx" });
-
-  try {
-    for await (const record of records) {
-      stream.write(`${JSON.stringify(parseRecord(record))}\n`);
-    }
-  } finally {
-    await closeWritableStream(stream);
+  let output = "";
+  for await (const record of records) {
+    output += `${JSON.stringify(parseRecord(record))}\n`;
   }
+  await writeFileContent(file, output);
 }
 
 export async function readJsonl<T>(
-  path: string,
+  file: File,
   parseRecord: (record: unknown) => T,
 ): Promise<T[]> {
   const records: T[] = [];
-  const lines = readLines(createReadStream(path, { encoding: "utf8" }));
+  const lines = (await readFileText(file)).split(/\r?\n/u);
   let lineNumber = 0;
 
-  for await (const line of lines) {
+  for (const line of lines) {
     lineNumber += 1;
     if (line.trim() === "") {
       continue;
@@ -134,7 +129,7 @@ export async function readJsonl<T>(
     try {
       records.push(parseRecord(JSON.parse(line)));
     } catch (error) {
-      throw new Error(`Invalid JSONL record at ${path}:${lineNumber}`, {
+      throw new Error(`Invalid JSONL record at ${file.name}:${lineNumber}`, {
         cause: error,
       });
     }
@@ -177,17 +172,4 @@ export function parseMentionLinkRecord(record: unknown): MentionLinkRecord {
     sourceMentionId: parsed.sourceMentionId,
     targetMentionId: parsed.targetMentionId,
   };
-}
-
-async function closeWritableStream(stream: WritableStream): Promise<void> {
-  await new Promise<void>((resolveClose, rejectClose) => {
-    stream.end((error?: Error | null) => {
-      if (error !== undefined && error !== null) {
-        rejectClose(error);
-        return;
-      }
-
-      resolveClose();
-    });
-  });
 }

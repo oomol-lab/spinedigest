@@ -1,7 +1,7 @@
 import {
   formatWikiGraphCommandUri,
   parseLocatedWikiGraphUri,
-} from "wiki-graph-core";
+} from "../../../support/index.js";
 
 import { formatCliCommand } from "../../../support/index.js";
 import type {

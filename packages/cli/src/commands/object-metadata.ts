@@ -20,7 +20,7 @@ export async function runObjectMetadataCommand(
   switch (args.action) {
     case "get": {
       const location = await resolveArchiveRuntimeLocation(args.archivePath);
-      await new WikiGraphArchiveFile(location.archivePath).readDocument(
+      await new WikiGraphArchiveFile(location.archiveFile).readDocument(
         async (document) => {
           await writeMetadataMap(
             await document.metadata.getMap(args.objectPath),

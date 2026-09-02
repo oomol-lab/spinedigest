@@ -1,15 +1,15 @@
-import { readFile, readdir } from "../../../../../runtime/platform/index.js";
-import { join } from "../../../../../runtime/platform/index.js";
-
+import {
+  isDirectory,
+  readFileText,
+  type Directory,
+} from "../../../../../runtime/platform/index.js";
 import { DirectoryDocument } from "../../../../../document/directory/index.js";
-import { isNodeError } from "../../../../../utils/node-error.js";
 
 export async function migrateLegacySummariesToTextStreams(
-  workspacePath: string,
+  workspace: Directory,
 ): Promise<void> {
-  const summaries = await listLegacySummaries(workspacePath);
-  const document = await DirectoryDocument.open(workspacePath);
-
+  const summaries = await listLegacySummaries(workspace);
+  const document = await DirectoryDocument.open(workspace);
   try {
     for (const summary of summaries) {
       await document.writeSummary(summary.serialId, summary.text);
@@ -18,38 +18,21 @@ export async function migrateLegacySummariesToTextStreams(
     await document.release();
   }
 }
+
 async function listLegacySummaries(
-  workspacePath: string,
+  workspace: Directory,
 ): Promise<Array<{ readonly serialId: number; readonly text: string }>> {
-  const summaryDirectory = join(workspacePath, "summaries");
-
-  try {
-    const entries = await readdir(summaryDirectory, { withFileTypes: true });
-    const summaries: Array<{ serialId: number; text: string }> = [];
-
-    for (const entry of entries) {
-      if (!entry.isFile()) {
-        continue;
-      }
-
-      const match = /^serial-(\d+)\.txt$/u.exec(entry.name);
-
-      if (match === null) {
-        continue;
-      }
-
-      summaries.push({
-        serialId: Number(match[1]),
-        text: await readFile(join(summaryDirectory, entry.name), "utf8"),
-      });
-    }
-
-    return summaries.sort((left, right) => left.serialId - right.serialId);
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return [];
-    }
-
-    throw error;
+  const directory = await workspace.getDirectory("summaries");
+  if (directory === undefined) return [];
+  const summaries: Array<{ serialId: number; text: string }> = [];
+  for (const entry of await directory.list()) {
+    if (isDirectory(entry)) continue;
+    const match = /^serial-(\d+)\.txt$/u.exec(entry.name);
+    if (match === null) continue;
+    summaries.push({
+      serialId: Number(match[1]),
+      text: await readFileText(entry),
+    });
   }
+  return summaries.sort((left, right) => left.serialId - right.serialId);
 }

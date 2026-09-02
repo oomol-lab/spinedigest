@@ -1,46 +1,41 @@
-import { binary as platformBinary } from "../../../runtime/platform/index.js";
-import { createHash } from "../../../runtime/platform/index.js";
-import { createReadStream } from "../../../runtime/platform/index.js";
-import { posix } from "../../../runtime/platform/index.js";
-import { PassThrough, type Readable } from "../../../runtime/platform/index.js";
-import type { Entry, ZipFile } from "../../../runtime/platform/index.js";
-import { openZip as open } from "../../../runtime/platform/index.js";
+import {
+  getWikiGraphPlatform,
+  type File,
+  type HostZipEntry,
+} from "../../../runtime/platform/index.js";
+import { createPortableHash as createHash } from "../../../utils/crypto.js";
 
+/** EPUB reader backed only by the host ZIP and File capabilities. */
 export class EpubArchive {
-  readonly #path: string;
-  readonly #zipFile: ZipFile;
-  readonly #entries: ReadonlyMap<string, Entry>;
+  readonly #file: File;
+  readonly #entries: ReadonlyMap<string, HostZipEntry>;
   readonly #digest: string;
-  #closed = false;
 
-  public constructor(
-    path: string,
-    zipFile: ZipFile,
-    entries: ReadonlyMap<string, Entry>,
+  // eslint-disable-next-line no-restricted-syntax -- constructors cannot use JavaScript #private syntax.
+  private constructor(
+    file: File,
+    entries: ReadonlyMap<string, HostZipEntry>,
     digest: string,
   ) {
-    this.#path = path;
-    this.#zipFile = zipFile;
+    this.#file = file;
     this.#entries = entries;
     this.#digest = digest;
   }
 
-  public static async open(path: string): Promise<EpubArchive> {
-    const digest = await digestFile(path);
-    const zipFile = await openZipFile(path);
-    const entries = await indexEntries(zipFile);
-
-    return new EpubArchive(path, zipFile, entries, digest);
+  public static async open(file: File): Promise<EpubArchive> {
+    const content = await file.read();
+    const bytes =
+      typeof content === "string" ? new TextEncoder().encode(content) : content;
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    const entries = new Map<string, HostZipEntry>();
+    for (const entry of await getWikiGraphPlatform().zip.read(file)) {
+      const name = normalizeArchivePath(entry.name);
+      if (name !== "") entries.set(name, entry);
+    }
+    return new EpubArchive(file, entries, digest);
   }
 
   public close(): Promise<void> {
-    if (this.#closed) {
-      return Promise.resolve();
-    }
-
-    this.#closed = true;
-    this.#zipFile.close();
-
     return Promise.resolve();
   }
 
@@ -52,20 +47,12 @@ export class EpubArchive {
     return [...this.#entries.keys()];
   }
 
-  public async openReadStream(path: string): Promise<Readable> {
-    const entry = this.#getEntry(path);
-
-    return await openEntryStream(this.#zipFile, entry);
-  }
-
   public async readText(path: string): Promise<string> {
-    const stream = await this.openReadStream(path);
-    return (await readStreamToBuffer(stream)).toString("utf8");
+    return new TextDecoder().decode(await this.readBuffer(path));
   }
 
-  public async readBuffer(path: string): Promise<platformBinary> {
-    const stream = await this.openReadStream(path);
-    return await readStreamToBuffer(stream);
+  public async readBuffer(path: string): Promise<Uint8Array> {
+    return this.#getEntry(path).data;
   }
 
   public resolveRelativePath(basePath: string, href: string): string {
@@ -73,20 +60,19 @@ export class EpubArchive {
     if (normalizedHref === "") {
       throw new Error(`Invalid EPUB href: ${href}`);
     }
-
     return normalizeArchivePath(
-      posix.join(posix.dirname(normalizeArchivePath(basePath)), normalizedHref),
+      joinArchivePath(
+        dirnameArchivePath(normalizeArchivePath(basePath)),
+        normalizedHref,
+      ),
     );
   }
 
   public createSectionId(path: string, fragment?: string): string {
     const normalizedPath = normalizeArchivePath(path);
-
-    if (fragment === undefined || fragment === "") {
-      return normalizedPath;
-    }
-
-    return `${normalizedPath}#${fragment}`;
+    return fragment === undefined || fragment === ""
+      ? normalizedPath
+      : `${normalizedPath}#${fragment}`;
   }
 
   public createSyntheticSectionId(path: string, title?: string): string {
@@ -95,57 +81,47 @@ export class EpubArchive {
       .update(`${normalizedPath}:${title ?? ""}`)
       .digest("hex")
       .slice(0, 10);
-
     return `toc:${hash}`;
   }
 
-  public get path(): string {
-    return this.#path;
+  public get name(): string {
+    return this.#file.name;
   }
 
   public get digest(): string {
     return this.#digest;
   }
 
-  #getEntry(path: string): Entry {
+  #getEntry(path: string): HostZipEntry {
     const normalizedPath = normalizeArchivePath(path);
     const entry = this.#entries.get(normalizedPath);
-
     if (entry === undefined) {
       throw new Error(`EPUB entry does not exist: ${normalizedPath}`);
     }
-
     return entry;
   }
 }
 
 export function normalizeArchivePath(path: string): string {
-  const normalized = path.replaceAll("\\", "/").trim();
-  const withoutFragment = normalized.startsWith("/")
-    ? normalized.slice(1)
-    : normalized;
-
-  return posix
-    .normalize(withoutFragment)
-    .replace(/^(\.\/)+/, "")
-    .replace(/^\/+/, "");
+  const output: string[] = [];
+  for (const part of path.replaceAll("\\", "/").trim().split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") output.pop();
+    else output.push(part);
+  }
+  return output.join("/");
 }
 
 export function normalizeHref(href: string): string {
   const [path] = href.split("#", 1);
-
   return normalizeArchivePath(path ?? "");
 }
 
 export function normalizeFragment(
   fragment: string | undefined,
 ): string | undefined {
-  if (fragment === undefined) {
-    return undefined;
-  }
-
+  if (fragment === undefined) return undefined;
   const normalized = fragment.startsWith("#") ? fragment.slice(1) : fragment;
-
   return normalized === "" ? undefined : normalized;
 }
 
@@ -154,127 +130,16 @@ export function splitHref(href: string): {
   readonly fragment: string | undefined;
 } {
   const [pathPart, fragmentPart] = href.split("#", 2);
-
   return {
     path: normalizeArchivePath(pathPart ?? ""),
     fragment: normalizeFragment(fragmentPart),
   };
 }
 
-async function openZipFile(path: string): Promise<ZipFile> {
-  return await new Promise((resolve, reject) => {
-    open(
-      path,
-      { autoClose: false, lazyEntries: true },
-      (error: any, zipFile: any) => {
-        if (error !== null || zipFile === undefined) {
-          reject(error ?? new Error(`Cannot open EPUB archive: ${path}`));
-          return;
-        }
-
-        resolve(zipFile);
-      },
-    );
-  });
+function dirnameArchivePath(path: string): string {
+  return path.split("/").slice(0, -1).join("/");
 }
 
-async function digestFile(path: string): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    const hash = createHash("sha256");
-    const stream = createReadStream(path);
-
-    stream.on("data", (chunk: platformBinary | string) => hash.update(chunk));
-    stream.once("end", () => resolve(hash.digest("hex")));
-    stream.once("error", reject);
-  });
-}
-
-async function indexEntries(
-  zipFile: ZipFile,
-): Promise<ReadonlyMap<string, Entry>> {
-  return await new Promise((resolve, reject) => {
-    const entries = new Map<string, Entry>();
-
-    zipFile.on("entry", (entry: Entry) => {
-      if (entry.fileName.endsWith("/")) {
-        zipFile.readEntry();
-        return;
-      }
-
-      entries.set(normalizeArchivePath(entry.fileName), entry);
-      zipFile.readEntry();
-    });
-    zipFile.once("end", () => {
-      resolve(entries);
-    });
-    zipFile.once("error", (error: Error) => {
-      reject(error);
-    });
-
-    zipFile.readEntry();
-  });
-}
-
-function toBuffer(chunk: unknown): platformBinary {
-  if (platformBinary.isBuffer(chunk)) {
-    return chunk;
-  }
-
-  if (typeof chunk === "string") {
-    return platformBinary.from(chunk, "utf8");
-  }
-
-  throw new Error("Unexpected ZIP stream chunk type");
-}
-
-async function readStreamToBuffer(stream: Readable): Promise<platformBinary> {
-  return await new Promise((resolve, reject) => {
-    const chunks: platformBinary[] = [];
-
-    stream.on("data", (chunk: unknown) => {
-      chunks.push(toBuffer(chunk));
-    });
-    stream.once("end", () => {
-      resolve(platformBinary.concat(chunks));
-    });
-    stream.once("error", (error: Error) => {
-      reject(error);
-    });
-    stream.resume();
-  });
-}
-
-async function openEntryStream(
-  zipFile: ZipFile,
-  entry: Entry,
-): Promise<Readable> {
-  return await new Promise((resolve, reject) => {
-    zipFile.openReadStream(entry, (error: any, stream: any) => {
-      if (error !== null || stream === undefined) {
-        reject(error ?? new Error(`Cannot open EPUB entry: ${entry.fileName}`));
-        return;
-      }
-
-      resolve(normalizeEntryStream(stream));
-    });
-  });
-}
-
-function normalizeEntryStream(stream: Readable): Readable {
-  const normalized = new PassThrough();
-
-  stream.once("error", (error: Error) => {
-    normalized.destroy(error);
-  });
-  normalized.once("close", () => {
-    stream.unpipe(normalized);
-
-    if (!stream.destroyed) {
-      stream.destroy();
-    }
-  });
-
-  stream.pipe(normalized);
-
-  return normalized;
+function joinArchivePath(...parts: readonly string[]): string {
+  return parts.filter(Boolean).join("/");
 }

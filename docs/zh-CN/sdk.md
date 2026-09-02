@@ -57,13 +57,14 @@ await wikiGraph.openSession(archive, (session) => session.readMeta());
 ```
 
 `File`/`Directory` 是平台原语，Core 不解析它们背后的 URI 或绝对路径。浏览器、Extension 等宿主可以使用 IndexedDB、OPFS 或其他受限存储；`wiki-graph` CLI 提供 Node 适配器。
-每个 `File.identity` 和 `Directory.identity` 都是稳定、不透明的协调标识，而不是路径或 URI。归档使用的 SQLite 工作区只会创建在传入的 `documentStore` 下，并在会话完成后清理。
+每个 `File.identity` 和 `Directory.identity` 都是稳定、不透明的协调标识，而不是路径或 URI。归档使用的 SQLite 工作区只会创建在传入的 `documentStore` 下，并在会话完成后清理。派生搜索索引也保存在该目录中，但使用不含路径的 opaque key 作为持久缓存；它不会写入 `.wikg`，且随时可以重建。
 `WikiGraphPlatform` 是进程级宿主基础设施，负责异步上下文、数据库和 ZIP；应用在 import 后安装一次即可。两个存储目录根则归各自的 `WikiGraph` 实例所有，并发运行多个实例时不会互相覆盖。
 
 ```ts
-import { WikiGraph } from "wiki-graph-core";
+import { WikiGraph, type File } from "wiki-graph-core";
 
-const wikiGraph = new WikiGraph({});
+const wikiGraph = new WikiGraph({ storage });
+const outputArchive = myOutputArchiveFile satisfies File;
 
 await wikiGraph.digestTextStreamSession(
   {
@@ -72,11 +73,11 @@ await wikiGraph.digestTextStreamSession(
     title: "Research note",
   },
   async (archive) => {
-    await archive.saveAs("research.wikg");
+    await archive.saveAs(outputArchive);
   },
 );
 
-await wikiGraph.openSession("research.wikg", async (archive) => {
+await wikiGraph.openSession(outputArchive, async (archive) => {
   console.log(await archive.readMeta());
 });
 ```
@@ -89,7 +90,7 @@ await wikiGraph.openSession("research.wikg", async (archive) => {
 
 ```ts
 import { createOpenAI } from "@ai-sdk/openai";
-import { WikiGraph } from "wiki-graph-core";
+import { WikiGraph, type Directory } from "wiki-graph-core";
 
 const openai = createOpenAI({
   apiKey: "<your-openai-api-key>",
@@ -97,11 +98,12 @@ const openai = createOpenAI({
 
 const wikiGraph = new WikiGraph({
   llm: {
-    cacheDirPath: ".wikigraph-cache",
+    cacheDirectory: myCacheDirectory satisfies Directory,
     concurrent: 3,
-    logDirPath: ".wikigraph-logs",
+    logDirectory: myLogDirectory satisfies Directory,
     model: openai("gpt-4.1-mini"),
   },
+  storage,
 });
 ```
 

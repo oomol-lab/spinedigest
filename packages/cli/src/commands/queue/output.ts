@@ -10,6 +10,7 @@ import {
   formatQueueAddEstimateLines,
   type QueueAddEstimate,
 } from "./estimate.js";
+import { getNodeResourcePath } from "../../runtime/node-platform.js";
 
 export async function writeJobList(
   jobs: readonly BuildJob[],
@@ -29,7 +30,7 @@ export async function writeJobList(
     `${formatJobListHeader()}\n${jobs
       .map(
         (job) =>
-          `${job.jobId.slice(0, 8).padEnd(8)} ${job.state.padEnd(9)} ${(job.currentStep ?? "-").padEnd(7)} ${job.target.padEnd(7)} ${job.chapterId.toString().padStart(7)} ${formatArchiveName(job.archivePath)}`,
+          `${job.jobId.slice(0, 8).padEnd(8)} ${job.state.padEnd(9)} ${(job.currentStep ?? "-").padEnd(7)} ${job.target.padEnd(7)} ${job.chapterId.toString().padStart(7)} ${formatArchiveName(requireJobResourcePath(job, "archive", "archivePath"))}`,
       )
       .join("\n")}\n`,
   );
@@ -52,13 +53,13 @@ export async function writeJobStatus(
     [
       `Job: ${job.jobId}`,
       `State: ${job.state}`,
-      `Archive: ${job.archivePath}`,
+      `Archive: ${requireJobResourcePath(job, "archive", "archivePath")}`,
       `Chapter: ${job.chapterId}`,
       `Target: ${job.target}`,
       `Step: ${job.currentStep ?? "-"}`,
-      `Workspace: ${job.workspacePath}`,
-      `Cache: ${job.cachePath}`,
-      `Logs: ${job.logPath}`,
+      `Workspace: ${getJobResourcePath(job, "workspace", "workspacePath") ?? "-"}`,
+      `Cache: ${getJobResourcePath(job, "cache", "cachePath") ?? "-"}`,
+      `Logs: ${getJobResourcePath(job, "log", "logPath") ?? "-"}`,
       ...(job.errorJSON === undefined ? [] : [`Error: ${job.errorJSON}`]),
     ].join("\n") + "\n",
   );
@@ -67,21 +68,20 @@ export async function writeJobStatus(
 function formatJobJSON(job: BuildJob): Record<string, unknown> {
   return {
     archiveKey: job.archiveKey,
-    archivePath: job.archivePath,
-    cachePath: job.cachePath,
+    archivePath: getJobResourcePath(job, "archive", "archivePath"),
+    cachePath: getJobResourcePath(job, "cache", "cachePath"),
     chapterId: job.chapterId,
     createdAt: job.createdAt,
     ...(job.currentStep === undefined ? {} : { currentStep: job.currentStep }),
     ...(job.errorJSON === undefined ? {} : { errorJSON: job.errorJSON }),
-    eventsPath: job.eventsPath,
+    eventsPath: getJobResourcePath(job, "events", "eventsPath"),
     ...(job.finishedAt === undefined ? {} : { finishedAt: job.finishedAt }),
     jobId: job.jobId,
-    logPath: job.logPath,
+    logPath: getJobResourcePath(job, "log", "logPath"),
     ...(job.llmJSON === undefined
       ? {}
       : { llm: formatJobLLMJSON(job.llmJSON) }),
     ...(job.ownerId === undefined ? {} : { ownerId: job.ownerId }),
-    ...(job.ownerPid === undefined ? {} : { ownerPid: job.ownerPid }),
     ...(job.prompt === undefined ? {} : { prompt: job.prompt }),
     queueRank: job.queueRank,
     state: job.state,
@@ -90,7 +90,7 @@ function formatJobJSON(job: BuildJob): Record<string, unknown> {
       : { readingSummaryStartedAt: job.readingSummaryStartedAt }),
     target: job.target,
     updatedAt: job.updatedAt,
-    workspacePath: job.workspacePath,
+    workspacePath: getJobResourcePath(job, "workspace", "workspacePath"),
   };
 }
 
@@ -191,7 +191,7 @@ export async function writeJobSummary(
 
   await writeTextToStdout(
     [
-      `Job ${job.jobId} ${job.state} ${job.target} chapter ${job.chapterId} ${job.archivePath}`,
+      `Job ${job.jobId} ${job.state} ${job.target} chapter ${job.chapterId} ${requireJobResourcePath(job, "archive", "archivePath")}`,
       ...(formatJobQueuedNotice(job) === undefined
         ? []
         : [formatJobQueuedNotice(job)!]),
@@ -258,4 +258,39 @@ export async function writeArchiveAddSummary(input: {
 
 function formatArchiveName(path: string): string {
   return path.split(/[\\/]/u).at(-1) ?? path;
+}
+
+function getJobResourcePath(
+  job: BuildJob,
+  resourceKey: "archive" | "cache" | "events" | "log" | "workspace",
+  legacyKey:
+    | "archivePath"
+    | "cachePath"
+    | "eventsPath"
+    | "logPath"
+    | "workspacePath",
+): string | undefined {
+  const record = job as unknown as Record<string, unknown>;
+  const resource = record[resourceKey];
+  if (resource !== undefined) {
+    return getNodeResourcePath(resource as BuildJob[typeof resourceKey]);
+  }
+  const legacyPath = record[legacyKey];
+  if (typeof legacyPath === "string") return legacyPath;
+  return undefined;
+}
+
+function requireJobResourcePath(
+  job: BuildJob,
+  resourceKey: "archive" | "cache" | "events" | "log" | "workspace",
+  legacyKey:
+    | "archivePath"
+    | "cachePath"
+    | "eventsPath"
+    | "logPath"
+    | "workspacePath",
+): string {
+  const path = getJobResourcePath(job, resourceKey, legacyKey);
+  if (path !== undefined) return path;
+  throw new TypeError(`Build job is missing ${resourceKey}`);
 }

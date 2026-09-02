@@ -1,4 +1,4 @@
-import { join } from "../../../../../runtime/platform/index.js";
+import type { Directory } from "../../../../../runtime/platform/index.js";
 
 import type { SqlBindValue } from "../../../../../document/database.js";
 import { Database } from "../../../../../document/database.js";
@@ -6,10 +6,13 @@ import { listTableNames } from "../database.js";
 import type { SentenceIndexRemap } from "./types.js";
 
 export async function migrateLegacySentenceReferences(
-  workspacePath: string,
+  workspace: Directory,
   remaps: ReadonlyMap<number, SentenceIndexRemap>,
 ): Promise<void> {
-  const database = await Database.open(join(workspacePath, "database.db"));
+  const databaseFile = await workspace.getFile("database.db");
+  if (databaseFile === undefined)
+    throw new Error("Legacy database is missing.");
+  const database = await Database.open(databaseFile);
 
   try {
     const tableNames = await listTableNames(database);

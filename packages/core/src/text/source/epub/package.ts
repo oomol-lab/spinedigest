@@ -1,4 +1,4 @@
-import { posix } from "../../../runtime/platform/index.js";
+import { basenameRelativePath } from "../../../utils/relative-path.js";
 
 import { BOOK_META_VERSION, type BookMeta } from "../meta.js";
 import { splitHref } from "./archive.js";
@@ -325,7 +325,7 @@ function findCoverItem(
   for (const item of manifest.values()) {
     if (
       item.mediaType.startsWith("image/") &&
-      posix.basename(item.path).toLowerCase().includes("cover")
+      basenameRelativePath(item.path).toLowerCase().includes("cover")
     ) {
       return item;
     }

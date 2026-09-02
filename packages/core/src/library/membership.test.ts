@@ -34,14 +34,16 @@ import {
   rebuildWikiGraphLibraryIndex,
   removeWikiGraphLibrary,
   removeWikiGraphLibraryArchive,
-  resolveWikiGraphLibraryArchivePath,
+  resolveWikiGraphLibraryArchiveFile,
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
 } from "../index.js";
 import { Database } from "../document/database.js";
 import { DirectoryDocument } from "../document/index.js";
-import { withWikiGraphStateDirectoryPathForTesting } from "../runtime/common/wiki-graph/dir.js";
-import { resolveWikiGraphCoreDatabasePath } from "../runtime/common/wiki-graph/dir.js";
+import {
+  resolveWikiGraphCoreDatabasePath,
+  withWikiGraphStateDirectoryPathForTesting,
+} from "../../../../test/helpers/wiki-graph-storage.js";
 import {
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
@@ -49,14 +51,24 @@ import {
 } from "../storage/wikg/index.js";
 import { acquireWikiGraphLibraryLock } from "./lock.js";
 import { listWikiGraphLibrarySearchIndex } from "./search-index.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+  NodeFile,
+} from "../../../cli/src/runtime/node-platform.js";
 
 describe("library archive membership", () => {
   it("scans nested .wikg files and prunes deleted registered files", async () => {
     await withLibraryTestState(async () => {
       const library = await ensureDefaultWikiGraphLibrary();
-      await mkdir(join(library.folderPath, "nested"), { recursive: true });
-      await writeFile(join(library.folderPath, "a.wikg"), "a");
-      await writeFile(join(library.folderPath, "nested", "b.wikg"), "b");
+      await mkdir(join(getNodeResourcePath(library.folder), "nested"), {
+        recursive: true,
+      });
+      await writeFile(join(getNodeResourcePath(library.folder), "a.wikg"), "a");
+      await writeFile(
+        join(getNodeResourcePath(library.folder), "nested", "b.wikg"),
+        "b",
+      );
 
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
@@ -65,7 +77,7 @@ describe("library archive membership", () => {
         first.archives.map((archive) => archive.relativePath),
       ).toStrictEqual(["a.wikg", "nested/b.wikg"]);
 
-      await rm(join(library.folderPath, "a.wikg"));
+      await rm(join(getNodeResourcePath(library.folder), "a.wikg"));
       const second = await scanWikiGraphLibrary(target!);
       expect(
         second.archives.map((archive) => ({
@@ -82,9 +94,17 @@ describe("library archive membership", () => {
   it("searches and paginates archive member collection results", async () => {
     await withLibraryTestState(async () => {
       const library = await ensureDefaultWikiGraphLibrary();
-      await mkdir(join(library.folderPath, "books"), { recursive: true });
-      await writeFile(join(library.folderPath, "books", "alpha.wikg"), "alpha");
-      await writeFile(join(library.folderPath, "books", "beta.wikg"), "beta");
+      await mkdir(join(getNodeResourcePath(library.folder), "books"), {
+        recursive: true,
+      });
+      await writeFile(
+        join(getNodeResourcePath(library.folder), "books", "alpha.wikg"),
+        "alpha",
+      );
+      await writeFile(
+        join(getNodeResourcePath(library.folder), "books", "beta.wikg"),
+        "beta",
+      );
 
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
@@ -131,7 +151,7 @@ describe("library archive membership", () => {
       expect(target).toBeDefined();
       await createTestWikgArchive(
         tempDir,
-        join(library.folderPath, "old.wikg"),
+        join(getNodeResourcePath(library.folder), "old.wikg"),
       );
 
       const first = await scanWikiGraphLibrary(target!);
@@ -141,8 +161,8 @@ describe("library archive membership", () => {
       expect(oldArchive?.lastSeenMutationToken).toBeDefined();
 
       await rename(
-        join(library.folderPath, "old.wikg"),
-        join(library.folderPath, "renamed.wikg"),
+        join(getNodeResourcePath(library.folder), "old.wikg"),
+        join(getNodeResourcePath(library.folder), "renamed.wikg"),
       );
       const second = await scanWikiGraphLibrary(target!);
       const renamedArchive = second.archives.find(
@@ -163,13 +183,13 @@ describe("library archive membership", () => {
       expect(target).toBeDefined();
       await createTestWikgArchive(
         tempDir,
-        join(library.folderPath, "original.wikg"),
+        join(getNodeResourcePath(library.folder), "original.wikg"),
       );
       const first = await scanWikiGraphLibrary(target!);
 
       await copyFile(
-        join(library.folderPath, "original.wikg"),
-        join(library.folderPath, "copy.wikg"),
+        join(getNodeResourcePath(library.folder), "original.wikg"),
+        join(getNodeResourcePath(library.folder), "copy.wikg"),
       );
       const second = await scanWikiGraphLibrary(target!);
       const original = second.archives.find(
@@ -190,11 +210,17 @@ describe("library archive membership", () => {
       const library = await ensureDefaultWikiGraphLibrary();
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
-      await writeFile(join(library.folderPath, "old.wikg"), "same");
+      await writeFile(
+        join(getNodeResourcePath(library.folder), "old.wikg"),
+        "same",
+      );
       const first = await scanWikiGraphLibrary(target!);
 
-      await rm(join(library.folderPath, "old.wikg"));
-      await writeFile(join(library.folderPath, "new.wikg"), "same");
+      await rm(join(getNodeResourcePath(library.folder), "old.wikg"));
+      await writeFile(
+        join(getNodeResourcePath(library.folder), "new.wikg"),
+        "same",
+      );
       const second = await scanWikiGraphLibrary(target!);
       const fresh = second.archives.find(
         (archive) => archive.relativePath === "new.wikg",
@@ -218,23 +244,19 @@ describe("library archive membership", () => {
       await writeFile(source, "content");
 
       const added = await addWikiGraphLibraryArchive({
-        inputPath: source,
+        inputFile: new NodeFile(source),
         target: target!,
         to: "nested/book.wikg",
       });
       expect(added.relativePath).toBe("nested/book.wikg");
       expect(added.status).toBe("present");
-      expect(await readFile(added.path, "utf8")).toBe("content");
+      expect(await readFile(getNodeResourcePath(added.file!), "utf8")).toBe(
+        "content",
+      );
 
       await expect(
         addWikiGraphLibraryArchive({
-          inputPath: "wikg://elsewhere/book.wikg",
-          target: target!,
-        }),
-      ).rejects.toThrow("not a Wiki Graph URI");
-      await expect(
-        addWikiGraphLibraryArchive({
-          inputPath: source,
+          inputFile: new NodeFile(source),
           target: target!,
           to: "../x.wikg",
         }),
@@ -253,7 +275,9 @@ describe("library archive membership", () => {
         target: archiveTarget!,
       });
       expect(removed.publicId).toBe(added.publicId);
-      await expect(readFile(moved.path, "utf8")).rejects.toThrow();
+      await expect(
+        readFile(getNodeResourcePath(moved.file!), "utf8"),
+      ).rejects.toThrow();
     });
   });
 
@@ -262,7 +286,10 @@ describe("library archive membership", () => {
       const library = await ensureDefaultWikiGraphLibrary();
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
-      const archivePath = join(library.folderPath, "plain.wikg");
+      const archivePath = join(
+        getNodeResourcePath(library.folder),
+        "plain.wikg",
+      );
       await createTestWikgArchive(tempDir, archivePath);
       const before = await inspectFileState(archivePath);
 
@@ -280,18 +307,18 @@ describe("library archive membership", () => {
       const source = join(tempDir, "plain-source.wikg");
       await createTestWikgArchive(tempDir, source);
       const added = await addWikiGraphLibraryArchive({
-        inputPath: source,
+        inputFile: new NodeFile(source),
         target: target!,
         to: "plain-finalize.wikg",
       });
       const archiveTarget = parseWikiGraphLibraryUri(added.uri);
       expect(archiveTarget?.kind).toBe("archive");
-      const before = await inspectFileState(added.path);
+      const before = await inspectFileState(getNodeResourcePath(added.file!));
 
       await expect(
         finalizeWikiGraphLibraryArchiveWrite({ target: archiveTarget! }),
       ).resolves.toBe(false);
-      const after = await inspectFileState(added.path);
+      const after = await inspectFileState(getNodeResourcePath(added.file!));
 
       expect(after).toStrictEqual(before);
     });
@@ -305,13 +332,13 @@ describe("library archive membership", () => {
       await createSearchableArchiveWithoutSearchIndex(tempDir, source);
 
       const added = await addWikiGraphLibraryArchive({
-        inputPath: source,
+        inputFile: new NodeFile(source),
         target: target!,
         to: "searchable.wikg",
       });
-      await expect(readWikgArchiveEntry(added.path, "index.db")).resolves.toBe(
-        undefined,
-      );
+      await expect(
+        readWikgArchiveEntry(getNodeResourcePath(added.file!), "index.db"),
+      ).resolves.toBe(undefined);
 
       await rebuildWikiGraphLibraryIndex(target!);
       const result = await queryWikiGraphLibrarySearchIndex(
@@ -327,8 +354,9 @@ describe("library archive membership", () => {
 
   it("waits for the library write lock when removing a library registry", async () => {
     await withLibraryTestState(async (tempDir) => {
+      await mkdir(join(tempDir, "locked-library"));
       const library = await createWikiGraphLibrary({
-        folderPath: join(tempDir, "locked-library"),
+        folder: new NodeDirectory(join(tempDir, "locked-library")),
       });
       const target = parseWikiGraphLibraryUri(library.uri);
       expect(target).toBeDefined();
@@ -354,8 +382,9 @@ describe("library archive membership", () => {
 
   it("allows concurrent library read locks", async () => {
     await withLibraryTestState(async (tempDir) => {
+      await mkdir(join(tempDir, "readable-library"));
       const library = await createWikiGraphLibrary({
-        folderPath: join(tempDir, "readable-library"),
+        folder: new NodeDirectory(join(tempDir, "readable-library")),
       });
       const firstRelease = await acquireWikiGraphLibraryLock(
         library.id,
@@ -442,8 +471,9 @@ describe("library archive membership", () => {
 
   it("cleans stale library state locks before acquiring a foreground lock", async () => {
     await withLibraryTestState(async (tempDir) => {
+      await mkdir(join(tempDir, "stale-library"));
       const library = await createWikiGraphLibrary({
-        folderPath: join(tempDir, "stale-library"),
+        folder: new NodeDirectory(join(tempDir, "stale-library")),
       });
       await insertStaleStateLock(library.id);
 
@@ -459,14 +489,17 @@ describe("library archive membership", () => {
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
       await putWikiGraphLibraryMetadata(target!, "owner", "default-team");
-      await writeFile(join(library.folderPath, "old-only.wikg"), "old");
+      await writeFile(
+        join(getNodeResourcePath(library.folder), "old-only.wikg"),
+        "old",
+      );
 
       const newFolder = join(tempDir, "icloud-library");
       await mkdir(newFolder);
       await createTestWikgArchive(tempDir, join(newFolder, "synced.wikg"));
 
       const result = await rebindWikiGraphLibrary({
-        folderPath: newFolder,
+        folder: new NodeDirectory(newFolder),
         target: target!,
       });
       const rebound = await ensureDefaultWikiGraphLibrary();
@@ -477,9 +510,12 @@ describe("library archive membership", () => {
         publicId: library.publicId,
         uri: library.uri,
       });
-      expect(rebound.folderPath).toBe(newFolder);
+      expect(getNodeResourcePath(rebound.folder)).toBe(newFolder);
       await expect(
-        readFile(join(library.folderPath, "old-only.wikg"), "utf8"),
+        readFile(
+          join(getNodeResourcePath(library.folder), "old-only.wikg"),
+          "utf8",
+        ),
       ).resolves.toBe("old");
       await expect(
         readFile(join(newFolder, "synced.wikg")),
@@ -499,11 +535,13 @@ describe("library archive membership", () => {
   it("rebinds only the addressed non-default library and rejects invalid folder targets", async () => {
     await withLibraryTestState(async (tempDir) => {
       const defaultLibrary = await ensureDefaultWikiGraphLibrary();
+      await mkdir(join(tempDir, "team-old"));
+      await mkdir(join(tempDir, "other-bound"));
       const teamLibrary = await createWikiGraphLibrary({
-        folderPath: join(tempDir, "team-old"),
+        folder: new NodeDirectory(join(tempDir, "team-old")),
       });
       const otherLibrary = await createWikiGraphLibrary({
-        folderPath: join(tempDir, "other-bound"),
+        folder: new NodeDirectory(join(tempDir, "other-bound")),
       });
       const teamTarget = parseWikiGraphLibraryUri(teamLibrary.uri);
       expect(teamTarget).toBeDefined();
@@ -512,36 +550,41 @@ describe("library archive membership", () => {
 
       await expect(
         rebindWikiGraphLibrary({
-          folderPath: join(tempDir, "missing"),
+          folder: new NodeDirectory(join(tempDir, "missing")),
           target: teamTarget!,
         }),
       ).rejects.toThrow("does not exist");
       const fileTarget = join(tempDir, "not-directory");
       await writeFile(fileTarget, "file");
       await expect(
-        rebindWikiGraphLibrary({ folderPath: fileTarget, target: teamTarget! }),
+        rebindWikiGraphLibrary({
+          folder: new NodeDirectory(fileTarget),
+          target: teamTarget!,
+        }),
       ).rejects.toThrow("must be an existing directory");
       await expect(
         rebindWikiGraphLibrary({
-          folderPath: otherLibrary.folderPath,
+          folder: new NodeDirectory(getNodeResourcePath(otherLibrary.folder)),
           target: teamTarget!,
         }),
       ).rejects.toThrow("already bound to another library");
 
       await rebindWikiGraphLibrary({
-        folderPath: newFolder,
+        folder: new NodeDirectory(newFolder),
         target: teamTarget!,
       });
 
       await expect(resolveWikiGraphLibrary(teamTarget!)).resolves.toMatchObject(
         {
-          folderPath: newFolder,
+          folder: new NodeDirectory(newFolder),
           id: teamLibrary.id,
         },
       );
       await expect(
         resolveWikiGraphLibrary(parseWikiGraphLibraryUri("wikg://lib")!),
-      ).resolves.toMatchObject({ folderPath: defaultLibrary.folderPath });
+      ).resolves.toMatchObject({
+        folder: new NodeDirectory(getNodeResourcePath(defaultLibrary.folder)),
+      });
     });
   });
 
@@ -552,7 +595,7 @@ describe("library archive membership", () => {
       expect(target).toBeDefined();
       await createTestWikgArchive(
         tempDir,
-        join(library.folderPath, "old.wikg"),
+        join(getNodeResourcePath(library.folder), "old.wikg"),
       );
       const first = await scanWikiGraphLibrary(target!);
       const oldArchive = first.archives.find(
@@ -563,12 +606,12 @@ describe("library archive membership", () => {
       const newFolder = join(tempDir, "new-library-folder");
       await mkdir(newFolder);
       await rename(
-        join(library.folderPath, "old.wikg"),
+        join(getNodeResourcePath(library.folder), "old.wikg"),
         join(newFolder, "renamed.wikg"),
       );
 
       const rebound = await rebindWikiGraphLibrary({
-        folderPath: newFolder,
+        folder: new NodeDirectory(newFolder),
         target: target!,
       });
       const renamed = rebound.archives.find(
@@ -590,7 +633,7 @@ describe("library archive membership", () => {
       expect(target).toBeDefined();
       await createTestWikgArchive(
         tempDir,
-        join(library.folderPath, "book.wikg"),
+        join(getNodeResourcePath(library.folder), "book.wikg"),
       );
       const first = await scanWikiGraphLibrary(target!);
       const original = first.archives.find(
@@ -598,10 +641,10 @@ describe("library archive membership", () => {
       );
       expect(original?.lastSeenMutationToken).toBeDefined();
 
-      await rm(join(library.folderPath, "book.wikg"));
+      await rm(join(getNodeResourcePath(library.folder), "book.wikg"));
       await createTestWikgArchive(
         tempDir,
-        join(library.folderPath, "book.wikg"),
+        join(getNodeResourcePath(library.folder), "book.wikg"),
       );
       const second = await scanWikiGraphLibrary(target!);
       const replaced = second.archives.find(
@@ -623,7 +666,7 @@ describe("library archive membership", () => {
       expect(target).toBeDefined();
       await createTestWikgArchive(
         tempDir,
-        join(library.folderPath, "book.wikg"),
+        join(getNodeResourcePath(library.folder), "book.wikg"),
       );
       const first = await scanWikiGraphLibrary(target!);
       const oldArchive = first.archives.find(
@@ -635,7 +678,7 @@ describe("library archive membership", () => {
       await mkdir(newFolder);
       await createTestWikgArchive(tempDir, join(newFolder, "book.wikg"));
       const rebound = await rebindWikiGraphLibrary({
-        folderPath: newFolder,
+        folder: new NodeDirectory(newFolder),
         target: target!,
       });
       const archivesAtPath = rebound.archives.filter(
@@ -661,10 +704,13 @@ describe("library archive membership", () => {
       const library = await ensureDefaultWikiGraphLibrary();
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
-      await writeFile(join(library.folderPath, "book.wikg"), "book");
+      await writeFile(
+        join(getNodeResourcePath(library.folder), "book.wikg"),
+        "book",
+      );
       const first = await scanWikiGraphLibrary(target!);
 
-      await rm(library.folderPath, { recursive: true });
+      await rm(getNodeResourcePath(library.folder), { recursive: true });
       await expect(scanWikiGraphLibrary(target!)).rejects.toThrow(
         "Wiki Graph library folder is missing",
       );
@@ -687,7 +733,7 @@ describe("library archive membership", () => {
       expect(target).toBeDefined();
       await createTestWikgArchive(
         tempDir,
-        join(library.folderPath, "book.wikg"),
+        join(getNodeResourcePath(library.folder), "book.wikg"),
       );
       const first = await scanWikiGraphLibrary(target!);
       const original = first.archives.find(
@@ -698,11 +744,11 @@ describe("library archive membership", () => {
       const newFolder = join(tempDir, "new-library-folder");
       await mkdir(newFolder);
       await copyFile(
-        join(library.folderPath, "book.wikg"),
+        join(getNodeResourcePath(library.folder), "book.wikg"),
         join(newFolder, "renamed-book.wikg"),
       );
       const rebound = await rebindWikiGraphLibrary({
-        folderPath: newFolder,
+        folder: new NodeDirectory(newFolder),
         target: target!,
       });
       const reboundArchive = rebound.archives.find(
@@ -726,7 +772,7 @@ describe("library archive membership", () => {
       expect(target).toBeDefined();
       await createTestWikgArchive(
         tempDir,
-        join(library.folderPath, "book.wikg"),
+        join(getNodeResourcePath(library.folder), "book.wikg"),
       );
       const first = await scanWikiGraphLibrary(target!);
       const original = first.archives.find(
@@ -737,11 +783,11 @@ describe("library archive membership", () => {
       const newFolder = join(tempDir, "new-library-folder");
       await mkdir(newFolder);
       await copyFile(
-        join(library.folderPath, "book.wikg"),
+        join(getNodeResourcePath(library.folder), "book.wikg"),
         join(newFolder, "book.wikg"),
       );
       const rebound = await rebindWikiGraphLibrary({
-        folderPath: newFolder,
+        folder: new NodeDirectory(newFolder),
         target: target!,
       });
       const reboundArchive = rebound.archives.find(
@@ -761,11 +807,11 @@ describe("library archive membership", () => {
       expect(target).toBeDefined();
       await createTestWikgArchive(
         tempDir,
-        join(library.folderPath, "original.wikg"),
+        join(getNodeResourcePath(library.folder), "original.wikg"),
       );
       await copyFile(
-        join(library.folderPath, "original.wikg"),
-        join(library.folderPath, "copy.wikg"),
+        join(getNodeResourcePath(library.folder), "original.wikg"),
+        join(getNodeResourcePath(library.folder), "copy.wikg"),
       );
       const first = await scanWikiGraphLibrary(target!);
       const original = first.archives.find(
@@ -779,11 +825,11 @@ describe("library archive membership", () => {
       const newFolder = join(tempDir, "new-library-folder");
       await mkdir(newFolder);
       await copyFile(
-        join(library.folderPath, "original.wikg"),
+        join(getNodeResourcePath(library.folder), "original.wikg"),
         join(newFolder, "renamed.wikg"),
       );
       const rebound = await rebindWikiGraphLibrary({
-        folderPath: newFolder,
+        folder: new NodeDirectory(newFolder),
         target: target!,
       });
       const renamed = rebound.archives.find(
@@ -803,14 +849,17 @@ describe("library archive membership", () => {
       const source = join(tempDir, "source.wikg");
       await writeFile(source, "content");
       const added = await addWikiGraphLibraryArchive({
-        inputPath: source,
+        inputFile: new NodeFile(source),
         target: target!,
       });
       const archiveTarget = parseWikiGraphLibraryUri(added.uri);
       expect(archiveTarget?.kind).toBe("archive");
 
       await expect(
-        rebindWikiGraphLibrary({ folderPath: tempDir, target: archiveTarget! }),
+        rebindWikiGraphLibrary({
+          folder: new NodeDirectory(tempDir),
+          target: archiveTarget!,
+        }),
       ).rejects.toThrow("requires a library scope URI");
     });
   });
@@ -827,7 +876,7 @@ describe("library archive membership", () => {
       );
 
       await addWikiGraphLibraryArchive({
-        inputPath: source,
+        inputFile: new NodeFile(source),
         target: target!,
         to: "dense-library.wikg",
       });
@@ -856,7 +905,7 @@ describe("library archive membership", () => {
       );
 
       await addWikiGraphLibraryArchive({
-        inputPath: source,
+        inputFile: new NodeFile(source),
         target: target!,
         to: "fts-library.wikg",
       });
@@ -968,16 +1017,18 @@ describe("library URI locators", () => {
       await writeFile(source, "content");
 
       const added = await addWikiGraphLibraryArchive({
-        inputPath: source,
+        inputFile: new NodeFile(source),
         target: target!,
         to: "nested/book.wikg",
       });
 
-      await expect(resolveWikiGraphLibraryArchivePath(added.uri)).resolves.toBe(
-        added.path,
-      );
+      expect(
+        getNodeResourcePath(
+          await resolveWikiGraphLibraryArchiveFile(added.uri),
+        ),
+      ).toBe(getNodeResourcePath(added.file!));
       await expect(
-        resolveWikiGraphLibraryArchivePath(`${added.uri}-missing`),
+        resolveWikiGraphLibraryArchiveFile(`${added.uri}-missing`),
       ).rejects.toThrow("Unknown Wiki Graph library archive");
     });
   });

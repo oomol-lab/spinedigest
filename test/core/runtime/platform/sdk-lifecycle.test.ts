@@ -14,24 +14,45 @@ import {
 const execFileAsync = promisify(execFile);
 
 describe("SDK host lifecycle", () => {
+  it("imports Core without installing a Node adapter", async () => {
+    const script = `
+const core = await import("./packages/core/src/index.ts");
+console.log(JSON.stringify({ wikiGraph: typeof core.WikiGraph, hasFileFactory: "NodeFile" in core }));
+`;
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ["--import", "tsx", "--input-type=module", "--eval", script],
+      { cwd: process.cwd() },
+    );
+    expect(JSON.parse(stdout.trim())).toEqual({
+      hasFileFactory: false,
+      wikiGraph: "function",
+    });
+  });
+
   it("binds async contexts when the host is installed after Core imports", async () => {
     const script = `
 await import("./packages/core/src/index.ts");
-const state = await import("./packages/core/src/runtime/common/wiki-graph/dir.ts");
 const node = await import("./packages/cli/src/runtime/node-platform.ts");
 node.installNodeWikiGraphPlatform();
+const state = await import("./test/helpers/wiki-graph-storage.ts");
+const fs = await import("node:fs/promises");
+const os = await import("node:os");
+const path = await import("node:path");
+const root = await fs.mkdtemp(path.join(os.tmpdir(), "wikigraph-context-"));
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const observed = await Promise.all([
-  state.withWikiGraphStateDirectoryPathForTesting("/context-a", async () => {
+  state.withWikiGraphStateDirectoryPathForTesting(path.join(root, "context-a"), async () => {
     await pause(20);
     return state.resolveWikiGraphHomeDirectoryPath();
   }),
-  state.withWikiGraphStateDirectoryPathForTesting("/context-b", async () => {
+  state.withWikiGraphStateDirectoryPathForTesting(path.join(root, "context-b"), async () => {
     await pause(5);
     return state.resolveWikiGraphHomeDirectoryPath();
   }),
 ]);
-console.log(JSON.stringify(observed));
+await fs.rm(root, { force: true, recursive: true });
+console.log(JSON.stringify(observed.map((value) => path.basename(value))));
 `;
 
     const { stdout } = await execFileAsync(
@@ -40,7 +61,7 @@ console.log(JSON.stringify(observed));
       { cwd: process.cwd() },
     );
 
-    expect(JSON.parse(stdout.trim())).toEqual(["/context-a", "/context-b"]);
+    expect(JSON.parse(stdout.trim())).toEqual(["context-a", "context-b"]);
   });
 
   it("keeps per-instance storage out of process-default state", () => {

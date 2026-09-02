@@ -8,16 +8,17 @@ import {
   createWikiGraphLibrary,
   parseWikiGraphLibraryUri,
 } from "../../../core/src/index.js";
-import { withWikiGraphStateDirectoryPathForTesting } from "../../../core/src/runtime/common/wiki-graph/dir.js";
+import { withWikiGraphStateDirectoryPathForTesting } from "../../../../test/helpers/wiki-graph-storage.js";
 import { runLibraryCommand } from "./library.js";
 import { createEmptyArchive } from "./test-helpers.js";
+import { NodeDirectory, NodeFile } from "../runtime/node-platform.js";
 
 describe("library command", () => {
   it("scan prunes deleted members while registry listing remains library-only", async () => {
     await withLibraryCommandTestState(async (tempDir) => {
       const libraryFolder = join(tempDir, "library");
       const library = await createWikiGraphLibrary({
-        folderPath: libraryFolder,
+        folder: new NodeDirectory(libraryFolder),
       });
       const target = parseWikiGraphLibraryUri(`${library.uri}/arc`);
       expect(target).toBeDefined();
@@ -76,13 +77,13 @@ describe("library command", () => {
       const source = join(tempDir, "source.wikg");
       await createEmptyArchive({ path: source, tempDir });
       const archive = await addWikiGraphLibraryArchive({
-        inputPath: source,
+        inputFile: new NodeFile(source),
         target: target!,
         to: "nested/book.wikg",
       });
 
       await addWikiGraphLibraryArchive({
-        inputPath: source,
+        inputFile: new NodeFile(source),
         target: target!,
         to: "other.wikg",
       });

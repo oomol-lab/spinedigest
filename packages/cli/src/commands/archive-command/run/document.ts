@@ -14,7 +14,7 @@ export async function readArchiveDocument<T>(
   operation: (document: ReadonlyDocument) => Promise<T> | T,
 ): Promise<T> {
   const location = await resolveArchiveRuntimeLocation(path);
-  return await new WikiGraphArchiveFile(location.archivePath).readDocument(
+  return await new WikiGraphArchiveFile(location.archiveFile).readDocument(
     operation,
   );
 }
@@ -25,7 +25,7 @@ export async function writeArchiveDocument<T>(
   options: Parameters<WikiGraphArchiveFile["write"]>[1] = {},
 ): Promise<T> {
   const location = await resolveArchiveRuntimeLocation(path);
-  const result = await new WikiGraphArchiveFile(location.archivePath).write(
+  const result = await new WikiGraphArchiveFile(location.archiveFile).write(
     operation,
     options,
   );
