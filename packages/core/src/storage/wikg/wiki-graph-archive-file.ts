@@ -1,4 +1,4 @@
-import { type File } from "../../runtime/platform/index.js";
+import { resolveFilePath, type File } from "../../runtime/platform/index.js";
 
 import { DirectoryDocument } from "../../document/index.js";
 
@@ -118,5 +118,5 @@ export class WikiGraphArchiveFile {
 }
 
 function toHostHandle(file: File | string): string {
-  return file as unknown as string;
+  return resolveFilePath(file);
 }

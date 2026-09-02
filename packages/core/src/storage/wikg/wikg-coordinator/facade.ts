@@ -7,6 +7,7 @@ import {
 } from "../../../runtime/platform/index.js";
 import {
   resolve,
+  resolveFilePath,
   type File,
 } from "../../../runtime/platform/index.js";
 
@@ -104,7 +105,5 @@ async function createWorkspaceDirectory(
 }
 
 function toArchivePath(archivePath: File | string): string {
-  return typeof archivePath === "string"
-    ? resolve(archivePath)
-    : (archivePath as unknown as string);
+  return resolve(resolveFilePath(archivePath));
 }

@@ -211,6 +211,9 @@ export const inflateRaw = (...args: any[]): any =>
   capability("inflateRaw")(...args);
 export const fileURLToPath = (...args: any[]): any =>
   capability("fileURLToPath")(...args);
+/** Host-only escape hatch used by legacy archive algorithms during migration. */
+export const resolveFilePath = (file: File | string): string =>
+  typeof file === "string" ? file : capability<(file: File) => string>("resolveFilePath")(file);
 
 export const PassThrough: any = function (this: any, ...args: any[]) {
   const delegate = new (capability("stream_PassThrough"))(...args);
