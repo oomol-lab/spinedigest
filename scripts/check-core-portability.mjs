@@ -14,6 +14,18 @@ const forbidden = new Set([
 ]);
 const violations = [];
 const seenFiles = new Set();
+// These packages are part of Core's existing browser-capable surface. Their
+// published ESM/browser bundles contain optional feature probes such as
+// `process`/`Buffer` (or legacy CommonJS wrappers) that are never executed by
+// the imported APIs. We still inspect their complete import graph and reject
+// every forbidden Node module; the narrow exception only avoids treating an
+// optional probe as a hard runtime dependency. Any new/unknown dependency is
+// scanned strictly, including globals and `require`.
+const auditedBrowserPackages = new Set([
+  "ai", "htmlparser2", "jsonrepair", "nunjucks", "saxes", "zod", "tinyld",
+  "@ai-sdk/anthropic", "@ai-sdk/google", "@ai-sdk/openai",
+  "@ai-sdk/openai-compatible",
+]);
 
 async function collect(directory, extensions) {
   const files = [];
@@ -92,25 +104,43 @@ async function scanDependency(name, fromDirectory, chain = [], strict = false) {
   const root = await packageRoot(name, fromDirectory);
   if (!root) return;
   const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
-  const entries = new Set(manifest.exports
-    ? [manifest.module, manifest.browser]
-    : [manifest.module, manifest.browser, manifest.main, "index.js"]);
-  const addExportTargets = (value, condition) => {
-    if (typeof value === "string") entries.add(value);
-    else if (value && typeof value === "object") {
-      for (const [key, nested] of Object.entries(value)) {
-        // Type declarations and CommonJS/Node branches are not part of the
-        // browser/ESM runtime graph that Core publishes.
-        if (key === "types" || key === "require" || key === "node") continue;
-        addExportTargets(nested, key);
+  const entries = new Set();
+  const selectExportTarget = (value) => {
+    if (typeof value === "string") return value;
+    if (!value || typeof value !== "object") return undefined;
+    // Resolve one runtime branch exactly as a browser/ESM host would. Do not
+    // union every conditional export (which would incorrectly pull in Node
+    // and CommonJS branches that are never part of Core's graph).
+    for (const key of ["browser", "import", "default", "module"]) {
+      if (key in value) {
+        const selected = selectExportTarget(value[key]);
+        if (selected) return selected;
       }
     }
+    for (const [key, nested] of Object.entries(value)) {
+      if (key === "types" || key === "require" || key === "node") continue;
+      const selected = selectExportTarget(nested);
+      if (selected) return selected;
+    }
+    return undefined;
   };
-  addExportTargets(manifest.exports);
+  if (manifest.exports) {
+    const selected = selectExportTarget(manifest.exports["."] ?? manifest.exports);
+    if (selected) entries.add(selected);
+  } else {
+    const selected = manifest.browser ?? manifest.module ?? manifest.main ?? "index.js";
+    entries.add(selected);
+  }
   for (const entry of entries) {
     if (typeof entry !== "string") continue;
     if (strict) {
-      try { await scanFile(resolve(root, entry), { dependency: true, strictDependencies: strict, follow: true }); } catch { /* optional/types-only entry */ }
+      try {
+        await scanFile(resolve(root, entry), {
+          dependency: true,
+          strictDependencies: strict && !auditedBrowserPackages.has(name),
+          follow: true,
+        });
+      } catch { /* optional/types-only entry */ }
     }
   }
   for (const dependency of Object.keys({ ...(manifest.dependencies ?? {}), ...(manifest.optionalDependencies ?? {}) })) {
@@ -125,7 +155,10 @@ if (!artifactMode) {
   let packageFile = join(repositoryRoot, "..", "packages/core/package.json");
   try { await readFile(join(target, "package.json")); packageFile = join(target, "package.json"); } catch { /* source directory */ }
   const manifest = JSON.parse(await readFile(packageFile, "utf8"));
-  const strictDependencyScan = !packageFile.endsWith("packages/core/package.json");
+  // Always inspect the dependency runtime graph. Core's own build must not
+  // silently downgrade this check: transitive Node imports/globals are just
+  // as non-portable as direct ones.
+  const strictDependencyScan = true;
   for (const dependency of Object.keys(manifest.dependencies ?? {})) {
     if (forbidden.has(dependency)) report(packageFile, `depends on forbidden module ${dependency}`);
     else await scanDependency(dependency, dirname(packageFile), [], strictDependencyScan);
