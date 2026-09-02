@@ -33,6 +33,7 @@ import {
 import { ObjectMetadataKind, type SentenceId } from "../types.js";
 import { DirectoryDocumentContext } from "./context.js";
 import { LOCAL_DOCUMENT_FILE_STORE } from "./file-store.js";
+import { DirectoryFileStore } from "./directory-file-store.js";
 import {
   getCoverDataPath,
   getCoverDirectoryPath,
@@ -112,8 +113,9 @@ export class DirectoryDocument implements Document {
     const resolvedDocumentPath =
       typeof documentPath === "string"
         ? resolve(documentPath)
-          : documentPath.name;
-    const fileStore = options.fileStore ?? LOCAL_DOCUMENT_FILE_STORE;
+        : "";
+    const fileStore = options.fileStore ??
+      (typeof documentPath === "string" ? LOCAL_DOCUMENT_FILE_STORE : new DirectoryFileStore(documentPath));
     try {
       const databasePath =
         typeof documentPath === "string"

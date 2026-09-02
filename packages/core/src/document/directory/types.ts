@@ -48,8 +48,8 @@ export interface DocumentFileStore {
   listFileContents?(path: string): Promise<ReadonlyMap<string, Uint8Array>>;
   listFiles(path: string): Promise<readonly string[]>;
   readFile(path: string): Promise<Uint8Array | undefined>;
-  resolveDatabasePath(documentPath: string): Promise<string>;
-  resolveSearchIndexDatabasePath?(documentPath: string): Promise<string>;
+  resolveDatabasePath(documentPath: string): Promise<string | import("../../runtime/platform/index.js").File>;
+  resolveSearchIndexDatabasePath?(documentPath: string): Promise<string | import("../../runtime/platform/index.js").File>;
   writeFile(
     path: string,
     content: string | Uint8Array,
