@@ -1,48 +1,65 @@
-/**
- * Runtime primitives used by the portable core.
- *
- * The core deliberately does not import Node modules. A host (the CLI, a
- * browser application, or a test harness) installs implementations for these
- * primitives before opening a document.
- */
+import type { LegacyRuntimePlatform, PlatformModule } from "./legacy.js";
+import type {
+  Directory,
+  File,
+  HostAsyncContext,
+  HostError,
+  WikiGraphPlatform,
+  WikiGraphStorage,
+} from "./types.js";
 
-export type PlatformModule = Record<string, any>;
+export type {
+  Directory,
+  File,
+  FileWriter,
+  HostAsyncContext,
+  HostAsyncContextProvider,
+  HostDatabaseConnection,
+  HostDatabaseProvider,
+  HostDatabaseRow,
+  HostDatabaseValue,
+  HostError,
+  HostZipEntry,
+  HostZipProvider,
+  WikiGraphPlatform,
+  WikiGraphStorage,
+} from "./types.js";
+export type { LegacyRuntimePlatform } from "./legacy.js";
 
-/**
- * Opaque host capability bag. Core only relies on capability names internally;
- * hosts are free to provide browser, extension, or Node implementations.
- */
-export interface WikiGraphPlatform {
-  readonly [capability: string]: unknown;
+export type NodeError = HostError;
+
+let installedPlatform: WikiGraphPlatform | undefined;
+let installedLegacyRuntime: LegacyRuntimePlatform | undefined;
+
+/** Install the process-default platform services used by Core. */
+export function installWikiGraphPlatform(platform: WikiGraphPlatform): void {
+  installedPlatform = platform;
 }
 
-/** A host-owned file. Core never interprets its backing URI or path. */
-export interface File {
-  readonly name: string;
-  readonly size?: number;
-  read(options?: { readonly encoding?: string }): Promise<Uint8Array | string>;
-  openWriter(): Promise<FileWriter>;
+export function getWikiGraphPlatform(): WikiGraphPlatform {
+  if (installedPlatform === undefined) {
+    throw new Error(
+      "No WikiGraph runtime platform has been installed. Provide a runtime adapter before using wiki-graph-core.",
+    );
+  }
+
+  return installedPlatform;
 }
 
-/** Transactional writer supplied by the host file system. */
-export interface FileWriter {
-  write(data: Uint8Array | string): Promise<void>;
-  commit(): Promise<void>;
-  abort(): Promise<void>;
+/** Install compatibility services for Core modules awaiting host migration. */
+export function installLegacyRuntimePlatform(
+  platform: LegacyRuntimePlatform,
+): void {
+  installedLegacyRuntime = platform;
 }
 
-/** Directory tree supplied by the host. Only relative child names are used. */
-export interface Directory {
-  readonly name: string;
-  getFile(name: string): Promise<File | undefined>;
-  getDirectory(name: string): Promise<Directory | undefined>;
-  list(): Promise<ReadonlyArray<File | Directory>>;
-  createFile(name: string): Promise<File>;
-  createDirectory(name: string): Promise<Directory>;
-  remove(
-    name: string,
-    options?: { readonly recursive?: boolean },
-  ): Promise<void>;
+function legacyRuntime(): LegacyRuntimePlatform {
+  if (installedLegacyRuntime === undefined) {
+    throw new Error(
+      "This operation still requires the legacy runtime adapter. Use the Node CLI adapter until this Core module has migrated to File/Directory.",
+    );
+  }
+  return installedLegacyRuntime;
 }
 
 /** Resolve a logical relative file name inside a host-provided directory. */
@@ -65,215 +82,171 @@ export async function getRelativeFile(
   return await directory.getFile(fileName);
 }
 
-/** Host storage roots. The names describe scope, never a concrete path. */
-export interface WikiGraphStorage {
-  readonly library: Directory;
-  readonly documentStore: Directory;
-}
-
-export interface HostError extends Error {
-  readonly code?: string;
-  readonly errno?: number;
-  readonly path?: string;
-}
-export type NodeError = HostError;
-
-let installedPlatform: WikiGraphPlatform | undefined;
-let installedStorage: WikiGraphStorage | undefined;
-
-export function installWikiGraphPlatform(platform: WikiGraphPlatform): void {
-  installedPlatform = platform;
-}
-
-export function getWikiGraphPlatform(): WikiGraphPlatform {
-  if (installedPlatform === undefined) {
-    throw new Error(
-      "No WikiGraph runtime platform has been installed. Provide File/Directory and runtime adapters before using wiki-graph-core.",
-    );
-  }
-
-  return installedPlatform;
-}
-
-export function installWikiGraphStorage(storage: WikiGraphStorage): void {
-  installedStorage = storage;
-}
-
-export function getWikiGraphStorage(): WikiGraphStorage {
-  if (installedStorage === undefined) {
-    throw new Error(
-      "No WikiGraph storage roots have been installed. Provide library and documentStore Directory implementations.",
-    );
-  }
-  return installedStorage;
-}
-
-function capability<T = any>(name: string): T {
-  return getWikiGraphPlatform()[name] as T;
-}
-
-export const access = (...args: any[]): any => capability("access")(...args);
-export const spawn = (...args: any[]): any => capability("spawn")(...args);
+export const access = (...args: any[]): any =>
+  legacyRuntime().files.access(...args);
+export const spawn = (...args: any[]): any =>
+  legacyRuntime().subprocess.spawn(...args);
 export const runtimeContext: Record<string, any> = {
   get pid() {
-    return capability("runtime_pid");
+    return legacyRuntime().execution.pid;
   },
   get stderr() {
-    return capability("runtime_stderr");
+    return legacyRuntime().execution.stderr;
   },
   get argv() {
-    return capability("runtime_argv");
+    return legacyRuntime().execution.argv;
   },
   get env() {
-    return capability("runtime_env");
+    return legacyRuntime().execution.env;
   },
   get cwd() {
-    return capability("runtime_cwd");
+    return legacyRuntime().execution.cwd;
   },
-  kill: (...args: any[]) => capability("runtime_kill")(...args),
-  once: (...args: any[]) => capability("runtime_once")(...args),
+  kill: (...args: any[]) => legacyRuntime().execution.kill(...args),
+  once: (...args: any[]) => legacyRuntime().execution.once(...args),
   removeListener: (...args: any[]) =>
-    capability("runtime_removeListener")(...args),
+    legacyRuntime().execution.removeListener(...args),
 };
 export const appendFile = (...args: any[]): any =>
-  capability("appendFile")(...args);
-export const chmod = (...args: any[]): any => capability("chmod")(...args);
+  legacyRuntime().files.appendFile(...args);
+export const chmod = (...args: any[]): any =>
+  legacyRuntime().files.chmod(...args);
 export const copyFile = (...args: any[]): any =>
-  capability("copyFile")(...args);
-export const mkdir = (...args: any[]): any => capability("mkdir")(...args);
-export const mkdtemp = (...args: any[]): any => capability("mkdtemp")(...args);
-export const open = (...args: any[]): any => capability("open")(...args);
-export const opendir = (...args: any[]): any => capability("opendir")(...args);
+  legacyRuntime().files.copyFile(...args);
+export const mkdir = (...args: any[]): any =>
+  legacyRuntime().files.mkdir(...args);
+export const mkdtemp = (...args: any[]): any =>
+  legacyRuntime().files.mkdtemp(...args);
+export const open = (...args: any[]): any =>
+  legacyRuntime().files.open(...args);
+export const opendir = (...args: any[]): any =>
+  legacyRuntime().files.opendir(...args);
 export const readFile = (...args: any[]): any =>
-  capability("readFile")(...args);
-export const readdir = (...args: any[]): any => capability("readdir")(...args);
+  legacyRuntime().files.readFile(...args);
+export const readdir = (...args: any[]): any =>
+  legacyRuntime().files.readdir(...args);
 export const realpath = (...args: any[]): any =>
-  capability("realpath")(...args);
-export const rename = (...args: any[]): any => capability("rename")(...args);
-export const rm = (...args: any[]): any => capability("rm")(...args);
-export const rmdir = (...args: any[]): any => capability("rmdir")(...args);
-export const stat = (...args: any[]): any => capability("stat")(...args);
-export const unlink = (...args: any[]): any => capability("unlink")(...args);
+  legacyRuntime().files.realpath(...args);
+export const rename = (...args: any[]): any =>
+  legacyRuntime().files.rename(...args);
+export const rm = (...args: any[]): any => legacyRuntime().files.rm(...args);
+export const rmdir = (...args: any[]): any =>
+  legacyRuntime().files.rmdir(...args);
+export const stat = (...args: any[]): any =>
+  legacyRuntime().files.stat(...args);
+export const unlink = (...args: any[]): any =>
+  legacyRuntime().files.unlink(...args);
 export const writeFile = (...args: any[]): any =>
-  capability("writeFile")(...args);
-export const openDatabase = (...args: any[]): any =>
-  capability("database_open")(...args);
+  legacyRuntime().files.writeFile(...args);
+export const openDatabase = (file: File, flags: number): Promise<any> =>
+  legacyRuntime().database.open(file, flags);
 
 export const constants: Record<string, number> = {
   get O_RDONLY() {
-    return capability("sync_constants").O_RDONLY;
+    return legacyRuntime().files.constants.O_RDONLY;
   },
   get O_WRONLY() {
-    return capability("sync_constants").O_WRONLY;
+    return legacyRuntime().files.constants.O_WRONLY;
   },
   get O_CREAT() {
-    return capability("sync_constants").O_CREAT;
+    return legacyRuntime().files.constants.O_CREAT;
   },
 };
 export const createReadStream = (...args: any[]): any =>
-  capability("sync_createReadStream")(...args);
+  legacyRuntime().files.createReadStream(...args);
 export const createWriteStream = (...args: any[]): any =>
-  capability("sync_createWriteStream")(...args);
+  legacyRuntime().files.createWriteStream(...args);
 export const existsSync = (...args: any[]): any =>
-  capability("sync_existsSync")(...args);
+  legacyRuntime().files.existsSync(...args);
 export const mkdirSync = (...args: any[]): any =>
-  capability("sync_mkdirSync")(...args);
+  legacyRuntime().files.mkdirSync(...args);
 export const readFileSync = (...args: any[]): any =>
-  capability("sync_readFileSync")(...args);
+  legacyRuntime().files.readFileSync(...args);
 export const statSync = (...args: any[]): any =>
-  capability("sync_statSync")(...args);
+  legacyRuntime().files.statSync(...args);
 
 export const basename = (...args: any[]): any =>
-  capability("path_basename")(...args);
+  legacyRuntime().paths.basename(...args);
 export const dirname = (...args: any[]): any =>
-  capability("path_dirname")(...args);
+  legacyRuntime().paths.dirname(...args);
 export const extname = (...args: any[]): any =>
-  capability("path_extname")(...args);
+  legacyRuntime().paths.extname(...args);
 export const isAbsolute = (...args: any[]): any =>
-  capability("path_isAbsolute")(...args);
-export const join = (...args: any[]): any => capability("path_join")(...args);
-export const parse = (...args: any[]): any => capability("path_parse")(...args);
+  legacyRuntime().paths.isAbsolute(...args);
+export const join = (...args: any[]): any =>
+  legacyRuntime().paths.join(...args);
+export const parse = (...args: any[]): any =>
+  legacyRuntime().paths.parse(...args);
 export const relative = (...args: any[]): any =>
-  capability("path_relative")(...args);
+  legacyRuntime().paths.relative(...args);
 export const resolve = (...args: any[]): any =>
-  capability("path_resolve")(...args);
-// Archive paths are normalized to POSIX separators by Core. Host path helpers
-// still come from the injected provider; this constant is only used for
-// comparisons and remains portable across browser and Node hosts.
+  legacyRuntime().paths.resolve(...args);
 export const sep = "/";
 export const posix: Record<string, any> = {
   sep: "/",
-  normalize: (...args: any[]) => capability("path_posix").normalize(...args),
-  join: (...args: any[]) => capability("path_posix").join(...args),
-  relative: (...args: any[]) => capability("path_posix").relative(...args),
-  dirname: (...args: any[]) => capability("path_posix").dirname(...args),
-  basename: (...args: any[]) => capability("path_posix").basename(...args),
-  extname: (...args: any[]) => capability("path_posix").extname(...args),
+  normalize: (...args: any[]) => legacyRuntime().paths.posix.normalize(...args),
+  join: (...args: any[]) => legacyRuntime().paths.posix.join(...args),
+  relative: (...args: any[]) => legacyRuntime().paths.posix.relative(...args),
+  dirname: (...args: any[]) => legacyRuntime().paths.posix.dirname(...args),
+  basename: (...args: any[]) => legacyRuntime().paths.posix.basename(...args),
+  extname: (...args: any[]) => legacyRuntime().paths.posix.extname(...args),
 };
 
 export const homedir = (...args: any[]): any =>
-  capability("system_homedir")(...args);
+  legacyRuntime().system.homedir(...args);
 export const tmpdir = (...args: any[]): any =>
-  capability("system_tmpdir")(...args);
+  legacyRuntime().system.tmpdir(...args);
 
 export const createHash = (...args: any[]): any =>
-  capability("crypto_createHash")(...args);
+  legacyRuntime().crypto.createHash(...args);
 export const randomBytes = (...args: any[]): any =>
-  capability("crypto_randomBytes")(...args);
+  legacyRuntime().crypto.randomBytes(...args);
 export const randomUUID = (...args: any[]): any =>
-  capability("crypto_randomUUID")(...args);
+  legacyRuntime().crypto.randomUUID(...args);
 export const binary: Record<string, any> = {
-  from: (...args: any[]) => capability("binary").from(...args),
-  alloc: (...args: any[]) => capability("binary").alloc(...args),
-  concat: (...args: any[]) => capability("binary").concat(...args),
-  byteLength: (...args: any[]) => capability("binary").byteLength(...args),
-  isBuffer: (...args: any[]) => capability("binary").isBuffer(...args),
+  from: (...args: any[]) => legacyRuntime().binary.from(...args),
+  alloc: (...args: any[]) => legacyRuntime().binary.alloc(...args),
+  concat: (...args: any[]) => legacyRuntime().binary.concat(...args),
+  byteLength: (...args: any[]) => legacyRuntime().binary.byteLength(...args),
+  isBuffer: (...args: any[]) => legacyRuntime().binary.isBuffer(...args),
 };
 export const inflateRaw = (...args: any[]): any =>
-  capability("inflateRaw")(...args);
+  legacyRuntime().compression.inflateRaw(...args);
 export const fileURLToPath = (...args: any[]): any =>
-  capability("fileURLToPath")(...args);
+  legacyRuntime().url.fileURLToPath(...args);
 
 export const PassThrough: any = function (this: any, ...args: any[]) {
-  const delegate = new (capability("stream_PassThrough"))(...args);
+  const Constructor = legacyRuntime().streams.PassThrough;
+  const delegate = new Constructor(...args);
   Object.setPrototypeOf(this, Object.getPrototypeOf(delegate));
   Object.assign(this, delegate);
 };
 export const Writable: any = function (this: any, ...args: any[]) {
-  const delegate = new (capability("stream_Writable"))(...args);
+  const Constructor = legacyRuntime().streams.Writable;
+  const delegate = new Constructor(...args);
   Object.setPrototypeOf(this, Object.getPrototypeOf(delegate));
   Object.assign(this, delegate);
 };
 export const finished = (...args: any[]): any =>
-  capability("finished")(...args);
+  legacyRuntime().streams.finished(...args);
 export const pipeline = (...args: any[]): any =>
-  capability("pipeline")(...args);
+  legacyRuntime().streams.pipeline(...args);
 export const readLines = (input: any): AsyncIterable<string> =>
-  capability("readLines")(input);
-export const sleep = (...args: any[]): any => capability("setTimeout")(...args);
+  legacyRuntime().streams.readLines(input);
+export const sleep = (...args: any[]): any =>
+  legacyRuntime().timers.sleep(...args);
 export const setTimeout = sleep;
 
 export class AsyncLocalStorage<T> {
-  readonly #impl: any;
+  #impl: HostAsyncContext<T> | undefined;
   #fallbackStore: T | undefined;
 
-  public constructor() {
-    try {
-      const Constructor = capability("asyncLocalStorage");
-      this.#impl = new Constructor();
-    } catch {
-      // Importing the neutral core must not require a host runtime to have
-      // been installed already. The host implementation takes over once it
-      // is installed; this tiny fallback keeps pure parsing/type utilities
-      // usable before that point.
-      this.#impl = undefined;
-    }
-  }
-
   public run<R>(store: T, callback: () => R): R {
-    if (this.#impl !== undefined) {
-      return this.#impl.run(store, callback);
+    const implementation = this.#implementation();
+    if (implementation !== undefined) {
+      return implementation.run(store, callback);
     }
+
     const previous = this.#fallbackStore;
     this.#fallbackStore = store;
     try {
@@ -284,37 +257,71 @@ export class AsyncLocalStorage<T> {
   }
 
   public enterWith(store: T): void {
-    if (this.#impl !== undefined) {
-      this.#impl.enterWith(store);
+    const implementation = this.#implementation();
+    if (implementation !== undefined) {
+      implementation.enterWith(store);
     } else {
       this.#fallbackStore = store;
     }
   }
 
   public getStore(): T | undefined {
-    return this.#impl === undefined
-      ? this.#fallbackStore
-      : this.#impl.getStore();
+    return this.#implementation()?.getStore() ?? this.#fallbackStore;
   }
+
+  #implementation(): HostAsyncContext<T> | undefined {
+    if (this.#impl !== undefined) {
+      return this.#impl;
+    }
+    if (installedPlatform === undefined) {
+      return undefined;
+    }
+
+    this.#impl = installedPlatform.asyncContext.create<T>();
+    if (this.#fallbackStore !== undefined) {
+      this.#impl.enterWith(this.#fallbackStore);
+      this.#fallbackStore = undefined;
+    }
+    return this.#impl;
+  }
+}
+
+const storageContext = new AsyncLocalStorage<WikiGraphStorage>();
+let installedStorage: WikiGraphStorage | undefined;
+
+/** Install process-default storage, primarily for CLI bootstrap. */
+export function installWikiGraphStorage(storage: WikiGraphStorage): void {
+  installedStorage = storage;
+}
+
+export async function withWikiGraphStorage<T>(
+  storage: WikiGraphStorage | undefined,
+  operation: () => Promise<T> | T,
+): Promise<T> {
+  if (storage === undefined) {
+    return await operation();
+  }
+  return await storageContext.run(storage, operation);
+}
+
+export function getWikiGraphStorage(): WikiGraphStorage {
+  const storage = storageContext.getStore() ?? installedStorage;
+  if (storage === undefined) {
+    throw new Error(
+      "No WikiGraph storage roots have been configured. Pass storage to WikiGraph or install process-default storage.",
+    );
+  }
+  return storage;
 }
 
 export const finishedStream = finished;
 
-export const openZip = (...args: any[]): any => {
-  const open = getWikiGraphPlatform().zipOpen as
-    | ((...args: any[]) => any)
-    | undefined;
-  if (typeof open !== "function") {
-    throw new Error("No ZIP reader has been installed.");
-  }
-  return open(...args);
-};
+export const openZip = (...args: any[]): any =>
+  legacyRuntime().zip.open(...args);
 export const ZipFile = class {
   [key: string]: any;
   public constructor(...args: any[]) {
-    const Constructor = getWikiGraphPlatform().zipWriter as any;
-    if (Constructor === undefined)
-      throw new Error("No ZIP writer has been installed.");
+    const Constructor = legacyRuntime().zip.Writer;
     return new Constructor(...args);
   }
 };
@@ -331,10 +338,5 @@ export type Writable = any;
 export type WritableStream = any;
 
 export function getDatabaseCapability(): PlatformModule {
-  const module = getWikiGraphPlatform().databaseModule as
-    | PlatformModule
-    | undefined;
-  if (module === undefined)
-    throw new Error("No database runtime has been installed.");
-  return module;
+  return legacyRuntime().database.module;
 }

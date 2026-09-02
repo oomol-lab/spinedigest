@@ -31,9 +31,9 @@ import type { WikiGraphArchive } from "./wiki-graph-archive.js";
 import type { ChapterStage } from "./chapter/index.js";
 import { resolveExtractionPrompt } from "./prompts.js";
 import {
-  installWikiGraphStorage,
   type File,
   type WikiGraphStorage,
+  withWikiGraphStorage,
 } from "../runtime/platform/index.js";
 
 export interface WikiGraphLLMOptions {
@@ -80,12 +80,11 @@ export interface WikiGraphTextStreamSessionOptions extends DigestDocumentSession
 export class WikiGraph {
   readonly #debugLogDirPath: string | undefined;
   readonly #llm: LLM<WikiGraphScope> | undefined;
+  readonly #storage: WikiGraphStorage | undefined;
   readonly #verbose: boolean;
 
   public constructor(options: WikiGraphOptions) {
-    if (options.storage !== undefined) {
-      installWikiGraphStorage(options.storage);
-    }
+    this.#storage = options.storage;
     this.#debugLogDirPath = options.debugLogDirPath;
     this.#verbose = options.verbose ?? false;
     if (options.llm === undefined) {
@@ -244,15 +243,19 @@ export class WikiGraph {
   }
 
   async #withLogging<T>(operation: string, task: () => Promise<T>): Promise<T> {
-    return await withLoggingContext(
-      {
-        operation,
-        ...(this.#debugLogDirPath === undefined
-          ? {}
-          : { logDirPath: this.#debugLogDirPath }),
-        ...(this.#verbose ? { verbose: true } : {}),
-      },
-      task,
+    return await withWikiGraphStorage(
+      this.#storage,
+      async () =>
+        await withLoggingContext(
+          {
+            operation,
+            ...(this.#debugLogDirPath === undefined
+              ? {}
+              : { logDirPath: this.#debugLogDirPath }),
+            ...(this.#verbose ? { verbose: true } : {}),
+          },
+          task,
+        ),
     );
   }
 }

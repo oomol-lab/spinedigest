@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { NodeDirectory } from "../../../../packages/cli/src/runtime/node-platform.js";
+import {
+  NodeDirectory,
+  nodeWikiGraphPlatform,
+} from "../../../../packages/cli/src/runtime/node-platform.js";
 import { DirectoryFileStore } from "../../../../packages/core/src/document/directory/directory-file-store.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
@@ -18,6 +21,7 @@ describe("Node File/Directory adapter", () => {
 
       const stored = await directory.getFile("chapter.txt");
       expect(stored).toBeDefined();
+      expect(stored!.name).toBe("chapter.txt");
       await expect(stored!.read({ encoding: "utf8" })).resolves.toBe(
         "chapter one",
       );
@@ -46,6 +50,40 @@ describe("Node File/Directory adapter", () => {
         "already exists",
       );
       await store.writeFile("texts/source/1", "again", { overwrite: true });
+    });
+  });
+
+  it("provides database and ZIP services over opaque File values", async () => {
+    await withTempDir("wikigraph-host-services-", async (path) => {
+      const root = new NodeDirectory(path);
+      const databaseFile = await root.createFile("host.sqlite");
+      const database = await nodeWikiGraphPlatform.database.open(databaseFile);
+      try {
+        await database.execute("CREATE TABLE records (value TEXT NOT NULL)");
+        await database.run("INSERT INTO records (value) VALUES (?)", ["ok"]);
+        await expect(
+          database.queryOne("SELECT value FROM records"),
+        ).resolves.toMatchObject({ value: "ok" });
+      } finally {
+        await database.close();
+      }
+
+      const zipFile = await root.createFile("host.zip");
+      await nodeWikiGraphPlatform.zip.write(zipFile, [
+        { data: new TextEncoder().encode("alpha"), name: "a.txt" },
+        { data: new TextEncoder().encode("beta"), name: "nested/b.txt" },
+      ]);
+      const entries = await nodeWikiGraphPlatform.zip.read(zipFile);
+
+      expect(
+        entries.map((entry) => [
+          entry.name,
+          new TextDecoder().decode(entry.data),
+        ]),
+      ).toEqual([
+        ["a.txt", "alpha"],
+        ["nested/b.txt", "beta"],
+      ]);
     });
   });
 });
