@@ -1,4 +1,4 @@
-import { Buffer as platformBuffer } from "../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../runtime/platform/index.js";
 import { join } from "../../runtime/platform/index.js";
 
 import { isNodeError } from "../../utils/node-error.js";
@@ -81,7 +81,7 @@ async function readOptionalTextFile(
 
   return content === undefined
     ? undefined
-    : platformBuffer.from(content).toString("utf8");
+    : platformBinary.from(content).toString("utf8");
 }
 
 async function writeFile(input: {

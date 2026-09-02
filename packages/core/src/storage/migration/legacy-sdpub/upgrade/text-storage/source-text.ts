@@ -1,4 +1,4 @@
-import { Buffer as platformBuffer } from "../../../../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../../../../runtime/platform/index.js";
 import { mkdir, writeFile } from "../../../../../runtime/platform/index.js";
 import { join } from "../../../../../runtime/platform/index.js";
 
@@ -45,7 +45,7 @@ export async function writeLegacySourceTextStream(
 
   for (const fragment of input.fragments) {
     for (const sentence of fragment.content.sentences) {
-      const byteLength = platformBuffer.byteLength(sentence.text, "utf8");
+      const byteLength = platformBinary.byteLength(sentence.text, "utf8");
 
       await database.run(
         `

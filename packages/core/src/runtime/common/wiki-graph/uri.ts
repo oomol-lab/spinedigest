@@ -1,4 +1,4 @@
-import { process as platformProcess } from "../../platform/index.js";
+import { runtimeContext as platformRuntime } from "../../platform/index.js";
 import { isAbsolute, relative, resolve } from "../../platform/index.js";
 import { homedir } from "../../platform/index.js";
 
@@ -250,7 +250,7 @@ export function formatLocatedWikiGraphUri(
 export function formatWikiGraphCommandUri(
   archivePath: string,
   objectUri?: string,
-  cwd = platformProcess.cwd(),
+  cwd = platformRuntime.cwd(),
 ): string {
   return formatLocatedWikiGraphUri(
     formatCommandArchivePath(archivePath, cwd),

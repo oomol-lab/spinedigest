@@ -1,7 +1,7 @@
-import { Buffer as platformBuffer } from "../runtime/platform/index.js";
+import { binary as platformBinary } from "../runtime/platform/index.js";
 import {
   AsyncLocalStorage,
-  getSqlite3Module,
+  getDatabaseCapability,
   openDatabase,
   resolve,
   stat,
@@ -38,7 +38,7 @@ type Sqlite3Module = {
     callback: (error?: Error | null) => void,
   ) => SqliteDatabase;
 };
-export type SqlBindValue = platformBuffer | Uint8Array | number | string | null;
+export type SqlBindValue = platformBinary | Uint8Array | number | string | null;
 type SqlBindParams = readonly SqlBindValue[];
 type SqlRowValue = SqlBindValue;
 
@@ -412,7 +412,7 @@ async function openSqliteDatabase(
 }
 
 async function loadSqlite3(): Promise<Sqlite3Module> {
-  return resolveSqlite3Module(getSqlite3Module());
+  return resolveSqlite3Module(getDatabaseCapability());
 }
 
 function resolveSqlite3Module(module: unknown): Sqlite3Module {

@@ -1,4 +1,4 @@
-import { Buffer as platformBuffer } from "../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../runtime/platform/index.js";
 import { join, resolve } from "../../runtime/platform/index.js";
 
 import type { Database } from "../database.js";
@@ -196,7 +196,7 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
   #readSentenceLocation(
     location: TextSentenceLocation,
-    content: platformBuffer,
+    content: platformBinary,
   ): SentenceRecord {
     return new Sentence(
       content
@@ -214,7 +214,7 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
     return content === undefined
       ? undefined
-      : platformBuffer.from(content).toString("utf8");
+      : platformBinary.from(content).toString("utf8");
   }
 
   public async writeTextStream(
@@ -267,19 +267,19 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     const existing = await this.#fileAccess.readFile(this.#getTextPath());
     const existingBuffer =
       existing === undefined
-        ? platformBuffer.alloc(0)
-        : platformBuffer.from(existing);
+        ? platformBinary.alloc(0)
+        : platformBinary.from(existing);
     const text =
       textOverride === ""
         ? sentences.map(getSentenceRawText).join("")
         : textOverride;
-    const appendBuffer = platformBuffer.from(text, "utf8");
+    const appendBuffer = platformBinary.from(text, "utf8");
     let offset = existingBuffer.length;
 
     await this.#fileAccess.ensureDirectory(this.#getDirectoryPath());
     await this.#fileAccess.writeFile(
       this.#getTextPath(),
-      platformBuffer.concat([existingBuffer, appendBuffer]),
+      platformBinary.concat([existingBuffer, appendBuffer]),
       { overwrite: true },
     );
 
@@ -399,10 +399,10 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     return draftState.nextSentenceIndex;
   }
 
-  async #readContent(): Promise<platformBuffer> {
+  async #readContent(): Promise<platformBinary> {
     const content = await this.#fileAccess.readFile(this.#getTextPath());
 
-    return platformBuffer.from(content ?? new Uint8Array());
+    return platformBinary.from(content ?? new Uint8Array());
   }
 
   #getDirectoryPath(): string {

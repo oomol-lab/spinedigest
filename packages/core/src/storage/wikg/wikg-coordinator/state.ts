@@ -1,4 +1,4 @@
-import { process as platformProcess } from "../../../runtime/platform/index.js";
+import { runtimeContext as platformRuntime } from "../../../runtime/platform/index.js";
 import { join } from "../../../runtime/platform/index.js";
 
 import { resolveWikiGraphStagingDirectoryPath } from "../../../runtime/common/wiki-graph/dir.js";
@@ -137,7 +137,7 @@ export function createPlaceholders(count: number): string {
 
 function isProcessAlive(pid: number): boolean {
   try {
-    platformProcess.kill(pid, 0);
+    platformRuntime.kill(pid, 0);
     return true;
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ESRCH") {

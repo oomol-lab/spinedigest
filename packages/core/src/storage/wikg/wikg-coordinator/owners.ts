@@ -1,4 +1,4 @@
-import { process as platformProcess } from "../../../runtime/platform/index.js";
+import { runtimeContext as platformRuntime } from "../../../runtime/platform/index.js";
 import { LOCK_STALE_TIMEOUT_MS } from "./constants.js";
 import { flushArchiveOverlays } from "./flusher.js";
 import {
@@ -23,7 +23,7 @@ INSERT OR REPLACE INTO archive_owners (
       [
         input.archiveKey,
         input.ownerId,
-        platformProcess.pid,
+        platformRuntime.pid,
         Date.now(),
         Date.now(),
       ],
@@ -42,7 +42,7 @@ UPDATE archive_owners
 SET heartbeat_at = ?, owner_pid = ?
 WHERE archive_key = ? AND owner_id = ?
 `,
-      [Date.now(), platformProcess.pid, input.archiveKey, input.ownerId],
+      [Date.now(), platformRuntime.pid, input.archiveKey, input.ownerId],
     );
   });
 }

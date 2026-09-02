@@ -1,4 +1,4 @@
-import { Buffer as platformBuffer } from "../../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../../runtime/platform/index.js";
 import {
   open as openFile,
   type FileHandle,
@@ -69,7 +69,7 @@ export async function readArchiveEntryText(
 export async function readArchiveEntryBuffer(
   inputPath: string | File,
   entry: Entry,
-): Promise<platformBuffer> {
+): Promise<platformBinary> {
   const file =
     typeof inputPath === "string"
       ? await openFile(inputPath, "r")
@@ -85,7 +85,7 @@ export async function readArchiveEntryBuffer(
 export async function readArchiveEntryBufferFromFile(
   file: FileHandle,
   entry: Entry,
-): Promise<platformBuffer> {
+): Promise<platformBinary> {
   const compressed = await readCompressedArchiveEntryBuffer(file, entry);
 
   if (entry.compressionMethod === 0) {
@@ -102,7 +102,7 @@ async function openArchive(path: string | File): Promise<YauzlZipFile> {
   const source =
     typeof path === "string"
       ? path
-      : platformBuffer.from((await path.read()) as Uint8Array);
+      : platformBinary.from((await path.read()) as Uint8Array);
   return await new Promise((resolve, reject) => {
     openZip(
       source,
@@ -120,21 +120,21 @@ async function openArchive(path: string | File): Promise<YauzlZipFile> {
 }
 
 class MemoryFileHandle {
-  readonly #data: platformBuffer;
+  readonly #data: platformBinary;
 
   public constructor(data: Uint8Array | string) {
     this.#data =
       typeof data === "string"
-        ? platformBuffer.from(data, "utf8")
-        : platformBuffer.from(data);
+        ? platformBinary.from(data, "utf8")
+        : platformBinary.from(data);
   }
 
   public async read(
-    target: platformBuffer,
+    target: platformBinary,
     offset: number,
     length: number,
     position: number,
-  ): Promise<{ readonly bytesRead: number; readonly buffer: platformBuffer }> {
+  ): Promise<{ readonly bytesRead: number; readonly buffer: platformBinary }> {
     const bytesRead = Math.max(
       0,
       Math.min(length, this.#data.length - position),
@@ -186,8 +186,8 @@ async function validateArchiveMutationToken(
 async function readCompressedArchiveEntryBuffer(
   file: FileHandle,
   entry: Entry,
-): Promise<platformBuffer> {
-  const header = platformBuffer.alloc(30);
+): Promise<platformBinary> {
+  const header = platformBinary.alloc(30);
 
   await file.read(header, 0, header.length, entry.relativeOffsetOfLocalHeader);
   if (header.readUInt32LE(0) !== 0x04034b50) {
@@ -198,15 +198,15 @@ async function readCompressedArchiveEntryBuffer(
   const extraFieldLength = header.readUInt16LE(28);
   const dataOffset =
     entry.relativeOffsetOfLocalHeader + 30 + fileNameLength + extraFieldLength;
-  const compressed = platformBuffer.alloc(entry.compressedSize);
+  const compressed = platformBinary.alloc(entry.compressedSize);
 
   await file.read(compressed, 0, compressed.length, dataOffset);
   return compressed;
 }
 
 async function inflateRawBuffer(
-  input: platformBuffer,
-): Promise<platformBuffer> {
+  input: platformBinary,
+): Promise<platformBinary> {
   return await new Promise((resolveInflate, rejectInflate) => {
     inflateRaw(input, (error: any, output: any) => {
       if (error !== null) {

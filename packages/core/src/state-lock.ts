@@ -1,4 +1,4 @@
-import { process as platformProcess } from "./runtime/platform/index.js";
+import { runtimeContext as platformRuntime } from "./runtime/platform/index.js";
 import { randomUUID } from "./runtime/platform/index.js";
 
 import {
@@ -69,7 +69,7 @@ export async function withStateLock<T>(
 export async function acquireStateLock(
   options: StateLockOptions,
 ): Promise<(() => Promise<void>) | undefined> {
-  const ownerId = `${platformProcess.pid}-${randomUUID()}`;
+  const ownerId = `${platformRuntime.pid}-${randomUUID()}`;
   const pollMs = options.pollMs ?? DEFAULT_STATE_LOCK_POLL_MS;
 
   while (true) {
@@ -154,7 +154,7 @@ async function tryInsertStateLock(
           options.resourceKey,
           options.mode,
           ownerId,
-          platformProcess.pid,
+          platformRuntime.pid,
           now,
           now,
         ],
@@ -209,7 +209,7 @@ async function updateStateLockHeartbeat(
       `,
       [
         Date.now(),
-        platformProcess.pid,
+        platformRuntime.pid,
         options.scope,
         options.resourceKey,
         ownerId,
@@ -311,7 +311,7 @@ function isStateLockStale(
 
 function isProcessAlive(pid: number): boolean {
   try {
-    platformProcess.kill(pid, 0);
+    platformRuntime.kill(pid, 0);
     return true;
   } catch (error) {
     if (isNodeError(error) && error.code === "ESRCH") {

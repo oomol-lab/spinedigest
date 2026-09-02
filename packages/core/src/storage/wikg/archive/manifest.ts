@@ -1,4 +1,4 @@
-import { Buffer as platformBuffer } from "../../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../../runtime/platform/index.js";
 import { randomBytes } from "../../../runtime/platform/index.js";
 
 import { z } from "zod";
@@ -46,10 +46,10 @@ export function parseWikgManifest(content: string): {
   };
 }
 
-export function createWikgMutationTokenContent(): platformBuffer {
+export function createWikgMutationTokenContent(): platformBinary {
   const token = randomBytes(32).toString("base64url");
 
-  return platformBuffer.from(
+  return platformBinary.from(
     `${WIKG_MUTATION_TOKEN_MAGIC}\n${token}\n`,
     "utf8",
   );

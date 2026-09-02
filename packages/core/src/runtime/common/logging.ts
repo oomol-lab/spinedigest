@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "../platform/index.js";
 import { appendFile, randomUUID } from "../platform/index.js";
 import { existsSync, mkdirSync } from "../platform/index.js";
 import { join, resolve } from "../platform/index.js";
-import { process as platformProcess } from "../platform/index.js";
+import { runtimeContext as platformRuntime } from "../platform/index.js";
 
 interface CoreLogger {
   child(bindings: Record<string, unknown>): CoreLogger;
@@ -217,7 +217,7 @@ class BufferedLogger implements CoreLogger {
     }
 
     if (this.verbose) {
-      const stderr = platformProcess.stderr;
+      const stderr = platformRuntime.stderr;
       if (stderr !== undefined && typeof stderr.write === "function") {
         stderr.write(line);
       }

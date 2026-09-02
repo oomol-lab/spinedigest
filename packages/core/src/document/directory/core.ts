@@ -1,6 +1,5 @@
 import {
   AsyncLocalStorage,
-  getHostDirectoryHandle,
   join,
   resolve,
   type Directory,
@@ -112,7 +111,7 @@ export class DirectoryDocument implements Document {
     const resolvedDocumentPath =
       typeof documentPath === "string"
         ? resolve(documentPath)
-        : getHostDirectoryHandle(documentPath);
+        : (documentPath as unknown as string);
     const fileStore = options.fileStore ?? LOCAL_DOCUMENT_FILE_STORE;
     try {
       const databasePath =

@@ -1,5 +1,4 @@
 import {
-  getHostDirectoryHandle,
   getWikiGraphStorage,
   randomBytes,
 } from "../runtime/platform/index.js";
@@ -317,7 +316,7 @@ export function resolveDefaultWikiGraphLibraryDirectoryPath(): string {
   // for callers that use the low-level registry helpers directly.
   try {
     return join(
-      getHostDirectoryHandle(getWikiGraphStorage().library),
+      getWikiGraphStorage().library as unknown as string,
       DEFAULT_LIBRARY_FOLDER_NAME,
     );
   } catch {

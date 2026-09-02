@@ -1,4 +1,4 @@
-import { Buffer as platformBuffer } from "../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../runtime/platform/index.js";
 import { spawn } from "../../runtime/platform/index.js";
 
 import type {
@@ -195,7 +195,7 @@ async function runWikispineMatch(
         });
       },
     });
-    const stderr: platformBuffer[] = [];
+    const stderr: platformBinary[] = [];
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
@@ -206,7 +206,7 @@ async function runWikispineMatch(
         child.kill();
       }
     });
-    child.stderr.on("data", (chunk: platformBuffer) => {
+    child.stderr.on("data", (chunk: platformBinary) => {
       stderr.push(chunk);
     });
     child.on("error", (error: any) => {
@@ -223,7 +223,7 @@ async function runWikispineMatch(
         reject(
           new Error(
             formatWikispineRuntimeError(
-              `wikispine match failed with exit code ${code}: ${platformBuffer.concat(stderr).toString("utf8")}`,
+              `wikispine match failed with exit code ${code}: ${platformBinary.concat(stderr).toString("utf8")}`,
             ),
           ),
         );

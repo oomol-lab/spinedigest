@@ -1,5 +1,5 @@
 import {} from "../../platform/index.js";
-import { process as platformProcess } from "../../platform/index.js";
+import { runtimeContext as platformRuntime } from "../../platform/index.js";
 import { AsyncLocalStorage } from "../../platform/index.js";
 import { homedir } from "../../platform/index.js";
 import { join, resolve } from "../../platform/index.js";
@@ -48,7 +48,7 @@ export async function withWikiGraphRuntimeStateDirectoryPath<T>(
 }
 
 /**
- * @deprecated Runtime state overrides are no longer read from platformProcess-style
+ * @deprecated Runtime state overrides are no longer read from platformRuntime-style
  * environment objects. Use `withWikiGraphRuntimeStateDirectoryPath` instead.
  */
 export async function withWikiGraphRuntimeEnvironment<T>(

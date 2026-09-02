@@ -1,6 +1,6 @@
 import {
-  Buffer as platformBuffer,
-  process as platformProcess,
+  binary as platformBinary,
+  runtimeContext as platformRuntime,
 } from "../../../runtime/platform/index.js";
 import {
   mkdir,
@@ -415,7 +415,7 @@ export class WikgDocumentFileStore implements DocumentFileStore {
         );
 
         await mkdir(dirname(workspacePath), { recursive: true });
-        const temporaryWorkspacePath = `${workspacePath}.${platformProcess.pid}.${Date.now()}.tmp`;
+        const temporaryWorkspacePath = `${workspacePath}.${platformRuntime.pid}.${Date.now()}.tmp`;
 
         try {
           await writeFile(temporaryWorkspacePath, content);
@@ -463,7 +463,7 @@ export class WikgDocumentFileStore implements DocumentFileStore {
 
   async #readArchiveEntry(
     entryPath: string,
-  ): Promise<platformBuffer | undefined> {
+  ): Promise<platformBinary | undefined> {
     return await (await this.#getArchiveReader()).readEntry(entryPath);
   }
 

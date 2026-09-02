@@ -1,4 +1,4 @@
-import { process as platformProcess } from "../platform/index.js";
+import { runtimeContext as platformRuntime } from "../platform/index.js";
 import { existsSync, statSync } from "../platform/index.js";
 import { dirname, join, parse, resolve } from "../platform/index.js";
 
@@ -14,7 +14,7 @@ export function resolveDataDirPath(): string {
 }
 
 function resolveDataDirPathFromWorkingDirectory(): string {
-  let currentDirectoryPath = platformProcess.cwd();
+  let currentDirectoryPath = platformRuntime.cwd();
   const rootDirectoryPath = parse(currentDirectoryPath).root;
 
   while (true) {

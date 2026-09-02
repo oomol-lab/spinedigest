@@ -1,5 +1,5 @@
 import { type Readable } from "../../../../runtime/platform/index.js";
-import { Buffer as platformBuffer } from "../../../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../../../runtime/platform/index.js";
 import { posix, resolve, sep } from "../../../../runtime/platform/index.js";
 import {
   openZip,
@@ -117,16 +117,16 @@ export async function readArchiveEntryText(
   zipFile: YauzlZipFile,
   entry: Entry,
 ): Promise<string> {
-  const chunks: platformBuffer[] = [];
+  const chunks: platformBinary[] = [];
   const stream = await openArchiveEntryStream(zipFile, entry);
 
   await new Promise<void>((resolveRead, rejectRead) => {
-    stream.on("data", (chunk: platformBuffer) => {
+    stream.on("data", (chunk: platformBinary) => {
       chunks.push(chunk);
     });
     stream.once("end", resolveRead);
     stream.once("error", rejectRead);
   });
 
-  return platformBuffer.concat(chunks).toString("utf8");
+  return platformBinary.concat(chunks).toString("utf8");
 }

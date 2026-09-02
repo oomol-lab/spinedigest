@@ -1,4 +1,4 @@
-import { process as platformProcess } from "../runtime/platform/index.js";
+import { runtimeContext as platformRuntime } from "../runtime/platform/index.js";
 import { getNumber, getString, type Database } from "../document/database.js";
 import { openSharedStateDatabase } from "../document/index.js";
 import { resolveWikiGraphCoreDatabasePath } from "../runtime/common/wiki-graph/dir.js";
@@ -149,7 +149,7 @@ function isLockActive(lock: {
 
 function isProcessAlive(pid: number): boolean {
   try {
-    platformProcess.kill(pid, 0);
+    platformRuntime.kill(pid, 0);
     return true;
   } catch (error) {
     if (isNodeError(error) && error.code === "ESRCH") {

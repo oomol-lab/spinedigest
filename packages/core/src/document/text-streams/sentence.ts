@@ -1,4 +1,4 @@
-import { Buffer as platformBuffer } from "../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../runtime/platform/index.js";
 import { countTextWords } from "../../utils/text-word-count.js";
 import { Sentence, type SentenceRecord } from "../types.js";
 import type { TextStreamSentenceSegmenter } from "./types.js";
@@ -34,8 +34,8 @@ export async function splitTextIntoSentenceSpans(
     const sentence = new Sentence(rawText, countTextWords(rawText));
 
     Object.assign(sentence, {
-      byteLength: platformBuffer.byteLength(rawText, "utf8"),
-      byteOffset: platformBuffer.byteLength(
+      byteLength: platformBinary.byteLength(rawText, "utf8"),
+      byteOffset: platformBinary.byteLength(
         text.slice(0, segment.index),
         "utf8",
       ),
@@ -81,8 +81,8 @@ async function splitTextIntoCustomSentenceSpans(
     const sentence = new Sentence(rawText, segment.wordsCount);
 
     Object.assign(sentence, {
-      byteLength: platformBuffer.byteLength(rawText, "utf8"),
-      byteOffset: platformBuffer.byteLength(
+      byteLength: platformBinary.byteLength(rawText, "utf8"),
+      byteOffset: platformBinary.byteLength(
         text.slice(0, segment.offset),
         "utf8",
       ),
@@ -126,7 +126,7 @@ export function getSentenceByteLength(sentence: SentenceRecord): number {
 
   return typeof value === "number"
     ? value
-    : platformBuffer.byteLength(getSentenceRawText(sentence), "utf8");
+    : platformBinary.byteLength(getSentenceRawText(sentence), "utf8");
 }
 
 export function getSentenceRawText(sentence: SentenceRecord): string {

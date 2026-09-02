@@ -1,4 +1,4 @@
-import { Buffer as platformBuffer } from "../../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../../runtime/platform/index.js";
 import { parseDocument } from "htmlparser2";
 
 import { countTextWords } from "../../../utils/text-word-count.js";
@@ -816,7 +816,7 @@ function toTextChunk(chunk: unknown): string {
     return chunk;
   }
 
-  if (platformBuffer.isBuffer(chunk)) {
+  if (platformBinary.isBuffer(chunk)) {
     return (chunk as { toString(encoding?: string): string }).toString("utf8");
   }
 

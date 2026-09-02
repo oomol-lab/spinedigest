@@ -53,7 +53,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "node ../../scripts/check-core-portability.mjs && rimraf dist && tsup --config tsup.config.ts"
+    "build": "node ../../scripts/check-core-portability.mjs && rimraf dist && tsup --config tsup.config.ts && node ../../scripts/check-core-portability.mjs dist --artifact"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.68",

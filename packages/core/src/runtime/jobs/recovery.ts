@@ -1,4 +1,4 @@
-import { process as platformProcess } from "../platform/index.js";
+import { runtimeContext as platformRuntime } from "../platform/index.js";
 import { rm } from "../platform/index.js";
 import type { Database } from "../../document/index.js";
 import { isProcessAlive } from "./helpers.js";
@@ -32,7 +32,7 @@ WHERE state IN ('running', 'canceling')
 
       await markBuildJobFailedInState(state, job, {
         message:
-          "Build worker platformProcess disappeared before finishing the job.",
+          "Build worker platformRuntime disappeared before finishing the job.",
         name: "BuildJobWorkerLost",
       });
       workspacePathsToDelete.push(job.workspacePath);

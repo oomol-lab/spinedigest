@@ -1,4 +1,4 @@
-import { process as platformProcess } from "../platform/index.js";
+import { runtimeContext as platformRuntime } from "../platform/index.js";
 import { randomUUID } from "../platform/index.js";
 import { join } from "../platform/index.js";
 
@@ -32,7 +32,7 @@ export async function tryAcquireGcLock(
   scope = "global",
 ): Promise<(() => Promise<void>) | undefined> {
   const database = await openGcStateDatabase();
-  const ownerId = `${platformProcess.pid}-${randomUUID()}`;
+  const ownerId = `${platformRuntime.pid}-${randomUUID()}`;
   const now = Date.now();
   let acquired = false;
 
@@ -45,7 +45,7 @@ INSERT OR IGNORE INTO gc_locks (
   scope, owner_id, owner_pid, heartbeat_at, created_at
 ) VALUES (?, ?, ?, ?, ?)
 `,
-        [scope, ownerId, platformProcess.pid, now, now],
+        [scope, ownerId, platformRuntime.pid, now, now],
       );
       acquired =
         (await database.queryOne(
@@ -91,7 +91,7 @@ UPDATE gc_locks
 SET heartbeat_at = ?, owner_pid = ?
 WHERE scope = ? AND owner_id = ?
 `,
-      [Date.now(), platformProcess.pid, scope, ownerId],
+      [Date.now(), platformRuntime.pid, scope, ownerId],
     );
   } finally {
     await database.close();
@@ -156,7 +156,7 @@ function mapGcLockWithScope(row: SqlRow): {
 
 function isProcessAlive(pid: number): boolean {
   try {
-    platformProcess.kill(pid, 0);
+    platformRuntime.kill(pid, 0);
     return true;
   } catch (error) {
     if (isNodeError(error) && error.code === "ESRCH") {

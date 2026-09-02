@@ -1,4 +1,4 @@
-import { process as platformProcess } from "../platform/index.js";
+import { runtimeContext as platformRuntime } from "../platform/index.js";
 import { createHash } from "../platform/index.js";
 import { resolve } from "../platform/index.js";
 
@@ -8,7 +8,7 @@ export function createArchiveKey(archivePath: string): string {
 
 export function isProcessAlive(pid: number): boolean {
   try {
-    platformProcess.kill(pid, 0);
+    platformRuntime.kill(pid, 0);
     return true;
   } catch {
     return false;

@@ -1,4 +1,4 @@
-import { Buffer as platformBuffer } from "../../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../../runtime/platform/index.js";
 import { readFile } from "../../../runtime/platform/index.js";
 import { join } from "../../../runtime/platform/index.js";
 
@@ -62,7 +62,7 @@ export class WikgArchiveReader {
 
   public async readEntry(
     entryPath: string,
-  ): Promise<platformBuffer | undefined> {
+  ): Promise<platformBinary | undefined> {
     const entry = this.#entryByPath.get(normalizeArchivePath(entryPath));
 
     if (entry === undefined) {
@@ -88,7 +88,7 @@ export async function listWikgArchiveEntries(
 export async function readWikgArchiveEntry(
   inputPath: string,
   entryPath: string,
-): Promise<platformBuffer | undefined> {
+): Promise<platformBinary | undefined> {
   const reader = await WikgArchiveReader.open(inputPath);
 
   try {

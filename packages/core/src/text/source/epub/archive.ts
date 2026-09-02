@@ -1,4 +1,4 @@
-import { Buffer as platformBuffer } from "../../../runtime/platform/index.js";
+import { binary as platformBinary } from "../../../runtime/platform/index.js";
 import { createHash } from "../../../runtime/platform/index.js";
 import { createReadStream } from "../../../runtime/platform/index.js";
 import { posix } from "../../../runtime/platform/index.js";
@@ -63,7 +63,7 @@ export class EpubArchive {
     return (await readStreamToBuffer(stream)).toString("utf8");
   }
 
-  public async readBuffer(path: string): Promise<platformBuffer> {
+  public async readBuffer(path: string): Promise<platformBinary> {
     const stream = await this.openReadStream(path);
     return await readStreamToBuffer(stream);
   }
@@ -183,7 +183,7 @@ async function digestFile(path: string): Promise<string> {
     const hash = createHash("sha256");
     const stream = createReadStream(path);
 
-    stream.on("data", (chunk: platformBuffer | string) => hash.update(chunk));
+    stream.on("data", (chunk: platformBinary | string) => hash.update(chunk));
     stream.once("end", () => resolve(hash.digest("hex")));
     stream.once("error", reject);
   });
@@ -215,27 +215,27 @@ async function indexEntries(
   });
 }
 
-function toBuffer(chunk: unknown): platformBuffer {
-  if (platformBuffer.isBuffer(chunk)) {
+function toBuffer(chunk: unknown): platformBinary {
+  if (platformBinary.isBuffer(chunk)) {
     return chunk;
   }
 
   if (typeof chunk === "string") {
-    return platformBuffer.from(chunk, "utf8");
+    return platformBinary.from(chunk, "utf8");
   }
 
   throw new Error("Unexpected ZIP stream chunk type");
 }
 
-async function readStreamToBuffer(stream: Readable): Promise<platformBuffer> {
+async function readStreamToBuffer(stream: Readable): Promise<platformBinary> {
   return await new Promise((resolve, reject) => {
-    const chunks: platformBuffer[] = [];
+    const chunks: platformBinary[] = [];
 
     stream.on("data", (chunk: unknown) => {
       chunks.push(toBuffer(chunk));
     });
     stream.once("end", () => {
-      resolve(platformBuffer.concat(chunks));
+      resolve(platformBinary.concat(chunks));
     });
     stream.once("error", (error: Error) => {
       reject(error);

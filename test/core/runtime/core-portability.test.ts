@@ -47,4 +47,42 @@ describe("core portability gate", () => {
       await rm(fixture, { recursive: true, force: true });
     }
   });
+
+  it("rejects computed dynamic imports and transitive package imports", async () => {
+    const fixture = await mkdtemp(
+      join(tmpdir(), "wiki-graph-core-portability-"),
+    );
+    try {
+      await writeFile(
+        join(fixture, "computed.ts"),
+        'const prefix = "node:"; export const load = () => import(prefix + "fs");\n',
+      );
+      await expect(
+        execFileAsync("node", ["scripts/check-core-portability.mjs", fixture], {
+          cwd: process.cwd(),
+        }),
+      ).rejects.toMatchObject({ code: 1 });
+
+      await writeFile(
+        join(fixture, "package.json"),
+        JSON.stringify({ dependencies: { "fixture-node-dependency": "1.0.0" } }),
+      );
+      await execFileAsync("mkdir", ["-p", join(fixture, "node_modules/fixture-node-dependency")]);
+      await writeFile(
+        join(fixture, "node_modules/fixture-node-dependency/package.json"),
+        JSON.stringify({ name: "fixture-node-dependency", main: "index.js" }),
+      );
+      await writeFile(
+        join(fixture, "node_modules/fixture-node-dependency/index.js"),
+        'import "node:fs";\n',
+      );
+      await expect(
+        execFileAsync("node", ["scripts/check-core-portability.mjs", fixture], {
+          cwd: process.cwd(),
+        }),
+      ).rejects.toMatchObject({ code: 1 });
+    } finally {
+      await rm(fixture, { recursive: true, force: true });
+    }
+  });
 });
