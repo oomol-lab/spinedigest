@@ -11,7 +11,7 @@ import {
 import {
   resolveWikiGraphHomeDirectoryPath,
   withWikiGraphRuntimeStateDirectoryPath,
-} from "wiki-graph-core";
+} from "../../packages/core/src/runtime/common/wiki-graph/dir.js";
 
 describe("cli/sdk-runner", () => {
   it("captures stdout and stderr without spawning a process", async () => {
