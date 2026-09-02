@@ -1,12 +1,15 @@
 import { binary as platformBinary } from "../runtime/platform/index.js";
 import {
   AsyncLocalStorage,
+  getWikiGraphPlatform,
   getDatabaseCapability,
-  openDatabase,
   resolve,
   stat,
 } from "../runtime/platform/index.js";
-import type { File } from "../runtime/platform/index.js";
+import type {
+  File,
+  HostDatabaseConnection,
+} from "../runtime/platform/index.js";
 
 type SqliteDatabase = {
   run(
@@ -27,6 +30,16 @@ type SqliteDatabase = {
   exec(sql: string, callback: (error?: Error | null) => void): any;
   close(callback: (error?: Error | null) => void): void;
 };
+interface DatabaseBackend {
+  close(): Promise<void>;
+  execute(sql: string): Promise<void>;
+  queryAll(sql: string, params: SqlBindParams | undefined): Promise<SqlRow[]>;
+  queryOne(
+    sql: string,
+    params: SqlBindParams | undefined,
+  ): Promise<SqlRow | undefined>;
+  run(sql: string, params: SqlBindParams | undefined): Promise<void>;
+}
 type Sqlite3Module = {
   readonly OPEN_READONLY: number;
   readonly OPEN_READWRITE: number;
@@ -50,7 +63,12 @@ type DatabaseOperationScope = symbol;
 
 async function isMissingOrEmptyFile(path: File | string): Promise<boolean> {
   if (typeof path !== "string") {
-    return path.size === undefined || path.size === 0;
+    if (path.size !== undefined) return path.size === 0;
+    if (path.getSize !== undefined) return (await path.getSize()) === 0;
+    const content = await path.read();
+    return typeof content === "string"
+      ? content.length === 0
+      : content.byteLength === 0;
   }
   const stats = await stat(path).catch((error: unknown) => {
     if (
@@ -69,7 +87,7 @@ async function isMissingOrEmptyFile(path: File | string): Promise<boolean> {
 }
 
 export class Database {
-  readonly #database: SqliteDatabase;
+  readonly #database: DatabaseBackend;
   readonly #onWrite: (() => void) | undefined;
   readonly #operationScope = new AsyncLocalStorage<DatabaseOperationScope>();
   #activeTransactionScope: DatabaseOperationScope | undefined;
@@ -78,7 +96,7 @@ export class Database {
   #transactionDepth = 0;
 
   public constructor(
-    database: SqliteDatabase,
+    database: DatabaseBackend,
     options: { readonly onWrite?: () => void } = {},
   ) {
     this.#database = database;
@@ -116,7 +134,7 @@ export class Database {
   }
 
   public static async initialize(
-    databasePath: string,
+    databasePath: File | string,
     schemaSql: string,
   ): Promise<void> {
     const database = await Database.open(databasePath);
@@ -266,85 +284,32 @@ export class Database {
   }
 
   async #closeDatabase(): Promise<void> {
-    await new Promise<void>((resolveClose, rejectClose) => {
-      this.#database.close((error: any) => {
-        if (error !== null) {
-          rejectClose(error);
-          return;
-        }
-
-        resolveClose();
-      });
-    });
+    await this.#database.close();
   }
 
   async #executeSql(sql: string): Promise<void> {
-    await new Promise<void>((resolveExec, rejectExec) => {
-      this.#database.exec(sql, (error: any) => {
-        if (error !== null) {
-          rejectExec(error);
-          return;
-        }
-
-        resolveExec();
-      });
-    });
+    await this.#database.execute(sql);
   }
 
   async #queryAllRows(
     sql: string,
     params: SqlBindParams | undefined,
   ): Promise<SqlRow[]> {
-    return await new Promise<SqlRow[]>((resolveAll, rejectAll) => {
-      this.#database.all<SqlRow>(
-        sql,
-        normalizeSqlBindParams(params),
-        (error, rows) => {
-          if (error !== null) {
-            rejectAll(error);
-            return;
-          }
-
-          resolveAll(rows);
-        },
-      );
-    });
+    return await this.#database.queryAll(sql, params);
   }
 
   async #queryOneRow(
     sql: string,
     params: SqlBindParams | undefined,
   ): Promise<SqlRow | undefined> {
-    return await new Promise<SqlRow | undefined>((resolveGet, rejectGet) => {
-      this.#database.get<SqlRow>(
-        sql,
-        normalizeSqlBindParams(params),
-        (error, row) => {
-          if (error !== null) {
-            rejectGet(error);
-            return;
-          }
-
-          resolveGet(row);
-        },
-      );
-    });
+    return await this.#database.queryOne(sql, params);
   }
 
   async #runStatement(
     sql: string,
     params: SqlBindParams | undefined,
   ): Promise<void> {
-    await new Promise<void>((resolveRun, rejectRun) => {
-      this.#database.run(sql, normalizeSqlBindParams(params), (error: any) => {
-        if (error !== null) {
-          rejectRun(error);
-          return;
-        }
-
-        resolveRun();
-      });
-    });
+    await this.#database.run(sql, params);
   }
 }
 
@@ -388,27 +353,135 @@ export function getOptionalString(
 async function openSqliteDatabase(
   databasePath: File | string,
   options: { readonly readonly?: boolean } = {},
-): Promise<SqliteDatabase> {
+): Promise<DatabaseBackend> {
+  if (typeof databasePath !== "string") {
+    return new HostDatabaseBackend(
+      await getWikiGraphPlatform().database.open(databasePath, options),
+    );
+  }
+
   const sqlite3 = await loadSqlite3();
   const flags =
     (options.readonly === true
       ? sqlite3.OPEN_READONLY
       : sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE) | sqlite3.OPEN_FULLMUTEX;
 
-  if (typeof databasePath !== "string") {
-    return await openDatabase(databasePath, flags);
+  const database = await new Promise<SqliteDatabase>(
+    (resolveOpen, rejectOpen) => {
+      const database = new sqlite3.Database(
+        databasePath,
+        flags,
+        (error: any) => {
+          if (error !== null) {
+            rejectOpen(error);
+            return;
+          }
+
+          resolveOpen(database);
+        },
+      );
+    },
+  );
+  return new LegacyDatabaseBackend(database);
+}
+
+class HostDatabaseBackend implements DatabaseBackend {
+  readonly #connection: HostDatabaseConnection;
+
+  public constructor(connection: HostDatabaseConnection) {
+    this.#connection = connection;
   }
 
-  return await new Promise<SqliteDatabase>((resolveOpen, rejectOpen) => {
-    const database = new sqlite3.Database(databasePath, flags, (error: any) => {
-      if (error !== null) {
-        rejectOpen(error);
-        return;
-      }
+  public async close(): Promise<void> {
+    await this.#connection.close();
+  }
+  public async execute(sql: string): Promise<void> {
+    await this.#connection.execute(sql);
+  }
+  public async queryAll(
+    sql: string,
+    params: SqlBindParams | undefined,
+  ): Promise<SqlRow[]> {
+    return [...(await this.#connection.queryAll(sql, params))] as SqlRow[];
+  }
+  public async queryOne(
+    sql: string,
+    params: SqlBindParams | undefined,
+  ): Promise<SqlRow | undefined> {
+    return (await this.#connection.queryOne(sql, params)) as SqlRow | undefined;
+  }
+  public async run(
+    sql: string,
+    params: SqlBindParams | undefined,
+  ): Promise<void> {
+    await this.#connection.run(sql, params);
+  }
+}
 
-      resolveOpen(database);
+class LegacyDatabaseBackend implements DatabaseBackend {
+  readonly #database: SqliteDatabase;
+
+  public constructor(database: SqliteDatabase) {
+    this.#database = database;
+  }
+
+  public async close(): Promise<void> {
+    await new Promise<void>((resolveClose, rejectClose) => {
+      this.#database.close((error) => {
+        if (error != null) rejectClose(error);
+        else resolveClose();
+      });
     });
-  });
+  }
+  public async execute(sql: string): Promise<void> {
+    await new Promise<void>((resolveExec, rejectExec) => {
+      this.#database.exec(sql, (error) => {
+        if (error != null) rejectExec(error);
+        else resolveExec();
+      });
+    });
+  }
+  public async queryAll(
+    sql: string,
+    params: SqlBindParams | undefined,
+  ): Promise<SqlRow[]> {
+    return await new Promise((resolveAll, rejectAll) => {
+      this.#database.all<SqlRow>(
+        sql,
+        normalizeSqlBindParams(params),
+        (error, rows) => {
+          if (error != null) rejectAll(error);
+          else resolveAll(rows);
+        },
+      );
+    });
+  }
+  public async queryOne(
+    sql: string,
+    params: SqlBindParams | undefined,
+  ): Promise<SqlRow | undefined> {
+    return await new Promise((resolveGet, rejectGet) => {
+      this.#database.get<SqlRow>(
+        sql,
+        normalizeSqlBindParams(params),
+        (error, row) => {
+          if (error != null) rejectGet(error);
+          else resolveGet(row);
+        },
+      );
+    });
+  }
+  public async run(
+    sql: string,
+    params: SqlBindParams | undefined,
+  ): Promise<void> {
+    await new Promise<void>((resolveRun, rejectRun) => {
+      this.#database.run(sql, normalizeSqlBindParams(params), (error) => {
+        if (error != null) rejectRun(error);
+        else resolveRun();
+      });
+    });
+  }
 }
 
 async function loadSqlite3(): Promise<Sqlite3Module> {

@@ -1,4 +1,4 @@
-import { stat } from "../../runtime/platform/index.js";
+import { stat, type File } from "../../runtime/platform/index.js";
 import { join, resolve } from "../../runtime/platform/index.js";
 
 import { isNodeError } from "../../utils/node-error.js";
@@ -10,7 +10,7 @@ import {
 import type { DocumentFileStore } from "./types.js";
 import { SEARCH_INDEX_VERSION } from "../../retrieval/search-index/search/types.js";
 
-const searchIndexLifecycleLocks = new Map<string, Promise<void>>();
+const searchIndexLifecycleLocks = new Map<object | string, Promise<void>>();
 
 export async function openSearchIndexDatabase<T>(input: {
   readonly documentPath: string;
@@ -18,8 +18,9 @@ export async function openSearchIndexDatabase<T>(input: {
   readonly operation: (database: Database) => Promise<T> | T;
   readonly readonly: boolean;
 }): Promise<T> {
-  return await withSearchIndexLifecycleLock(resolve(input.documentPath), () =>
-    openSearchIndexDatabaseLocked(input),
+  return await withSearchIndexLifecycleLock(
+    input.fileStore.searchIndexLockKey?.() ?? resolve(input.documentPath),
+    () => openSearchIndexDatabaseLocked(input),
   );
 }
 
@@ -78,7 +79,7 @@ async function openSearchIndexDatabaseLocked<T>(input: {
 }
 
 async function withSearchIndexLifecycleLock<T>(
-  key: string,
+  key: object | string,
   operation: () => Promise<T>,
 ): Promise<T> {
   const previous = searchIndexLifecycleLocks.get(key) ?? Promise.resolve();
@@ -101,7 +102,15 @@ async function withSearchIndexLifecycleLock<T>(
   }
 }
 
-async function isMissingOrEmptyFile(path: string): Promise<boolean> {
+async function isMissingOrEmptyFile(path: File | string): Promise<boolean> {
+  if (typeof path !== "string") {
+    if (path.size !== undefined) return path.size === 0;
+    if (path.getSize !== undefined) return (await path.getSize()) === 0;
+    const content = await path.read();
+    return typeof content === "string"
+      ? content.length === 0
+      : content.byteLength === 0;
+  }
   const stats = await stat(path).catch((error: unknown) => {
     if (isNodeError(error) && error.code === "ENOENT") {
       return undefined;
@@ -114,7 +123,7 @@ async function isMissingOrEmptyFile(path: string): Promise<boolean> {
 }
 
 async function isSearchIndexDatabaseCompatible(
-  databasePath: string,
+  databasePath: File | string,
 ): Promise<boolean> {
   const database = await Database.open(databasePath, "", {
     readonly: true,
@@ -148,7 +157,9 @@ async function deleteSearchIndexDatabaseFile(
   documentPath: string,
 ): Promise<void> {
   try {
-    await fileStore.deleteFile(join(documentPath, "index.db"));
+    await fileStore.deleteFile(
+      documentPath === "" ? "index.db" : join(documentPath, "index.db"),
+    );
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
       return;

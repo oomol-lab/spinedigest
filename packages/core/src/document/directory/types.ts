@@ -41,10 +41,12 @@ export interface DocumentFileStore {
   deleteFile(path: string): Promise<void>;
   deleteTree(path: string): Promise<void>;
   ensureDirectory(path: string): Promise<void>;
+  documentIdentity?(): string;
   initializeDatabaseSchema(): boolean;
   markDatabaseDirty?(): void;
   markSearchIndexDatabaseDirty?(): void;
   openDatabaseReadonly(): boolean;
+  searchIndexLockKey?(): object | string;
   listFileContents?(path: string): Promise<ReadonlyMap<string, Uint8Array>>;
   listFiles(path: string): Promise<readonly string[]>;
   readFile(path: string): Promise<Uint8Array | undefined>;

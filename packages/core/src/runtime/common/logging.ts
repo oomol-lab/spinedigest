@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "../platform/index.js";
-import { appendFile, randomUUID } from "../platform/index.js";
+import { appendFile } from "../platform/index.js";
 import { existsSync, mkdirSync } from "../platform/index.js";
 import { join, resolve } from "../platform/index.js";
 import { runtimeContext as platformRuntime } from "../platform/index.js";
@@ -256,7 +256,7 @@ function createRunId(): string {
   const minutes = pad(now.getUTCMinutes());
   const seconds = pad(now.getUTCSeconds());
 
-  return `${year}${month}${day}-${hours}${minutes}${seconds}-${randomUUID().slice(0, 8)}`;
+  return `${year}${month}${day}-${hours}${minutes}${seconds}-${globalThis.crypto.randomUUID().slice(0, 8)}`;
 }
 
 function pad(value: number): string {

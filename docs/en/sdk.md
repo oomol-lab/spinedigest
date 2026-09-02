@@ -64,6 +64,10 @@ await wikiGraph.openSession(archive, (session) => session.readMeta());
 `File`/`Directory` are platform primitives. Core never interprets their URI or
 absolute path; browser and extension hosts can back them with IndexedDB,
 OPFS, or another scoped store. The `wiki-graph` CLI supplies the Node adapter.
+Each `File.identity` and `Directory.identity` is a stable, opaque coordination
+key—not a path or URI.
+Archive SQLite workspaces are created only below the supplied `documentStore`
+and are removed after the archive session settles.
 `WikiGraphPlatform` is process-wide host infrastructure for async context,
 database, and ZIP operations, so an application installs it once after import.
 The two storage roots belong to each `WikiGraph` instance and remain isolated

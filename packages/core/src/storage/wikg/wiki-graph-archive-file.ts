@@ -22,7 +22,16 @@ export class WikiGraphArchiveFile {
   ): Promise<T> {
     return await this.readDocument(
       async (document, directoryPath) =>
-        await operation(new WikiGraphArchive(document, directoryPath)),
+        await operation(
+          new WikiGraphArchive(
+            document,
+            typeof this.#file === "string" ? directoryPath : this.#file,
+            {
+              sourceKind:
+                options.documentDirPath === undefined ? "archive" : "directory",
+            },
+          ),
+        ),
       options,
     );
   }
@@ -55,20 +64,18 @@ export class WikiGraphArchiveFile {
           );
         }
 
-        const document = await DirectoryDocument.open(
-          toHostHandle(this.#file),
-          {
-            fileStore: session.createFileStore({
-              readonlyDatabase: true,
-              ...(options.searchIndexWritebackPolicy === undefined
-                ? {}
-                : {
-                    searchIndexWritebackPolicy:
-                      options.searchIndexWritebackPolicy,
-                  }),
-            }),
-          },
-        );
+        const fileStore = session.createFileStore({
+          readonlyDatabase: true,
+          ...(options.searchIndexWritebackPolicy === undefined
+            ? {}
+            : {
+                searchIndexWritebackPolicy: options.searchIndexWritebackPolicy,
+              }),
+        });
+        const document =
+          typeof this.#file === "string"
+            ? await DirectoryDocument.open(this.#file, { fileStore })
+            : await DirectoryDocument.openFileStore(fileStore);
 
         try {
           return await operation(
@@ -89,19 +96,17 @@ export class WikiGraphArchiveFile {
     return await this.#coordinator.withArchiveSession(
       this.#file,
       async (session) => {
-        const document = await DirectoryDocument.open(
-          toHostHandle(this.#file),
-          {
-            fileStore: session.createFileStore({
-              ...(options.searchIndexWritebackPolicy === undefined
-                ? {}
-                : {
-                    searchIndexWritebackPolicy:
-                      options.searchIndexWritebackPolicy,
-                  }),
-            }),
-          },
-        );
+        const fileStore = session.createFileStore({
+          ...(options.searchIndexWritebackPolicy === undefined
+            ? {}
+            : {
+                searchIndexWritebackPolicy: options.searchIndexWritebackPolicy,
+              }),
+        });
+        const document =
+          typeof this.#file === "string"
+            ? await DirectoryDocument.open(this.#file, { fileStore })
+            : await DirectoryDocument.openFileStore(fileStore);
 
         try {
           return await operation(document);
@@ -109,14 +114,12 @@ export class WikiGraphArchiveFile {
           try {
             await document.release();
           } finally {
-            await deleteArchiveSearchSessions(document.path);
+            if (typeof this.#file === "string") {
+              await deleteArchiveSearchSessions(document.path);
+            }
           }
         }
       },
     );
   }
-}
-
-function toHostHandle(file: File | string): string {
-  return typeof file === "string" ? file : file.name;
 }

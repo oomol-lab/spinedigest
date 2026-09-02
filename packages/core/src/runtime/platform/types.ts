@@ -1,8 +1,11 @@
 /** A host-owned file whose identity remains opaque to Core. */
 export interface File {
+  /** Stable opaque identity used only for coordination; it must not be a path. */
+  readonly identity: string;
   /** Logical entry name only; never a URI or operating-system path. */
   readonly name: string;
   readonly size?: number;
+  getSize?(): Promise<number>;
   read(options?: { readonly encoding?: string }): Promise<Uint8Array | string>;
   openWriter(): Promise<FileWriter>;
 }
@@ -16,6 +19,8 @@ export interface FileWriter {
 
 /** Directory tree supplied by the host. Only relative child names are used. */
 export interface Directory {
+  /** Stable opaque identity used only for coordination; it must not be a path. */
+  readonly identity: string;
   readonly name: string;
   getFile(name: string): Promise<File | undefined>;
   getDirectory(name: string): Promise<Directory | undefined>;

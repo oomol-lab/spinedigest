@@ -1,6 +1,5 @@
-import { join, resolve } from "../../runtime/platform/index.js";
-
 import type { Database } from "../database.js";
+import { joinDocumentPath, resolveDocumentPath } from "../directory/path.js";
 import type { SentenceId } from "../types.js";
 import { DEFAULT_FILE_ACCESS } from "./file-access.js";
 import { SerialTextStream } from "./serial.js";
@@ -14,15 +13,18 @@ export class TextStreams implements ReadonlyTextStreams {
   readonly #database: Database;
   readonly #documentPath: string;
   readonly #fileAccess: TextStreamFileAccess;
+  readonly #identity: string;
 
   public constructor(
     documentPath: string,
     database: Database,
     fileAccess: TextStreamFileAccess = DEFAULT_FILE_ACCESS,
+    identity = documentPath,
   ) {
     this.#database = database;
-    this.#documentPath = resolve(documentPath);
+    this.#documentPath = resolveDocumentPath(documentPath);
     this.#fileAccess = fileAccess;
+    this.#identity = identity;
   }
 
   public async ensureCreated(): Promise<void> {
@@ -42,6 +44,7 @@ export class TextStreams implements ReadonlyTextStreams {
       this.#fileAccess,
       "source",
       serialId,
+      this.#identity,
     );
   }
 
@@ -52,10 +55,11 @@ export class TextStreams implements ReadonlyTextStreams {
       this.#fileAccess,
       "summary",
       serialId,
+      this.#identity,
     );
   }
 
   #getRootPath(stream: TextStreamName): string {
-    return join(this.#documentPath, "texts", stream);
+    return joinDocumentPath(this.#documentPath, "texts", stream);
   }
 }
