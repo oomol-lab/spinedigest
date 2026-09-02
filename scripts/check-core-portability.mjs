@@ -79,6 +79,15 @@ function inspectSource(file, source, {
       const optionalGlobal = allowOptionalGlobals && (name === "process" || name === "Buffer");
       if ((!dependency || strictDependencies) && !optionalGlobal && !isProperty && !isDeclaration && (name === "process" || name === "Buffer" || name === "NodeJS")) report(file, `references Node-only global ${name}`);
     }
+    // Computed globalThis access is equivalent to a direct property access
+    // and is commonly used to hide runtime references from textual scans.
+    if (ts.isElementAccessExpression(node) &&
+        ts.isIdentifier(node.expression) && node.expression.text === "globalThis" &&
+        node.argumentExpression && ts.isStringLiteral(node.argumentExpression) &&
+        ["process", "Buffer", "NodeJS"].includes(node.argumentExpression.text) &&
+        (!dependency || strictDependencies) && !allowOptionalGlobals) {
+      report(file, `references Node-only global globalThis[${node.argumentExpression.text}]`);
+    }
     ts.forEachChild(node, visit);
   }
   visit(tree);

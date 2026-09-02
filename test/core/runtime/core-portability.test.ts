@@ -35,7 +35,7 @@ describe("core portability gate", () => {
     try {
       await writeFile(
         join(fixture, "forbidden.ts"),
-        "const a = process; const b = globalThis.process; const c = new Buffer(1);\n",
+        "const a = process; const b = globalThis.process; const c = new Buffer(1); const d = globalThis[\"process\"];\n",
       );
 
       await expect(
