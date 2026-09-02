@@ -85,7 +85,7 @@ export class NodeDirectory implements Directory {
 
   public async getFile(name: string): Promise<File | undefined> {
     assertChildName(name);
-    const file = new NodeFile(pathModule.join(this.path, name), name);
+    const file = new NodeFile(pathModule.join(this.path, name));
     try {
       return (await fsPromises.stat(file.path)).isFile() ? file : undefined;
     } catch {
@@ -118,7 +118,7 @@ export class NodeDirectory implements Directory {
 
   public async createFile(name: string): Promise<File> {
     assertChildName(name);
-    const file = new NodeFile(pathModule.join(this.path, name), name);
+    const file = new NodeFile(pathModule.join(this.path, name));
     await fsPromises.writeFile(file.path, "", { flag: "wx" });
     return file;
   }

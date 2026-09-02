@@ -32,7 +32,7 @@ import {
 } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/archive-key.js";
 import { withStateDatabase } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
 import { withTempDir } from "../../../helpers/temp.js";
-import { NodeFile } from "../../../../packages/cli/src/runtime/node-platform.js";
+import { NodeDirectory, NodeFile } from "../../../../packages/cli/src/runtime/node-platform.js";
 
 const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
 
@@ -79,6 +79,10 @@ describe("wikg/wiki-graph-archive-file", () => {
 
           // The host File adapter must be accepted by the archive facade.
           await expect(new WikiGraphArchiveFile(new NodeFile(archivePath)).read(() => "ok"))
+            .resolves.toBe("ok");
+          const directoryFile = await new NodeDirectory(`${path}/fixture`).getFile("book.wikg");
+          expect(directoryFile).toBeDefined();
+          await expect(new WikiGraphArchiveFile(directoryFile!).read(() => "ok"))
             .resolves.toBe("ok");
         } finally {
           await document.release();
