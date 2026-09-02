@@ -8,28 +8,17 @@
 
 export type PlatformModule = Record<string, any>;
 
-export interface PlatformZipModule {
-  readonly yauzl?: PlatformModule;
-  readonly yazl?: PlatformModule;
+export interface PlatformArchiveModule {
+  readonly reader?: PlatformModule;
+  readonly writer?: PlatformModule;
 }
 
+/**
+ * Opaque host capability bag. Core only relies on capability names internally;
+ * hosts are free to provide browser, extension, or Node implementations.
+ */
 export interface WikiGraphPlatform {
-  readonly fs: PlatformModule;
-  readonly childProcess: PlatformModule;
-  readonly process: PlatformModule;
-  readonly buffer: PlatformModule;
-  readonly fsPromises: PlatformModule;
-  readonly path: PlatformModule;
-  readonly os: PlatformModule;
-  readonly crypto: PlatformModule;
-  readonly streams: PlatformModule;
-  readonly streamPromises: PlatformModule;
-  readonly timers: PlatformModule;
-  readonly asyncHooks: PlatformModule;
-  readonly zlib: PlatformModule;
-  readonly url: PlatformModule;
-  readonly sqlite3?: PlatformModule;
-  readonly zip?: PlatformZipModule;
+  readonly [capability: string]: unknown;
 }
 
 /** A host-owned file. Core never interprets its backing URI or path. */
@@ -134,132 +123,129 @@ export function getPlatformDirectoryPath(directory: Directory): string {
   return location;
 }
 
-function moduleValue<T = any>(
-  moduleName: keyof WikiGraphPlatform,
-  key: string,
-): T {
+function moduleValue<T = any>(moduleName: string, key: string): T {
   return (getWikiGraphPlatform()[moduleName] as PlatformModule)[key] as T;
 }
 
 export const access = (...args: any[]): any =>
-  moduleValue("fsPromises", "access")(...args);
+  moduleValue("fileSystemPromises", "access")(...args);
 export const spawn = (...args: any[]): any =>
-  moduleValue("childProcess", "spawn")(...args);
+  moduleValue("subprocess", "spawn")(...args);
 export const process = new Proxy({} as Record<string, any>, {
   get(_target, property: string): unknown {
-    return moduleValue("process", property);
+    return moduleValue("runtime", property);
   },
 });
 export const appendFile = (...args: any[]): any =>
-  moduleValue("fsPromises", "appendFile")(...args);
+  moduleValue("fileSystemPromises", "appendFile")(...args);
 export const chmod = (...args: any[]): any =>
-  moduleValue("fsPromises", "chmod")(...args);
+  moduleValue("fileSystemPromises", "chmod")(...args);
 export const copyFile = (...args: any[]): any =>
-  moduleValue("fsPromises", "copyFile")(...args);
+  moduleValue("fileSystemPromises", "copyFile")(...args);
 export const mkdir = (...args: any[]): any =>
-  moduleValue("fsPromises", "mkdir")(...args);
+  moduleValue("fileSystemPromises", "mkdir")(...args);
 export const mkdtemp = (...args: any[]): any =>
-  moduleValue("fsPromises", "mkdtemp")(...args);
+  moduleValue("fileSystemPromises", "mkdtemp")(...args);
 export const open = (...args: any[]): any =>
-  moduleValue("fsPromises", "open")(...args);
+  moduleValue("fileSystemPromises", "open")(...args);
 export const opendir = (...args: any[]): any =>
-  moduleValue("fsPromises", "opendir")(...args);
+  moduleValue("fileSystemPromises", "opendir")(...args);
 export const readFile = (...args: any[]): any =>
-  moduleValue("fsPromises", "readFile")(...args);
+  moduleValue("fileSystemPromises", "readFile")(...args);
 export const readdir = (...args: any[]): any =>
-  moduleValue("fsPromises", "readdir")(...args);
+  moduleValue("fileSystemPromises", "readdir")(...args);
 export const realpath = (...args: any[]): any =>
-  moduleValue("fsPromises", "realpath")(...args);
+  moduleValue("fileSystemPromises", "realpath")(...args);
 export const rename = (...args: any[]): any =>
-  moduleValue("fsPromises", "rename")(...args);
+  moduleValue("fileSystemPromises", "rename")(...args);
 export const rm = (...args: any[]): any =>
-  moduleValue("fsPromises", "rm")(...args);
+  moduleValue("fileSystemPromises", "rm")(...args);
 export const rmdir = (...args: any[]): any =>
-  moduleValue("fsPromises", "rmdir")(...args);
+  moduleValue("fileSystemPromises", "rmdir")(...args);
 export const stat = (...args: any[]): any =>
-  moduleValue("fsPromises", "stat")(...args);
+  moduleValue("fileSystemPromises", "stat")(...args);
 export const unlink = (...args: any[]): any =>
-  moduleValue("fsPromises", "unlink")(...args);
+  moduleValue("fileSystemPromises", "unlink")(...args);
 export const writeFile = (...args: any[]): any =>
-  moduleValue("fsPromises", "writeFile")(...args);
+  moduleValue("fileSystemPromises", "writeFile")(...args);
 
 export const constants = new Proxy({} as Record<string, number>, {
   get(_target, property: string): unknown {
-    return moduleValue("fs", "constants")[property];
+    return moduleValue("fileSystem", "constants")[property];
   },
 });
 export const createReadStream = (...args: any[]): any =>
-  moduleValue("fs", "createReadStream")(...args);
+  moduleValue("fileSystem", "createReadStream")(...args);
 export const createWriteStream = (...args: any[]): any =>
-  moduleValue("fs", "createWriteStream")(...args);
+  moduleValue("fileSystem", "createWriteStream")(...args);
 export const existsSync = (...args: any[]): any =>
-  moduleValue("fs", "existsSync")(...args);
+  moduleValue("fileSystem", "existsSync")(...args);
 export const mkdirSync = (...args: any[]): any =>
-  moduleValue("fs", "mkdirSync")(...args);
+  moduleValue("fileSystem", "mkdirSync")(...args);
 export const readFileSync = (...args: any[]): any =>
-  moduleValue("fs", "readFileSync")(...args);
+  moduleValue("fileSystem", "readFileSync")(...args);
 export const statSync = (...args: any[]): any =>
-  moduleValue("fs", "statSync")(...args);
+  moduleValue("fileSystem", "statSync")(...args);
 
 export const basename = (...args: any[]): any =>
-  moduleValue("path", "basename")(...args);
+  moduleValue("pathTools", "basename")(...args);
 export const dirname = (...args: any[]): any =>
-  moduleValue("path", "dirname")(...args);
+  moduleValue("pathTools", "dirname")(...args);
 export const extname = (...args: any[]): any =>
-  moduleValue("path", "extname")(...args);
+  moduleValue("pathTools", "extname")(...args);
 export const isAbsolute = (...args: any[]): any =>
-  moduleValue("path", "isAbsolute")(...args);
+  moduleValue("pathTools", "isAbsolute")(...args);
 export const join = (...args: any[]): any =>
-  moduleValue("path", "join")(...args);
+  moduleValue("pathTools", "join")(...args);
 export const parse = (...args: any[]): any =>
-  moduleValue("path", "parse")(...args);
+  moduleValue("pathTools", "parse")(...args);
 export const relative = (...args: any[]): any =>
-  moduleValue("path", "relative")(...args);
+  moduleValue("pathTools", "relative")(...args);
 export const resolve = (...args: any[]): any =>
-  moduleValue("path", "resolve")(...args);
+  moduleValue("pathTools", "resolve")(...args);
 // Archive paths are normalized to POSIX separators by Core. Host path helpers
 // still come from the injected provider; this constant is only used for
 // comparisons and remains portable across browser and Node hosts.
 export const sep = "/";
 export const posix = new Proxy({} as Record<string, any>, {
   get(_target, property: string): unknown {
-    return moduleValue("path", "posix")[property];
+    return moduleValue("pathTools", "posix")[property];
   },
 }) as any;
 
 export const homedir = (...args: any[]): any =>
-  moduleValue("os", "homedir")(...args);
+  moduleValue("system", "homedir")(...args);
 export const tmpdir = (...args: any[]): any =>
-  moduleValue("os", "tmpdir")(...args);
+  moduleValue("system", "tmpdir")(...args);
 
 export const createHash = (...args: any[]): any =>
-  moduleValue("crypto", "createHash")(...args);
+  moduleValue("cryptography", "createHash")(...args);
 export const randomBytes = (...args: any[]): any =>
-  moduleValue("crypto", "randomBytes")(...args);
+  moduleValue("cryptography", "randomBytes")(...args);
 export const randomUUID = (...args: any[]): any =>
-  moduleValue("crypto", "randomUUID")(...args);
+  moduleValue("cryptography", "randomUUID")(...args);
 export const Buffer = new Proxy(function () {}, {
   construct(_target, args): object {
-    const Constructor = moduleValue("buffer", "Buffer");
+    const Constructor = moduleValue("binary", "Buffer");
     return Reflect.construct(Constructor, args);
   },
   get(_target, property: string): unknown {
-    return moduleValue("buffer", "Buffer")[property];
+    return moduleValue("binary", "Buffer")[property];
   },
 }) as any;
 export const inflateRaw = (...args: any[]): any =>
-  moduleValue("zlib", "inflateRaw")(...args);
+  moduleValue("compression", "inflateRaw")(...args);
 export const fileURLToPath = (...args: any[]): any =>
-  moduleValue("url", "fileURLToPath")(...args);
+  moduleValue("urlTools", "fileURLToPath")(...args);
 
 export const PassThrough = new Proxy(function () {}, {
   construct(_target, args): object {
-    return Reflect.construct(moduleValue("streams", "PassThrough"), args);
+    return Reflect.construct(moduleValue("stream", "PassThrough"), args);
   },
 }) as any;
 export const Writable = new Proxy(function () {}, {
   construct(_target, args): object {
-    return Reflect.construct(moduleValue("streams", "Writable"), args);
+    return Reflect.construct(moduleValue("stream", "Writable"), args);
   },
 }) as any;
 export const finished = (...args: any[]): any =>
@@ -276,7 +262,7 @@ export class AsyncLocalStorage<T> {
 
   public constructor() {
     try {
-      const Constructor = moduleValue("asyncHooks", "AsyncLocalStorage");
+      const Constructor = moduleValue("asyncContext", "AsyncLocalStorage");
       this.#impl = new Constructor();
     } catch {
       // Importing the neutral core must not require a host runtime to have
@@ -318,7 +304,9 @@ export class AsyncLocalStorage<T> {
 export const finishedStream = finished;
 
 export const openZip = (...args: any[]): any => {
-  const open = getWikiGraphPlatform().zip?.yauzl?.open;
+  const open = (
+    getWikiGraphPlatform().archive as PlatformArchiveModule | undefined
+  )?.reader?.open;
   if (typeof open !== "function") {
     throw new Error("No ZIP reader has been installed.");
   }
@@ -326,7 +314,9 @@ export const openZip = (...args: any[]): any => {
 };
 export const ZipFile = new Proxy(function () {}, {
   construct(_target, args): object {
-    const Constructor = getWikiGraphPlatform().zip?.yazl?.ZipFile;
+    const Constructor = (
+      getWikiGraphPlatform().archive as PlatformArchiveModule | undefined
+    )?.writer?.ZipFile;
     if (Constructor === undefined) {
       throw new Error("No ZIP writer has been installed.");
     }
@@ -345,7 +335,7 @@ export type Writable = any;
 export type WritableStream = any;
 
 export function getSqlite3Module(): PlatformModule {
-  const module = getWikiGraphPlatform().sqlite3;
+  const module = getWikiGraphPlatform().database as PlatformModule | undefined;
   if (module === undefined) {
     throw new Error("No SQLite runtime has been installed.");
   }

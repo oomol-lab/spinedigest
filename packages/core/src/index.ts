@@ -470,9 +470,11 @@ export {
 export type { WikgObject } from "./object-stream.js";
 export {
   getWikiGraphStorage,
+  installWikiGraphPlatform,
   installWikiGraphStorage,
   type Directory,
   type File,
   type FileWriter,
+  type WikiGraphPlatform,
   type WikiGraphStorage,
 } from "./runtime/platform/index.js";

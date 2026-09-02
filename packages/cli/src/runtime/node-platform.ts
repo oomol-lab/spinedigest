@@ -143,22 +143,22 @@ function assertChildName(name: string): void {
 }
 
 export const nodeWikiGraphPlatform: WikiGraphPlatform = {
-  fs,
-  childProcess,
-  process,
-  buffer,
-  fsPromises,
-  path: pathModule,
-  os,
-  crypto,
-  streams: stream,
+  fileSystem: fs,
+  subprocess: childProcess,
+  runtime: process,
+  binary: buffer,
+  fileSystemPromises: fsPromises,
+  pathTools: pathModule,
+  system: os,
+  cryptography: crypto,
+  stream,
   streamPromises,
   timers,
-  asyncHooks,
-  zlib,
-  url,
-  sqlite3,
-  zip: { yauzl, yazl },
+  asyncContext: asyncHooks,
+  compression: zlib,
+  urlTools: url,
+  database: sqlite3,
+  archive: { reader: yauzl, writer: yazl },
 };
 
 export function installNodeWikiGraphPlatform(): void {
