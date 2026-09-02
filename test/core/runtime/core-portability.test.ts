@@ -48,6 +48,18 @@ describe("core portability gate", () => {
     }
   });
 
+  it("rejects globalThis process references and declaration leaks in artifacts", async () => {
+    const fixture = await mkdtemp(join(tmpdir(), "wiki-graph-core-portability-"));
+    try {
+      await writeFile(join(fixture, "global.ts"), "export const x = globalThis.process;\n");
+      await expect(execFileAsync("node", ["scripts/check-core-portability.mjs", fixture], { cwd: process.cwd() })).rejects.toMatchObject({ code: 1 });
+      await writeFile(join(fixture, "leak.d.ts"), "export type Process = NodeJS.Process;\n");
+      await expect(execFileAsync("node", ["scripts/check-core-portability.mjs", fixture, "--artifact"], { cwd: process.cwd() })).rejects.toMatchObject({ code: 1 });
+    } finally {
+      await rm(fixture, { recursive: true, force: true });
+    }
+  });
+
   it("rejects computed dynamic imports and transitive package imports", async () => {
     const fixture = await mkdtemp(
       join(tmpdir(), "wiki-graph-core-portability-"),
@@ -70,12 +82,10 @@ describe("core portability gate", () => {
       await execFileAsync("mkdir", ["-p", join(fixture, "node_modules/fixture-node-dependency")]);
       await writeFile(
         join(fixture, "node_modules/fixture-node-dependency/package.json"),
-        JSON.stringify({ name: "fixture-node-dependency", main: "index.js" }),
+        JSON.stringify({ name: "fixture-node-dependency", main: "safe.js", exports: { ".": "./node.js" } }),
       );
-      await writeFile(
-        join(fixture, "node_modules/fixture-node-dependency/index.js"),
-        'export * from "./nested.js";\n',
-      );
+      await writeFile(join(fixture, "node_modules/fixture-node-dependency/safe.js"), "export const ok = true;\n");
+      await writeFile(join(fixture, "node_modules/fixture-node-dependency/node.js"), 'export * from "./nested.js";\n');
       await writeFile(
         join(fixture, "node_modules/fixture-node-dependency/nested.js"),
         'import "node:fs";\n',

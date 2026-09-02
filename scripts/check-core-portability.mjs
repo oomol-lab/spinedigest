@@ -53,7 +53,8 @@ function inspectSource(file, source, { artifact = false, dependency = false } = 
     if (ts.isIdentifier(node)) {
       const name = node.text;
       const parent = node.parent;
-      const isProperty = ts.isPropertyAccessExpression(parent) && parent.name === node;
+      const isProperty = ts.isPropertyAccessExpression(parent) && parent.name === node &&
+        !(ts.isPropertyAccessExpression(parent) && ts.isIdentifier(parent.expression) && parent.expression.text === "globalThis");
       const isDeclaration = ts.isVariableDeclaration(parent) && parent.name === node;
       if (!dependency && !isProperty && !isDeclaration && (name === "process" || name === "Buffer" || name === "NodeJS")) report(file, `references Node-only global ${name}`);
     }
@@ -91,15 +92,23 @@ async function scanDependency(name, fromDirectory, chain = []) {
   const root = await packageRoot(name, fromDirectory);
   if (!root) return;
   const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
-  const entry = manifest.module ?? manifest.browser ?? manifest.main ?? "index.js";
-  try { await scanFile(resolve(root, entry), { dependency: true, follow: true }); } catch { /* types-only package */ }
+  const entries = new Set([manifest.module, manifest.browser, manifest.main, "index.js"]);
+  const addExportTargets = (value) => {
+    if (typeof value === "string") entries.add(value);
+    else if (value && typeof value === "object") for (const nested of Object.values(value)) addExportTargets(nested);
+  };
+  addExportTargets(manifest.exports);
+  for (const entry of entries) {
+    if (typeof entry !== "string") continue;
+    try { await scanFile(resolve(root, entry), { dependency: true, follow: true }); } catch { /* optional/types-only entry */ }
+  }
   for (const dependency of Object.keys({ ...(manifest.dependencies ?? {}), ...(manifest.optionalDependencies ?? {}) })) {
     if (forbidden.has(dependency)) report(join(root, "package.json"), `depends on forbidden module ${dependency}`);
     else await scanDependency(dependency, root, [...chain, name]);
   }
 }
 
-const extensions = artifactMode ? [".js", ".cjs", ".mjs"] : [".ts"];
+const extensions = artifactMode ? [".js", ".cjs", ".mjs", ".d.ts"] : [".ts"];
 for (const file of await collect(target, extensions)) await scanFile(file, { artifact: artifactMode });
 if (!artifactMode) {
   let packageFile = join(repositoryRoot, "..", "packages/core/package.json");
