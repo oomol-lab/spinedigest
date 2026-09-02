@@ -24,8 +24,13 @@ export class DirectoryFileStore implements DocumentFileStore {
     const content = await file.read();
     return typeof content === "string" ? new TextEncoder().encode(content) : content;
   }
-  public async writeFile(path: string, content: string | Uint8Array, _options: { readonly overwrite?: boolean } = {}): Promise<void> {
-    const file = await this.getOrCreateFile(this.relative(path));
+  public async writeFile(path: string, content: string | Uint8Array, options: { readonly overwrite?: boolean } = {}): Promise<void> {
+    const relative = this.relative(path);
+    const existing = await getRelativeFile(this.root, relative);
+    if (existing && options.overwrite !== true) {
+      throw new Error(`File already exists: ${path}`);
+    }
+    const file = existing ?? await this.getOrCreateFile(relative);
     const writer = await file.openWriter();
     try { await writer.write(content); await writer.commit(); }
     catch (error) { await writer.abort(); throw error; }

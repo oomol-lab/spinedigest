@@ -42,6 +42,10 @@ describe("Node File/Directory adapter", () => {
       await store.writeFile("texts/source/1", "hello", { overwrite: true });
       const value = await store.readFile("texts/source/1");
       expect(Array.from(value ?? [])).toEqual([104, 101, 108, 108, 111]);
+      await expect(store.writeFile("texts/source/1", "again")).rejects.toThrow(
+        "already exists",
+      );
+      await store.writeFile("texts/source/1", "again", { overwrite: true });
     });
   });
 });
