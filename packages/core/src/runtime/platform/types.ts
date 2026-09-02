@@ -101,10 +101,17 @@ export interface HostZipProvider {
 }
 
 export interface HostTemplateProvider {
-  get(templateName: string): {
-    readonly source: string;
-    readonly version?: string;
-  };
+  createEnvironment(options: {
+    readonly autoescape: boolean;
+    readonly trimBlocks: boolean;
+  }): HostTemplateEnvironment;
+}
+
+export interface HostTemplateEnvironment {
+  render(
+    templateName: string,
+    context?: Readonly<Record<string, unknown>>,
+  ): string;
 }
 
 /** Platform-neutral host services required before Core operations run. */

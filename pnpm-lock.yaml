@@ -155,9 +155,6 @@ importers:
       jsonrepair:
         specifier: ^3.13.3
         version: 3.13.3
-      nunjucks:
-        specifier: ^3.2.4
-        version: 3.2.4
       saxes:
         specifier: ^6.0.0
         version: 6.0.0

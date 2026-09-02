@@ -76,7 +76,6 @@ const auditedBrowserPackageVersions = new Map([
   ["ai", "6.0.154"],
   ["htmlparser2", "12.0.0"],
   ["jsonrepair", "3.13.3"],
-  ["nunjucks", "3.2.4"],
   ["saxes", "6.0.0"],
   ["zod", "4.3.6"],
   ["tinyld", "1.3.4"],
@@ -109,21 +108,20 @@ function moduleName(specifier) {
   return specifier.startsWith("node:") ? specifier.slice(5) : specifier;
 }
 
-function selectExportTarget(value) {
-  if (typeof value === "string") return value;
-  if (!value || typeof value !== "object") return undefined;
-  for (const key of ["browser", "import", "default", "module"]) {
-    if (key in value) {
-      const selected = selectExportTarget(value[key]);
-      if (selected) return selected;
-    }
+function collectExportTargets(value, targets = new Set()) {
+  if (typeof value === "string") {
+    targets.add(value);
+    return targets;
   }
+  if (Array.isArray(value)) {
+    for (const nested of value) collectExportTargets(nested, targets);
+    return targets;
+  }
+  if (!value || typeof value !== "object") return targets;
   for (const [key, nested] of Object.entries(value)) {
-    if (key === "types" || key === "require" || key === "node") continue;
-    const selected = selectExportTarget(nested);
-    if (selected) return selected;
+    if (key !== "types") collectExportTargets(nested, targets);
   }
-  return undefined;
+  return targets;
 }
 
 function inspectSource(
@@ -210,6 +208,9 @@ function inspectSource(
           forbidden.has(moduleName(argument.text))
         )
           report(file, "uses CommonJS require");
+        else if (argument.text.startsWith("."))
+          relativeImports.add(argument.text);
+        else packageImports.add(argument.text);
       }
       if (
         !artifact &&
@@ -322,15 +323,16 @@ async function scanFile(file, options) {
       }
     }
     for (const specifier of imports.packageImports) {
-      const entry = await resolvePackageEntry(specifier, dirname(file));
-      if (entry === undefined) continue;
-      await scanFile(entry.file, {
-        dependency: true,
-        strictDependencies: true,
-        allowOptionalGlobals:
-          auditedBrowserPackageVersions.get(entry.name) === entry.version,
-        follow: true,
-      });
+      const entries = await resolvePackageEntries(specifier, dirname(file));
+      for (const entry of entries) {
+        await scanFile(entry.file, {
+          dependency: true,
+          strictDependencies: true,
+          allowOptionalGlobals:
+            auditedBrowserPackageVersions.get(entry.name) === entry.version,
+          follow: true,
+        });
+      }
     }
   }
 }
@@ -360,10 +362,10 @@ function splitPackageSpecifier(specifier) {
   };
 }
 
-async function resolvePackageEntry(specifier, fromDirectory) {
+async function resolvePackageEntries(specifier, fromDirectory) {
   const { name, subpath } = splitPackageSpecifier(specifier);
   const root = await packageRoot(name, fromDirectory);
-  if (root === undefined) return undefined;
+  if (root === undefined) return [];
   const manifest = JSON.parse(
     await readFile(join(root, "package.json"), "utf8"),
   );
@@ -375,28 +377,43 @@ async function resolvePackageEntry(specifier, fromDirectory) {
   if (exportValue === undefined && manifest.exports?.["./*"] !== undefined) {
     exportValue = replaceExportWildcard(manifest.exports["./*"], subpath);
   }
-  const target =
-    selectExportTarget(exportValue) ??
-    (subpath === ""
-      ? (manifest.browser ?? manifest.module ?? manifest.main ?? "index.js")
-      : subpath);
-  const base = resolve(root, target);
-  for (const candidate of [
-    base,
-    `${base}.js`,
-    `${base}.mjs`,
-    `${base}.cjs`,
-    join(base, "index.js"),
-    join(base, "index.mjs"),
-  ]) {
-    try {
-      await readFile(candidate);
-      return { file: candidate, name, version: manifest.version };
-    } catch {
-      /* try the next package entry candidate */
+  const targets = collectExportTargets(exportValue);
+  if (exportValue === undefined) {
+    if (subpath === "") {
+      if (typeof manifest.browser === "string") targets.add(manifest.browser);
+      if (typeof manifest.module === "string") targets.add(manifest.module);
+      if (typeof manifest.main === "string") targets.add(manifest.main);
+      if (targets.size === 0) targets.add("index.js");
+    } else {
+      targets.add(subpath);
     }
   }
-  return undefined;
+  const files = await resolvePackageTargetFiles(root, targets);
+  return files.map((file) => ({ file, name, version: manifest.version }));
+}
+
+async function resolvePackageTargetFiles(root, targets) {
+  const files = new Set();
+  for (const target of targets) {
+    const base = resolve(root, target);
+    for (const candidate of [
+      base,
+      `${base}.js`,
+      `${base}.mjs`,
+      `${base}.cjs`,
+      join(base, "index.js"),
+      join(base, "index.mjs"),
+    ]) {
+      try {
+        await readFile(candidate);
+        files.add(candidate);
+        break;
+      } catch {
+        /* try the next package entry candidate */
+      }
+    }
+  }
+  return [...files];
 }
 
 function replaceExportWildcard(value, subpath) {
@@ -419,20 +436,20 @@ async function scanDependency(name, fromDirectory, chain = [], strict = false) {
   );
   const entries = new Set();
   if (manifest.exports) {
-    const selected = selectExportTarget(
-      manifest.exports["."] ?? manifest.exports,
-    );
-    if (selected) entries.add(selected);
+    collectExportTargets(manifest.exports["."] ?? manifest.exports, entries);
   } else {
-    const selected =
-      manifest.browser ?? manifest.module ?? manifest.main ?? "index.js";
-    entries.add(selected);
+    if (typeof manifest.browser === "string") entries.add(manifest.browser);
+    if (typeof manifest.browser === "object") {
+      collectExportTargets(manifest.browser, entries);
+    }
+    if (typeof manifest.module === "string") entries.add(manifest.module);
+    if (typeof manifest.main === "string") entries.add(manifest.main);
+    if (entries.size === 0) entries.add("index.js");
   }
-  for (const entry of entries) {
-    if (typeof entry !== "string") continue;
+  for (const entry of await resolvePackageTargetFiles(root, entries)) {
     if (strict) {
       try {
-        await scanFile(resolve(root, entry), {
+        await scanFile(entry, {
           dependency: true,
           strictDependencies: strict,
           // Optional probes are allowed only for the exact audited package
@@ -462,7 +479,7 @@ async function scanDependency(name, fromDirectory, chain = [], strict = false) {
 
 const extensions = artifactMode ? [".js", ".cjs", ".mjs", ".d.ts"] : [".ts"];
 for (const file of await collect(target, extensions))
-  await scanFile(file, { artifact: artifactMode, follow: !artifactMode });
+  await scanFile(file, { artifact: artifactMode, follow: true });
 if (!artifactMode) {
   let packageFile = join(repositoryRoot, "..", "packages/core/package.json");
   try {

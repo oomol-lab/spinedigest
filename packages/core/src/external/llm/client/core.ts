@@ -16,7 +16,6 @@ import {
   type ModelMessage,
   type SystemModelMessage,
 } from "ai";
-import type { Environment } from "nunjucks";
 
 import { getLogger } from "../../../runtime/common/logging.js";
 import { createEnv } from "../../../runtime/common/template.js";
@@ -70,7 +69,7 @@ export class LLM<S extends string> {
   readonly #retryTimes: number;
   readonly #sampling: SamplingScopeConfig<S> | undefined;
   readonly #stream: boolean;
-  readonly #templateEnvironment: Environment;
+  readonly #templateEnvironment: ReturnType<typeof createEnv>;
   readonly #temperature: TemperatureSetting;
   readonly #timeoutMs: number;
   readonly #topP: TemperatureSetting;

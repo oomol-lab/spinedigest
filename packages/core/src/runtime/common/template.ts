@@ -1,5 +1,5 @@
-import { Environment, Loader, type LoaderSource } from "nunjucks";
 import { getWikiGraphPlatform } from "../platform/index.js";
+import type { HostTemplateEnvironment } from "../platform/index.js";
 
 const JINJA_EXTENSION_PATTERN = /\.jinja$/iu;
 const LEADING_DOT_SEGMENT_PATTERN = /^\.+\//u;
@@ -11,22 +11,18 @@ export function createEnv(
     readonly autoescape?: boolean;
     readonly trimBlocks?: boolean;
   } = {},
-): Environment {
-  return new Environment(new HostTemplateLoader(), {
+): HostTemplateEnvironment {
+  const environment = getWikiGraphPlatform().templates.createEnvironment({
     autoescape: options.autoescape ?? true,
     trimBlocks: options.trimBlocks ?? true,
   });
+  return {
+    render: (templateName, context) =>
+      environment.render(normalizeTemplateName(templateName), context),
+  };
 }
 
-class HostTemplateLoader extends Loader {
-  public getSource(templateName: string): LoaderSource {
-    const name = normalizeTemplateName(templateName);
-    const template = getWikiGraphPlatform().templates.get(name);
-    return { noCache: false, path: name, src: template.source };
-  }
-}
-
-function normalizeTemplateName(templateName: string): string {
+export function normalizeTemplateName(templateName: string): string {
   if (LEADING_DOT_SEGMENT_PATTERN.test(templateName)) {
     throw new Error(`invalid template name ${templateName}`);
   }

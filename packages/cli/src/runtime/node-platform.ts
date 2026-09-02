@@ -9,6 +9,7 @@ import * as process from "node:process";
 import * as sqlite3 from "sqlite3";
 import * as yauzl from "yauzl";
 import * as yazl from "yazl";
+import { Environment, Loader, type LoaderSource } from "nunjucks";
 
 const nodeProcess =
   (process as unknown as { default?: typeof process }).default ?? process;
@@ -27,6 +28,7 @@ import {
   type WikiGraphPlatform,
   type WikiGraphStorage,
 } from "../../../core/src/runtime/platform/index.js";
+import { normalizeTemplateName } from "../../../core/src/runtime/common/template.js";
 
 /** Install the Node implementation used by the CLI and its workers. */
 export class NodeFile implements File {
@@ -429,19 +431,23 @@ export const nodeWikiGraphPlatform: WikiGraphPlatform = {
     },
   },
   templates: {
-    get: (templateName) => {
-      const filePath = pathModule.join(
-        resolveNodeDataDirectory(),
-        templateName,
-      );
-      return {
-        source: fs.readFileSync(filePath, "utf8"),
-        version: String(fs.statSync(filePath).mtimeMs),
-      };
-    },
+    createEnvironment: (options) =>
+      new Environment(new NodeTemplateLoader(), options),
   },
   zip: { read: readNodeZip, write: writeNodeZip },
 };
+
+class NodeTemplateLoader extends Loader {
+  public getSource(templateName: string): LoaderSource {
+    const name = normalizeTemplateName(templateName);
+    const filePath = pathModule.join(resolveNodeDataDirectory(), name);
+    return {
+      noCache: false,
+      path: name,
+      src: fs.readFileSync(filePath, "utf8"),
+    };
+  }
+}
 
 function resolveNodeDataDirectory(): string {
   const injected = (globalThis as { __WIKIGRAPH_DATA_DIR__?: unknown })

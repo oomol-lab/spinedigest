@@ -93,6 +93,72 @@ describe("core portability gate", () => {
       await expectGateFailure(fixture, false);
     });
   });
+
+  it("checks both browser and main branches of a dependency", async () => {
+    await withFixture(async (fixture) => {
+      await writeFixture(fixture, {
+        "entry.ts": 'import "dual-runtime-dependency";\n',
+        "package.json": JSON.stringify({
+          dependencies: { "dual-runtime-dependency": "1.0.0" },
+        }),
+        "node_modules/dual-runtime-dependency/package.json": JSON.stringify({
+          browser: "browser.js",
+          main: "node.js",
+          name: "dual-runtime-dependency",
+          version: "1.0.0",
+        }),
+        "node_modules/dual-runtime-dependency/browser.js":
+          "export const portable = true;\n",
+        "node_modules/dual-runtime-dependency/node.js": 'import "node:fs";\n',
+      });
+      await expectGateFailure(fixture, false);
+    });
+  });
+
+  it("checks both import and require export branches of a dependency", async () => {
+    await withFixture(async (fixture) => {
+      await writeFixture(fixture, {
+        "entry.ts": 'import "conditional-runtime-dependency";\n',
+        "package.json": JSON.stringify({
+          dependencies: { "conditional-runtime-dependency": "1.0.0" },
+        }),
+        "node_modules/conditional-runtime-dependency/package.json":
+          JSON.stringify({
+            exports: {
+              ".": { import: "./portable.js", require: "./node-only.cjs" },
+            },
+            name: "conditional-runtime-dependency",
+            version: "1.0.0",
+          }),
+        "node_modules/conditional-runtime-dependency/portable.js":
+          "export const portable = true;\n",
+        "node_modules/conditional-runtime-dependency/node-only.cjs":
+          'require("node:fs");\n',
+      });
+      await expectGateFailure(fixture, false);
+    });
+  });
+
+  it("follows CommonJS dependency entries from built artifacts", async () => {
+    await withFixture(async (fixture) => {
+      await writeFixture(fixture, {
+        "entry.cjs": 'require("artifact-runtime-dependency");\n',
+        "node_modules/artifact-runtime-dependency/package.json": JSON.stringify(
+          {
+            browser: "browser.js",
+            main: "node.cjs",
+            name: "artifact-runtime-dependency",
+            version: "1.0.0",
+          },
+        ),
+        "node_modules/artifact-runtime-dependency/browser.js":
+          "export const portable = true;\n",
+        "node_modules/artifact-runtime-dependency/node.cjs":
+          'require("node:fs");\n',
+      });
+      await expectGateFailure(fixture, true);
+    });
+  });
 });
 
 async function expectRejected(

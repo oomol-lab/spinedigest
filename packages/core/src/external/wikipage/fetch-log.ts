@@ -42,11 +42,12 @@ class SilentWikipageFetchLog implements WikipageFetchLog {
 }
 
 class FileWikipageFetchLog implements WikipageFetchLog {
-  readonly #file: Promise<File | undefined>;
+  #file: Promise<File | undefined> | undefined;
   #failedWarned = false;
+  readonly #resolveFile: () => Promise<File | undefined>;
 
-  public constructor(file: Promise<File | undefined>) {
-    this.#file = file;
+  public constructor(resolveFile: () => Promise<File | undefined>) {
+    this.#resolveFile = resolveFile;
   }
 
   public get filePath(): undefined {
@@ -54,7 +55,7 @@ class FileWikipageFetchLog implements WikipageFetchLog {
   }
 
   public async append(entry: WikipageFetchLogEntry): Promise<void> {
-    const file = await this.#file;
+    const file = await (this.#file ??= this.#resolveFile());
     if (file !== undefined) {
       await appendFileText(file, `${JSON.stringify(formatEntry(entry))}\n`);
     }
@@ -79,13 +80,14 @@ export function createWikipageFetchLog(
     return new SilentWikipageFetchLog();
   }
 
-  const file = resolveArtifactFile({
-    category: "wikipage",
-    fileName: "wikipage-fetch.jsonl",
-    logDirectory,
-  });
-
-  return new FileWikipageFetchLog(file);
+  return new FileWikipageFetchLog(
+    async () =>
+      await resolveArtifactFile({
+        category: "wikipage",
+        fileName: "wikipage-fetch.jsonl",
+        logDirectory,
+      }),
+  );
 }
 
 function formatEntry(entry: WikipageFetchLogEntry): Record<string, unknown> {

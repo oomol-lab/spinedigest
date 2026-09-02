@@ -19,6 +19,7 @@ export type {
   HostError,
   HostResourceProvider,
   HostTemplateProvider,
+  HostTemplateEnvironment,
   HostZipEntry,
   HostZipProvider,
   WikiGraphPlatform,
