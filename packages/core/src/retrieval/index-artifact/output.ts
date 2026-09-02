@@ -1,10 +1,10 @@
 import {
   createReadStream,
   createWriteStream,
+  readLines,
 } from "../../runtime/platform/index.js";
 import { mkdir } from "../../runtime/platform/index.js";
 import { dirname } from "../../runtime/platform/index.js";
-import { createInterface } from "readline";
 import type { Writable } from "../../runtime/platform/index.js";
 import { z } from "zod";
 
@@ -115,10 +115,7 @@ export async function writeIndexArtifactOutputToStream(
 export async function readIndexArtifactOutput(
   path: string,
 ): Promise<IndexArtifactOutput> {
-  const lines = createInterface({
-    crlfDelay: Infinity,
-    input: createReadStream(path, { encoding: "utf8" }),
-  });
+  const lines = readLines(createReadStream(path, { encoding: "utf8" }));
   let manifest: IndexArtifactOutputManifest | undefined;
   const lexicalRows: IndexArtifactLexicalRow[] = [];
   const segments: IndexArtifactEmbeddingSegment[] = [];

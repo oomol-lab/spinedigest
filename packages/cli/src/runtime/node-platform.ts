@@ -16,6 +16,7 @@ import * as zlib from "node:zlib";
 import * as sqlite3 from "sqlite3";
 import * as yauzl from "yauzl";
 import * as yazl from "yazl";
+import { createInterface } from "node:readline";
 
 const nodeProcess = (process as unknown as { default?: typeof process }).default ?? process;
 
@@ -202,6 +203,7 @@ Object.assign(nodeWikiGraphPlatform, {
   stream_PassThrough: stream.PassThrough, stream_Writable: stream.Writable,
   finished: streamPromises.finished, pipeline: streamPromises.pipeline,
   setTimeout: timers.setTimeout, asyncLocalStorage: asyncHooks.AsyncLocalStorage,
+  readLines: (input: NodeJS.ReadableStream) => createInterface({ input, crlfDelay: Infinity }),
   zipOpen: yauzl.open, zipWriter: yazl.ZipFile,
   database_open: async (file: File, flags: number) => await new Promise((resolve, reject) => {
     const database = new sqlite3.Database((file as NodeFile).path, flags, (error) =>

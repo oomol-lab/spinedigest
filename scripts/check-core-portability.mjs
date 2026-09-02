@@ -8,7 +8,7 @@ const target = resolve(process.argv[2] ?? join(repositoryRoot, "..", "packages/c
 const artifactMode = process.argv.includes("--artifact");
 const forbidden = new Set([
   "assert", "async_hooks", "buffer", "child_process", "crypto", "events",
-  "fs", "fs/promises", "http", "https", "module", "net", "os", "path",
+  "fs", "fs/promises", "http", "https", "module", "net", "os", "path", "readline",
   "sqlite3", "stream", "stream/promises", "timers", "timers/promises", "url",
   "util", "yauzl", "yazl", "zlib",
 ]);
@@ -28,7 +28,7 @@ async function collect(directory, extensions) {
 function report(file, message) { violations.push(`${relative(repositoryRoot, file)} ${message}`); }
 function moduleName(specifier) { return specifier.startsWith("node:") ? specifier.slice(5) : specifier; }
 
-function inspectSource(file, source, { artifact = false, dependency = false } = {}) {
+function inspectSource(file, source, { artifact = false, dependency = false, strictDependencies = false } = {}) {
   const scriptKind = file.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind);
   const relativeImports = new Set();
@@ -45,7 +45,7 @@ function inspectSource(file, source, { artifact = false, dependency = false } = 
         const argument = node.arguments[0];
         if (!argument || !ts.isStringLiteral(argument) || forbidden.has(moduleName(argument.text))) report(file, "uses a non-literal or forbidden dynamic import");
       }
-      if (!dependency && ts.isIdentifier(node.expression) && node.expression.text === "require") {
+      if ((!dependency || strictDependencies) && ts.isIdentifier(node.expression) && node.expression.text === "require") {
         const argument = node.arguments[0];
         if (!artifact || !argument || !ts.isStringLiteral(argument) || forbidden.has(moduleName(argument.text))) report(file, "uses CommonJS require");
       }
@@ -56,7 +56,7 @@ function inspectSource(file, source, { artifact = false, dependency = false } = 
       const isProperty = ts.isPropertyAccessExpression(parent) && parent.name === node &&
         !(ts.isPropertyAccessExpression(parent) && ts.isIdentifier(parent.expression) && parent.expression.text === "globalThis");
       const isDeclaration = ts.isVariableDeclaration(parent) && parent.name === node;
-      if (!dependency && !isProperty && !isDeclaration && (name === "process" || name === "Buffer" || name === "NodeJS")) report(file, `references Node-only global ${name}`);
+      if ((!dependency || strictDependencies) && !isProperty && !isDeclaration && (name === "process" || name === "Buffer" || name === "NodeJS")) report(file, `references Node-only global ${name}`);
     }
     ts.forEachChild(node, visit);
   }
@@ -110,7 +110,7 @@ async function scanDependency(name, fromDirectory, chain = [], strict = false) {
   for (const entry of entries) {
     if (typeof entry !== "string") continue;
     if (strict) {
-      try { await scanFile(resolve(root, entry), { dependency: true, follow: true }); } catch { /* optional/types-only entry */ }
+      try { await scanFile(resolve(root, entry), { dependency: true, strictDependencies: strict, follow: true }); } catch { /* optional/types-only entry */ }
     }
   }
   for (const dependency of Object.keys({ ...(manifest.dependencies ?? {}), ...(manifest.optionalDependencies ?? {}) })) {

@@ -2,8 +2,8 @@ import { type WritableStream } from "../../runtime/platform/index.js";
 import {
   createReadStream,
   createWriteStream,
+  readLines,
 } from "../../runtime/platform/index.js";
-import { createInterface } from "readline";
 import { z } from "zod";
 
 import type {
@@ -122,10 +122,7 @@ export async function readJsonl<T>(
   parseRecord: (record: unknown) => T,
 ): Promise<T[]> {
   const records: T[] = [];
-  const lines = createInterface({
-    crlfDelay: Infinity,
-    input: createReadStream(path, { encoding: "utf8" }),
-  });
+  const lines = readLines(createReadStream(path, { encoding: "utf8" }));
   let lineNumber = 0;
 
   for await (const line of lines) {

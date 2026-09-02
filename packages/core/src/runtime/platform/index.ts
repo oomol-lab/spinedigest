@@ -226,6 +226,8 @@ export const finished = (...args: any[]): any =>
   capability("finished")(...args);
 export const pipeline = (...args: any[]): any =>
   capability("pipeline")(...args);
+export const readLines = (input: any): AsyncIterable<string> =>
+  capability("readLines")(input);
 export const sleep = (...args: any[]): any =>
   capability("setTimeout")(...args);
 export const setTimeout = sleep;

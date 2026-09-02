@@ -2,8 +2,8 @@ import { type WritableStream } from "./runtime/platform/index.js";
 import {
   createReadStream,
   createWriteStream,
+  readLines,
 } from "./runtime/platform/index.js";
-import { createInterface } from "readline";
 import { z } from "zod";
 
 import type {
@@ -329,10 +329,7 @@ export async function writeWikgObjectsToJsonl(
 export async function* readWikgObjectsFromJsonl(
   path: string,
 ): AsyncGenerator<WikgObject> {
-  const lines = createInterface({
-    crlfDelay: Infinity,
-    input: createReadStream(path, { encoding: "utf8" }),
-  });
+  const lines = readLines(createReadStream(path, { encoding: "utf8" }));
   let lineNumber = 0;
 
   for await (const line of lines) {
