@@ -32,10 +32,7 @@ export class WikgCoordinator {
       readonly session?: WikgArchiveSession;
     } = {},
   ): DocumentFileStore {
-    const path =
-      typeof archivePath === "string"
-        ? resolve(archivePath)
-        : (archivePath as unknown as string);
+    const path = resolve(resolveFilePath(archivePath));
     return new WikgDocumentFileStore(path, options);
   }
 
