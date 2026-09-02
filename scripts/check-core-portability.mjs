@@ -40,7 +40,12 @@ async function collect(directory, extensions) {
 function report(file, message) { violations.push(`${relative(repositoryRoot, file)} ${message}`); }
 function moduleName(specifier) { return specifier.startsWith("node:") ? specifier.slice(5) : specifier; }
 
-function inspectSource(file, source, { artifact = false, dependency = false, strictDependencies = false } = {}) {
+function inspectSource(file, source, {
+  artifact = false,
+  dependency = false,
+  strictDependencies = false,
+  allowOptionalGlobals = false,
+} = {}) {
   const scriptKind = file.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind);
   const relativeImports = new Set();
@@ -59,7 +64,10 @@ function inspectSource(file, source, { artifact = false, dependency = false, str
       }
       if ((!dependency || strictDependencies) && ts.isIdentifier(node.expression) && node.expression.text === "require") {
         const argument = node.arguments[0];
-        if (!artifact || !argument || !ts.isStringLiteral(argument) || forbidden.has(moduleName(argument.text))) report(file, "uses CommonJS require");
+        // A CommonJS wrapper is not itself a Node dependency. Reject it when
+        // it resolves to a forbidden builtin (or cannot be resolved), while
+        // allowing legacy wrappers that only require portable package code.
+        if (!argument || !ts.isStringLiteral(argument) || forbidden.has(moduleName(argument.text))) report(file, "uses CommonJS require");
       }
     }
     if (ts.isIdentifier(node)) {
@@ -68,7 +76,8 @@ function inspectSource(file, source, { artifact = false, dependency = false, str
       const isProperty = ts.isPropertyAccessExpression(parent) && parent.name === node &&
         !(ts.isPropertyAccessExpression(parent) && ts.isIdentifier(parent.expression) && parent.expression.text === "globalThis");
       const isDeclaration = ts.isVariableDeclaration(parent) && parent.name === node;
-      if ((!dependency || strictDependencies) && !isProperty && !isDeclaration && (name === "process" || name === "Buffer" || name === "NodeJS")) report(file, `references Node-only global ${name}`);
+      const optionalGlobal = allowOptionalGlobals && (name === "process" || name === "Buffer");
+      if ((!dependency || strictDependencies) && !optionalGlobal && !isProperty && !isDeclaration && (name === "process" || name === "Buffer" || name === "NodeJS")) report(file, `references Node-only global ${name}`);
     }
     ts.forEachChild(node, visit);
   }
@@ -137,7 +146,8 @@ async function scanDependency(name, fromDirectory, chain = [], strict = false) {
       try {
         await scanFile(resolve(root, entry), {
           dependency: true,
-          strictDependencies: strict && !auditedBrowserPackages.has(name),
+          strictDependencies: strict,
+          allowOptionalGlobals: auditedBrowserPackages.has(name),
           follow: true,
         });
       } catch { /* optional/types-only entry */ }
