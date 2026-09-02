@@ -21,10 +21,12 @@ const seenFiles = new Set();
 // every forbidden Node module; the narrow exception only avoids treating an
 // optional probe as a hard runtime dependency. Any new/unknown dependency is
 // scanned strictly, including globals and `require`.
-const auditedBrowserPackages = new Set([
-  "ai", "htmlparser2", "jsonrepair", "nunjucks", "saxes", "zod", "tinyld",
-  "@ai-sdk/anthropic", "@ai-sdk/google", "@ai-sdk/openai",
-  "@ai-sdk/openai-compatible",
+const auditedBrowserPackageVersions = new Map([
+  ["ai", "6.0.154"], ["htmlparser2", "12.0.0"], ["jsonrepair", "3.13.3"],
+  ["nunjucks", "3.2.4"], ["saxes", "6.0.0"], ["zod", "4.3.6"],
+  ["tinyld", "1.3.4"], ["@ai-sdk/anthropic", "3.0.68"],
+  ["@ai-sdk/google", "3.0.61"], ["@ai-sdk/openai", "3.0.52"],
+  ["@ai-sdk/openai-compatible", "2.0.41"],
 ]);
 
 async function collect(directory, extensions) {
@@ -168,7 +170,10 @@ async function scanDependency(name, fromDirectory, chain = [], strict = false) {
         await scanFile(resolve(root, entry), {
           dependency: true,
           strictDependencies: strict,
-          allowOptionalGlobals: auditedBrowserPackages.has(name),
+          // Optional probes are allowed only for the exact audited package
+          // version shipped by this workspace. A fixture (or dependency
+          // upgrade) using the same name is scanned strictly.
+          allowOptionalGlobals: auditedBrowserPackageVersions.get(name) === manifest.version,
           follow: true,
         });
       } catch { /* optional/types-only entry */ }
