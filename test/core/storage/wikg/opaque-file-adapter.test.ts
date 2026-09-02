@@ -1,4 +1,4 @@
-import { mkdir } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -30,6 +30,64 @@ afterEach(() => {
 });
 
 describe("opaque archive File adapter", () => {
+  it("keeps a NodeDirectory archive File independent from the current directory", async () => {
+    await withTempDir("wikigraph-node-directory-file-", async (path) => {
+      const targetDirectoryPath = `${path}/target`;
+      const archivePath = await createSeedArchive(targetDirectoryPath);
+      const decoyDirectoryPath = `${path}/wrong-cwd`;
+      const decoyPath = `${decoyDirectoryPath}/book.wikg`;
+      const storage = {
+        documentStore: new NodeDirectory(`${path}/storage/documents`),
+        library: new NodeDirectory(`${path}/storage/library`),
+      };
+      await mkdir(`${path}/storage/documents`, { recursive: true });
+      await mkdir(`${path}/storage/library`, { recursive: true });
+      await mkdir(decoyDirectoryPath, { recursive: true });
+      await writeFile(decoyPath, "This is the same-name cwd decoy, not a ZIP.");
+      const decoyBefore = await readFile(decoyPath);
+
+      const archive = await new NodeDirectory(targetDirectoryPath).getFile(
+        "book.wikg",
+      );
+      expect(archive).toBeDefined();
+
+      installWikiGraphPlatform(nodeWikiGraphPlatform);
+      installLegacyRuntimePlatform(throwingLegacyRuntime);
+      const originalWorkingDirectory = process.cwd();
+      process.chdir(decoyDirectoryPath);
+      try {
+        await expect(
+          new WikiGraph({ storage }).openSession(
+            archive!,
+            async (opened) => (await opened.readMeta())?.title,
+          ),
+        ).resolves.toBe("Before");
+
+        await withWikiGraphStorage(storage, async () => {
+          await new WikiGraphArchiveFile(archive!).write(async (document) => {
+            await document.replaceBookMeta(createMeta("After directory File"));
+          });
+          await expect(readTitle(archive!)).resolves.toBe(
+            "After directory File",
+          );
+        });
+
+        expect(await readFile(decoyPath)).toEqual(decoyBefore);
+        expect(await storage.documentStore.list()).toEqual([]);
+      } finally {
+        process.chdir(originalWorkingDirectory);
+      }
+
+      installNodeWikiGraphPlatform();
+      await withWikiGraphStorage(storage, async () => {
+        await expect(readTitle(new NodeFile(archivePath))).resolves.toBe(
+          "After directory File",
+        );
+      });
+      expect(await readFile(decoyPath)).toEqual(decoyBefore);
+    });
+  });
+
   it("reads and writes without turning File.name into an OS path", async () => {
     await withTempDir("wikigraph-opaque-file-", async (path) => {
       const archivePath = await createSeedArchive(path);
