@@ -90,8 +90,10 @@ for (const file of await collect(root)) {
     .replace(/(['"`])(?:\\.|(?!\1)[^\\])*\1/g, "");
   for (const pattern of [
     /\brequire\s*\(/,
-    /\bprocess\s*\./,
-    /\bBuffer\s*\./,
+    /\bprocess\s*(?:[.([{;]|$)/,
+    /\bBuffer\s*(?:[.([{;]|$)/,
+    /\bglobalThis\s*\.\s*(?:process|Buffer)\b/,
+    /\bnew\s+Buffer\b/,
     /\bNodeJS\b/,
   ]) {
     if (pattern.test(executable)) {

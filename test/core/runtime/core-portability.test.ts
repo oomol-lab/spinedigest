@@ -27,4 +27,24 @@ describe("core portability gate", () => {
       await rm(fixture, { recursive: true, force: true });
     }
   });
+
+  it("rejects bare and global Node references", async () => {
+    const fixture = await mkdtemp(
+      join(tmpdir(), "wiki-graph-core-portability-"),
+    );
+    try {
+      await writeFile(
+        join(fixture, "forbidden.ts"),
+        "const a = process; const b = globalThis.process; const c = new Buffer(1);\n",
+      );
+
+      await expect(
+        execFileAsync("node", ["scripts/check-core-portability.mjs", fixture], {
+          cwd: process.cwd(),
+        }),
+      ).rejects.toMatchObject({ code: 1 });
+    } finally {
+      await rm(fixture, { recursive: true, force: true });
+    }
+  });
 });
