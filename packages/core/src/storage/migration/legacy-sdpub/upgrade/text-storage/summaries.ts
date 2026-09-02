@@ -1,5 +1,5 @@
-import { readFile, readdir } from "fs/promises";
-import { join } from "path";
+import { readFile, readdir } from "../../../../../runtime/platform/index.js";
+import { join } from "../../../../../runtime/platform/index.js";
 
 import { DirectoryDocument } from "../../../../../document/directory/index.js";
 import { isNodeError } from "../../../../../utils/node-error.js";

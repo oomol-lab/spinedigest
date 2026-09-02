@@ -1,5 +1,11 @@
-import { mkdir, readFile, rename, rm, writeFile } from "fs/promises";
-import { dirname, posix, resolve } from "path";
+import {
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "../../../runtime/platform/index.js";
+import { dirname, posix, resolve } from "../../../runtime/platform/index.js";
 
 import type { DocumentFileStore } from "../../../document/directory/index.js";
 import { ensureWikiGraphHomeSchemaCurrent } from "../../../document/home-schema-upgrade.js";

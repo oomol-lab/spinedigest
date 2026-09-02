@@ -1,4 +1,4 @@
-import { join, resolve } from "path";
+import { join, resolve } from "../../runtime/platform/index.js";
 
 import type { Database } from "../database.js";
 import {

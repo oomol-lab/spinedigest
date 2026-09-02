@@ -1,5 +1,5 @@
-import { mkdir, readdir } from "fs/promises";
-import { basename, dirname, join } from "path";
+import { mkdir, readdir } from "../../../runtime/platform/index.js";
+import { basename, dirname, join } from "../../../runtime/platform/index.js";
 
 import { isNodeError } from "../../../utils/node-error.js";
 

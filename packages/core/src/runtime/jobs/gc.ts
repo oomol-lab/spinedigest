@@ -1,4 +1,4 @@
-import { rm } from "fs/promises";
+import { rm } from "../platform/index.js";
 import { readPathSize, removeDisposableChildDirectories } from "../gc/files.js";
 import type { GcContext, GcJobResult } from "../gc/index.js";
 import { getBuildJobWorkspaceRootPath } from "./paths.js";

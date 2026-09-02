@@ -1,5 +1,12 @@
-import { mkdir, readFile, readdir, rm, unlink, writeFile } from "fs/promises";
-import { join } from "path";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  unlink,
+  writeFile,
+} from "../../runtime/platform/index.js";
+import { join } from "../../runtime/platform/index.js";
 
 import { isNodeError } from "../../utils/node-error.js";
 import type { DocumentFileStore } from "./types.js";
@@ -21,8 +28,8 @@ export const LOCAL_DOCUMENT_FILE_STORE: DocumentFileStore = {
   openDatabaseReadonly: () => false,
   listFiles: async (path) =>
     (await readdir(path, { withFileTypes: true }))
-      .filter((entry) => entry.isFile())
-      .map((entry) => entry.name),
+      .filter((entry: any) => entry.isFile())
+      .map((entry: any) => entry.name),
   readFile: async (path) => {
     try {
       return await readFile(path);

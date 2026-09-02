@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID } from "../platform/index.js";
 import type { Database } from "../../document/index.js";
 import { delay, isProcessAlive } from "./helpers.js";
 import {

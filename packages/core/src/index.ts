@@ -468,3 +468,14 @@ export {
   writeWikgObjectsToJsonl,
 } from "./object-stream.js";
 export type { WikgObject } from "./object-stream.js";
+export {
+  getWikiGraphPlatform,
+  getWikiGraphStorage,
+  installWikiGraphPlatform,
+  installWikiGraphStorage,
+  type Directory,
+  type File,
+  type FileWriter,
+  type WikiGraphPlatform,
+  type WikiGraphStorage,
+} from "./runtime/platform/index.js";

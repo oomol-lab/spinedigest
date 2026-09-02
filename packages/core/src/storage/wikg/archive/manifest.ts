@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { randomBytes } from "../../../runtime/platform/index.js";
 
 import { z } from "zod";
 

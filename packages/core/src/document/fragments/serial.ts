@@ -1,4 +1,4 @@
-import { join, resolve } from "path";
+import { join, resolve } from "../../runtime/platform/index.js";
 
 import { isNodeError } from "../../utils/node-error.js";
 import type { FragmentRecord, SentenceRecord } from "../types.js";
@@ -99,7 +99,7 @@ export class SerialFragments implements ReadonlySerialFragments {
           : [...(await this.#getFileContents()).keys()];
 
       return entries
-        .map((entry) => FRAGMENT_FILE_PATTERN.exec(entry))
+        .map((entry: any) => FRAGMENT_FILE_PATTERN.exec(entry))
         .filter((match): match is RegExpExecArray => match !== null)
         .map((match) => Number(match[1]))
         .sort((left, right) => left - right);

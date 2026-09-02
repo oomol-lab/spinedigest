@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { spawn } from "../../runtime/platform/index.js";
 
 import type {
   WikimatchCandidate,
@@ -182,7 +182,7 @@ async function runWikispineMatch(
       stdio: ["pipe", "pipe", "pipe"],
     });
     const progress = createWikispineProgressReporter(options.onProgress, {
-      onFailure: (error) => {
+      onFailure: (error: any) => {
         reject(error);
         child.kill();
       },
@@ -208,7 +208,7 @@ async function runWikispineMatch(
     child.stderr.on("data", (chunk: Buffer) => {
       stderr.push(chunk);
     });
-    child.on("error", (error) => {
+    child.on("error", (error: any) => {
       reject(
         new Error(
           formatWikispineRuntimeError(
@@ -217,7 +217,7 @@ async function runWikispineMatch(
         ),
       );
     });
-    child.on("close", (code) => {
+    child.on("close", (code: number | null) => {
       if (code !== 0) {
         reject(
           new Error(

@@ -1,4 +1,4 @@
-import { posix } from "path";
+import { posix } from "../../../runtime/platform/index.js";
 
 import { BOOK_META_VERSION, type BookMeta } from "../meta.js";
 import { splitHref } from "./archive.js";

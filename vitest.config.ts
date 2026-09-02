@@ -11,6 +11,10 @@ export default defineConfig({
         "./packages/core/src/worker.ts",
         import.meta.url,
       ).pathname,
+      "wiki-graph-core/platform": new URL(
+        "./packages/core/src/runtime/platform/index.ts",
+        import.meta.url,
+      ).pathname,
       "wiki-graph-core": new URL(
         "./packages/core/src/index.ts",
         import.meta.url,
@@ -19,6 +23,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    setupFiles: [new URL("./test/setup-platform.ts", import.meta.url).pathname],
     fileParallelism: false,
     include: ["test/**/*.test.ts", "packages/*/src/**/*.test.ts"],
     passWithNoTests: true,

@@ -1,7 +1,13 @@
-import { randomUUID } from "crypto";
-import { mkdtemp, rename, rm, stat, writeFile } from "fs/promises";
-import { tmpdir } from "os";
-import { dirname, join, resolve } from "path";
+import { randomUUID } from "../../runtime/platform/index.js";
+import {
+  mkdtemp,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "../../runtime/platform/index.js";
+import { tmpdir } from "../../runtime/platform/index.js";
+import { dirname, join, resolve } from "../../runtime/platform/index.js";
 
 import { Database, DirectoryDocument } from "../../document/index.js";
 import { ensureChapterKeys } from "../../document/chapter/toc.js";
@@ -70,7 +76,8 @@ export async function readWikiGraphArchiveSchemaVersion(
 
   try {
     const manifestEntry = entries.find(
-      (entry) => normalizeArchivePath(entry.fileName) === WIKG_MANIFEST_PATH,
+      (entry: any) =>
+        normalizeArchivePath(entry.fileName) === WIKG_MANIFEST_PATH,
     );
 
     if (manifestEntry === undefined) {
@@ -194,7 +201,7 @@ async function createChapterTocUpgradeOverlay(
 
   try {
     const tocEntry = entries.find(
-      (entry) => normalizeArchivePath(entry.fileName) === "toc.json",
+      (entry: any) => normalizeArchivePath(entry.fileName) === "toc.json",
     );
 
     if (tocEntry === undefined) {

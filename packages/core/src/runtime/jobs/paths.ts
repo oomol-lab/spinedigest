@@ -1,5 +1,5 @@
-import { mkdir } from "fs/promises";
-import { join } from "path";
+import { mkdir } from "../platform/index.js";
+import { join } from "../platform/index.js";
 
 import { resolveWikiGraphJobsDirectoryPath } from "../common/wiki-graph/dir.js";
 

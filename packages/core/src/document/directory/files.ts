@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join } from "../../runtime/platform/index.js";
 
 import { isNodeError } from "../../utils/node-error.js";
 import type { DirectoryDocumentContext } from "./context.js";

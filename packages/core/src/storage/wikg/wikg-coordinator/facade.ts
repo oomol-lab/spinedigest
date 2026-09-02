@@ -1,5 +1,5 @@
-import { rm } from "fs/promises";
-import { resolve } from "path";
+import { rm } from "../../../runtime/platform/index.js";
+import { resolve } from "../../../runtime/platform/index.js";
 
 import { createWikiGraphTempDirectory } from "../../../runtime/common/wiki-graph/temp.js";
 import type { DocumentFileStore } from "../../../document/directory/index.js";

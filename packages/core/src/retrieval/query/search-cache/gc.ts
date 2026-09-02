@@ -1,4 +1,4 @@
-import { stat } from "fs/promises";
+import { stat } from "../../../runtime/platform/index.js";
 
 import { getNumber, getString } from "../../../document/database.js";
 import type { Database } from "../../../document/index.js";

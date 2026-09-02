@@ -1,6 +1,6 @@
-import { rm } from "fs/promises";
-import { homedir } from "os";
-import { resolve } from "path";
+import { rm } from "../runtime/platform/index.js";
+import { homedir } from "../runtime/platform/index.js";
+import { resolve } from "../runtime/platform/index.js";
 
 import {
   listWikiGraphLibraryArchives,

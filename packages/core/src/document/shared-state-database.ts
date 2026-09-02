@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash } from "../runtime/platform/index.js";
 import {
   chmod,
   mkdir,
@@ -7,9 +7,9 @@ import {
   rm,
   stat,
   writeFile,
-} from "fs/promises";
-import { dirname, resolve } from "path";
-import { setTimeout as sleep } from "timers/promises";
+} from "../runtime/platform/index.js";
+import { dirname, resolve } from "../runtime/platform/index.js";
+import { setTimeout as sleep } from "../runtime/platform/index.js";
 
 import { isNodeError } from "../utils/node-error.js";
 import {

@@ -1,9 +1,9 @@
-import { createHash } from "crypto";
-import { createReadStream } from "fs";
-import { posix } from "path";
-import { PassThrough, type Readable } from "stream";
-import type { Entry, ZipFile } from "yauzl";
-import { open } from "yauzl";
+import { createHash } from "../../../runtime/platform/index.js";
+import { createReadStream } from "../../../runtime/platform/index.js";
+import { posix } from "../../../runtime/platform/index.js";
+import { PassThrough, type Readable } from "../../../runtime/platform/index.js";
+import type { Entry, ZipFile } from "../../../runtime/platform/index.js";
+import { openZip as open } from "../../../runtime/platform/index.js";
 
 export class EpubArchive {
   readonly #path: string;
@@ -162,14 +162,18 @@ export function splitHref(href: string): {
 
 async function openZipFile(path: string): Promise<ZipFile> {
   return await new Promise((resolve, reject) => {
-    open(path, { autoClose: false, lazyEntries: true }, (error, zipFile) => {
-      if (error !== null || zipFile === undefined) {
-        reject(error ?? new Error(`Cannot open EPUB archive: ${path}`));
-        return;
-      }
+    open(
+      path,
+      { autoClose: false, lazyEntries: true },
+      (error: any, zipFile: any) => {
+        if (error !== null || zipFile === undefined) {
+          reject(error ?? new Error(`Cannot open EPUB archive: ${path}`));
+          return;
+        }
 
-      resolve(zipFile);
-    });
+        resolve(zipFile);
+      },
+    );
   });
 }
 
@@ -244,7 +248,7 @@ async function openEntryStream(
   entry: Entry,
 ): Promise<Readable> {
   return await new Promise((resolve, reject) => {
-    zipFile.openReadStream(entry, (error, stream) => {
+    zipFile.openReadStream(entry, (error: any, stream: any) => {
       if (error !== null || stream === undefined) {
         reject(error ?? new Error(`Cannot open EPUB entry: ${entry.fileName}`));
         return;

@@ -1,4 +1,4 @@
-import { basename, extname, posix } from "path";
+import { basename, extname, posix } from "../../../runtime/platform/index.js";
 
 import { parseDocument } from "htmlparser2";
 

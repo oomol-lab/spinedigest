@@ -1,11 +1,14 @@
-import { open as openFile, type FileHandle } from "fs/promises";
-import { inflateRaw } from "zlib";
+import {
+  open as openFile,
+  type FileHandle,
+} from "../../../runtime/platform/index.js";
+import { inflateRaw } from "../../../runtime/platform/index.js";
 
 import {
-  open as openZip,
+  openZip,
   type Entry,
   type ZipFile as YauzlZipFile,
-} from "yauzl";
+} from "../../../runtime/platform/index.js";
 
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 import { parseWikgManifest, parseWikgMutationToken } from "./manifest.js";
@@ -92,14 +95,18 @@ export async function readArchiveEntryBufferFromFile(
 
 async function openArchive(path: string): Promise<YauzlZipFile> {
   return await new Promise((resolve, reject) => {
-    openZip(path, { autoClose: false, lazyEntries: true }, (error, zipFile) => {
-      if (error !== null || zipFile === undefined) {
-        reject(error ?? new Error(`Cannot open archive: ${path}`));
-        return;
-      }
+    openZip(
+      path,
+      { autoClose: false, lazyEntries: true },
+      (error: any, zipFile: any) => {
+        if (error !== null || zipFile === undefined) {
+          reject(error ?? new Error(`Cannot open archive: ${path}`));
+          return;
+        }
 
-      resolve(zipFile);
-    });
+        resolve(zipFile);
+      },
+    );
   });
 }
 
@@ -159,7 +166,7 @@ async function readCompressedArchiveEntryBuffer(
 
 async function inflateRawBuffer(input: Buffer): Promise<Buffer> {
   return await new Promise((resolveInflate, rejectInflate) => {
-    inflateRaw(input, (error, output) => {
+    inflateRaw(input, (error: any, output: any) => {
       if (error !== null) {
         rejectInflate(error);
         return;

@@ -1,4 +1,4 @@
-import { createHash as createNodeHash } from "crypto";
+import { createHash as createNodeHash } from "../runtime/platform/index.js";
 
 const UNSERIALIZABLE = Symbol("UNSERIALIZABLE");
 

@@ -1,6 +1,6 @@
-import { AsyncLocalStorage } from "async_hooks";
-import { homedir } from "os";
-import { join, resolve } from "path";
+import { AsyncLocalStorage } from "../../platform/index.js";
+import { homedir } from "../../platform/index.js";
+import { join, resolve } from "../../platform/index.js";
 
 const testingStateDirectoryPath = new AsyncLocalStorage<{
   readonly path: string | undefined;

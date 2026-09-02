@@ -1,5 +1,5 @@
-import { mkdir, rm, stat } from "fs/promises";
-import { dirname, join, resolve } from "path";
+import { mkdir, rm, stat } from "../runtime/platform/index.js";
+import { dirname, join, resolve } from "../runtime/platform/index.js";
 
 import {
   resolveWikiGraphCacheDatabasePath,

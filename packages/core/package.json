@@ -19,9 +19,6 @@
     "url": "https://github.com/oomol-lab/wiki-graph/issues"
   },
   "homepage": "https://github.com/oomol-lab/wiki-graph",
-  "engines": {
-    "node": ">=22.12.0"
-  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -53,10 +50,16 @@
       "require": "./dist/worker.cjs",
       "default": "./dist/worker.js"
     },
+    "./platform": {
+      "types": "./dist/runtime/platform/index.d.ts",
+      "import": "./dist/runtime/platform/index.js",
+      "require": "./dist/runtime/platform/index.cjs",
+      "default": "./dist/runtime/platform/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "rimraf dist && tsup --config tsup.config.ts"
+    "build": "node ../../scripts/check-core-portability.mjs && rimraf dist && tsup --config tsup.config.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.68",
@@ -70,10 +73,7 @@
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",
     "saxes": "^6.0.0",
-    "sqlite3": "^6.0.1",
     "tinyld": "^1.3.4",
-    "yauzl": "^3.3.0",
-    "yazl": "^3.3.1",
     "zod": "^4.3.6"
   }
 }

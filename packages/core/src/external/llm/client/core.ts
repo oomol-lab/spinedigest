@@ -1,4 +1,4 @@
-import { setTimeout as sleep } from "timers/promises";
+import { setTimeout as sleep } from "../../../runtime/platform/index.js";
 
 import { createCache, ensureDirectoryPath } from "./files.js";
 import { normalizeGenerationInput } from "./generation.js";

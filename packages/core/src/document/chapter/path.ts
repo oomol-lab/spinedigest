@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { randomBytes } from "../../runtime/platform/index.js";
 
 import type { TocItem } from "../../text/source/index.js";
 

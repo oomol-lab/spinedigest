@@ -1,8 +1,11 @@
-import { createReadStream, createWriteStream } from "fs";
-import { mkdir } from "fs/promises";
-import { dirname } from "path";
+import {
+  createReadStream,
+  createWriteStream,
+} from "../../runtime/platform/index.js";
+import { mkdir } from "../../runtime/platform/index.js";
+import { dirname } from "../../runtime/platform/index.js";
 import { createInterface } from "readline";
-import type { Writable } from "stream";
+import type { Writable } from "../../runtime/platform/index.js";
 import { z } from "zod";
 
 import type {
@@ -542,7 +545,7 @@ async function writeJSONLRecord(
 
       const canContinue = stream.write(
         `${JSON.stringify(record)}\n`,
-        (error) => {
+        (error: any) => {
           if (error !== undefined && error !== null) {
             settle(error);
             return;

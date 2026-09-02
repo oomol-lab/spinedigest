@@ -1,11 +1,40 @@
-import { AsyncLocalStorage } from "async_hooks";
-import { stat } from "fs/promises";
-import { resolve } from "path";
+import {
+  AsyncLocalStorage,
+  getSqlite3Module,
+  resolve,
+  stat,
+} from "../runtime/platform/index.js";
 
-import type * as Sqlite3Namespace from "sqlite3";
-
-type Sqlite3Module = typeof Sqlite3Namespace;
-type SqliteDatabase = Sqlite3Namespace.Database;
+type SqliteDatabase = {
+  run(
+    sql: string,
+    params: SqlBindValue[] | SqlBindValue,
+    callback: (error?: Error | null) => void,
+  ): void;
+  all<T = any>(
+    sql: string,
+    params: SqlBindValue[] | SqlBindValue,
+    callback: (error: Error | null, rows: T[]) => void,
+  ): void;
+  get<T = any>(
+    sql: string,
+    params: SqlBindValue[] | SqlBindValue,
+    callback: (error: Error | null, row: T | undefined) => void,
+  ): void;
+  exec(sql: string, callback: (error?: Error | null) => void): any;
+  close(callback: (error?: Error | null) => void): void;
+};
+type Sqlite3Module = {
+  readonly OPEN_READONLY: number;
+  readonly OPEN_READWRITE: number;
+  readonly OPEN_CREATE: number;
+  readonly OPEN_FULLMUTEX: number;
+  readonly Database: new (
+    path: string,
+    flags: number,
+    callback: (error?: Error | null) => void,
+  ) => SqliteDatabase;
+};
 export type SqlBindValue = Buffer | Uint8Array | number | string | null;
 type SqlBindParams = readonly SqlBindValue[];
 type SqlRowValue = SqlBindValue;
@@ -231,7 +260,7 @@ export class Database {
 
   async #closeDatabase(): Promise<void> {
     await new Promise<void>((resolveClose, rejectClose) => {
-      this.#database.close((error) => {
+      this.#database.close((error: any) => {
         if (error !== null) {
           rejectClose(error);
           return;
@@ -244,7 +273,7 @@ export class Database {
 
   async #executeSql(sql: string): Promise<void> {
     await new Promise<void>((resolveExec, rejectExec) => {
-      this.#database.exec(sql, (error) => {
+      this.#database.exec(sql, (error: any) => {
         if (error !== null) {
           rejectExec(error);
           return;
@@ -300,7 +329,7 @@ export class Database {
     params: SqlBindParams | undefined,
   ): Promise<void> {
     await new Promise<void>((resolveRun, rejectRun) => {
-      this.#database.run(sql, normalizeSqlBindParams(params), (error) => {
+      this.#database.run(sql, normalizeSqlBindParams(params), (error: any) => {
         if (error !== null) {
           rejectRun(error);
           return;
@@ -360,7 +389,7 @@ async function openSqliteDatabase(
       : sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE) | sqlite3.OPEN_FULLMUTEX;
 
   return await new Promise<SqliteDatabase>((resolveOpen, rejectOpen) => {
-    const database = new sqlite3.Database(databasePath, flags, (error) => {
+    const database = new sqlite3.Database(databasePath, flags, (error: any) => {
       if (error !== null) {
         rejectOpen(error);
         return;
@@ -372,9 +401,7 @@ async function openSqliteDatabase(
 }
 
 async function loadSqlite3(): Promise<Sqlite3Module> {
-  const module = await import("sqlite3");
-
-  return resolveSqlite3Module(module as unknown);
+  return resolveSqlite3Module(getSqlite3Module());
 }
 
 function resolveSqlite3Module(module: unknown): Sqlite3Module {
@@ -398,6 +425,6 @@ function resolveSqlite3Module(module: unknown): Sqlite3Module {
 
 function normalizeSqlBindParams(
   params: SqlBindParams | undefined,
-): SqlBindParams {
-  return params ?? [];
+): SqlBindValue[] {
+  return params === undefined ? [] : [...params];
 }

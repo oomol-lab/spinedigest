@@ -1,32 +1,24 @@
 import { defineConfig } from "tsup";
 
-const CJS_DATA_DIR_BANNER = [
-  'globalThis.__WIKIGRAPH_DATA_DIR__ ??= require("path").resolve(',
-  "  __dirname,",
-  '  "../data",',
-  ");",
-].join("\n");
 const SHARED_OPTIONS = {
   clean: false,
   outDir: "dist",
-  platform: "node",
+  platform: "neutral",
   skipNodeModulesBundle: true,
   sourcemap: true,
   splitting: false,
-  target: "node22",
+  target: "es2022",
 } as const;
 const ENTRY = {
   gc: "src/gc.ts",
   index: "src/index.ts",
+  "runtime/platform/index": "src/runtime/platform/index.ts",
   worker: "src/worker.ts",
 } as const;
 
 export default defineConfig([
   {
     ...SHARED_OPTIONS,
-    banner: {
-      js: CJS_DATA_DIR_BANNER,
-    },
     bundle: true,
     clean: true,
     dts: false,

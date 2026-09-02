@@ -1,5 +1,5 @@
-import { rm } from "fs/promises";
-import { join } from "path";
+import { rm } from "../../../../../runtime/platform/index.js";
+import { join } from "../../../../../runtime/platform/index.js";
 
 import { Database } from "../../../../../document/database.js";
 import {

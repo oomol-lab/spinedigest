@@ -1,6 +1,6 @@
-import { createHash, randomUUID } from "crypto";
-import { stat } from "fs/promises";
-import { resolve } from "path";
+import { createHash, randomUUID } from "../../../runtime/platform/index.js";
+import { stat } from "../../../runtime/platform/index.js";
+import { resolve } from "../../../runtime/platform/index.js";
 
 import { isNodeError } from "../../../utils/node-error.js";
 

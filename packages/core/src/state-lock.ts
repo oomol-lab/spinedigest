@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID } from "./runtime/platform/index.js";
 
 import {
   getNumber,

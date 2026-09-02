@@ -1,5 +1,5 @@
-import { readdir, rm } from "fs/promises";
-import { basename, dirname, join } from "path";
+import { readdir, rm } from "../../../runtime/platform/index.js";
+import { basename, dirname, join } from "../../../runtime/platform/index.js";
 
 import {
   isDisposableDirectoryEntry,

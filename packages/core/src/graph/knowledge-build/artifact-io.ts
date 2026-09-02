@@ -1,4 +1,7 @@
-import { createReadStream, createWriteStream } from "fs";
+import {
+  createReadStream,
+  createWriteStream,
+} from "../../runtime/platform/index.js";
 import { createInterface } from "readline";
 import { z } from "zod";
 

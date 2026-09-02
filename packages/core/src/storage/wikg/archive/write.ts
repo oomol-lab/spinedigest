@@ -1,9 +1,9 @@
-import { createWriteStream } from "fs";
-import { mkdir, open as openFile } from "fs/promises";
-import { dirname } from "path";
-import { finished } from "stream/promises";
+import { createWriteStream } from "../../../runtime/platform/index.js";
+import { mkdir, open as openFile } from "../../../runtime/platform/index.js";
+import { dirname } from "../../../runtime/platform/index.js";
+import { finished } from "../../../runtime/platform/index.js";
 
-import { ZipFile as YazlZipFile } from "yazl";
+import { ZipFile as YazlZipFile } from "../../../runtime/platform/index.js";
 
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 import {

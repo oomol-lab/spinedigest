@@ -1,4 +1,4 @@
-import { rm } from "fs/promises";
+import { rm } from "../platform/index.js";
 import type { Database } from "../../document/index.js";
 import { isProcessAlive } from "./helpers.js";
 import { mapBuildJob } from "./row.js";

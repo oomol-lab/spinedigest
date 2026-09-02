@@ -1,4 +1,4 @@
-import { join, resolve } from "path";
+import { join, resolve } from "../../runtime/platform/index.js";
 
 import type { SentenceRecord } from "../types.js";
 import { DEFAULT_FRAGMENT_FILE_ACCESS } from "./file-access.js";

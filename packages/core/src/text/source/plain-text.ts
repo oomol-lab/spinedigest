@@ -1,6 +1,6 @@
-import { createReadStream } from "fs";
-import { stat } from "fs/promises";
-import { basename, extname, resolve } from "path";
+import { createReadStream } from "../../runtime/platform/index.js";
+import { stat } from "../../runtime/platform/index.js";
+import { basename, extname, resolve } from "../../runtime/platform/index.js";
 
 import { BOOK_META_VERSION, type BookMeta } from "./meta.js";
 import type { SourceAdapter, SourceDocument } from "./adapter.js";

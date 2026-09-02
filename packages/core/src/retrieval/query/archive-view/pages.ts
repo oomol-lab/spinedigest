@@ -235,7 +235,9 @@ async function resolveChapterPathObjectUri(
   const chapter = (await listChapters(document))
     .slice()
     .sort((left, right) => right.path.length - left.path.length)
-    .find((entry) => path === entry.path || path.startsWith(`${entry.path}/`));
+    .find(
+      (entry: any) => path === entry.path || path.startsWith(`${entry.path}/`),
+    );
 
   if (chapter === undefined) {
     return uri;

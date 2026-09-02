@@ -1,4 +1,4 @@
-import { posix, resolve, sep } from "path";
+import { posix, resolve, sep } from "../../../runtime/platform/index.js";
 
 import {
   WIKG_ARCHIVE_PATTERNS,

@@ -1,7 +1,7 @@
-import { AsyncLocalStorage } from "async_hooks";
-import { randomUUID } from "crypto";
-import { existsSync, mkdirSync } from "fs";
-import { dirname, join, resolve } from "path";
+import { AsyncLocalStorage } from "../platform/index.js";
+import { randomUUID } from "../platform/index.js";
+import { existsSync, mkdirSync } from "../platform/index.js";
+import { dirname, join, resolve } from "../platform/index.js";
 
 import pino, {
   multistream,
@@ -83,7 +83,8 @@ export function resolveArtifactPath(input: {
   const context = loggingContext.getStore();
 
   if (
-    context?.rootLogDirPath === rootLogDirPath &&
+    context !== undefined &&
+    context.rootLogDirPath === rootLogDirPath &&
     context.artifactRootDirPath !== undefined
   ) {
     const categoryDirPath = join(context.artifactRootDirPath, input.category);

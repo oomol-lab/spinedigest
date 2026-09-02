@@ -1,9 +1,9 @@
-import { createWriteStream } from "fs";
-import { dirname, extname } from "path";
-import { finished } from "stream/promises";
+import { createWriteStream } from "../../../runtime/platform/index.js";
+import { dirname, extname } from "../../../runtime/platform/index.js";
+import { finished } from "../../../runtime/platform/index.js";
 
-import { mkdir } from "fs/promises";
-import { ZipFile } from "yazl";
+import { mkdir } from "../../../runtime/platform/index.js";
+import { ZipFile } from "../../../runtime/platform/index.js";
 
 import type { BookMeta, SourceAsset } from "../../source/index.js";
 

@@ -1,4 +1,4 @@
-import { resolve } from "path";
+import { resolve } from "../platform/index.js";
 import { createArchiveKey } from "./helpers.js";
 import { openBuildQueueDatabase } from "./database.js";
 import { recoverStaleBuildJobs } from "./recovery.js";

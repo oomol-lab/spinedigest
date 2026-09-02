@@ -1,6 +1,6 @@
-import { createHash } from "crypto";
-import { mkdir, readdir, rm } from "fs/promises";
-import { join } from "path";
+import { createHash } from "../runtime/platform/index.js";
+import { mkdir, readdir, rm } from "../runtime/platform/index.js";
+import { join } from "../runtime/platform/index.js";
 
 import { Database, getNumber, getString } from "../document/database.js";
 import { ensureWikiGraphHomeSchemaCurrent } from "../document/home-schema-upgrade.js";

@@ -1,6 +1,6 @@
-import { existsSync, statSync } from "fs";
-import { fileURLToPath } from "url";
-import { dirname, join, parse, resolve } from "path";
+import { existsSync, statSync } from "../platform/index.js";
+import { fileURLToPath } from "../platform/index.js";
+import { dirname, join, parse, resolve } from "../platform/index.js";
 
 export function resolveDataDirPath(): string {
   const injectedPath = (globalThis as { __WIKIGRAPH_DATA_DIR__?: unknown })

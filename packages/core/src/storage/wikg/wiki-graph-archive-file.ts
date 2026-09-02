@@ -1,4 +1,4 @@
-import { resolve } from "path";
+import { resolve } from "../../runtime/platform/index.js";
 
 import { DirectoryDocument } from "../../document/index.js";
 

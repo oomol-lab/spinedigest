@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "fs/promises";
-import { join } from "path";
+import { mkdir, writeFile } from "../../../../../runtime/platform/index.js";
+import { join } from "../../../../../runtime/platform/index.js";
 
 import type { Database } from "../../../../../document/database.js";
 import type { LegacyFragmentRecord } from "./types.js";

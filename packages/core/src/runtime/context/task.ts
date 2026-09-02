@@ -1,5 +1,5 @@
-import { mkdir, readFile, rm, writeFile } from "fs/promises";
-import { join, resolve } from "path";
+import { mkdir, readFile, rm, writeFile } from "../platform/index.js";
+import { join, resolve } from "../platform/index.js";
 import { z } from "zod";
 
 import { createHash } from "../../utils/hash.js";

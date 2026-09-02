@@ -1,7 +1,14 @@
-import { open as openFile, readFile, type FileHandle } from "fs/promises";
-import { join } from "path";
+import {
+  open as openFile,
+  readFile,
+  type FileHandle,
+} from "../../../runtime/platform/index.js";
+import { join } from "../../../runtime/platform/index.js";
 
-import type { Entry, ZipFile as YauzlZipFile } from "yauzl";
+import type {
+  Entry,
+  ZipFile as YauzlZipFile,
+} from "../../../runtime/platform/index.js";
 
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 import { parseWikgManifest, parseWikgMutationToken } from "./manifest.js";
@@ -25,7 +32,10 @@ export class WikgArchiveReader {
     this.#zipFile = zipFile;
     this.#entryByPath = new Map(
       entries
-        .map((entry) => [normalizeArchivePath(entry.fileName), entry] as const)
+        .map(
+          (entry: any) =>
+            [normalizeArchivePath(entry.fileName), entry] as const,
+        )
         .filter(([entryPath]) => entryPath !== "")
         .filter(([entryPath]) => isWikgArchivePath(entryPath)),
     );

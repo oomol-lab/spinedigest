@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join } from "../../../runtime/platform/index.js";
 
 import { resolveWikiGraphStagingDirectoryPath } from "../../../runtime/common/wiki-graph/dir.js";
 import { openSharedStateDatabase } from "../../../document/index.js";

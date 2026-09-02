@@ -1,7 +1,7 @@
-import { randomBytes } from "crypto";
-import { constants } from "fs";
-import { access, mkdir, stat } from "fs/promises";
-import { join, resolve } from "path";
+import { randomBytes } from "../runtime/platform/index.js";
+import { constants } from "../runtime/platform/index.js";
+import { access, mkdir, stat } from "../runtime/platform/index.js";
+import { join, resolve } from "../runtime/platform/index.js";
 
 import {
   getNumber,

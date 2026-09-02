@@ -1,5 +1,5 @@
-import { AsyncLocalStorage } from "async_hooks";
-import { join, resolve } from "path";
+import { AsyncLocalStorage } from "../../runtime/platform/index.js";
+import { join, resolve } from "../../runtime/platform/index.js";
 import { z } from "zod";
 
 import { bookMetaSchema, type BookMeta } from "../../text/source/meta.js";

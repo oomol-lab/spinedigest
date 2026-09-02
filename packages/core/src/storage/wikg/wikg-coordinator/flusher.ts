@@ -1,6 +1,11 @@
-import { mkdir, mkdtemp, rename, rm } from "fs/promises";
-import { tmpdir } from "os";
-import { basename, dirname, join, resolve } from "path";
+import { mkdir, mkdtemp, rename, rm } from "../../../runtime/platform/index.js";
+import { tmpdir } from "../../../runtime/platform/index.js";
+import {
+  basename,
+  dirname,
+  join,
+  resolve,
+} from "../../../runtime/platform/index.js";
 
 import { writeWikgArchiveWithOverlays } from "../archive/index.js";
 

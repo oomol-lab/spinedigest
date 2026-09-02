@@ -1,5 +1,5 @@
-import { randomUUID } from "crypto";
-import { join } from "path";
+import { randomUUID } from "../platform/index.js";
+import { join } from "../platform/index.js";
 
 import { resolveWikiGraphStateRootPath } from "../common/wiki-graph/temp.js";
 import { getNumber, getString, type SqlRow } from "../../document/database.js";

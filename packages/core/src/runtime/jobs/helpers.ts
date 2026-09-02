@@ -1,5 +1,5 @@
-import { createHash } from "crypto";
-import { resolve } from "path";
+import { createHash } from "../platform/index.js";
+import { resolve } from "../platform/index.js";
 
 export function createArchiveKey(archivePath: string): string {
   return createHash("sha256").update(resolve(archivePath)).digest("hex");
