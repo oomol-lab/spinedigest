@@ -75,7 +75,6 @@ describe("wikg/wiki-graph-archive-file", () => {
           });
 
           expect(exportedText).toBe("Recovered Chapter\n\nRecovered summary\n");
-
         } finally {
           await document.release();
         }

@@ -111,11 +111,12 @@ export class DirectoryDocument implements Document {
     options: { readonly fileStore?: DocumentFileStore } = {},
   ): Promise<DirectoryDocument> {
     const resolvedDocumentPath =
-      typeof documentPath === "string"
-        ? resolve(documentPath)
-        : "";
-    const fileStore = options.fileStore ??
-      (typeof documentPath === "string" ? LOCAL_DOCUMENT_FILE_STORE : new DirectoryFileStore(documentPath));
+      typeof documentPath === "string" ? resolve(documentPath) : "";
+    const fileStore =
+      options.fileStore ??
+      (typeof documentPath === "string"
+        ? LOCAL_DOCUMENT_FILE_STORE
+        : new DirectoryFileStore(documentPath));
     try {
       const databasePath =
         typeof documentPath === "string"

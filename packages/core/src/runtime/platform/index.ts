@@ -112,59 +112,63 @@ function capability<T = any>(name: string): T {
   return getWikiGraphPlatform()[name] as T;
 }
 
-export const access = (...args: any[]): any =>
-  capability("access")(...args);
-export const spawn = (...args: any[]): any =>
-  capability("spawn")(...args);
+export const access = (...args: any[]): any => capability("access")(...args);
+export const spawn = (...args: any[]): any => capability("spawn")(...args);
 export const runtimeContext: Record<string, any> = {
-  get pid() { return capability("runtime_pid"); },
-  get stderr() { return capability("runtime_stderr"); },
-  get argv() { return capability("runtime_argv"); },
-  get env() { return capability("runtime_env"); },
-  get cwd() { return capability("runtime_cwd"); },
+  get pid() {
+    return capability("runtime_pid");
+  },
+  get stderr() {
+    return capability("runtime_stderr");
+  },
+  get argv() {
+    return capability("runtime_argv");
+  },
+  get env() {
+    return capability("runtime_env");
+  },
+  get cwd() {
+    return capability("runtime_cwd");
+  },
   kill: (...args: any[]) => capability("runtime_kill")(...args),
   once: (...args: any[]) => capability("runtime_once")(...args),
-  removeListener: (...args: any[]) => capability("runtime_removeListener")(...args),
+  removeListener: (...args: any[]) =>
+    capability("runtime_removeListener")(...args),
 };
 export const appendFile = (...args: any[]): any =>
   capability("appendFile")(...args);
-export const chmod = (...args: any[]): any =>
-  capability("chmod")(...args);
+export const chmod = (...args: any[]): any => capability("chmod")(...args);
 export const copyFile = (...args: any[]): any =>
   capability("copyFile")(...args);
-export const mkdir = (...args: any[]): any =>
-  capability("mkdir")(...args);
-export const mkdtemp = (...args: any[]): any =>
-  capability("mkdtemp")(...args);
-export const open = (...args: any[]): any =>
-  capability("open")(...args);
-export const opendir = (...args: any[]): any =>
-  capability("opendir")(...args);
+export const mkdir = (...args: any[]): any => capability("mkdir")(...args);
+export const mkdtemp = (...args: any[]): any => capability("mkdtemp")(...args);
+export const open = (...args: any[]): any => capability("open")(...args);
+export const opendir = (...args: any[]): any => capability("opendir")(...args);
 export const readFile = (...args: any[]): any =>
   capability("readFile")(...args);
-export const readdir = (...args: any[]): any =>
-  capability("readdir")(...args);
+export const readdir = (...args: any[]): any => capability("readdir")(...args);
 export const realpath = (...args: any[]): any =>
   capability("realpath")(...args);
-export const rename = (...args: any[]): any =>
-  capability("rename")(...args);
-export const rm = (...args: any[]): any =>
-  capability("rm")(...args);
-export const rmdir = (...args: any[]): any =>
-  capability("rmdir")(...args);
-export const stat = (...args: any[]): any =>
-  capability("stat")(...args);
-export const unlink = (...args: any[]): any =>
-  capability("unlink")(...args);
+export const rename = (...args: any[]): any => capability("rename")(...args);
+export const rm = (...args: any[]): any => capability("rm")(...args);
+export const rmdir = (...args: any[]): any => capability("rmdir")(...args);
+export const stat = (...args: any[]): any => capability("stat")(...args);
+export const unlink = (...args: any[]): any => capability("unlink")(...args);
 export const writeFile = (...args: any[]): any =>
   capability("writeFile")(...args);
 export const openDatabase = (...args: any[]): any =>
   capability("database_open")(...args);
 
 export const constants: Record<string, number> = {
-  get O_RDONLY() { return capability("sync_constants").O_RDONLY; },
-  get O_WRONLY() { return capability("sync_constants").O_WRONLY; },
-  get O_CREAT() { return capability("sync_constants").O_CREAT; },
+  get O_RDONLY() {
+    return capability("sync_constants").O_RDONLY;
+  },
+  get O_WRONLY() {
+    return capability("sync_constants").O_WRONLY;
+  },
+  get O_CREAT() {
+    return capability("sync_constants").O_CREAT;
+  },
 };
 export const createReadStream = (...args: any[]): any =>
   capability("sync_createReadStream")(...args);
@@ -187,10 +191,8 @@ export const extname = (...args: any[]): any =>
   capability("path_extname")(...args);
 export const isAbsolute = (...args: any[]): any =>
   capability("path_isAbsolute")(...args);
-export const join = (...args: any[]): any =>
-  capability("path_join")(...args);
-export const parse = (...args: any[]): any =>
-  capability("path_parse")(...args);
+export const join = (...args: any[]): any => capability("path_join")(...args);
+export const parse = (...args: any[]): any => capability("path_parse")(...args);
 export const relative = (...args: any[]): any =>
   capability("path_relative")(...args);
 export const resolve = (...args: any[]): any =>
@@ -248,8 +250,7 @@ export const pipeline = (...args: any[]): any =>
   capability("pipeline")(...args);
 export const readLines = (input: any): AsyncIterable<string> =>
   capability("readLines")(input);
-export const sleep = (...args: any[]): any =>
-  capability("setTimeout")(...args);
+export const sleep = (...args: any[]): any => capability("setTimeout")(...args);
 export const setTimeout = sleep;
 
 export class AsyncLocalStorage<T> {
@@ -300,7 +301,9 @@ export class AsyncLocalStorage<T> {
 export const finishedStream = finished;
 
 export const openZip = (...args: any[]): any => {
-  const open = getWikiGraphPlatform().zipOpen as ((...args: any[]) => any) | undefined;
+  const open = getWikiGraphPlatform().zipOpen as
+    | ((...args: any[]) => any)
+    | undefined;
   if (typeof open !== "function") {
     throw new Error("No ZIP reader has been installed.");
   }
@@ -308,10 +311,11 @@ export const openZip = (...args: any[]): any => {
 };
 export const ZipFile = class {
   [key: string]: any;
-  constructor(...args: any[]) {
+  public constructor(...args: any[]) {
     const Constructor = getWikiGraphPlatform().zipWriter as any;
-    if (Constructor === undefined) throw new Error("No ZIP writer has been installed.");
-    return new Constructor(...args) as any;
+    if (Constructor === undefined)
+      throw new Error("No ZIP writer has been installed.");
+    return new Constructor(...args);
   }
 };
 export const YazlZipFile = ZipFile;
@@ -327,7 +331,10 @@ export type Writable = any;
 export type WritableStream = any;
 
 export function getDatabaseCapability(): PlatformModule {
-  const module = getWikiGraphPlatform().databaseModule as PlatformModule | undefined;
-  if (module === undefined) throw new Error("No database runtime has been installed.");
+  const module = getWikiGraphPlatform().databaseModule as
+    | PlatformModule
+    | undefined;
+  if (module === undefined)
+    throw new Error("No database runtime has been installed.");
   return module;
 }

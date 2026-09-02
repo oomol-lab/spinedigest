@@ -8,7 +8,9 @@ import {
 export function normalizeArchivePath(path: string): string {
   const normalized = path.replaceAll("\\", "/").trim();
   if (normalized.split("/").some((part) => part === "..")) {
-    throw new Error(`Path must remain relative to its host-provided root: ${path}`);
+    throw new Error(
+      `Path must remain relative to its host-provided root: ${path}`,
+    );
   }
   const withoutLeadingSlash = normalized.startsWith("/")
     ? normalized.slice(1)
@@ -25,7 +27,9 @@ export function normalizeArchivePath(path: string): string {
 /** Reject archive/workspace names that could escape their injected root. */
 export function assertSafeRelativePath(path: string): void {
   if (path.startsWith("/") || path.split("/").some((part) => part === "..")) {
-    throw new Error(`Path must remain relative to its host-provided root: ${path}`);
+    throw new Error(
+      `Path must remain relative to its host-provided root: ${path}`,
+    );
   }
 }
 

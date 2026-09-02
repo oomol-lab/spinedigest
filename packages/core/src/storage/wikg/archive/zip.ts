@@ -180,7 +180,7 @@ async function validateArchiveMutationToken(
     );
   }
 
-  parseWikgMutationToken(await readArchiveEntryText(inputPath, entries[0]!));
+  parseWikgMutationToken(await readArchiveEntryText(inputPath, entries[0]));
 }
 
 async function readCompressedArchiveEntryBuffer(

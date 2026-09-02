@@ -5,10 +5,7 @@ import {
   randomUUID,
   rm,
 } from "../../../runtime/platform/index.js";
-import {
-  resolve,
-  type File,
-} from "../../../runtime/platform/index.js";
+import { resolve, type File } from "../../../runtime/platform/index.js";
 
 import {
   createWikiGraphTempDirectory,
@@ -31,7 +28,9 @@ export class WikgCoordinator {
       readonly session?: WikgArchiveSession;
     } = {},
   ): DocumentFileStore {
-    const path = resolve(typeof archivePath === "string" ? archivePath : archivePath.name);
+    const path = resolve(
+      typeof archivePath === "string" ? archivePath : archivePath.name,
+    );
     return new WikgDocumentFileStore(path, options);
   }
 
@@ -101,5 +100,7 @@ async function createWorkspaceDirectory(
 }
 
 function toArchivePath(archivePath: File | string): string {
-  return resolve(typeof archivePath === "string" ? archivePath : archivePath.name);
+  return resolve(
+    typeof archivePath === "string" ? archivePath : archivePath.name,
+  );
 }

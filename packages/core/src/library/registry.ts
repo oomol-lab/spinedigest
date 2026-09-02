@@ -1,7 +1,4 @@
-import {
-  getWikiGraphStorage,
-  randomBytes,
-} from "../runtime/platform/index.js";
+import { getWikiGraphStorage, randomBytes } from "../runtime/platform/index.js";
 import { constants } from "../runtime/platform/index.js";
 import { access, mkdir, stat } from "../runtime/platform/index.js";
 import { join, resolve } from "../runtime/platform/index.js";

@@ -1,4 +1,4 @@
-/* eslint-disable no-restricted-syntax, @typescript-eslint/parameter-properties, @typescript-eslint/require-await */
+/* eslint-disable no-restricted-syntax, @typescript-eslint/parameter-properties */
 import * as asyncHooks from "node:async_hooks";
 import * as buffer from "node:buffer";
 import * as childProcess from "node:child_process";
@@ -18,7 +18,8 @@ import * as yauzl from "yauzl";
 import * as yazl from "yazl";
 import { createInterface } from "node:readline";
 
-const nodeProcess = (process as unknown as { default?: typeof process }).default ?? process;
+const nodeProcess =
+  (process as unknown as { default?: typeof process }).default ?? process;
 
 import {
   installWikiGraphPlatform,
@@ -33,7 +34,10 @@ import {
 export class NodeFile implements File {
   public readonly name: string;
 
-  public constructor(public readonly path: string, name = pathModule.basename(path)) {
+  public constructor(
+    public readonly path: string,
+    name = pathModule.basename(path),
+  ) {
     this.name = name;
   }
 
@@ -185,41 +189,74 @@ export const nodeWikiGraphPlatform: WikiGraphPlatform = {
 // Flatten the Node implementation into the neutral capability names consumed
 // by core. Core receives these functions, never Node module objects.
 Object.assign(nodeWikiGraphPlatform, {
-  access: fsPromises.access, appendFile: fsPromises.appendFile,
-  chmod: fsPromises.chmod, copyFile: fsPromises.copyFile,
-  mkdir: fsPromises.mkdir, mkdtemp: fsPromises.mkdtemp,
-  open: fsPromises.open, opendir: fsPromises.opendir,
-  readFile: fsPromises.readFile, readdir: fsPromises.readdir,
-  realpath: fsPromises.realpath, rename: fsPromises.rename,
-  rm: fsPromises.rm, rmdir: fsPromises.rmdir, stat: fsPromises.stat,
-  unlink: fsPromises.unlink, writeFile: fsPromises.writeFile,
+  access: fsPromises.access,
+  appendFile: fsPromises.appendFile,
+  chmod: fsPromises.chmod,
+  copyFile: fsPromises.copyFile,
+  mkdir: fsPromises.mkdir,
+  mkdtemp: fsPromises.mkdtemp,
+  open: fsPromises.open,
+  opendir: fsPromises.opendir,
+  readFile: fsPromises.readFile,
+  readdir: fsPromises.readdir,
+  realpath: fsPromises.realpath,
+  rename: fsPromises.rename,
+  rm: fsPromises.rm,
+  rmdir: fsPromises.rmdir,
+  stat: fsPromises.stat,
+  unlink: fsPromises.unlink,
+  writeFile: fsPromises.writeFile,
   spawn: childProcess.spawn,
-  runtime_pid: nodeProcess.pid, runtime_stderr: nodeProcess.stderr,
-  runtime_argv: nodeProcess.argv, runtime_env: nodeProcess.env,
-  runtime_cwd: nodeProcess.cwd.bind(nodeProcess), runtime_kill: nodeProcess.kill.bind(nodeProcess),
-  runtime_once: nodeProcess.once.bind(nodeProcess), runtime_removeListener: nodeProcess.removeListener.bind(nodeProcess),
-  sync_constants: fs.constants, sync_createReadStream: fs.createReadStream,
-  sync_createWriteStream: fs.createWriteStream, sync_existsSync: fs.existsSync,
-  sync_mkdirSync: fs.mkdirSync, sync_readFileSync: fs.readFileSync,
+  runtime_pid: nodeProcess.pid,
+  runtime_stderr: nodeProcess.stderr,
+  runtime_argv: nodeProcess.argv,
+  runtime_env: nodeProcess.env,
+  runtime_cwd: nodeProcess.cwd.bind(nodeProcess),
+  runtime_kill: nodeProcess.kill.bind(nodeProcess),
+  runtime_once: nodeProcess.once.bind(nodeProcess),
+  runtime_removeListener: nodeProcess.removeListener.bind(nodeProcess),
+  sync_constants: fs.constants,
+  sync_createReadStream: fs.createReadStream,
+  sync_createWriteStream: fs.createWriteStream,
+  sync_existsSync: fs.existsSync,
+  sync_mkdirSync: fs.mkdirSync,
+  sync_readFileSync: fs.readFileSync,
   sync_statSync: fs.statSync,
-  path_basename: pathModule.basename, path_dirname: pathModule.dirname,
-  path_extname: pathModule.extname, path_isAbsolute: pathModule.isAbsolute,
-  path_join: pathModule.join, path_parse: pathModule.parse,
-  path_relative: pathModule.relative, path_resolve: pathModule.resolve,
+  path_basename: pathModule.basename,
+  path_dirname: pathModule.dirname,
+  path_extname: pathModule.extname,
+  path_isAbsolute: pathModule.isAbsolute,
+  path_join: pathModule.join,
+  path_parse: pathModule.parse,
+  path_relative: pathModule.relative,
+  path_resolve: pathModule.resolve,
   path_posix: pathModule.posix,
-  system_homedir: os.homedir, system_tmpdir: os.tmpdir,
-  crypto_createHash: crypto.createHash, crypto_randomBytes: crypto.randomBytes,
-  crypto_randomUUID: crypto.randomUUID, binary: buffer.Buffer,
-  inflateRaw: zlib.inflateRaw, fileURLToPath: url.fileURLToPath,
-  stream_PassThrough: stream.PassThrough, stream_Writable: stream.Writable,
-  finished: streamPromises.finished, pipeline: streamPromises.pipeline,
-  setTimeout: timers.setTimeout, asyncLocalStorage: asyncHooks.AsyncLocalStorage,
-  readLines: (input: NodeJS.ReadableStream) => createInterface({ input, crlfDelay: Infinity }),
-  zipOpen: yauzl.open, zipWriter: yazl.ZipFile,
-  database_open: async (file: File, flags: number) => await new Promise((resolve, reject) => {
-    const database = new sqlite3.Database((file as NodeFile).path, flags, (error) =>
-      error === null ? resolve(database) : reject(error));
-  }),
+  system_homedir: os.homedir,
+  system_tmpdir: os.tmpdir,
+  crypto_createHash: crypto.createHash,
+  crypto_randomBytes: crypto.randomBytes,
+  crypto_randomUUID: crypto.randomUUID,
+  binary: buffer.Buffer,
+  inflateRaw: zlib.inflateRaw,
+  fileURLToPath: url.fileURLToPath,
+  stream_PassThrough: stream.PassThrough,
+  stream_Writable: stream.Writable,
+  finished: streamPromises.finished,
+  pipeline: streamPromises.pipeline,
+  setTimeout: timers.setTimeout,
+  asyncLocalStorage: asyncHooks.AsyncLocalStorage,
+  readLines: (input: NodeJS.ReadableStream) =>
+    createInterface({ input, crlfDelay: Infinity }),
+  zipOpen: yauzl.open,
+  zipWriter: yazl.ZipFile,
+  database_open: async (file: File, flags: number) =>
+    await new Promise((resolve, reject) => {
+      const database = new sqlite3.Database(
+        (file as NodeFile).path,
+        flags,
+        (error) => (error === null ? resolve(database) : reject(error)),
+      );
+    }),
 });
 
 export function installNodeWikiGraphPlatform(): void {
