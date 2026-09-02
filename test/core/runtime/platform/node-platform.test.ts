@@ -11,7 +11,8 @@ describe("Node File/Directory adapter", () => {
       const file = await directory.createFile("chapter.txt");
       const writer = await file.openWriter();
 
-      await writer.write("chapter one");
+      await writer.write("chapter ");
+      await writer.write("one");
       await writer.commit();
 
       const stored = await directory.getFile("chapter.txt");

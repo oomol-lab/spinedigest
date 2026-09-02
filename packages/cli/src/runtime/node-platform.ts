@@ -50,15 +50,26 @@ export class NodeFile implements File {
 
   public async openWriter(): Promise<FileWriter> {
     const temporary = `${this.path}.tmp-${crypto.randomUUID()}`;
+    const handle = await fsPromises.open(temporary, "wx");
     let closed = false;
     return {
-      write: async (data) => await fsPromises.writeFile(temporary, data),
+      write: async (data) => {
+        if (closed) throw new Error("Cannot write to a closed FileWriter");
+        if (typeof data === "string") await handle.write(data);
+        else await handle.write(Buffer.from(data));
+      },
       commit: async () => {
-        if (!closed) await fsPromises.rename(temporary, this.path);
+        if (!closed) {
+          await handle.close();
+          await fsPromises.rename(temporary, this.path);
+        }
         closed = true;
       },
       abort: async () => {
-        if (!closed) await fsPromises.rm(temporary, { force: true });
+        if (!closed) {
+          await handle.close();
+          await fsPromises.rm(temporary, { force: true });
+        }
         closed = true;
       },
     };

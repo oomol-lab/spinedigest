@@ -49,7 +49,13 @@ function inspectSource(file, source, {
   const scriptKind = file.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind);
   const relativeImports = new Set();
+  const globalAliases = new Set(["globalThis"]);
   function visit(node) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) &&
+        node.initializer && ts.isIdentifier(node.initializer) &&
+        globalAliases.has(node.initializer.text)) {
+      globalAliases.add(node.name.text);
+    }
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       const specifier = node.moduleSpecifier;
       if (specifier && ts.isStringLiteral(specifier)) {
@@ -79,14 +85,20 @@ function inspectSource(file, source, {
       const optionalGlobal = allowOptionalGlobals && (name === "process" || name === "Buffer");
       if ((!dependency || strictDependencies) && !optionalGlobal && !isProperty && !isDeclaration && (name === "process" || name === "Buffer" || name === "NodeJS")) report(file, `references Node-only global ${name}`);
     }
-    // Computed globalThis access is equivalent to a direct property access
-    // and is commonly used to hide runtime references from textual scans.
+    if (ts.isPropertyAccessExpression(node) &&
+        ts.isIdentifier(node.expression) && globalAliases.has(node.expression.text) &&
+        ["process", "Buffer", "NodeJS"].includes(node.name.text) &&
+        (!dependency || strictDependencies) && !allowOptionalGlobals) {
+      report(file, `references Node-only global ${node.expression.text}.${node.name.text}`);
+    }
+    // Computed global access is equivalent to a direct property access and is
+    // commonly used to hide runtime references from textual scans.
     if (ts.isElementAccessExpression(node) &&
-        ts.isIdentifier(node.expression) && node.expression.text === "globalThis" &&
+        ts.isIdentifier(node.expression) && globalAliases.has(node.expression.text) &&
         node.argumentExpression && ts.isStringLiteral(node.argumentExpression) &&
         ["process", "Buffer", "NodeJS"].includes(node.argumentExpression.text) &&
         (!dependency || strictDependencies) && !allowOptionalGlobals) {
-      report(file, `references Node-only global globalThis[${node.argumentExpression.text}]`);
+      report(file, `references Node-only global ${node.expression.text}[${node.argumentExpression.text}]`);
     }
     ts.forEachChild(node, visit);
   }
