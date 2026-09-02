@@ -71,7 +71,8 @@ Reader 必须拒绝缺少 `manifest.json` 的归档、`manifest.json` 中包含�
 - Knowledge Graph mentions、mention links、entity projections、triple projections 和 evidence references；
 - object metadata，包括 archive-level book metadata；
 - generation parameter hashes 和 readiness state；
-- chapter index artifacts。
+- chapter index artifacts；
+- source provenance artifacts、locators 和 text maps。
 
 Book metadata 不存为顶层 `meta.json` 文件。它作为 archive-level object metadata 存在 `database.db` 中。
 
