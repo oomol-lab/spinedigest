@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { NodeDirectory } from "../../../../packages/cli/src/runtime/node-platform.js";
+import { DirectoryFileStore } from "../../../../packages/core/src/document/directory/directory-file-store.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("Node File/Directory adapter", () => {
@@ -32,6 +33,15 @@ describe("Node File/Directory adapter", () => {
       await expect(root.createDirectory("/tmp")).rejects.toThrow(
         "relative name",
       );
+    });
+  });
+
+  it("uses a Directory root for document-relative files", async () => {
+    await withTempDir("wikigraph-directory-store-", async (path) => {
+      const store = new DirectoryFileStore(new NodeDirectory(path));
+      await store.writeFile("texts/source/1", "hello", { overwrite: true });
+      const value = await store.readFile("texts/source/1");
+      expect(Array.from(value ?? [])).toEqual([104, 101, 108, 108, 111]);
     });
   });
 });

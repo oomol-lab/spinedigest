@@ -24,7 +24,7 @@ export class DirectoryFileStore implements DocumentFileStore {
     const content = await file.read();
     return typeof content === "string" ? new TextEncoder().encode(content) : content;
   }
-  public async writeFile(path: string, content: string | Uint8Array): Promise<void> {
+  public async writeFile(path: string, content: string | Uint8Array, _options: { readonly overwrite?: boolean } = {}): Promise<void> {
     const file = await this.getOrCreateFile(this.relative(path));
     const writer = await file.openWriter();
     try { await writer.write(content); await writer.commit(); }
