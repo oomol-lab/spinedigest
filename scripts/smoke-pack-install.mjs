@@ -113,12 +113,16 @@ function writeInstallPackageJson(cwd, name) {
   mkdirSync(cwd, { recursive: true });
   writeFileSync(
     join(cwd, "package.json"),
-    JSON.stringify({ name, private: true }),
+    JSON.stringify({
+      name,
+      private: true,
+      pnpm: { onlyBuiltDependencies: ["sqlite3"] },
+    }),
   );
 }
 
 function installTarballs(cwd, tarballPaths) {
-  execFileSync("pnpm", ["add", "--ignore-scripts", ...tarballPaths], {
+  execFileSync("pnpm", ["add", ...tarballPaths], {
     cwd,
     stdio: "inherit",
   });
