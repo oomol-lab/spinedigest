@@ -1,5 +1,5 @@
 import {
-  getPlatformFilePath,
+  getHostFileHandle,
   resolve,
   type File,
 } from "../../runtime/platform/index.js";
@@ -16,7 +16,7 @@ export class WikiGraphArchiveFile {
 
   public constructor(file: File | string) {
     this.#path =
-      typeof file === "string" ? resolve(file) : getPlatformFilePath(file);
+      typeof file === "string" ? resolve(file) : getHostFileHandle(file);
   }
 
   public async read<T>(

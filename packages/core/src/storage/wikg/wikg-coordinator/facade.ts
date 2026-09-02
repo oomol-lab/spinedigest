@@ -1,5 +1,5 @@
 import {
-  getPlatformDirectoryPath,
+  getHostDirectoryHandle,
   getWikiGraphStorage,
   join,
   mkdir,
@@ -7,7 +7,7 @@ import {
   rm,
 } from "../../../runtime/platform/index.js";
 import {
-  getPlatformFilePath,
+  getHostFileHandle,
   resolve,
   type File,
 } from "../../../runtime/platform/index.js";
@@ -36,7 +36,7 @@ export class WikgCoordinator {
     const path =
       typeof archivePath === "string"
         ? resolve(archivePath)
-        : getPlatformFilePath(archivePath);
+        : getHostFileHandle(archivePath);
     return new WikgDocumentFileStore(path, options);
   }
 
@@ -96,7 +96,7 @@ async function createWorkspaceDirectory(
   // Prefer the host-provided document store for transient materialization so
   // browser/extension hosts can scope all document I/O to one Directory.
   try {
-    const root = getPlatformDirectoryPath(getWikiGraphStorage().documentStore);
+    const root = getHostDirectoryHandle(getWikiGraphStorage().documentStore);
     const directoryPath = join(root, `.wikg-${prefix}-${randomUUID()}`);
     await mkdir(directoryPath, { recursive: true });
     return directoryPath;
@@ -108,5 +108,5 @@ async function createWorkspaceDirectory(
 function toArchivePath(archivePath: File | string): string {
   return typeof archivePath === "string"
     ? resolve(archivePath)
-    : getPlatformFilePath(archivePath);
+    : getHostFileHandle(archivePath);
 }

@@ -105,7 +105,7 @@ export function getWikiGraphStorage(): WikiGraphStorage {
   return installedStorage;
 }
 
-export function getPlatformFilePath(file: File): string {
+export function getHostFileHandle(file: File): string {
   const location = fileLocations.get(file);
   if (location === undefined) {
     throw new Error("The supplied File is not bound to this host runtime.");
@@ -113,7 +113,7 @@ export function getPlatformFilePath(file: File): string {
   return location;
 }
 
-export function getPlatformDirectoryPath(directory: Directory): string {
+export function getHostDirectoryHandle(directory: Directory): string {
   const location = directoryLocations.get(directory);
   if (location === undefined) {
     throw new Error(
