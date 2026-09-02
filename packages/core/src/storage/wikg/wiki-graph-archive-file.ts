@@ -1,4 +1,4 @@
-import { hostArchiveHandle, type File } from "../../runtime/platform/index.js";
+import { type File } from "../../runtime/platform/index.js";
 
 import { DirectoryDocument } from "../../document/index.js";
 
@@ -118,5 +118,5 @@ export class WikiGraphArchiveFile {
 }
 
 function toHostHandle(file: File | string): string {
-  return hostArchiveHandle(file) as string;
+  return typeof file === "string" ? file : file.name;
 }

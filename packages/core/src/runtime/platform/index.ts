@@ -231,9 +231,6 @@ export const inflateRaw = (...args: any[]): any =>
   capability("inflateRaw")(...args);
 export const fileURLToPath = (...args: any[]): any =>
   capability("fileURLToPath")(...args);
-/** Host archive handle supplied by the archive infrastructure adapter. */
-export const hostArchiveHandle = (file: File | string): unknown =>
-  typeof file === "string" ? file : capability<(file: File) => unknown>("hostArchiveHandle")(file);
 
 export const PassThrough: any = function (this: any, ...args: any[]) {
   const delegate = new (capability("stream_PassThrough"))(...args);

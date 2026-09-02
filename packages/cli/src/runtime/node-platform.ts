@@ -33,8 +33,8 @@ import {
 export class NodeFile implements File {
   public readonly name: string;
 
-  public constructor(public readonly path: string) {
-    this.name = pathModule.basename(path);
+  public constructor(public readonly path: string, name = path) {
+    this.name = name;
   }
 
   public async read(options?: {
@@ -85,7 +85,7 @@ export class NodeDirectory implements Directory {
 
   public async getFile(name: string): Promise<File | undefined> {
     assertChildName(name);
-    const file = new NodeFile(pathModule.join(this.path, name));
+    const file = new NodeFile(pathModule.join(this.path, name), name);
     try {
       return (await fsPromises.stat(file.path)).isFile() ? file : undefined;
     } catch {
@@ -112,13 +112,13 @@ export class NodeDirectory implements Directory {
     return entries.map((entry) =>
       entry.isDirectory()
         ? new NodeDirectory(pathModule.join(this.path, entry.name))
-        : new NodeFile(pathModule.join(this.path, entry.name)),
+        : new NodeFile(pathModule.join(this.path, entry.name), entry.name),
     );
   }
 
   public async createFile(name: string): Promise<File> {
     assertChildName(name);
-    const file = new NodeFile(pathModule.join(this.path, name));
+    const file = new NodeFile(pathModule.join(this.path, name), name);
     await fsPromises.writeFile(file.path, "", { flag: "wx" });
     return file;
   }
@@ -220,7 +220,6 @@ Object.assign(nodeWikiGraphPlatform, {
     const database = new sqlite3.Database((file as NodeFile).path, flags, (error) =>
       error === null ? resolve(database) : reject(error));
   }),
-  hostArchiveHandle: (file: File) => (file as NodeFile).path,
 });
 
 export function installNodeWikiGraphPlatform(): void {

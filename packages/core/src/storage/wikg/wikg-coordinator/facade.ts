@@ -7,7 +7,6 @@ import {
 } from "../../../runtime/platform/index.js";
 import {
   resolve,
-  hostArchiveHandle,
   type File,
 } from "../../../runtime/platform/index.js";
 
@@ -32,7 +31,7 @@ export class WikgCoordinator {
       readonly session?: WikgArchiveSession;
     } = {},
   ): DocumentFileStore {
-    const path = resolve(hostArchiveHandle(archivePath) as string);
+    const path = resolve(typeof archivePath === "string" ? archivePath : archivePath.name);
     return new WikgDocumentFileStore(path, options);
   }
 
@@ -102,5 +101,5 @@ async function createWorkspaceDirectory(
 }
 
 function toArchivePath(archivePath: File | string): string {
-  return resolve(hostArchiveHandle(archivePath) as string);
+  return resolve(typeof archivePath === "string" ? archivePath : archivePath.name);
 }
