@@ -46,6 +46,7 @@ async function collect(directory) {
 
 const violations = [];
 for (const file of await collect(root)) {
+  if (file.endsWith("runtime/platform/index.ts")) continue;
   const source = await readFile(file, "utf8");
   for (const match of source.matchAll(
     /(?:from|import\s*\()\s*["']([^"']+)["']/g,
@@ -58,6 +59,24 @@ for (const file of await collect(root)) {
       violations.push(
         `${relative(repositoryRoot, file)} imports Node-only module ${specifier}`,
       );
+  }
+
+  const executable = source
+    .replace(/import[\s\S]*?from\s+["'][^"']*platform\/index\.js["'];?/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "")
+    .replace(/(['"`])(?:\\.|(?!\1)[^\\])*\1/g, "");
+  for (const pattern of [
+    /\brequire\s*\(/,
+    /\bprocess\b/,
+    /\bBuffer\b/,
+    /\bNodeJS\b/,
+  ]) {
+    if (pattern.test(executable)) {
+      violations.push(
+        `${relative(repositoryRoot, file)} references Node-only global ${pattern}`,
+      );
+    }
   }
 }
 if (violations.length > 0) {

@@ -1,3 +1,5 @@
+import { type Readable } from "../../../../runtime/platform/index.js";
+import { Buffer as platformBuffer } from "../../../../runtime/platform/index.js";
 import { posix, resolve, sep } from "../../../../runtime/platform/index.js";
 import {
   openZip,
@@ -96,7 +98,7 @@ export async function openArchive(path: string): Promise<YauzlZipFile> {
 export async function openArchiveEntryStream(
   zipFile: YauzlZipFile,
   entry: Entry,
-): Promise<NodeJS.ReadableStream> {
+): Promise<Readable> {
   return await new Promise((resolveStream, rejectStream) => {
     zipFile.openReadStream(entry, (error: any, stream: any) => {
       if (error !== null || stream === undefined) {
@@ -115,16 +117,16 @@ export async function readArchiveEntryText(
   zipFile: YauzlZipFile,
   entry: Entry,
 ): Promise<string> {
-  const chunks: Buffer[] = [];
+  const chunks: platformBuffer[] = [];
   const stream = await openArchiveEntryStream(zipFile, entry);
 
   await new Promise<void>((resolveRead, rejectRead) => {
-    stream.on("data", (chunk: Buffer) => {
+    stream.on("data", (chunk: platformBuffer) => {
       chunks.push(chunk);
     });
     stream.once("end", resolveRead);
     stream.once("error", rejectRead);
   });
 
-  return Buffer.concat(chunks).toString("utf8");
+  return platformBuffer.concat(chunks).toString("utf8");
 }

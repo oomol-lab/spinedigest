@@ -1,4 +1,8 @@
-import { resolve } from "../../runtime/platform/index.js";
+import {
+  getPlatformFilePath,
+  resolve,
+  type File,
+} from "../../runtime/platform/index.js";
 
 import { DirectoryDocument } from "../../document/index.js";
 
@@ -10,8 +14,9 @@ export class WikiGraphArchiveFile {
   readonly #path: string;
   readonly #coordinator = new WikgCoordinator();
 
-  public constructor(path: string) {
-    this.#path = resolve(path);
+  public constructor(file: File | string) {
+    this.#path =
+      typeof file === "string" ? resolve(file) : getPlatformFilePath(file);
   }
 
   public async read<T>(

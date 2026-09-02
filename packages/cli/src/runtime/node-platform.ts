@@ -1,10 +1,12 @@
 import * as asyncHooks from "node:async_hooks";
+import * as buffer from "node:buffer";
 import * as childProcess from "node:child_process";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as process from "node:process";
 import * as stream from "node:stream";
 import * as streamPromises from "node:stream/promises";
 import * as timers from "node:timers/promises";
@@ -23,6 +25,8 @@ import {
 export const nodeWikiGraphPlatform: WikiGraphPlatform = {
   fs,
   childProcess,
+  process,
+  buffer,
   fsPromises,
   path,
   os,
@@ -35,6 +39,20 @@ export const nodeWikiGraphPlatform: WikiGraphPlatform = {
   url,
   sqlite3,
   zip: { yauzl, yazl },
+  filePath: (file) => {
+    if (typeof file.locator !== "string") {
+      throw new TypeError("Node File adapters must provide a string locator.");
+    }
+    return file.locator;
+  },
+  directoryPath: (directory) => {
+    if (typeof directory.locator !== "string") {
+      throw new TypeError(
+        "Node Directory adapters must provide a string locator.",
+      );
+    }
+    return directory.locator;
+  },
 };
 
 export function installNodeWikiGraphPlatform(): void {

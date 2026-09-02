@@ -1,3 +1,4 @@
+import { type WritableStream } from "./runtime/platform/index.js";
 import {
   createReadStream,
   createWriteStream,
@@ -1048,10 +1049,7 @@ function formatSentenceId(sentenceId: SentenceId): string {
   return sentenceId.join(":");
 }
 
-async function writeLine(
-  stream: NodeJS.WritableStream,
-  line: string,
-): Promise<void> {
+async function writeLine(stream: WritableStream, line: string): Promise<void> {
   await new Promise<void>((resolveWrite, rejectWrite) => {
     stream.write(line, (error?: Error | null) => {
       if (error !== undefined && error !== null) {
@@ -1063,9 +1061,7 @@ async function writeLine(
   });
 }
 
-async function closeWritableStream(
-  stream: NodeJS.WritableStream,
-): Promise<void> {
+async function closeWritableStream(stream: WritableStream): Promise<void> {
   await new Promise<void>((resolveClose, rejectClose) => {
     stream.end((error?: Error | null) => {
       if (error !== undefined && error !== null) {

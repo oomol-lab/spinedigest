@@ -1,3 +1,4 @@
+import { process as platformProcess } from "../runtime/platform/index.js";
 import { createHash } from "../runtime/platform/index.js";
 import {
   chmod,
@@ -83,7 +84,7 @@ async function writeInitMarker(
   markerPath: string,
   schemaHash: string,
 ): Promise<void> {
-  const tempPath = `${markerPath}.${process.pid}.tmp`;
+  const tempPath = `${markerPath}.${platformProcess.pid}.tmp`;
 
   await writeFile(tempPath, `${schemaHash}\n`, {
     encoding: "utf8",
@@ -135,7 +136,7 @@ async function writeInitLockOwner(lockPath: string): Promise<void> {
     `${JSON.stringify(
       {
         at: Date.now(),
-        pid: process.pid,
+        pid: platformProcess.pid,
       },
       null,
       2,
@@ -222,7 +223,7 @@ async function isPathOlderThan(path: string, ms: number): Promise<boolean> {
 
 function isProcessAlive(pid: number): boolean {
   try {
-    process.kill(pid, 0);
+    platformProcess.kill(pid, 0);
     return true;
   } catch (error) {
     if (isNodeError(error) && error.code === "ESRCH") {

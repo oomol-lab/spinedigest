@@ -1,3 +1,4 @@
+import { process as platformProcess } from "../../../runtime/platform/index.js";
 import { createOwnerId, delay } from "./archive-key.js";
 import { LOCK_POLL_INTERVAL_MS, LOCK_STALE_TIMEOUT_MS } from "./constants.js";
 import {
@@ -35,7 +36,7 @@ INSERT INTO archive_commit_locks (
   archive_key, owner_id, owner_pid, heartbeat_at, created_at
 ) VALUES (?, ?, ?, ?, ?)
 `,
-          [archiveKey, ownerId, process.pid, Date.now(), Date.now()],
+          [archiveKey, ownerId, platformProcess.pid, Date.now(), Date.now()],
         );
         return true;
       });
@@ -99,7 +100,7 @@ INSERT INTO entry_locks (
             entryPath,
             mode,
             ownerId,
-            process.pid,
+            platformProcess.pid,
             Date.now(),
             Date.now(),
           ],
@@ -227,7 +228,7 @@ INSERT OR REPLACE INTO entry_sqlite_leases (
             input.entryPath,
             input.mode,
             input.ownerId,
-            process.pid,
+            platformProcess.pid,
             Date.now(),
             Date.now(),
           ],

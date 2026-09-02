@@ -1,3 +1,4 @@
+import {} from "../../../runtime/platform/index.js";
 import { mkdir, rm, writeFile } from "../../../runtime/platform/index.js";
 import {
   dirname,
@@ -32,7 +33,7 @@ export class WikgArchiveSession {
   readonly #archiveKey: string;
   readonly #archivePath: string;
   readonly #ownerId = createOwnerId();
-  readonly #heartbeat: NodeJS.Timeout;
+  readonly #heartbeat: ReturnType<typeof setTimeout>;
   readonly #observedDirtyEntryPaths = new Set<string>();
   readonly #modifiedEntryPaths = new Set<string>();
   #closed = false;

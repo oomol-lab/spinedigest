@@ -1,3 +1,4 @@
+import { Buffer as platformBuffer } from "../../runtime/platform/index.js";
 import { spawn } from "../../runtime/platform/index.js";
 
 import type {
@@ -194,7 +195,7 @@ async function runWikispineMatch(
         });
       },
     });
-    const stderr: Buffer[] = [];
+    const stderr: platformBuffer[] = [];
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
@@ -205,7 +206,7 @@ async function runWikispineMatch(
         child.kill();
       }
     });
-    child.stderr.on("data", (chunk: Buffer) => {
+    child.stderr.on("data", (chunk: platformBuffer) => {
       stderr.push(chunk);
     });
     child.on("error", (error: any) => {
@@ -222,7 +223,7 @@ async function runWikispineMatch(
         reject(
           new Error(
             formatWikispineRuntimeError(
-              `wikispine match failed with exit code ${code}: ${Buffer.concat(stderr).toString("utf8")}`,
+              `wikispine match failed with exit code ${code}: ${platformBuffer.concat(stderr).toString("utf8")}`,
             ),
           ),
         );

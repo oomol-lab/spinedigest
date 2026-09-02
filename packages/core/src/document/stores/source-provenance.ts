@@ -1,3 +1,4 @@
+import { Buffer as platformBuffer } from "../../runtime/platform/index.js";
 import { getNumber, getOptionalString, getString } from "../database.js";
 import type { Database } from "../database.js";
 import type {
@@ -96,7 +97,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
               FROM source_artifacts
               WHERE digest = ?
             `,
-            [Buffer.from(digest, "hex")],
+            [platformBuffer.from(digest, "hex")],
             (row) => ({
               id: getNumber(row, "id"),
               mediaType: getString(row, "media_type"),
@@ -121,7 +122,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
                 VALUES (?, ?, ?, ?)
               `,
               [
-                Buffer.from(digest, "hex"),
+                platformBuffer.from(digest, "hex"),
                 artifact.mediaType,
                 artifact.name ?? null,
                 artifact.identifier ?? null,
@@ -247,7 +248,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
       seen.set(digest, artifact.mediaType);
       const existing = await this.#database.queryOne(
         `SELECT media_type FROM source_artifacts WHERE digest = ?`,
-        [Buffer.from(digest, "hex")],
+        [platformBuffer.from(digest, "hex")],
         (row) => getString(row, "media_type"),
       );
       if (existing !== undefined && existing !== artifact.mediaType) {
@@ -342,11 +343,11 @@ function normalizeDigest(value: string): string {
 }
 
 function readDigest(value: unknown): string {
-  if (Buffer.isBuffer(value)) {
-    return value.toString("hex");
+  if (platformBuffer.isBuffer(value)) {
+    return (value as { toString(encoding?: string): string }).toString("hex");
   }
   if (value instanceof Uint8Array) {
-    return Buffer.from(value).toString("hex");
+    return platformBuffer.from(value).toString("hex");
   }
   throw new TypeError("Expected source artifact digest to be binary");
 }

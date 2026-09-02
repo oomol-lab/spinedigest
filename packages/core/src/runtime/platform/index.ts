@@ -16,6 +16,8 @@ export interface PlatformZipModule {
 export interface WikiGraphPlatform {
   readonly fs: PlatformModule;
   readonly childProcess: PlatformModule;
+  readonly process: PlatformModule;
+  readonly buffer: PlatformModule;
   readonly fsPromises: PlatformModule;
   readonly path: PlatformModule;
   readonly os: PlatformModule;
@@ -28,11 +30,16 @@ export interface WikiGraphPlatform {
   readonly url: PlatformModule;
   readonly sqlite3?: PlatformModule;
   readonly zip?: PlatformZipModule;
+  /** Host-only locator bridge used by legacy Node-backed archive algorithms. */
+  readonly filePath?: (file: File) => string;
+  readonly directoryPath?: (directory: Directory) => string;
 }
 
 /** A host-owned file. Core never interprets its backing URI or path. */
 export interface File {
   readonly name: string;
+  /** Opaque host-owned identity; Core never parses this value. */
+  readonly locator?: unknown;
   readonly size?: number;
   read(options?: { readonly encoding?: string }): Promise<Uint8Array | string>;
   openWriter(): Promise<FileWriter>;
@@ -48,6 +55,7 @@ export interface FileWriter {
 /** Directory tree supplied by the host. Only relative child names are used. */
 export interface Directory {
   readonly name: string;
+  readonly locator?: unknown;
   getFile(name: string): Promise<File | undefined>;
   getDirectory(name: string): Promise<Directory | undefined>;
   list(): Promise<ReadonlyArray<File | Directory>>;
@@ -63,6 +71,12 @@ export interface Directory {
 export interface WikiGraphStorage {
   readonly library: Directory;
   readonly documentStore: Directory;
+}
+
+export interface NodeError extends Error {
+  readonly code?: string;
+  readonly errno?: number;
+  readonly path?: string;
 }
 
 let installedPlatform: WikiGraphPlatform | undefined;
@@ -95,6 +109,24 @@ export function getWikiGraphStorage(): WikiGraphStorage {
   return installedStorage;
 }
 
+export function getPlatformFilePath(file: File): string {
+  const resolver = getWikiGraphPlatform().filePath;
+  if (resolver === undefined) {
+    throw new Error("The installed runtime does not provide a file locator.");
+  }
+  return resolver(file);
+}
+
+export function getPlatformDirectoryPath(directory: Directory): string {
+  const resolver = getWikiGraphPlatform().directoryPath;
+  if (resolver === undefined) {
+    throw new Error(
+      "The installed runtime does not provide a directory locator.",
+    );
+  }
+  return resolver(directory);
+}
+
 function moduleValue<T = any>(
   moduleName: keyof WikiGraphPlatform,
   key: string,
@@ -106,6 +138,11 @@ export const access = (...args: any[]): any =>
   moduleValue("fsPromises", "access")(...args);
 export const spawn = (...args: any[]): any =>
   moduleValue("childProcess", "spawn")(...args);
+export const process = new Proxy({} as Record<string, any>, {
+  get(_target, property: string): unknown {
+    return moduleValue("process", property);
+  },
+});
 export const appendFile = (...args: any[]): any =>
   moduleValue("fsPromises", "appendFile")(...args);
 export const chmod = (...args: any[]): any =>
@@ -194,6 +231,15 @@ export const randomBytes = (...args: any[]): any =>
   moduleValue("crypto", "randomBytes")(...args);
 export const randomUUID = (...args: any[]): any =>
   moduleValue("crypto", "randomUUID")(...args);
+export const Buffer = new Proxy(function () {}, {
+  construct(_target, args): object {
+    const Constructor = moduleValue("buffer", "Buffer");
+    return Reflect.construct(Constructor, args);
+  },
+  get(_target, property: string): unknown {
+    return moduleValue("buffer", "Buffer")[property];
+  },
+}) as any;
 export const inflateRaw = (...args: any[]): any =>
   moduleValue("zlib", "inflateRaw")(...args);
 export const fileURLToPath = (...args: any[]): any =>
@@ -262,6 +308,7 @@ export type YauzlZipFile = any;
 export type ZipFile = any;
 export type YazlZipFileType = any;
 export type FileHandle = any;
+export type Buffer = any;
 export type Readable = any;
 export type Writable = any;
 export type WritableStream = any;

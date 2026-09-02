@@ -1,3 +1,4 @@
+import { process as platformProcess } from "../../../runtime/platform/index.js";
 import { createHash, randomUUID } from "../../../runtime/platform/index.js";
 import { stat } from "../../../runtime/platform/index.js";
 import { resolve } from "../../../runtime/platform/index.js";
@@ -17,7 +18,7 @@ export async function createArchiveSignature(
 }
 
 export function createOwnerId(): string {
-  return `${process.pid}-${randomUUID()}`;
+  return `${platformProcess.pid}-${randomUUID()}`;
 }
 
 export async function delay(ms: number): Promise<void> {

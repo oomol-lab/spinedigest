@@ -1,3 +1,4 @@
+import { type WritableStream } from "../../runtime/platform/index.js";
 import {
   createReadStream,
   createWriteStream,
@@ -181,9 +182,7 @@ export function parseMentionLinkRecord(record: unknown): MentionLinkRecord {
   };
 }
 
-async function closeWritableStream(
-  stream: NodeJS.WritableStream,
-): Promise<void> {
+async function closeWritableStream(stream: WritableStream): Promise<void> {
   await new Promise<void>((resolveClose, rejectClose) => {
     stream.end((error?: Error | null) => {
       if (error !== undefined && error !== null) {

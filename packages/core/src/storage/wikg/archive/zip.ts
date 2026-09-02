@@ -1,3 +1,4 @@
+import { Buffer as platformBuffer } from "../../../runtime/platform/index.js";
 import {
   open as openFile,
   type FileHandle,
@@ -67,7 +68,7 @@ export async function readArchiveEntryText(
 export async function readArchiveEntryBuffer(
   inputPath: string,
   entry: Entry,
-): Promise<Buffer> {
+): Promise<platformBuffer> {
   const file = await openFile(inputPath, "r");
 
   try {
@@ -80,7 +81,7 @@ export async function readArchiveEntryBuffer(
 export async function readArchiveEntryBufferFromFile(
   file: FileHandle,
   entry: Entry,
-): Promise<Buffer> {
+): Promise<platformBuffer> {
   const compressed = await readCompressedArchiveEntryBuffer(file, entry);
 
   if (entry.compressionMethod === 0) {
@@ -146,8 +147,8 @@ async function validateArchiveMutationToken(
 async function readCompressedArchiveEntryBuffer(
   file: FileHandle,
   entry: Entry,
-): Promise<Buffer> {
-  const header = Buffer.alloc(30);
+): Promise<platformBuffer> {
+  const header = platformBuffer.alloc(30);
 
   await file.read(header, 0, header.length, entry.relativeOffsetOfLocalHeader);
   if (header.readUInt32LE(0) !== 0x04034b50) {
@@ -158,13 +159,15 @@ async function readCompressedArchiveEntryBuffer(
   const extraFieldLength = header.readUInt16LE(28);
   const dataOffset =
     entry.relativeOffsetOfLocalHeader + 30 + fileNameLength + extraFieldLength;
-  const compressed = Buffer.alloc(entry.compressedSize);
+  const compressed = platformBuffer.alloc(entry.compressedSize);
 
   await file.read(compressed, 0, compressed.length, dataOffset);
   return compressed;
 }
 
-async function inflateRawBuffer(input: Buffer): Promise<Buffer> {
+async function inflateRawBuffer(
+  input: platformBuffer,
+): Promise<platformBuffer> {
   return await new Promise((resolveInflate, rejectInflate) => {
     inflateRaw(input, (error: any, output: any) => {
       if (error !== null) {

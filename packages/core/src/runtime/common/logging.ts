@@ -1,3 +1,5 @@
+import { type WritableStream } from "../platform/index.js";
+import { process as platformProcess } from "../platform/index.js";
 import { AsyncLocalStorage } from "../platform/index.js";
 import { randomUUID } from "../platform/index.js";
 import { existsSync, mkdirSync } from "../platform/index.js";
@@ -161,7 +163,7 @@ function createLogger(input: {
   if (input.verbose) {
     streams.push({
       level: "info",
-      stream: pretty(createPrettyOptions(process.stderr)),
+      stream: pretty(createPrettyOptions(platformProcess.stderr)),
     });
   }
 
@@ -182,7 +184,7 @@ function createLogger(input: {
 }
 
 function createPrettyOptions(
-  destination: string | NodeJS.WritableStream,
+  destination: string | WritableStream,
 ): PrettyOptions {
   return {
     colorize: false,

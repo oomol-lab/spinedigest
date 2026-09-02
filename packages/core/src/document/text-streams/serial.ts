@@ -1,3 +1,4 @@
+import { Buffer as platformBuffer } from "../../runtime/platform/index.js";
 import { join, resolve } from "../../runtime/platform/index.js";
 
 import type { Database } from "../database.js";
@@ -195,7 +196,7 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
   #readSentenceLocation(
     location: TextSentenceLocation,
-    content: Buffer,
+    content: platformBuffer,
   ): SentenceRecord {
     return new Sentence(
       content
@@ -213,7 +214,7 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
     return content === undefined
       ? undefined
-      : Buffer.from(content).toString("utf8");
+      : platformBuffer.from(content).toString("utf8");
   }
 
   public async writeTextStream(
@@ -265,18 +266,20 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
     const existing = await this.#fileAccess.readFile(this.#getTextPath());
     const existingBuffer =
-      existing === undefined ? Buffer.alloc(0) : Buffer.from(existing);
+      existing === undefined
+        ? platformBuffer.alloc(0)
+        : platformBuffer.from(existing);
     const text =
       textOverride === ""
         ? sentences.map(getSentenceRawText).join("")
         : textOverride;
-    const appendBuffer = Buffer.from(text, "utf8");
+    const appendBuffer = platformBuffer.from(text, "utf8");
     let offset = existingBuffer.length;
 
     await this.#fileAccess.ensureDirectory(this.#getDirectoryPath());
     await this.#fileAccess.writeFile(
       this.#getTextPath(),
-      Buffer.concat([existingBuffer, appendBuffer]),
+      platformBuffer.concat([existingBuffer, appendBuffer]),
       { overwrite: true },
     );
 
@@ -396,10 +399,10 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     return draftState.nextSentenceIndex;
   }
 
-  async #readContent(): Promise<Buffer> {
+  async #readContent(): Promise<platformBuffer> {
     const content = await this.#fileAccess.readFile(this.#getTextPath());
 
-    return Buffer.from(content ?? new Uint8Array());
+    return platformBuffer.from(content ?? new Uint8Array());
   }
 
   #getDirectoryPath(): string {

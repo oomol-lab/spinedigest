@@ -1,3 +1,4 @@
+import { process as platformProcess } from "../platform/index.js";
 import { existsSync, statSync } from "../platform/index.js";
 import { fileURLToPath } from "../platform/index.js";
 import { dirname, join, parse, resolve } from "../platform/index.js";
@@ -35,7 +36,7 @@ function resolveDataDirPathFromModule(): string | undefined {
 }
 
 function resolveDataDirPathFromWorkingDirectory(): string {
-  let currentDirectoryPath = process.cwd();
+  let currentDirectoryPath = platformProcess.cwd();
   const rootDirectoryPath = parse(currentDirectoryPath).root;
 
   while (true) {

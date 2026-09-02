@@ -1,3 +1,4 @@
+import { Buffer as platformBuffer } from "../../../runtime/platform/index.js";
 import { createWriteStream } from "../../../runtime/platform/index.js";
 import { mkdir, open as openFile } from "../../../runtime/platform/index.js";
 import { dirname } from "../../../runtime/platform/index.js";
@@ -38,7 +39,7 @@ export async function writeWikgArchive(
     },
     {
       archivePath: WIKG_MANIFEST_PATH,
-      content: Buffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
+      content: platformBuffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
     },
     ...files.filter((file) =>
       shouldWriteDocumentFile({
@@ -129,7 +130,7 @@ export async function writeWikgArchiveWithOverlays(
       }
       if (entryPath === WIKG_MANIFEST_PATH) {
         outputZipFile.addBuffer(
-          Buffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
+          platformBuffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
           entryPath,
           { compress: false },
         );

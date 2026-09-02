@@ -1,3 +1,7 @@
+import {
+  Buffer as platformBuffer,
+  process as platformProcess,
+} from "../../runtime/platform/index.js";
 import { randomUUID } from "../../runtime/platform/index.js";
 import {
   mkdtemp,
@@ -142,7 +146,7 @@ export async function upgradeWikiGraphArchiveSchema(
 
     const temporaryPath = join(
       dirname(resolvedArchivePath),
-      `.${getArchiveBasename(resolvedArchivePath)}.${process.pid}.${randomUUID()}.upgrade.tmp`,
+      `.${getArchiveBasename(resolvedArchivePath)}.${platformProcess.pid}.${randomUUID()}.upgrade.tmp`,
     );
 
     await writeWikgArchiveWithOverlays(
@@ -346,7 +350,7 @@ async function repairTextSentenceWordCounts(
     ),
   );
   let cachedTextKey: string | undefined;
-  let cachedTextBuffer: Buffer | undefined;
+  let cachedTextBuffer: platformBuffer | undefined;
   const updates: Array<{
     readonly chapterId: number;
     readonly kind: number;
@@ -369,7 +373,7 @@ async function repairTextSentenceWordCounts(
           : await document.getSummaryFragments(row.chapterId).readText();
 
       cachedTextBuffer =
-        text === undefined ? undefined : Buffer.from(text, "utf8");
+        text === undefined ? undefined : platformBuffer.from(text, "utf8");
     }
     if (cachedTextBuffer === undefined) {
       continue;
@@ -604,7 +608,7 @@ function isActiveLock(ownerPid: number, heartbeatAt: number): boolean {
 
 function isProcessAlive(pid: number): boolean {
   try {
-    process.kill(pid, 0);
+    platformProcess.kill(pid, 0);
     return true;
   } catch {
     return false;

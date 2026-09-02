@@ -1,3 +1,4 @@
+import { process as platformProcess } from "../runtime/platform/index.js";
 import { mkdir, rm, stat } from "../runtime/platform/index.js";
 import { dirname, join, resolve } from "../runtime/platform/index.js";
 
@@ -680,7 +681,7 @@ function isActiveLock(ownerPid: number, heartbeatAt: number): boolean {
 
 function isProcessAlive(pid: number): boolean {
   try {
-    process.kill(pid, 0);
+    platformProcess.kill(pid, 0);
     return true;
   } catch {
     return false;

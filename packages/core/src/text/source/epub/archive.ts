@@ -1,3 +1,4 @@
+import { Buffer as platformBuffer } from "../../../runtime/platform/index.js";
 import { createHash } from "../../../runtime/platform/index.js";
 import { createReadStream } from "../../../runtime/platform/index.js";
 import { posix } from "../../../runtime/platform/index.js";
@@ -62,7 +63,7 @@ export class EpubArchive {
     return (await readStreamToBuffer(stream)).toString("utf8");
   }
 
-  public async readBuffer(path: string): Promise<Buffer> {
+  public async readBuffer(path: string): Promise<platformBuffer> {
     const stream = await this.openReadStream(path);
     return await readStreamToBuffer(stream);
   }
@@ -182,7 +183,7 @@ async function digestFile(path: string): Promise<string> {
     const hash = createHash("sha256");
     const stream = createReadStream(path);
 
-    stream.on("data", (chunk: Buffer | string) => hash.update(chunk));
+    stream.on("data", (chunk: platformBuffer | string) => hash.update(chunk));
     stream.once("end", () => resolve(hash.digest("hex")));
     stream.once("error", reject);
   });
@@ -214,27 +215,27 @@ async function indexEntries(
   });
 }
 
-function toBuffer(chunk: unknown): Buffer {
-  if (Buffer.isBuffer(chunk)) {
+function toBuffer(chunk: unknown): platformBuffer {
+  if (platformBuffer.isBuffer(chunk)) {
     return chunk;
   }
 
   if (typeof chunk === "string") {
-    return Buffer.from(chunk, "utf8");
+    return platformBuffer.from(chunk, "utf8");
   }
 
   throw new Error("Unexpected ZIP stream chunk type");
 }
 
-async function readStreamToBuffer(stream: Readable): Promise<Buffer> {
+async function readStreamToBuffer(stream: Readable): Promise<platformBuffer> {
   return await new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
+    const chunks: platformBuffer[] = [];
 
     stream.on("data", (chunk: unknown) => {
       chunks.push(toBuffer(chunk));
     });
     stream.once("end", () => {
-      resolve(Buffer.concat(chunks));
+      resolve(platformBuffer.concat(chunks));
     });
     stream.once("error", (error: Error) => {
       reject(error);

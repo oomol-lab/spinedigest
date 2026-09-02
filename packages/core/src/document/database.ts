@@ -1,3 +1,4 @@
+import { Buffer as platformBuffer } from "../runtime/platform/index.js";
 import {
   AsyncLocalStorage,
   getSqlite3Module,
@@ -35,7 +36,7 @@ type Sqlite3Module = {
     callback: (error?: Error | null) => void,
   ) => SqliteDatabase;
 };
-export type SqlBindValue = Buffer | Uint8Array | number | string | null;
+export type SqlBindValue = platformBuffer | Uint8Array | number | string | null;
 type SqlBindParams = readonly SqlBindValue[];
 type SqlRowValue = SqlBindValue;
 

@@ -1,3 +1,4 @@
+import { type NodeError } from "../../../runtime/platform/index.js";
 import { APICallError } from "ai";
 
 const ABORT_ERROR_NAMES = new Set([
@@ -61,7 +62,7 @@ function isAbortLikeError(error: unknown): boolean {
 
 function isRetryableTransportError(error: unknown): boolean {
   return someErrorInChain(error, (currentError) => {
-    const nodeError = currentError as NodeJS.ErrnoException;
+    const nodeError = currentError as NodeError;
     const errorCode =
       typeof nodeError.code === "string"
         ? nodeError.code.toUpperCase()

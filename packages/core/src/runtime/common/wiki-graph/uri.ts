@@ -1,3 +1,4 @@
+import { process as platformProcess } from "../../platform/index.js";
 import { isAbsolute, relative, resolve } from "../../platform/index.js";
 import { homedir } from "../../platform/index.js";
 
@@ -249,7 +250,7 @@ export function formatLocatedWikiGraphUri(
 export function formatWikiGraphCommandUri(
   archivePath: string,
   objectUri?: string,
-  cwd = process.cwd(),
+  cwd = platformProcess.cwd(),
 ): string {
   return formatLocatedWikiGraphUri(
     formatCommandArchivePath(archivePath, cwd),

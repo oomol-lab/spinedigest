@@ -30,6 +30,11 @@ import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
 import type { WikiGraphArchive } from "./wiki-graph-archive.js";
 import type { ChapterStage } from "./chapter/index.js";
 import { resolveExtractionPrompt } from "./prompts.js";
+import {
+  installWikiGraphStorage,
+  type File,
+  type WikiGraphStorage,
+} from "../runtime/platform/index.js";
 
 const DATA_DIR_PATH = resolveDataDirPath();
 
@@ -49,6 +54,7 @@ export interface WikiGraphLLMOptions {
 export interface WikiGraphOptions {
   readonly debugLogDirPath?: string;
   readonly llm?: LanguageModel | WikiGraphLLMOptions;
+  readonly storage?: WikiGraphStorage;
   readonly verbose?: boolean;
 }
 
@@ -79,6 +85,9 @@ export class WikiGraph {
   readonly #verbose: boolean;
 
   public constructor(options: WikiGraphOptions) {
+    if (options.storage !== undefined) {
+      installWikiGraphStorage(options.storage);
+    }
     this.#debugLogDirPath = options.debugLogDirPath;
     this.#verbose = options.verbose ?? false;
     if (options.llm === undefined) {
@@ -176,7 +185,7 @@ export class WikiGraph {
   }
 
   public async openSession<T>(
-    path: string,
+    path: File | string,
     operation: (digest: WikiGraphArchive) => Promise<T> | T,
     options: WikiGraphOpenSessionOptions = {},
   ): Promise<T> {

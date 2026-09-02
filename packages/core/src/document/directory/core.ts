@@ -1,5 +1,10 @@
-import { AsyncLocalStorage } from "../../runtime/platform/index.js";
-import { join, resolve } from "../../runtime/platform/index.js";
+import {
+  AsyncLocalStorage,
+  getPlatformDirectoryPath,
+  join,
+  resolve,
+  type Directory,
+} from "../../runtime/platform/index.js";
 import { z } from "zod";
 
 import { bookMetaSchema, type BookMeta } from "../../text/source/meta.js";
@@ -101,10 +106,13 @@ export class DirectoryDocument implements Document {
   }
 
   public static async open(
-    documentPath: string,
+    documentPath: string | Directory,
     options: { readonly fileStore?: DocumentFileStore } = {},
   ): Promise<DirectoryDocument> {
-    const resolvedDocumentPath = resolve(documentPath);
+    const resolvedDocumentPath =
+      typeof documentPath === "string"
+        ? resolve(documentPath)
+        : getPlatformDirectoryPath(documentPath);
     const fileStore = options.fileStore ?? LOCAL_DOCUMENT_FILE_STORE;
     try {
       const databasePath =

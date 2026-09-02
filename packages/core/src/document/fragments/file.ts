@@ -1,3 +1,4 @@
+import { Buffer as platformBuffer } from "../../runtime/platform/index.js";
 import { join, resolve } from "../../runtime/platform/index.js";
 
 import type { SentenceRecord } from "../types.js";
@@ -23,7 +24,7 @@ export function parseFragmentFileContent(
   }
 
   const rawContent = JSON.parse(
-    Buffer.from(content).toString("utf8"),
+    platformBuffer.from(content).toString("utf8"),
   ) as unknown;
 
   if (typeof rawContent !== "object" || rawContent === null) {
