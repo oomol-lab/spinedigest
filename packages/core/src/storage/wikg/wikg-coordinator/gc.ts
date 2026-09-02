@@ -33,5 +33,18 @@ export async function runWikgCoordinatorGc(
     if (!context.dryRun) await root.remove(entry.name, { recursive: true });
     removed += 1;
   }
+  const searchCaches = await root.getDirectory(".wikg-cache");
+  if (searchCaches !== undefined) {
+    for (const entry of await searchCaches.list()) {
+      if (!isDirectory(entry)) continue;
+      scanned += 1;
+      if (!context.force) continue;
+      freedBytes += await readHostEntrySize(entry);
+      if (!context.dryRun) {
+        await searchCaches.remove(entry.name, { recursive: true });
+      }
+      removed += 1;
+    }
+  }
   return { freedBytes, removed, scanned };
 }

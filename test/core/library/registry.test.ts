@@ -17,7 +17,7 @@ import {
   removeWikiGraphLibrary,
   replaceWikiGraphLibraryMetadata,
 } from "../../../packages/core/src/index.js";
-import { withWikiGraphStateDirectoryPathForTesting } from "../../../packages/core/src/runtime/common/wiki-graph/dir.js";
+import { withWikiGraphStateDirectoryPathForTesting } from "../../helpers/wiki-graph-storage.js";
 import {
   getNodeResourcePath,
   NodeDirectory,

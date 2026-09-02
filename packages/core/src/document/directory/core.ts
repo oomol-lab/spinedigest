@@ -117,11 +117,7 @@ export class DirectoryDocument implements Document {
           )
         : directoryOrIdentity;
     if (directory === undefined) {
-      const identity =
-        typeof directoryOrIdentity === "string"
-          ? directoryOrIdentity
-          : directoryOrIdentity.identity;
-      throw new Error(`Host directory is unavailable: ${identity}`);
+      throw new Error("Host directory is unavailable");
     }
     const fileStore = options.fileStore ?? new DirectoryFileStore(directory);
     return await DirectoryDocument.#openFileStore("", fileStore);

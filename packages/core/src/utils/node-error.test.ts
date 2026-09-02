@@ -18,19 +18,24 @@ describe("utils/node-error", () => {
       },
     );
 
-    expect(formatError(error)).toBe(
-      "File not found: /tmp/missing.wikg (ENOENT)",
-    );
+    expect(formatError(error)).toBe("File not found (ENOENT)");
   });
 
-  it("formats permission errors with the affected path", () => {
+  it("formats permission errors without exposing the affected path", () => {
     const error = Object.assign(new Error("permission denied"), {
       code: "EACCES",
       path: "/tmp/private.wikg",
     });
 
-    expect(formatError(error)).toBe(
-      "Permission denied: /tmp/private.wikg (EACCES)",
-    );
+    expect(formatError(error)).toBe("Permission denied (EACCES)");
+  });
+
+  it("does not expose paths carried by unknown host errors", () => {
+    const error = Object.assign(new Error("failed at /private/host/data.db"), {
+      code: "EHOSTFAIL",
+      path: "/private/host/data.db",
+    });
+
+    expect(formatError(error)).toBe("Error (EHOSTFAIL)");
   });
 });

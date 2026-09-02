@@ -118,6 +118,4 @@ export interface WikiGraphPlatform {
 
 export interface HostError extends Error {
   readonly code?: string;
-  readonly errno?: number;
-  readonly path?: string;
 }

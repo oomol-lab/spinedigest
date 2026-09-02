@@ -8,7 +8,7 @@ import {
   createWikiGraphLibrary,
   parseWikiGraphLibraryUri,
 } from "../../../core/src/index.js";
-import { withWikiGraphStateDirectoryPathForTesting } from "../../../core/src/runtime/common/wiki-graph/dir.js";
+import { withWikiGraphStateDirectoryPathForTesting } from "../../../../test/helpers/wiki-graph-storage.js";
 import { runLibraryCommand } from "./library.js";
 import { createEmptyArchive } from "./test-helpers.js";
 import { NodeDirectory, NodeFile } from "../runtime/node-platform.js";

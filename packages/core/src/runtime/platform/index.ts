@@ -54,8 +54,7 @@ export function getWikiGraphPlatform(): WikiGraphPlatform {
 export async function resolveHostFile(file: File | string): Promise<File> {
   if (typeof file !== "string") return file;
   const resolved = await getWikiGraphPlatform().resources.getFile(file);
-  if (resolved === undefined)
-    throw new Error(`Host file is unavailable: ${file}`);
+  if (resolved === undefined) throw new Error("Host file is unavailable");
   return resolved;
 }
 
@@ -67,7 +66,7 @@ export async function resolveHostDirectory(
   const resolved =
     await getWikiGraphPlatform().resources.getDirectory(directory);
   if (resolved === undefined) {
-    throw new Error(`Host directory is unavailable: ${directory}`);
+    throw new Error("Host directory is unavailable");
   }
   return resolved;
 }

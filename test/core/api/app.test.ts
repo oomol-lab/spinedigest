@@ -49,7 +49,7 @@ import { WikiGraphScope } from "../../../packages/core/src/runtime/common/llm-sc
 import {
   getWikiGraphStateDirectoryPathForTesting,
   setWikiGraphStateDirectoryPathForTesting,
-} from "../../../packages/core/src/runtime/common/wiki-graph/dir.js";
+} from "../../helpers/wiki-graph-storage.js";
 import { DirectoryDocument } from "../../../packages/core/src/document/index.js";
 import { WikiGraphArchive } from "../../../packages/core/src/api/wiki-graph-archive.js";
 import { Language, WikiGraph } from "../../../packages/core/src/index.js";

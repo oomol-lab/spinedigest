@@ -32,7 +32,7 @@ import {
 import {
   getWikiGraphStateDirectoryPathForTesting,
   setWikiGraphStateDirectoryPathForTesting,
-} from "../../../packages/core/src/runtime/common/wiki-graph/dir.js";
+} from "../../helpers/wiki-graph-storage.js";
 import { withTempDir } from "../../helpers/temp.js";
 
 const originalStateDir = getWikiGraphStateDirectoryPathForTesting();

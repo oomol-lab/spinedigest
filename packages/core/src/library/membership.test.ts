@@ -40,8 +40,10 @@ import {
 } from "../index.js";
 import { Database } from "../document/database.js";
 import { DirectoryDocument } from "../document/index.js";
-import { withWikiGraphStateDirectoryPathForTesting } from "../runtime/common/wiki-graph/dir.js";
-import { resolveWikiGraphCoreDatabasePath } from "../runtime/common/wiki-graph/dir.js";
+import {
+  resolveWikiGraphCoreDatabasePath,
+  withWikiGraphStateDirectoryPathForTesting,
+} from "../../../../test/helpers/wiki-graph-storage.js";
 import {
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,

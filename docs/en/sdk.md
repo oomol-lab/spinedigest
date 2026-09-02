@@ -67,7 +67,9 @@ OPFS, or another scoped store. The `wiki-graph` CLI supplies the Node adapter.
 Each `File.identity` and `Directory.identity` is a stable, opaque coordination
 key—not a path or URI.
 Archive SQLite workspaces are created only below the supplied `documentStore`
-and are removed after the archive session settles.
+and are removed after the archive session settles. Derived search indexes are
+kept there as persistent caches under opaque, path-free keys; they remain
+outside the `.wikg` archive and can be rebuilt at any time.
 `WikiGraphPlatform` is process-wide host infrastructure for async context,
 database, and ZIP operations, so an application installs it once after import.
 The two storage roots belong to each `WikiGraph` instance and remain isolated

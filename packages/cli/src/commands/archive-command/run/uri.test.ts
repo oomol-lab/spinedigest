@@ -17,7 +17,7 @@ import {
 import {
   getWikiGraphStateDirectoryPathForTesting,
   setWikiGraphStateDirectoryPathForTesting,
-} from "../../../../../core/src/runtime/common/wiki-graph/dir.js";
+} from "../../../../../../test/helpers/wiki-graph-storage.js";
 import { readWikgArchiveEntry } from "../../../../../core/src/storage/wikg/archive/index.js";
 import { runArchiveChapterCommand } from "../chapter.js";
 import {

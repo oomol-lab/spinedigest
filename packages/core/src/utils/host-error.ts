@@ -32,28 +32,31 @@ function describeError(error: Error): string {
     typeof hostError.code === "string" && hostError.code !== ""
       ? hostError.code
       : undefined;
-  const path =
-    typeof hostError.path === "string" && hostError.path !== ""
-      ? hostError.path
-      : undefined;
-
   if (code === "ENOENT") {
-    return path === undefined
-      ? "File not found (ENOENT)"
-      : `File not found: ${path} (ENOENT)`;
+    return "File not found (ENOENT)";
   }
 
   if (code === "EACCES" || code === "EPERM") {
-    return path === undefined
-      ? `Permission denied (${code})`
-      : `Permission denied: ${path} (${code})`;
+    return `Permission denied (${code})`;
+  }
+
+  if (code !== undefined && containsHostLocation(message)) {
+    return `${error.name} (${code})`;
   }
 
   if (message === "") {
-    return code === undefined ? error.name : `${error.name} (${code})`;
+    return error.name;
   }
 
   return code === undefined ? message : `${message} (${code})`;
+}
+
+function containsHostLocation(message: string): boolean {
+  return (
+    /(?:^|[\s:'"(=])\/(?:[^\s/]+\/)*[^\s/]+/u.test(message) ||
+    /(?:^|[\s:'"(=])[A-Za-z]:[\\/]/u.test(message) ||
+    /\bfile:\/\//iu.test(message)
+  );
 }
 
 function pushErrorMessage(messages: string[], message: string): void {

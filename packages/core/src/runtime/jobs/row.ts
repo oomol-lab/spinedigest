@@ -75,13 +75,12 @@ export async function hydrateBuildJob(job: StoredBuildJob): Promise<BuildJob> {
     resources.getDirectory(job.logIdentity),
     resources.getDirectory(job.workspaceIdentity),
   ]);
-  if (archive === undefined)
-    throw missingResource("archive", job.archiveIdentity);
-  if (cache === undefined) throw missingResource("cache", job.cacheIdentity);
-  if (events === undefined) throw missingResource("events", job.eventsIdentity);
-  if (log === undefined) throw missingResource("log", job.logIdentity);
+  if (archive === undefined) throw missingResource("archive");
+  if (cache === undefined) throw missingResource("cache");
+  if (events === undefined) throw missingResource("events");
+  if (log === undefined) throw missingResource("log");
   if (workspace === undefined) {
-    throw missingResource("workspace", job.workspaceIdentity);
+    throw missingResource("workspace");
   }
   const {
     archiveIdentity: _archiveIdentity,
@@ -95,8 +94,8 @@ export async function hydrateBuildJob(job: StoredBuildJob): Promise<BuildJob> {
   return { ...metadata, archive, cache, events, log, workspace };
 }
 
-function missingResource(kind: string, identity: string): Error {
-  return new Error(`Build job ${kind} resource is unavailable: ${identity}`);
+function missingResource(kind: string): Error {
+  return new Error(`Build job ${kind} resource is unavailable`);
 }
 
 function parseBuildJobState(value: string): BuildJobState {

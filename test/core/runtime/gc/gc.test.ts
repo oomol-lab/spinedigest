@@ -7,7 +7,7 @@ import {
   getWikiGraphStateDirectoryPathForTesting,
   resolveWikiGraphHomeDirectoryPath,
   setWikiGraphStateDirectoryPathForTesting,
-} from "../../../../packages/core/src/runtime/common/wiki-graph/dir.js";
+} from "../../../helpers/wiki-graph-storage.js";
 import { Database } from "../../../../packages/core/src/document/index.js";
 import { addBuildJob } from "../../../../packages/core/src/api/index.js";
 import { createWikiGraphLibrary } from "../../../../packages/core/src/index.js";
@@ -242,6 +242,29 @@ describe("gc", () => {
         scanned: 1,
       });
       await expect(stat(sessionPath)).rejects.toThrow();
+    });
+  });
+
+  it("removes derived archive search caches during forced GC", async () => {
+    await withTempDir("wikigraph-gc-", async (path) => {
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
+      const cachePath = join(
+        path,
+        "state",
+        "documents",
+        ".wikg-cache",
+        "opaque-key",
+      );
+      await mkdir(cachePath, { recursive: true });
+      await writeFile(join(cachePath, "index.db"), "cache", "utf8");
+
+      const report = await tryRunWikiGraphGc({ force: true });
+
+      expect(report.skipped).toBe(false);
+      expect(
+        report.jobs.find((item) => item.name === "wikg-coordinator"),
+      ).toMatchObject({ removed: 1, scanned: 1 });
+      await expect(stat(cachePath)).rejects.toThrow();
     });
   });
 

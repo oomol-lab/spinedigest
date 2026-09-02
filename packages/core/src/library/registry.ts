@@ -470,7 +470,7 @@ export async function updateWikiGraphLibraryFolderForRebind(
       );
       if (existing !== undefined && existing !== library.id) {
         throw new Error(
-          `Library Directory is already bound to another library: ${folder.identity}`,
+          "Library Directory is already bound to another library",
         );
       }
 

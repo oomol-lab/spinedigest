@@ -4,7 +4,7 @@ import { join } from "path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { setWikiGraphStateDirectoryPathForTesting } from "../../../packages/core/src/runtime/common/wiki-graph/dir.js";
+import { setWikiGraphStateDirectoryPathForTesting } from "../../helpers/wiki-graph-storage.js";
 
 const mocks = vi.hoisted(() => {
   const archives = new Map<number, Record<string, unknown>>();
