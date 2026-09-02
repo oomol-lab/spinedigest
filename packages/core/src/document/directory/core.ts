@@ -1,5 +1,6 @@
 import {
   AsyncLocalStorage,
+  getRelativeFile,
   join,
   resolve,
   type Directory,
@@ -111,13 +112,13 @@ export class DirectoryDocument implements Document {
     const resolvedDocumentPath =
       typeof documentPath === "string"
         ? resolve(documentPath)
-        : (documentPath as unknown as string);
+          : documentPath.name;
     const fileStore = options.fileStore ?? LOCAL_DOCUMENT_FILE_STORE;
     try {
       const databasePath =
         typeof documentPath === "string"
           ? await fileStore.resolveDatabasePath(resolvedDocumentPath)
-          : ((await documentPath.getFile("database.db")) ??
+          : ((await getRelativeFile(documentPath, "database.db")) ??
             (await documentPath.createFile("database.db")));
       await fileStore.ensureDirectory(resolvedDocumentPath);
 

@@ -45,6 +45,26 @@ export interface Directory {
   ): Promise<void>;
 }
 
+/** Resolve a logical relative file name inside a host-provided directory. */
+export async function getRelativeFile(
+  root: Directory,
+  relativeName: string,
+): Promise<File | undefined> {
+  const parts = relativeName.replaceAll("\\", "/").split("/").filter(Boolean);
+  if (parts.some((part) => part === "." || part === "..")) {
+    throw new TypeError(`Directory path must remain relative: ${relativeName}`);
+  }
+  const fileName = parts.pop();
+  if (!fileName) return undefined;
+  let directory = root;
+  for (const part of parts) {
+    const next = await directory.getDirectory(part);
+    if (!next) return undefined;
+    directory = next;
+  }
+  return await directory.getFile(fileName);
+}
+
 /** Host storage roots. The names describe scope, never a concrete path. */
 export interface WikiGraphStorage {
   readonly library: Directory;
