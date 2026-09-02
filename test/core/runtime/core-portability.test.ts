@@ -77,17 +77,17 @@ describe("core portability gate", () => {
 
       await writeFile(
         join(fixture, "package.json"),
-        JSON.stringify({ dependencies: { "fixture-node-dependency": "1.0.0" } }),
+        JSON.stringify({ dependencies: { ai: "1.0.0" } }),
       );
-      await execFileAsync("mkdir", ["-p", join(fixture, "node_modules/fixture-node-dependency")]);
+      await execFileAsync("mkdir", ["-p", join(fixture, "node_modules/ai")]);
       await writeFile(
-        join(fixture, "node_modules/fixture-node-dependency/package.json"),
-        JSON.stringify({ name: "fixture-node-dependency", main: "safe.js", exports: { ".": "./node.js" } }),
+        join(fixture, "node_modules/ai/package.json"),
+        JSON.stringify({ name: "ai", main: "safe.js", exports: { ".": "./node.js" } }),
       );
-      await writeFile(join(fixture, "node_modules/fixture-node-dependency/safe.js"), "export const ok = true;\n");
-      await writeFile(join(fixture, "node_modules/fixture-node-dependency/node.js"), 'export * from "./nested.js";\n');
+      await writeFile(join(fixture, "node_modules/ai/safe.js"), "export const ok = true;\n");
+      await writeFile(join(fixture, "node_modules/ai/node.js"), 'export * from "./nested.js";\n');
       await writeFile(
-        join(fixture, "node_modules/fixture-node-dependency/nested.js"),
+        join(fixture, "node_modules/ai/nested.js"),
         'const fs = require("fs"); export const x = process; import "node:fs";\n',
       );
       await expect(
