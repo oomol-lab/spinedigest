@@ -55,6 +55,12 @@ import {
 import { DirectoryDocument } from "../../../packages/core/src/document/index.js";
 import { WikiGraphArchive } from "../../../packages/core/src/api/wiki-graph-archive.js";
 import { Language, WikiGraph } from "../../../packages/core/src/index.js";
+import {
+  getWikiGraphStorage,
+  type Directory,
+  type File,
+  type WikiGraphStorage,
+} from "../../../packages/core/src/runtime/platform/index.js";
 import { withTempDir } from "../../helpers/temp.js";
 
 describe("facade/app", () => {
@@ -223,6 +229,45 @@ describe("facade/app", () => {
     expect(digestCall.extractionPrompt).toBe("Keep dialogue only");
   });
 
+  it("isolates storage while WikiGraph instances run concurrently", async () => {
+    const defaultStorage = getWikiGraphStorage();
+    const firstStorage = createStorage("first");
+    const secondStorage = createStorage("second");
+    const first = new WikiGraph({ storage: firstStorage });
+    const second = new WikiGraph({ storage: secondStorage });
+
+    expect(getWikiGraphStorage()).toBe(defaultStorage);
+
+    let releaseFirst!: () => void;
+    const firstCanFinish = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const firstOperation = first.digestTextStreamSession(
+      { stream: [], targetStage: "planned" },
+      async () => {
+        expect(getWikiGraphStorage()).toBe(firstStorage);
+        await firstCanFinish;
+        expect(getWikiGraphStorage()).toBe(firstStorage);
+        return "first";
+      },
+    );
+    const secondOperation = second.digestTextStreamSession(
+      { stream: [], targetStage: "planned" },
+      async () => {
+        expect(getWikiGraphStorage()).toBe(secondStorage);
+        await Promise.resolve();
+        expect(getWikiGraphStorage()).toBe(secondStorage);
+        releaseFirst();
+        return "second";
+      },
+    );
+
+    await expect(
+      Promise.all([firstOperation, secondOperation]),
+    ).resolves.toEqual(["first", "second"]);
+    expect(getWikiGraphStorage()).toBe(defaultStorage);
+  });
+
   it("opens saved digest archives without requiring llm configuration", async () => {
     await withTempDir("wikigraph-app-", async (path) => {
       const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
@@ -273,3 +318,42 @@ describe("facade/app", () => {
     });
   });
 });
+
+function createStorage(name: string): WikiGraphStorage {
+  return {
+    documentStore: new MemoryDirectory(`${name}-documents`),
+    library: new MemoryDirectory(`${name}-library`),
+  };
+}
+
+class MemoryDirectory implements Directory {
+  public readonly name: string;
+
+  public constructor(name: string) {
+    this.name = name;
+  }
+
+  public createDirectory(name: string): Promise<Directory> {
+    return Promise.resolve(new MemoryDirectory(name));
+  }
+
+  public createFile(): Promise<File> {
+    return Promise.reject(new Error("Not used by this lifecycle test"));
+  }
+
+  public getDirectory(): Promise<Directory | undefined> {
+    return Promise.resolve(undefined);
+  }
+
+  public getFile(): Promise<File | undefined> {
+    return Promise.resolve(undefined);
+  }
+
+  public list(): Promise<ReadonlyArray<File | Directory>> {
+    return Promise.resolve([]);
+  }
+
+  public remove(): Promise<void> {
+    return Promise.resolve();
+  }
+}

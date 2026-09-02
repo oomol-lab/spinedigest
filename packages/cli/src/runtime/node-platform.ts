@@ -22,11 +22,17 @@ const nodeProcess =
   (process as unknown as { default?: typeof process }).default ?? process;
 
 import {
+  installLegacyRuntimePlatform,
   installWikiGraphPlatform,
   installWikiGraphStorage,
   type Directory,
   type File,
   type FileWriter,
+  type HostDatabaseConnection,
+  type HostDatabaseRow,
+  type HostDatabaseValue,
+  type HostZipEntry,
+  type LegacyRuntimePlatform,
   type WikiGraphPlatform,
 } from "../../../core/src/runtime/platform/index.js";
 
@@ -156,111 +162,248 @@ function assertChildName(name: string): void {
   }
 }
 
+class NodeDatabaseConnection implements HostDatabaseConnection {
+  public constructor(private readonly database: sqlite3.Database) {}
+
+  public async close(): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      this.database.close((error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
+  }
+
+  public async execute(sql: string): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      this.database.exec(sql, (error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
+  }
+
+  public async queryAll(
+    sql: string,
+    params: readonly HostDatabaseValue[] = [],
+  ): Promise<readonly HostDatabaseRow[]> {
+    return await new Promise((resolve, reject) => {
+      this.database.all(sql, [...params], (error, rows: HostDatabaseRow[]) => {
+        if (error) reject(error);
+        else resolve(rows);
+      });
+    });
+  }
+
+  public async queryOne(
+    sql: string,
+    params: readonly HostDatabaseValue[] = [],
+  ): Promise<HostDatabaseRow | undefined> {
+    return await new Promise((resolve, reject) => {
+      this.database.get(sql, [...params], (error, row: HostDatabaseRow) => {
+        if (error) reject(error);
+        else resolve(row);
+      });
+    });
+  }
+
+  public async run(
+    sql: string,
+    params: readonly HostDatabaseValue[] = [],
+  ): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      this.database.run(sql, [...params], (error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
+  }
+}
+
+async function openNodeDatabase(
+  file: File,
+  options: { readonly readonly?: boolean } = {},
+): Promise<NodeDatabaseConnection> {
+  const flags =
+    (options.readonly === true
+      ? sqlite3.OPEN_READONLY
+      : sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE) | sqlite3.OPEN_FULLMUTEX;
+  return new NodeDatabaseConnection(await openNativeNodeDatabase(file, flags));
+}
+
+async function openNativeNodeDatabase(
+  file: File,
+  flags: number,
+): Promise<sqlite3.Database> {
+  if (!(file instanceof NodeFile)) {
+    throw new TypeError("The Node database adapter requires a NodeFile");
+  }
+  return await new Promise((resolve, reject) => {
+    const database = new sqlite3.Database(file.path, flags, (error) => {
+      if (error) reject(error);
+      else resolve(database);
+    });
+  });
+}
+
+async function readNodeZip(file: File): Promise<readonly HostZipEntry[]> {
+  const content = await file.read();
+  const source =
+    typeof content === "string" ? Buffer.from(content) : Buffer.from(content);
+  const zipFile = await new Promise<yauzl.ZipFile>((resolve, reject) => {
+    yauzl.fromBuffer(source, { lazyEntries: true }, (error, opened) => {
+      if (error || opened === undefined)
+        reject(error ?? new Error("Cannot open ZIP"));
+      else resolve(opened);
+    });
+  });
+
+  return await new Promise((resolve, reject) => {
+    const entries: HostZipEntry[] = [];
+    zipFile.on("entry", (entry: yauzl.Entry) => {
+      if (entry.fileName.endsWith("/")) {
+        zipFile.readEntry();
+        return;
+      }
+      zipFile.openReadStream(entry, (error, stream) => {
+        if (error || stream === undefined) {
+          reject(
+            error ?? new Error(`Cannot read ZIP entry: ${entry.fileName}`),
+          );
+          return;
+        }
+        const chunks: Buffer[] = [];
+        stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+        stream.once("error", reject);
+        stream.once("end", () => {
+          entries.push({ data: Buffer.concat(chunks), name: entry.fileName });
+          zipFile.readEntry();
+        });
+      });
+    });
+    zipFile.once("error", reject);
+    zipFile.once("end", () => resolve(entries));
+    zipFile.readEntry();
+  });
+}
+
+async function writeNodeZip(
+  file: File,
+  entries: Iterable<HostZipEntry> | AsyncIterable<HostZipEntry>,
+): Promise<void> {
+  const zipFile = new yazl.ZipFile();
+  const output = collectNodeStream(zipFile.outputStream);
+  for await (const entry of entries) {
+    zipFile.addBuffer(Buffer.from(entry.data), entry.name);
+  }
+  zipFile.end();
+
+  const writer = await file.openWriter();
+  try {
+    await writer.write(await output);
+    await writer.commit();
+  } catch (error) {
+    await writer.abort();
+    throw error;
+  }
+}
+
+async function collectNodeStream(
+  input: NodeJS.ReadableStream,
+): Promise<Buffer> {
+  return await new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    input.on("data", (chunk: Buffer) => chunks.push(chunk));
+    input.once("error", reject);
+    input.once("end", () => resolve(Buffer.concat(chunks)));
+  });
+}
+
 export const nodeWikiGraphPlatform: WikiGraphPlatform = {
-  fileSystem: fs,
-  subprocess: childProcess,
-  runtime: process,
-  binary: buffer,
-  fileSystemPromises: fsPromises,
-  pathTools: pathModule,
-  system: os,
-  cryptography: crypto,
-  stream,
-  streamPromises,
-  timers,
-  asyncContext: asyncHooks,
-  compression: zlib,
-  urlTools: url,
-  database: {
-    ...sqlite3,
-    open: async (file: File, flags: number) =>
-      await new Promise((resolve, reject) => {
-        const database = new sqlite3.Database(
-          (file as NodeFile).path,
-          flags,
-          (error) => (error === null ? resolve(database) : reject(error)),
-        );
-      }),
+  asyncContext: {
+    create: <T>() => new asyncHooks.AsyncLocalStorage<T>(),
   },
-  databaseModule: sqlite3,
-  archive: { reader: yauzl, writer: yazl },
+  database: { open: openNodeDatabase },
+  zip: { read: readNodeZip, write: writeNodeZip },
 };
 
-// Flatten the Node implementation into the neutral capability names consumed
-// by core. Core receives these functions, never Node module objects.
-Object.assign(nodeWikiGraphPlatform, {
-  access: fsPromises.access,
-  appendFile: fsPromises.appendFile,
-  chmod: fsPromises.chmod,
-  copyFile: fsPromises.copyFile,
-  mkdir: fsPromises.mkdir,
-  mkdtemp: fsPromises.mkdtemp,
-  open: fsPromises.open,
-  opendir: fsPromises.opendir,
-  readFile: fsPromises.readFile,
-  readdir: fsPromises.readdir,
-  realpath: fsPromises.realpath,
-  rename: fsPromises.rename,
-  rm: fsPromises.rm,
-  rmdir: fsPromises.rmdir,
-  stat: fsPromises.stat,
-  unlink: fsPromises.unlink,
-  writeFile: fsPromises.writeFile,
-  spawn: childProcess.spawn,
-  runtime_pid: nodeProcess.pid,
-  runtime_stderr: nodeProcess.stderr,
-  runtime_argv: nodeProcess.argv,
-  runtime_env: nodeProcess.env,
-  runtime_cwd: nodeProcess.cwd.bind(nodeProcess),
-  runtime_kill: nodeProcess.kill.bind(nodeProcess),
-  runtime_once: nodeProcess.once.bind(nodeProcess),
-  runtime_removeListener: nodeProcess.removeListener.bind(nodeProcess),
-  sync_constants: fs.constants,
-  sync_createReadStream: fs.createReadStream,
-  sync_createWriteStream: fs.createWriteStream,
-  sync_existsSync: fs.existsSync,
-  sync_mkdirSync: fs.mkdirSync,
-  sync_readFileSync: fs.readFileSync,
-  sync_statSync: fs.statSync,
-  path_basename: pathModule.basename,
-  path_dirname: pathModule.dirname,
-  path_extname: pathModule.extname,
-  path_isAbsolute: pathModule.isAbsolute,
-  path_join: pathModule.join,
-  path_parse: pathModule.parse,
-  path_relative: pathModule.relative,
-  path_resolve: pathModule.resolve,
-  path_posix: pathModule.posix,
-  system_homedir: os.homedir,
-  system_tmpdir: os.tmpdir,
-  crypto_createHash: crypto.createHash,
-  crypto_randomBytes: crypto.randomBytes,
-  crypto_randomUUID: crypto.randomUUID,
+const nodeLegacyRuntimePlatform: LegacyRuntimePlatform = {
   binary: buffer.Buffer,
-  inflateRaw: zlib.inflateRaw,
-  fileURLToPath: url.fileURLToPath,
-  stream_PassThrough: stream.PassThrough,
-  stream_Writable: stream.Writable,
-  finished: streamPromises.finished,
-  pipeline: streamPromises.pipeline,
-  setTimeout: timers.setTimeout,
-  asyncLocalStorage: asyncHooks.AsyncLocalStorage,
-  readLines: (input: NodeJS.ReadableStream) =>
-    createInterface({ input, crlfDelay: Infinity }),
-  zipOpen: yauzl.open,
-  zipWriter: yazl.ZipFile,
-  database_open: async (file: File, flags: number) =>
-    await new Promise((resolve, reject) => {
-      const database = new sqlite3.Database(
-        (file as NodeFile).path,
-        flags,
-        (error) => (error === null ? resolve(database) : reject(error)),
-      );
-    }),
-});
+  compression: { inflateRaw: zlib.inflateRaw },
+  crypto: {
+    createHash: crypto.createHash,
+    randomBytes: crypto.randomBytes,
+    randomUUID: crypto.randomUUID,
+  },
+  database: {
+    module: sqlite3,
+    open: openNativeNodeDatabase,
+  },
+  files: {
+    access: fsPromises.access,
+    appendFile: fsPromises.appendFile,
+    chmod: fsPromises.chmod,
+    constants: fs.constants,
+    copyFile: fsPromises.copyFile,
+    createReadStream: fs.createReadStream,
+    createWriteStream: fs.createWriteStream,
+    existsSync: fs.existsSync,
+    mkdir: fsPromises.mkdir,
+    mkdirSync: fs.mkdirSync,
+    mkdtemp: fsPromises.mkdtemp,
+    open: fsPromises.open,
+    opendir: fsPromises.opendir,
+    readFile: fsPromises.readFile,
+    readFileSync: fs.readFileSync,
+    readdir: fsPromises.readdir,
+    realpath: fsPromises.realpath,
+    rename: fsPromises.rename,
+    rm: fsPromises.rm,
+    rmdir: fsPromises.rmdir,
+    stat: fsPromises.stat,
+    statSync: fs.statSync,
+    unlink: fsPromises.unlink,
+    writeFile: fsPromises.writeFile,
+  },
+  paths: {
+    basename: pathModule.basename,
+    dirname: pathModule.dirname,
+    extname: pathModule.extname,
+    isAbsolute: pathModule.isAbsolute,
+    join: pathModule.join,
+    parse: pathModule.parse,
+    posix: pathModule.posix,
+    relative: pathModule.relative,
+    resolve: pathModule.resolve,
+  },
+  execution: {
+    argv: nodeProcess.argv,
+    cwd: nodeProcess.cwd.bind(nodeProcess),
+    env: nodeProcess.env,
+    kill: nodeProcess.kill.bind(nodeProcess),
+    once: nodeProcess.once.bind(nodeProcess),
+    pid: nodeProcess.pid,
+    removeListener: nodeProcess.removeListener.bind(nodeProcess),
+    stderr: nodeProcess.stderr,
+  },
+  streams: {
+    finished: streamPromises.finished,
+    PassThrough: stream.PassThrough,
+    pipeline: streamPromises.pipeline,
+    readLines: (input: NodeJS.ReadableStream) =>
+      createInterface({ input, crlfDelay: Infinity }),
+    Writable: stream.Writable,
+  },
+  subprocess: { spawn: childProcess.spawn },
+  system: { homedir: os.homedir, tmpdir: os.tmpdir },
+  timers: { sleep: timers.setTimeout },
+  url: { fileURLToPath: url.fileURLToPath },
+  zip: { open: yauzl.open, Writer: yazl.ZipFile },
+};
 
 export function installNodeWikiGraphPlatform(): void {
   installWikiGraphPlatform(nodeWikiGraphPlatform);
+  installLegacyRuntimePlatform(nodeLegacyRuntimePlatform);
   const stateRoot = pathModule.join(os.homedir(), ".wikigraph");
   installWikiGraphStorage({
     library: new NodeDirectory(stateRoot),

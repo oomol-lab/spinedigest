@@ -36,7 +36,15 @@ core 包。
 打开或创建归档前，宿主需要提供两个目录根：
 
 ```ts
-import { WikiGraph, type Directory, type File } from "wiki-graph-core";
+import {
+  installWikiGraphPlatform,
+  WikiGraph,
+  type Directory,
+  type File,
+  type WikiGraphPlatform,
+} from "wiki-graph-core";
+
+installWikiGraphPlatform(myPlatform satisfies WikiGraphPlatform);
 
 const storage = {
   library: myLibraryDirectory satisfies Directory,
@@ -49,6 +57,7 @@ await wikiGraph.openSession(archive, (session) => session.readMeta());
 ```
 
 `File`/`Directory` 是平台原语，Core 不解析它们背后的 URI 或绝对路径。浏览器、Extension 等宿主可以使用 IndexedDB、OPFS 或其他受限存储；`wiki-graph` CLI 提供 Node 适配器。
+`WikiGraphPlatform` 是进程级宿主基础设施，负责异步上下文、数据库和 ZIP；应用在 import 后安装一次即可。两个存储目录根则归各自的 `WikiGraph` 实例所有，并发运行多个实例时不会互相覆盖。
 
 ```ts
 import { WikiGraph } from "wiki-graph-core";

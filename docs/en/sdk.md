@@ -41,7 +41,15 @@ The main entrypoint is `wiki-graph-core`. It exposes archive sessions, archive q
 Before opening or creating archives, install two host-owned directory roots:
 
 ```ts
-import { WikiGraph, type Directory, type File } from "wiki-graph-core";
+import {
+  installWikiGraphPlatform,
+  WikiGraph,
+  type Directory,
+  type File,
+  type WikiGraphPlatform,
+} from "wiki-graph-core";
+
+installWikiGraphPlatform(myPlatform satisfies WikiGraphPlatform);
 
 const storage = {
   library: myLibraryDirectory satisfies Directory,
@@ -56,6 +64,10 @@ await wikiGraph.openSession(archive, (session) => session.readMeta());
 `File`/`Directory` are platform primitives. Core never interprets their URI or
 absolute path; browser and extension hosts can back them with IndexedDB,
 OPFS, or another scoped store. The `wiki-graph` CLI supplies the Node adapter.
+`WikiGraphPlatform` is process-wide host infrastructure for async context,
+database, and ZIP operations, so an application installs it once after import.
+The two storage roots belong to each `WikiGraph` instance and remain isolated
+when instances run concurrently.
 
 ```ts
 import { WikiGraph } from "wiki-graph-core";
