@@ -74,6 +74,10 @@ describe("core portability gate", () => {
       );
       await writeFile(
         join(fixture, "node_modules/fixture-node-dependency/index.js"),
+        'export * from "./nested.js";\n',
+      );
+      await writeFile(
+        join(fixture, "node_modules/fixture-node-dependency/nested.js"),
         'import "node:fs";\n',
       );
       await expect(

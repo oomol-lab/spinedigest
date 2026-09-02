@@ -31,10 +31,14 @@ function moduleName(specifier) { return specifier.startsWith("node:") ? specifie
 function inspectSource(file, source, { artifact = false, dependency = false } = {}) {
   const scriptKind = file.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind);
+  const relativeImports = new Set();
   function visit(node) {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       const specifier = node.moduleSpecifier;
-      if (specifier && ts.isStringLiteral(specifier) && forbidden.has(moduleName(specifier.text))) report(file, `imports forbidden module ${specifier.text}`);
+      if (specifier && ts.isStringLiteral(specifier)) {
+        if (forbidden.has(moduleName(specifier.text))) report(file, `imports forbidden module ${specifier.text}`);
+        else if (specifier.text.startsWith(".")) relativeImports.add(specifier.text);
+      }
     }
     if (ts.isCallExpression(node)) {
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
@@ -56,12 +60,21 @@ function inspectSource(file, source, { artifact = false, dependency = false } = 
     ts.forEachChild(node, visit);
   }
   visit(tree);
+  return relativeImports;
 }
 
 async function scanFile(file, options) {
   if (seenFiles.has(file)) return;
   seenFiles.add(file);
-  inspectSource(file, await readFile(file, "utf8"), options);
+  const imports = inspectSource(file, await readFile(file, "utf8"), options);
+  if (options.follow) {
+    for (const specifier of imports) {
+      const base = resolve(dirname(file), specifier);
+      for (const candidate of [base, `${base}.js`, `${base}.mjs`, `${base}.cjs`, `${base}.ts`, join(base, "index.js"), join(base, "index.mjs")]) {
+        try { await scanFile(candidate, options); break; } catch { /* unresolved optional export */ }
+      }
+    }
+  }
 }
 
 async function packageRoot(name, fromDirectory) {
@@ -79,7 +92,7 @@ async function scanDependency(name, fromDirectory, chain = []) {
   if (!root) return;
   const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
   const entry = manifest.module ?? manifest.browser ?? manifest.main ?? "index.js";
-  try { await scanFile(resolve(root, entry), { dependency: true }); } catch { /* types-only package */ }
+  try { await scanFile(resolve(root, entry), { dependency: true, follow: true }); } catch { /* types-only package */ }
   for (const dependency of Object.keys({ ...(manifest.dependencies ?? {}), ...(manifest.optionalDependencies ?? {}) })) {
     if (forbidden.has(dependency)) report(join(root, "package.json"), `depends on forbidden module ${dependency}`);
     else await scanDependency(dependency, root, [...chain, name]);
