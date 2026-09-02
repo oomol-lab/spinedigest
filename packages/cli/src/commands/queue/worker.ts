@@ -22,8 +22,10 @@ import {
   type BuildJobExecutionContext,
   type BuildJobProgressReporter,
   type IndexArtifactOutput,
+  type File,
   type SentenceRecord,
   writeIndexArtifactOutput,
+  ensureRelativeFile,
 } from "wiki-graph-core";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 import type {
@@ -32,7 +34,6 @@ import type {
   ReadonlyDocument,
 } from "wiki-graph-core";
 import type { LLMessage } from "wiki-graph-core";
-import { join } from "path";
 
 import { loadCLIConfig, type CLIConfig } from "../../runtime/config.js";
 import {
@@ -44,6 +45,7 @@ import {
 } from "../../runtime/index.js";
 import { buildSearchIndexEmbeddingProvider } from "../../runtime/embedding.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "../../support/index.js";
+import { nodeWikispineCommandRunner } from "../../runtime/wikispine.js";
 
 interface IndexArtifactJobChunkSnapshot {
   readonly content: string;
@@ -78,13 +80,23 @@ interface IndexArtifactJobSnapshot {
 
 export async function runQueueWorker(): Promise<void> {
   const config = await loadCLIConfig();
+  const controller = new AbortController();
+  const stop = (): void => controller.abort();
+  process.once("SIGINT", stop);
+  process.once("SIGTERM", stop);
 
-  await runBuildJobWorker({
-    concurrency: config.concurrent?.job ?? DEFAULT_GENERATION_JOB_CONCURRENCY,
-    executeJob: async (job, reporter, context) => {
-      await executeBuildJob(job, reporter, context);
-    },
-  });
+  try {
+    await runBuildJobWorker({
+      concurrency: config.concurrent?.job ?? DEFAULT_GENERATION_JOB_CONCURRENCY,
+      executeJob: async (job, reporter, context) => {
+        await executeBuildJob(job, reporter, context);
+      },
+      signal: controller.signal,
+    });
+  } finally {
+    process.removeListener("SIGINT", stop);
+    process.removeListener("SIGTERM", stop);
+  }
 }
 
 async function executeBuildJob(
@@ -94,7 +106,7 @@ async function executeBuildJob(
 ): Promise<void> {
   await withLoggingContext(
     {
-      logDirPath: job.logPath,
+      logDirectory: job.log,
       operation: "build-job",
     },
     async () => {
@@ -125,8 +137,8 @@ async function executeGenerationBuildJob(
     ...(job.llmJSON === undefined ? {} : { llmJSON: job.llmJSON }),
   });
   const llm = createStageLLM(config, {
-    cacheDirPath: job.cachePath,
-    logDirPath: job.logPath,
+    cacheDirectory: job.cache,
+    logDirectory: job.log,
     onStreamProgress: async (event) => {
       await reporter.addOutputCharacters(event.outputCharacters);
     },
@@ -163,9 +175,7 @@ async function executeGenerationBuildJob(
     operation: (request: GuaranteedRequest) => Promise<T>,
   ): Promise<T> => await llm.request(async () => await operation(request));
 
-  const buildInput = await new WikiGraphArchiveFile(
-    job.archivePath,
-  ).readDocument(
+  const buildInput = await new WikiGraphArchiveFile(job.archive).readDocument(
     async (document) => await readChapterBuildInput(document, job.chapterId),
   );
   let { details } = buildInput;
@@ -190,7 +200,7 @@ async function executeGenerationBuildJob(
     );
   }
   if (job.target === "knowledge-graph" || job.target === "reading-graph") {
-    await new WikiGraphArchiveFile(job.archivePath).readDocument(
+    await new WikiGraphArchiveFile(job.archive).readDocument(
       async (document) => {
         const artifact = await document.indexArtifacts.get(
           job.chapterId,
@@ -209,7 +219,7 @@ async function executeGenerationBuildJob(
 
     await reporter.stepStarted("knowledge-graph");
     const knowledgeGraphInput = await new WikiGraphArchiveFile(
-      job.archivePath,
+      job.archive,
     ).readDocument(async (document) => {
       await assertCurrentBuildInputRevision(job, document);
       return await snapshotChapterKnowledgeGraphInput(document, job.chapterId);
@@ -222,11 +232,16 @@ async function executeGenerationBuildJob(
         progressTracker: reporter,
         request,
         resolverOptions: {
-          logDirPath: job.logPath,
+          logDirectory: job.log,
           normalizer: createDisambiguationProfileNormalizer({ request }),
         },
-        wikispine,
-        workspacePath: job.workspacePath,
+        wikispine: {
+          ...wikispine,
+          ...(wikispine.provider === "cli"
+            ? { commandRunner: nodeWikispineCommandRunner }
+            : {}),
+        },
+        workspace: job.workspace,
       },
     );
 
@@ -236,7 +251,7 @@ async function executeGenerationBuildJob(
       total: 1,
       unit: "item",
     });
-    await new WikiGraphArchiveFile(job.archivePath).write(async (document) => {
+    await new WikiGraphArchiveFile(job.archive).write(async (document) => {
       assertJobStillRunning(await getBuildJob(job.jobId));
       await assertCurrentBuildInputRevision(job, document);
       await commitChapterKnowledgeGraphArtifact(document, artifact);
@@ -259,7 +274,7 @@ async function executeGenerationBuildJob(
       extractionPrompt,
       llm,
       sourceText,
-      workspacePath: job.workspacePath,
+      workspace: job.workspace,
       progressTracker: {
         async advance(wordsCount) {
           graphWords += wordsCount;
@@ -278,7 +293,7 @@ async function executeGenerationBuildJob(
       total: 1,
       unit: "item",
     });
-    details = await new WikiGraphArchiveFile(job.archivePath).write(
+    details = await new WikiGraphArchiveFile(job.archive).write(
       async (document) => {
         assertJobStillRunning(await getBuildJob(job.jobId));
         await assertCurrentBuildInputRevision(job, document);
@@ -292,7 +307,7 @@ async function executeGenerationBuildJob(
       unit: "item",
     });
     const nextBuildInput = await new WikiGraphArchiveFile(
-      job.archivePath,
+      job.archive,
     ).readDocument(
       async (document) => await readChapterBuildInput(document, job.chapterId),
     );
@@ -313,7 +328,7 @@ async function executeGenerationBuildJob(
     return;
   }
   if (details.stage !== "graphed") {
-    ({ details } = await new WikiGraphArchiveFile(job.archivePath).readDocument(
+    ({ details } = await new WikiGraphArchiveFile(job.archive).readDocument(
       async (document) => await readChapterBuildInput(document, job.chapterId),
     ));
   }
@@ -324,20 +339,20 @@ async function executeGenerationBuildJob(
   }
 
   await reporter.stepStarted("reading-summary");
-  const summaryInput = await new WikiGraphArchiveFile(
-    job.archivePath,
-  ).readDocument(async (document) => {
-    await assertCurrentBuildInputRevision(job, document);
-    return await snapshotChapterSummaryInput(
-      document,
-      job.chapterId,
-      job.workspacePath,
-    );
-  });
+  const summaryInput = await new WikiGraphArchiveFile(job.archive).readDocument(
+    async (document) => {
+      await assertCurrentBuildInputRevision(job, document);
+      return await snapshotChapterSummaryInput(
+        document,
+        job.chapterId,
+        job.workspace,
+      );
+    },
+  );
   const summary = await buildChapterSummaryArtifactFromSnapshot(job.chapterId, {
     llm,
-    snapshotPath: summaryInput.filePath,
-    workspacePath: job.workspacePath,
+    snapshotFile: summaryInput.file,
+    workspace: job.workspace,
   });
   await reporter.updatePhase({
     done: 0,
@@ -345,7 +360,7 @@ async function executeGenerationBuildJob(
     total: 1,
     unit: "item",
   });
-  details = await new WikiGraphArchiveFile(job.archivePath).write(
+  details = await new WikiGraphArchiveFile(job.archive).write(
     async (document) => {
       assertJobStillRunning(await getBuildJob(job.jobId));
       await assertCurrentBuildInputRevision(job, document);
@@ -387,9 +402,9 @@ async function executeIndexArtifactBuildJob(
   });
 
   if (job.target === "index-fts") {
-    const outputPath = resolveIndexArtifactOutputPath(job);
+    const outputFile = await resolveIndexArtifactOutputFile(job);
     await writeIndexArtifactOutput(
-      outputPath,
+      outputFile,
       createFtsIndexArtifactInput({
         chapterTitles: snapshot.chapterTitles,
         chunks: snapshot.chunks,
@@ -400,13 +415,13 @@ async function executeIndexArtifactBuildJob(
         summarySentences: snapshot.summarySentences,
       }),
     );
-    const artifact = await readIndexArtifactOutput(outputPath);
+    const artifact = await readIndexArtifactOutput(outputFile);
 
     assertIndexArtifactOutputMatchesJob(job, snapshot.revision, artifact);
     if (!("lexicalRows" in artifact)) {
       throw new Error("Index artifact output is not an FTS artifact.");
     }
-    await new WikiGraphArchiveFile(job.archivePath).write(async (document) => {
+    await new WikiGraphArchiveFile(job.archive).write(async (document) => {
       assertJobStillRunning(await getBuildJob(job.jobId));
       await assertJobChapterExists(document, job.chapterId);
       await assertCurrentBuildInputRevision(job, document);
@@ -425,7 +440,7 @@ async function executeIndexArtifactBuildJob(
       ),
     );
   }
-  const outputPath = resolveIndexArtifactOutputPath(job);
+  const outputFile = await resolveIndexArtifactOutputFile(job);
   const artifact = await createEmbeddingIndexArtifactInput({
     embeddingProvider: buildSearchIndexEmbeddingProvider(config.embedding),
     kind:
@@ -437,15 +452,15 @@ async function executeIndexArtifactBuildJob(
     signal: context.signal,
     sourceRevision: snapshot.revision,
   });
-  await writeIndexArtifactOutput(outputPath, artifact);
-  const output = await readIndexArtifactOutput(outputPath);
+  await writeIndexArtifactOutput(outputFile, artifact);
+  const output = await readIndexArtifactOutput(outputFile);
 
   assertIndexArtifactOutputMatchesJob(job, snapshot.revision, output);
   if ("lexicalRows" in output) {
     throw new Error("Index artifact output is not an embedding artifact.");
   }
 
-  await new WikiGraphArchiveFile(job.archivePath).write(async (document) => {
+  await new WikiGraphArchiveFile(job.archive).write(async (document) => {
     assertJobStillRunning(await getBuildJob(job.jobId));
     await assertJobChapterExists(document, job.chapterId);
     await assertCurrentBuildInputRevision(job, document);
@@ -471,7 +486,7 @@ async function completeIndexArtifactStep(
 async function readIndexArtifactJobSnapshot(
   job: BuildJob,
 ): Promise<IndexArtifactJobSnapshot> {
-  return await new WikiGraphArchiveFile(job.archivePath).readDocument(
+  return await new WikiGraphArchiveFile(job.archive).readDocument(
     async (document) => {
       await assertJobChapterExists(document, job.chapterId);
       const revision = await document.serials.getRevision(job.chapterId);
@@ -558,8 +573,8 @@ function collectTocItems(
   return items.flatMap((item) => [item, ...collectTocItems(item.children)]);
 }
 
-function resolveIndexArtifactOutputPath(job: BuildJob): string {
-  return join(job.workspacePath, "index-artifact-output.jsonl");
+async function resolveIndexArtifactOutputFile(job: BuildJob): Promise<File> {
+  return await ensureRelativeFile(job.workspace, "index-artifact-output.jsonl");
 }
 
 function assertIndexArtifactOutputMatchesJob(

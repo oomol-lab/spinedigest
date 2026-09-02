@@ -38,18 +38,20 @@ vi.mock("../../../packages/core/src/index.js", () => ({
   markWikiGraphLibraryIndexDirty: vi.fn(() => Promise.resolve()),
   WikiGraph: class {
     public async openSession(
-      path: string,
+      path: string | { readonly path: string },
       operation: (digest: MockDigest) => Promise<unknown>,
     ): Promise<unknown> {
-      archiveMaintenanceMockState.openCalls.push(path);
+      archiveMaintenanceMockState.openCalls.push(
+        typeof path === "string" ? path : path.path,
+      );
       return await operation(createMockDigest());
     }
   },
   WikiGraphArchiveFile: class {
     readonly #path: string;
 
-    public constructor(path: string) {
-      this.#path = path;
+    public constructor(path: string | { readonly path: string }) {
+      this.#path = typeof path === "string" ? path : path.path;
     }
 
     public async write(

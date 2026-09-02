@@ -1,3 +1,5 @@
+import type { File } from "../../../runtime/platform/index.js";
+
 export type WikgArchiveOverlay =
   | {
       readonly entryPath: string;
@@ -6,5 +8,5 @@ export type WikgArchiveOverlay =
   | {
       readonly entryPath: string;
       readonly kind: "file";
-      readonly workspacePath: string;
+      readonly file: File;
     };

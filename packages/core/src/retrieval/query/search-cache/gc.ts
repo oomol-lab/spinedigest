@@ -1,14 +1,7 @@
-import { stat } from "../../../runtime/platform/index.js";
-
 import { getNumber, getString } from "../../../document/database.js";
 import type { Database } from "../../../document/index.js";
 import type { GcContext, GcJobResult } from "../../../runtime/gc/index.js";
-import { isNodeError } from "../../../utils/node-error.js";
-
-import {
-  getSearchSessionDatabasePath,
-  openSearchSessionDatabase,
-} from "./database.js";
+import { openSearchSessionDatabase } from "./database.js";
 import { SEARCH_SESSION_MAX_COUNT } from "./schema.js";
 import { deleteSearchSession, deleteUnusedPredicates } from "./store.js";
 
@@ -42,11 +35,10 @@ export async function deleteArchiveSearchSessions(
 export async function runSearchCacheGc(
   context: GcContext,
 ): Promise<GcJobResult> {
-  const databasePath = getSearchSessionDatabasePath();
-  const beforeBytes = await readFileSize(databasePath);
   const database = await openSearchSessionDatabase();
 
   try {
+    const beforeBytes = await readDatabaseSize(database);
     const scanned = await database.queryOne(
       "SELECT COUNT(*) AS count FROM search_sessions",
       undefined,
@@ -72,7 +64,7 @@ export async function runSearchCacheGc(
       await database.run("VACUUM");
     }
 
-    const afterBytes = await readFileSize(databasePath);
+    const afterBytes = await readDatabaseSize(database);
 
     return {
       freedBytes: Math.max(0, beforeBytes - afterBytes),
@@ -122,14 +114,14 @@ async function listPrunedSearchSessionIds(
   );
 }
 
-async function readFileSize(path: string): Promise<number> {
-  try {
-    return (await stat(path)).size;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return 0;
-    }
-
-    throw error;
-  }
+async function readDatabaseSize(database: Database): Promise<number> {
+  const pageCount =
+    (await database.queryOne("PRAGMA page_count", undefined, (row) =>
+      getNumber(row, "page_count"),
+    )) ?? 0;
+  const pageSize =
+    (await database.queryOne("PRAGMA page_size", undefined, (row) =>
+      getNumber(row, "page_size"),
+    )) ?? 0;
+  return pageCount * pageSize;
 }

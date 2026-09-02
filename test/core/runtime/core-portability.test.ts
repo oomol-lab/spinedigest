@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
@@ -15,9 +15,30 @@ describe("core portability gate", () => {
     try {
       await writeFile(
         join(fixture, "forbidden.ts"),
-        'const fs = require("fs");\nconsole.log(process.pid, Buffer.from("x"));\nlet x: NodeJS.Process;\ncapability("readFile");\n',
+        'const fs = require("fs");\nconsole.log(process.pid, Buffer.from("x"), __dirname, __filename);\nlet x: NodeJS.Process;\ncapability("readFile");\n',
       );
 
+      await expect(
+        execFileAsync("node", ["scripts/check-core-portability.mjs", fixture], {
+          cwd: process.cwd(),
+        }),
+      ).rejects.toMatchObject({ code: 1 });
+    } finally {
+      await rm(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("does not exempt platform implementation folders", async () => {
+    const fixture = await mkdtemp(
+      join(tmpdir(), "wiki-graph-core-portability-"),
+    );
+    try {
+      const platformDirectory = join(fixture, "runtime/platform");
+      await mkdir(platformDirectory, { recursive: true });
+      await writeFile(
+        join(platformDirectory, "escape.ts"),
+        'export const load = () => capability("readFile");\n',
+      );
       await expect(
         execFileAsync("node", ["scripts/check-core-portability.mjs", fixture], {
           cwd: process.cwd(),

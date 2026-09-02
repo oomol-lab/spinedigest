@@ -1,5 +1,7 @@
-import { mkdir, rm } from "../../runtime/platform/index.js";
-import { join } from "../../runtime/platform/index.js";
+import {
+  ensureRelativeDirectory,
+  ensureRelativeFile,
+} from "../../runtime/platform/index.js";
 
 import { LanguageCode } from "../../runtime/common/language.js";
 import {
@@ -20,21 +22,32 @@ export async function buildChapterKnowledgeGraphArtifact(
   chapterId: number,
   options: BuildChapterKnowledgeGraphArtifactOptions,
 ): Promise<ChapterKnowledgeGraphBuildArtifact> {
-  const workspacePath = join(
-    options.workspacePath,
+  const knowledgeGraphDirectory = await ensureRelativeDirectory(
+    options.workspace,
     "knowledge-graph",
-    `chapter-${chapterId}`,
   );
-  const mentionsPath = join(workspacePath, "mentions.jsonl");
-  const mentionLinksPath = join(workspacePath, "mention-links.jsonl");
-  const objectsPath = join(workspacePath, "wikg-objects.jsonl");
+  const chapterDirectoryName = `chapter-${chapterId}`;
+  if (
+    (await knowledgeGraphDirectory.getDirectory(chapterDirectoryName)) !==
+    undefined
+  ) {
+    await knowledgeGraphDirectory.remove(chapterDirectoryName, {
+      recursive: true,
+    });
+  }
+  const workspace =
+    await knowledgeGraphDirectory.createDirectory(chapterDirectoryName);
+  const mentionsFile = await ensureRelativeFile(workspace, "mentions.jsonl");
+  const mentionLinksFile = await ensureRelativeFile(
+    workspace,
+    "mention-links.jsonl",
+  );
+  const objectsFile = await ensureRelativeFile(workspace, "wikg-objects.jsonl");
   const parameter = options.parameter ?? {
     language: LanguageCode.Chinese,
     prompt: "",
   };
 
-  await rm(workspacePath, { force: true, recursive: true });
-  await mkdir(workspacePath, { recursive: true });
   const mentions = await collectParsedRecords(
     options.mentions,
     parseMentionRecord,
@@ -45,7 +58,7 @@ export async function buildChapterKnowledgeGraphArtifact(
   );
 
   await writeWikgObjectsToJsonl(
-    objectsPath,
+    objectsFile,
     createChapterKnowledgeGraphObjectStream({
       chapterId,
       mentionLinks,
@@ -53,16 +66,16 @@ export async function buildChapterKnowledgeGraphArtifact(
       parameter,
     }),
   );
-  await writeJsonl(mentionsPath, mentions, parseMentionRecord);
-  await writeJsonl(mentionLinksPath, mentionLinks, parseMentionLinkRecord);
+  await writeJsonl(mentionsFile, mentions, parseMentionRecord);
+  await writeJsonl(mentionLinksFile, mentionLinks, parseMentionLinkRecord);
 
   return {
     chapterId,
-    mentionLinksPath,
-    mentionsPath,
-    objectsPath,
+    mentionLinksFile,
+    mentionsFile,
+    objectsFile,
     parameter,
-    workspacePath,
+    workspace,
   };
 }
 

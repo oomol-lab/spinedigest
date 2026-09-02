@@ -1,5 +1,3 @@
-import { basename, extname, posix } from "../../../runtime/platform/index.js";
-
 import { parseDocument } from "htmlparser2";
 
 import { splitHref } from "./archive.js";
@@ -223,7 +221,7 @@ function isNonContentSpineItem(
     return true;
   }
 
-  const lowerName = posix.basename(path).toLowerCase();
+  const lowerName = basename(path).toLowerCase();
   if (packageData.navPath === path) {
     return true;
   }
@@ -350,9 +348,22 @@ function getHtmlTagName(node: HtmlNode): string | undefined {
 }
 
 function getFallbackTitle(path: string): string | undefined {
-  const stem = basename(path, extname(path)).trim();
+  const extension = extname(path);
+  const stem = basename(path)
+    .slice(0, -extension.length || undefined)
+    .trim();
 
   return stem === "" ? undefined : stem;
+}
+
+function basename(path: string): string {
+  return path.replaceAll("\\", "/").split("/").at(-1) ?? "";
+}
+
+function extname(path: string): string {
+  const name = basename(path);
+  const index = name.lastIndexOf(".");
+  return index <= 0 ? "" : name.slice(index);
 }
 
 function normalizeText(text: string): string | undefined {

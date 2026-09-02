@@ -517,7 +517,7 @@ describe("cli/library args", () => {
         publicId: "book",
         libraryUri: "wikg://lib",
         relativePath: "books/book.wikg",
-        path: "/tmp/library/books/book.wikg",
+        path: "books/book.wikg",
         exists: true,
         status: "present",
       },
@@ -595,7 +595,7 @@ describe("cli/library args", () => {
         inspect: "wikg://lib/arc/book inspect",
       },
       metadata: {
-        path: "/tmp/library/books/book.wikg",
+        path: "books/book.wikg",
         exists: true,
       },
     });

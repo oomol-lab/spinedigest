@@ -1,7 +1,9 @@
-import { join, resolve } from "../../runtime/platform/index.js";
+import { joinRelativePath } from "../../utils/relative-path.js";
 
 import type { SentenceId } from "../types.js";
+import type { Directory } from "../../runtime/platform/index.js";
 import {
+  createDirectoryFragmentAccess,
   DEFAULT_FRAGMENT_FILE_ACCESS,
   DEFAULT_FRAGMENT_WRITER,
 } from "./file-access.js";
@@ -18,13 +20,15 @@ export class Fragments implements ReadonlyFragments {
   readonly #writer: FragmentWriter;
 
   public constructor(
-    documentPath: string,
+    documentDirectory: Directory,
     writer?: FragmentWriter,
     fileAccess?: FragmentFileAccess,
   ) {
-    this.#documentPath = resolve(documentPath);
-    this.#fileAccess = fileAccess ?? DEFAULT_FRAGMENT_FILE_ACCESS;
-    this.#writer = writer ?? DEFAULT_FRAGMENT_WRITER;
+    this.#documentPath = "";
+    const directoryAccess = createDirectoryFragmentAccess(documentDirectory);
+    this.#fileAccess =
+      fileAccess ?? directoryAccess?.fileAccess ?? DEFAULT_FRAGMENT_FILE_ACCESS;
+    this.#writer = writer ?? directoryAccess?.writer ?? DEFAULT_FRAGMENT_WRITER;
   }
 
   public async ensureCreated(): Promise<void> {
@@ -90,6 +94,6 @@ export class Fragments implements ReadonlyFragments {
   }
 
   public get path(): string {
-    return join(this.#documentPath, "fragments");
+    return joinRelativePath(this.#documentPath, "fragments");
   }
 }

@@ -1,16 +1,22 @@
 import {
   formatLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
-  parseLocatedWikiGraphUri,
   requireLocatedObjectOrArchiveUri,
-  resolveWikiGraphLibraryArchivePath,
+  resolveWikiGraphLibraryArchiveFile,
   type ParsedWikiGraphLibraryUri,
   type QueryIndexScope,
+  type File,
 } from "wiki-graph-core";
+import { parseLocatedWikiGraphUri } from "../../../support/index.js";
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
+import {
+  getNodeResourcePath,
+  NodeFile,
+} from "../../../runtime/node-platform.js";
 
 export interface ArchiveRuntimeLocation {
+  readonly archiveFile: File;
   readonly archiveKey: string;
   readonly archivePath: string;
   readonly indexScope: QueryIndexScope;
@@ -24,6 +30,7 @@ export async function resolveArchiveRuntimeLocation(
 ): Promise<ArchiveRuntimeLocation> {
   if (!uriOrPath.startsWith("wikg://")) {
     return {
+      archiveFile: new NodeFile(uriOrPath),
       archiveKey: uriOrPath,
       archivePath: uriOrPath,
       indexScope: {
@@ -40,12 +47,14 @@ export async function resolveArchiveRuntimeLocation(
   const libraryArchiveTarget = archiveLocator.startsWith("wikg://lib/")
     ? parseWikiGraphLibraryUri(archiveLocator)
     : undefined;
-  const archivePath =
+  const archiveFile =
     libraryArchiveTarget?.kind === "archive"
-      ? await resolveWikiGraphLibraryArchivePath(archiveLocator)
-      : archiveLocator;
+      ? await resolveWikiGraphLibraryArchiveFile(archiveLocator)
+      : new NodeFile(archiveLocator);
+  const archivePath = getNodeResourcePath(archiveFile);
 
   return {
+    archiveFile,
     archiveKey: archivePath,
     archivePath,
     indexScope: { archiveKey: archivePath, archivePath, kind: "archive-index" },

@@ -1,8 +1,7 @@
-import { type WritableStream } from "./runtime/platform/index.js";
 import {
-  createReadStream,
-  createWriteStream,
-  readLines,
+  readFileText,
+  writeFileContent,
+  type File,
 } from "./runtime/platform/index.js";
 import { z } from "zod";
 
@@ -312,27 +311,23 @@ export function parseWikgObject(record: unknown): WikgObject {
 }
 
 export async function writeWikgObjectsToJsonl(
-  path: string,
+  file: File,
   objects: AsyncIterable<WikgObject> | Iterable<WikgObject>,
 ): Promise<void> {
-  const stream = createWriteStream(path, { encoding: "utf8", flags: "wx" });
-
-  try {
-    for await (const object of objects) {
-      await writeLine(stream, `${JSON.stringify(parseWikgObject(object))}\n`);
-    }
-  } finally {
-    await closeWritableStream(stream);
+  let output = "";
+  for await (const object of objects) {
+    output += `${JSON.stringify(parseWikgObject(object))}\n`;
   }
+  await writeFileContent(file, output);
 }
 
 export async function* readWikgObjectsFromJsonl(
-  path: string,
+  file: File,
 ): AsyncGenerator<WikgObject> {
-  const lines = readLines(createReadStream(path, { encoding: "utf8" }));
+  const lines = (await readFileText(file)).split(/\r?\n/u);
   let lineNumber = 0;
 
-  for await (const line of lines) {
+  for (const line of lines) {
     lineNumber += 1;
     if (line.trim() === "") {
       continue;
@@ -342,7 +337,7 @@ export async function* readWikgObjectsFromJsonl(
       yield parseWikgObject(JSON.parse(line));
     } catch (error) {
       throw new Error(
-        `Invalid WikgObject JSONL record at ${path}:${lineNumber}`,
+        `Invalid WikgObject JSONL record at ${file.name}:${lineNumber}`,
         {
           cause: error,
         },
@@ -1044,29 +1039,4 @@ function requireLocalSentenceIndex(
 
 function formatSentenceId(sentenceId: SentenceId): string {
   return sentenceId.join(":");
-}
-
-async function writeLine(stream: WritableStream, line: string): Promise<void> {
-  await new Promise<void>((resolveWrite, rejectWrite) => {
-    stream.write(line, (error?: Error | null) => {
-      if (error !== undefined && error !== null) {
-        rejectWrite(error);
-        return;
-      }
-      resolveWrite();
-    });
-  });
-}
-
-async function closeWritableStream(stream: WritableStream): Promise<void> {
-  await new Promise<void>((resolveClose, rejectClose) => {
-    stream.end((error?: Error | null) => {
-      if (error !== undefined && error !== null) {
-        rejectClose(error);
-        return;
-      }
-
-      resolveClose();
-    });
-  });
 }

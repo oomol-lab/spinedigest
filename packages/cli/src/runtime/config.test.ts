@@ -3,7 +3,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 
-import { withWikiGraphStateDirectoryPathForTesting } from "../../../core/src/runtime/common/wiki-graph/dir.js";
+import { withWikiGraphCLIRuntimeContext } from "./context.js";
 import { putLocalConfigValue } from "./local-config.js";
 import { loadCLIConfig } from "./config.js";
 
@@ -12,7 +12,7 @@ describe("runtime/config", () => {
     const tempDir = await mkdtemp(join(tmpdir(), "wikigraph-config-test-"));
 
     try {
-      await withWikiGraphStateDirectoryPathForTesting(tempDir, async () => {
+      await withStateDirectory(tempDir, async () => {
         await putLocalConfigValue(
           "embeddings",
           "provider",
@@ -44,7 +44,7 @@ describe("runtime/config", () => {
     const tempDir = await mkdtemp(join(tmpdir(), "wikigraph-config-test-"));
 
     try {
-      await withWikiGraphStateDirectoryPathForTesting(tempDir, async () => {
+      await withStateDirectory(tempDir, async () => {
         await putLocalConfigValue(
           "embeddings",
           "provider",
@@ -59,3 +59,24 @@ describe("runtime/config", () => {
     }
   });
 });
+
+async function withStateDirectory<T>(
+  stateDir: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return await withWikiGraphCLIRuntimeContext(
+    {
+      argv: [],
+      cwd: process.cwd(),
+      env: process.env,
+      envPolicy: "production",
+      exitCode: 0,
+      queueAutostart: false,
+      stateDir,
+      stderr: process.stderr,
+      stdin: process.stdin,
+      stdout: process.stdout,
+    },
+    operation,
+  );
+}

@@ -3,6 +3,7 @@ import { access } from "fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DirectoryDocument } from "../../../packages/core/src/document/index.js";
+import type { File } from "../../../packages/core/src/runtime/platform/index.js";
 
 const digestMockState = vi.hoisted(() => ({
   generateCalls: [] as Array<{
@@ -14,7 +15,7 @@ const digestMockState = vi.hoisted(() => ({
     readonly adapterFormat: string;
     readonly documentPath: string;
     readonly extractionPrompt: string;
-    readonly path: string;
+    readonly file: File;
     readonly userLanguage: string | undefined;
   }>,
   tempDocumentPaths: [] as string[],
@@ -84,14 +85,14 @@ vi.mock("../../../packages/core/src/api/import.js", () => ({
       readonly adapter: { readonly format: string };
       readonly document: DirectoryDocument;
       readonly extractionPrompt: string;
-      readonly path: string;
+      readonly file: File;
       readonly userLanguage?: string;
     }) => {
       digestMockState.importCalls.push({
         adapterFormat: options.adapter.format,
         documentPath: options.document.path,
         extractionPrompt: options.extractionPrompt,
-        path: options.path,
+        file: options.file,
         userLanguage: options.userLanguage,
       });
 
@@ -133,8 +134,12 @@ import {
 } from "../../../packages/core/src/api/digest.js";
 import { Language } from "../../../packages/core/src/runtime/common/language.js";
 import { withTempDir } from "../../helpers/temp.js";
+import { NodeDirectory } from "../../../packages/cli/src/runtime/node-platform.js";
 
 describe("facade/digest", () => {
+  const epubFile = createUnreadFile("book.epub");
+  const markdownFile = createUnreadFile("book.md");
+  const txtFile = createUnreadFile("book.txt");
   beforeEach(() => {
     digestMockState.generateCalls.length = 0;
     digestMockState.importCalls.length = 0;
@@ -198,7 +203,7 @@ describe("facade/digest", () => {
       await digestTextStreamSession(
         {
           bookLanguage: null,
-          documentDirPath,
+          documentDirectory: new NodeDirectory(documentDirPath),
           extractionPrompt: "Keep beats",
           llm: {} as never,
           sourceFormat: "markdown",
@@ -299,10 +304,10 @@ describe("facade/digest", () => {
     await withTempDir("wikigraph-digest-", async (path) => {
       const epubTitle = await digestEpubSession(
         {
-          documentDirPath: `${path}/epub`,
+          documentDirectory: new NodeDirectory(`${path}/epub`),
           extractionPrompt: "Prompt",
           llm: {} as never,
-          path: "/tmp/book.epub",
+          file: epubFile,
           userLanguage: Language.Japanese,
         },
         async (digest) => {
@@ -311,10 +316,10 @@ describe("facade/digest", () => {
       );
       const markdownTitle = await digestMarkdownSession(
         {
-          documentDirPath: `${path}/markdown`,
+          documentDirectory: new NodeDirectory(`${path}/markdown`),
           extractionPrompt: "Prompt",
           llm: {} as never,
-          path: "/tmp/book.md",
+          file: markdownFile,
         },
         async (digest) => {
           return (await digest.readMeta())?.title;
@@ -322,10 +327,10 @@ describe("facade/digest", () => {
       );
       const txtTitle = await digestTxtSession(
         {
-          documentDirPath: `${path}/txt`,
+          documentDirectory: new NodeDirectory(`${path}/txt`),
           extractionPrompt: "Prompt",
           llm: {} as never,
-          path: "/tmp/book.txt",
+          file: txtFile,
         },
         async (digest) => {
           return (await digest.readMeta())?.title;
@@ -341,26 +346,33 @@ describe("facade/digest", () => {
       expect(digestMockState.importCalls[0]).toMatchObject({
         adapterFormat: "epub",
         extractionPrompt: "Prompt",
-        path: "/tmp/book.epub",
+        file: epubFile,
         userLanguage: Language.Japanese,
       });
-      expect(digestMockState.importCalls[0]?.documentPath).toContain("/epub");
+      expect(digestMockState.importCalls[0]?.documentPath).toBe("");
       expect(digestMockState.importCalls[1]).toMatchObject({
         adapterFormat: "markdown",
         extractionPrompt: "Prompt",
-        path: "/tmp/book.md",
+        file: markdownFile,
         userLanguage: undefined,
       });
-      expect(digestMockState.importCalls[1]?.documentPath).toContain(
-        "/markdown",
-      );
+      expect(digestMockState.importCalls[1]?.documentPath).toBe("");
       expect(digestMockState.importCalls[2]).toMatchObject({
         adapterFormat: "txt",
         extractionPrompt: "Prompt",
-        path: "/tmp/book.txt",
+        file: txtFile,
         userLanguage: undefined,
       });
-      expect(digestMockState.importCalls[2]?.documentPath).toContain("/txt");
+      expect(digestMockState.importCalls[2]?.documentPath).toBe("");
     });
   }, 15_000);
 });
+
+function createUnreadFile(name: string): File {
+  return {
+    identity: `test:${name}`,
+    name,
+    openWriter: () => Promise.reject(new Error("not used")),
+    read: () => Promise.reject(new Error("not used")),
+  };
+}

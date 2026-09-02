@@ -57,6 +57,9 @@ export async function withHostArchiveSession<T>(
     const session = await HostWikgArchiveSession.open(archive);
     try {
       return await operation(session);
+    } catch (error) {
+      session.abort();
+      throw error;
     } finally {
       await session.close();
     }
@@ -76,6 +79,7 @@ export class HostWikgArchiveSession {
   readonly #workspaceName: string;
   readonly #workspace: Directory;
   #closed = false;
+  #aborted = false;
 
   public constructor(
     archive: File,
@@ -130,15 +134,6 @@ export class HostWikgArchiveSession {
 
   public get archiveIdentity(): string {
     return this.#archive.identity;
-  }
-
-  public async materializeReadWorkspace<T>(
-    _directoryPath: string | undefined,
-    _operation: (documentDirectoryPath: string) => Promise<T> | T,
-  ): Promise<T> {
-    throw new Error(
-      "Opaque archive files cannot be materialized to an operating-system path.",
-    );
   }
 
   public listEntries(): readonly string[] {
@@ -210,12 +205,16 @@ export class HostWikgArchiveSession {
     if (this.#closed) return;
     this.#closed = true;
     try {
-      if (this.#overlays.size > 0) await this.#commit();
+      if (!this.#aborted && this.#overlays.size > 0) await this.#commit();
     } finally {
       await getWikiGraphStorage()
         .documentStore.remove(this.#workspaceName, { recursive: true })
         .catch(() => undefined);
     }
+  }
+
+  public abort(): void {
+    this.#aborted = true;
   }
 
   async #workspaceFile(path: string): Promise<File> {

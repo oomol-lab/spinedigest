@@ -1,8 +1,10 @@
-import { readdir, rm, stat } from "../platform/index.js";
-import { join } from "../platform/index.js";
-
-import { resolveWikiGraphTempDirectoryPath } from "../common/wiki-graph/temp.js";
-import { isNodeError } from "../../utils/node-error.js";
+import {
+  getHostEntryLastModified,
+  getWikiGraphStorage,
+  isDirectory,
+  type Directory,
+  type File,
+} from "../platform/index.js";
 
 import { readPathSize } from "./files.js";
 import type { GcContext, GcJobResult } from "./types.js";
@@ -12,32 +14,28 @@ const TEMP_DIRECTORY_TTL_MS = 60 * 60 * 1000;
 export async function runTempDirectoryGc(
   context: GcContext,
 ): Promise<GcJobResult> {
-  const rootPath = resolveWikiGraphTempDirectoryPath();
+  const root = await getWikiGraphStorage().library.getDirectory("tmp");
   let scanned = 0;
   let removed = 0;
   let freedBytes = 0;
 
-  for (const path of await listTempEntryPaths(rootPath)) {
+  if (root === undefined) return { freedBytes, removed, scanned };
+  for (const entry of await listTempEntries(root)) {
     scanned += 1;
-    const stats = await stat(path).catch((error: unknown) => {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    });
+    const lastModified = await getHostEntryLastModified(entry.value);
 
     if (
-      stats === undefined ||
-      (!context.force && context.now - stats.mtimeMs < TEMP_DIRECTORY_TTL_MS)
+      !context.force &&
+      (lastModified === undefined ||
+        context.now - lastModified < TEMP_DIRECTORY_TTL_MS)
     ) {
       continue;
     }
 
-    const bytes = await readPathSize(path);
+    const bytes = await readPathSize(entry.value);
 
     if (!context.dryRun) {
-      await rm(path, { force: true, recursive: true });
+      await entry.parent.remove(entry.value.name, { recursive: true });
     }
     removed += 1;
     freedBytes += bytes;
@@ -46,30 +44,15 @@ export async function runTempDirectoryGc(
   return { freedBytes, removed, scanned };
 }
 
-async function listTempEntryPaths(rootPath: string): Promise<string[]> {
-  try {
-    const categories = await readdir(rootPath, { withFileTypes: true });
-    const paths: string[] = [];
-
-    for (const category of categories) {
-      if (!category.isDirectory()) {
-        continue;
-      }
-
-      const categoryPath = join(rootPath, category.name);
-      const entries = await readdir(categoryPath, { withFileTypes: true });
-
-      for (const entry of entries) {
-        paths.push(join(categoryPath, entry.name));
-      }
+async function listTempEntries(
+  root: Directory,
+): Promise<ReadonlyArray<{ parent: Directory; value: Directory | File }>> {
+  const entries: Array<{ parent: Directory; value: Directory | File }> = [];
+  for (const category of await root.list()) {
+    if (!isDirectory(category)) continue;
+    for (const value of await category.list()) {
+      entries.push({ parent: category, value });
     }
-
-    return paths;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return [];
-    }
-
-    throw error;
   }
+  return entries;
 }

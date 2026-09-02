@@ -1,14 +1,8 @@
-import { runtimeContext as platformRuntime } from "./runtime/platform/index.js";
-import { randomUUID } from "./runtime/platform/index.js";
+import type { File } from "./runtime/platform/index.js";
+import { randomUuid } from "./utils/crypto.js";
 
-import {
-  getNumber,
-  getString,
-  type Database,
-  type SqlRow,
-} from "./document/database.js";
-import { openSharedStateDatabase } from "./document/index.js";
-import { isNodeError } from "./utils/node-error.js";
+import { getNumber, getString, type SqlRow } from "./document/database.js";
+import { Database, openWikiGraphStateDatabase } from "./document/index.js";
 
 const STATE_LOCK_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS state_locks (
@@ -32,7 +26,8 @@ const DEFAULT_STATE_LOCK_HEARTBEAT_MS = 15_000;
 export type StateLockMode = "read" | "write";
 
 export interface StateLockOptions {
-  readonly databasePath: string;
+  readonly databaseFile?: File;
+  readonly stateDatabaseName?: string;
   readonly heartbeatMs?: number;
   readonly mode: StateLockMode;
   readonly pollMs?: number;
@@ -46,7 +41,6 @@ interface StateLockRow {
   readonly heartbeatAt: number;
   readonly mode: StateLockMode;
   readonly ownerId: string;
-  readonly ownerPid: number;
 }
 
 export async function withStateLock<T>(
@@ -69,7 +63,7 @@ export async function withStateLock<T>(
 export async function acquireStateLock(
   options: StateLockOptions,
 ): Promise<(() => Promise<void>) | undefined> {
-  const ownerId = `${platformRuntime.pid}-${randomUUID()}`;
+  const ownerId = randomUuid();
   const pollMs = options.pollMs ?? DEFAULT_STATE_LOCK_POLL_MS;
 
   while (true) {
@@ -88,12 +82,13 @@ export async function acquireStateLock(
 }
 
 export async function isStateLocked(options: {
-  readonly databasePath: string;
+  readonly databaseFile?: File;
+  readonly stateDatabaseName?: string;
   readonly resourceKey: string;
   readonly scope: string;
   readonly staleMs?: number;
 }): Promise<boolean> {
-  const database = await openStateLockDatabase(options.databasePath);
+  const database = await openStateLockDatabase(options);
 
   try {
     await cleanupStaleStateLocks(database, options);
@@ -118,7 +113,7 @@ async function tryInsertStateLock(
   options: StateLockOptions,
   ownerId: string,
 ): Promise<boolean> {
-  const database = await openStateLockDatabase(options.databasePath);
+  const database = await openStateLockDatabase(options);
   const now = Date.now();
 
   try {
@@ -154,7 +149,7 @@ async function tryInsertStateLock(
           options.resourceKey,
           options.mode,
           ownerId,
-          platformRuntime.pid,
+          0,
           now,
           now,
         ],
@@ -174,11 +169,9 @@ function createStateLockRelease(
   const heartbeat = setInterval(() => {
     void updateStateLockHeartbeat(options, ownerId).catch(() => undefined);
   }, heartbeatMs);
-  heartbeat.unref?.();
-
   return async () => {
     clearInterval(heartbeat);
-    const database = await openStateLockDatabase(options.databasePath);
+    const database = await openStateLockDatabase(options);
 
     try {
       await database.run(
@@ -198,7 +191,7 @@ async function updateStateLockHeartbeat(
   options: StateLockOptions,
   ownerId: string,
 ): Promise<void> {
-  const database = await openStateLockDatabase(options.databasePath);
+  const database = await openStateLockDatabase(options);
 
   try {
     await database.run(
@@ -207,13 +200,7 @@ async function updateStateLockHeartbeat(
         SET heartbeat_at = ?, owner_pid = ?
         WHERE scope = ? AND resource_key = ? AND owner_id = ?
       `,
-      [
-        Date.now(),
-        platformRuntime.pid,
-        options.scope,
-        options.resourceKey,
-        ownerId,
-      ],
+      [Date.now(), 0, options.scope, options.resourceKey, ownerId],
     );
   } finally {
     await database.close();
@@ -272,8 +259,22 @@ async function cleanupStaleStateLocks(
   }
 }
 
-async function openStateLockDatabase(databasePath: string): Promise<Database> {
-  return await openSharedStateDatabase(databasePath, STATE_LOCK_SCHEMA_SQL);
+async function openStateLockDatabase(options: {
+  readonly databaseFile?: File;
+  readonly stateDatabaseName?: string;
+}): Promise<Database> {
+  if (options.databaseFile !== undefined) {
+    return await Database.open(options.databaseFile, STATE_LOCK_SCHEMA_SQL);
+  }
+  if (options.stateDatabaseName !== undefined) {
+    return await openWikiGraphStateDatabase(
+      options.stateDatabaseName,
+      STATE_LOCK_SCHEMA_SQL,
+    );
+  }
+  throw new Error(
+    "State lock requires a database File or state database name.",
+  );
 }
 
 function mapStateLockRow(row: SqlRow): StateLockRow {
@@ -281,7 +282,6 @@ function mapStateLockRow(row: SqlRow): StateLockRow {
     heartbeatAt: getNumber(row, "heartbeat_at"),
     mode: getStateLockMode(getString(row, "mode")),
     ownerId: getString(row, "owner_id"),
-    ownerPid: getNumber(row, "owner_pid"),
   };
 }
 
@@ -301,25 +301,10 @@ function locksConflict(
 }
 
 function isStateLockStale(
-  lock: Pick<StateLockRow, "heartbeatAt" | "ownerPid">,
+  lock: Pick<StateLockRow, "heartbeatAt">,
   staleMs = DEFAULT_STATE_LOCK_STALE_MS,
 ): boolean {
-  return (
-    Date.now() - lock.heartbeatAt > staleMs && !isProcessAlive(lock.ownerPid)
-  );
-}
-
-function isProcessAlive(pid: number): boolean {
-  try {
-    platformRuntime.kill(pid, 0);
-    return true;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ESRCH") {
-      return false;
-    }
-
-    return true;
-  }
+  return Date.now() - lock.heartbeatAt > staleMs;
 }
 
 async function delay(ms: number): Promise<void> {

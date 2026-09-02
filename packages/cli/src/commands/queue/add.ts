@@ -12,13 +12,14 @@ import { isCLIQueueAutostartEnabled } from "../../runtime/context.js";
 import { spawnInternalChild } from "../../runtime/internal-child.js";
 import { createQueueAddEstimate } from "./estimate.js";
 import { writeArchiveAddSummary } from "./output.js";
+import { NodeFile } from "../../runtime/node-platform.js";
 
 export async function addChapterJob(
   args: CLIQueueArguments,
   chapterId: number,
 ): Promise<BuildJob> {
   return await addBuildJob({
-    archivePath: args.archivePath!,
+    archive: new NodeFile(args.archivePath!),
     boost: args.boost ?? false,
     chapterId,
     ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
@@ -40,7 +41,7 @@ export async function addArchiveJobs(
     readonly reason: string;
   }> = [];
 
-  await new WikiGraphArchiveFile(args.archivePath!).readDocument(
+  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).readDocument(
     async (document) => {
       const chapterIdSet =
         args.chapterIds === undefined ? undefined : new Set(args.chapterIds);
@@ -123,7 +124,7 @@ export async function assertQueueAddReady(
   chapterId: number,
 ): Promise<void> {
   let chapter: ChapterEntry | undefined;
-  await new WikiGraphArchiveFile(args.archivePath!).readDocument(
+  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).readDocument(
     async (document) => {
       chapter = (await listChapters(document)).find(
         (entry) => entry.chapterId === chapterId,
@@ -135,13 +136,15 @@ export async function assertQueueAddReady(
     throw new Error(`Chapter ${chapterId} does not exist.`);
   }
 
-  await new WikiGraphArchiveFile(args.archivePath!).read(async (digest) => {
-    if ((await digest.readChapterStage(chapterId)) === "planned") {
-      throw new Error(
-        `Chapter ${chapter!.uri} is planned. Set source before queueing a build job.`,
-      );
-    }
-  });
+  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).read(
+    async (digest) => {
+      if ((await digest.readChapterStage(chapterId)) === "planned") {
+        throw new Error(
+          `Chapter ${chapter!.uri} is planned. Set source before queueing a build job.`,
+        );
+      }
+    },
+  );
 
   const target = args.target ?? "reading-summary";
   if (
@@ -152,7 +155,7 @@ export async function assertQueueAddReady(
     return;
   }
 
-  await new WikiGraphArchiveFile(args.archivePath!).readDocument(
+  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).readDocument(
     async (document) => {
       if (target === "index-embedding-summary") {
         const summary = await document.readSummary(chapterId);
@@ -181,7 +184,7 @@ export async function readQueueAddChapter(
 ): Promise<ChapterEntry> {
   let matched: ChapterEntry | undefined;
 
-  await new WikiGraphArchiveFile(args.archivePath!).readDocument(
+  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).readDocument(
     async (document) => {
       matched = (await listChapters(document)).find(
         (chapter) => chapter.chapterId === chapterId,

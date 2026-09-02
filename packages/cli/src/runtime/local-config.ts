@@ -1,5 +1,8 @@
-import { resolveWikiGraphCoreDatabasePath } from "../../../core/src/runtime/common/wiki-graph/dir.js";
 import { openSharedStateDatabase } from "wiki-graph-core";
+import { getCLIStateDir } from "./context.js";
+import { NodeFile } from "./node-platform.js";
+import { join } from "path";
+import { homedir } from "os";
 import type { Database } from "wiki-graph-core";
 
 export const LOCAL_CONFIG_SECTIONS = [
@@ -149,7 +152,9 @@ async function withLocalConfigDatabase<T>(
   operation: (database: Database) => Promise<T>,
 ): Promise<T> {
   const database = await openSharedStateDatabase(
-    resolveWikiGraphCoreDatabasePath(),
+    new NodeFile(
+      join(getCLIStateDir() ?? join(homedir(), ".wikigraph"), "core.sqlite"),
+    ),
     LOCAL_CONFIG_SCHEMA_SQL,
   );
 

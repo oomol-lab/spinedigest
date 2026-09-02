@@ -4,9 +4,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { Database } from "../../../packages/core/src/document/index.js";
 import {
-  addBuildJob,
+  addBuildJob as addCoreBuildJob,
   assertBuildJobInputRevision,
-  assertNoActiveBuildJobConflicts,
+  assertNoActiveBuildJobConflicts as assertNoCoreBuildJobConflicts,
   getBuildJob,
   listBuildJobs,
   pauseBuildJob,
@@ -19,6 +19,16 @@ import {
   cancelBuildJob,
   recordBuildJobInputRevision,
 } from "../../../packages/core/src/api/index.js";
+import type {
+  AddBuildJobOptions,
+  BuildJob,
+  BuildJobConflictScope,
+  BuildJobTarget,
+} from "../../../packages/core/src/runtime/jobs/types.js";
+import {
+  getNodeResourcePath,
+  NodeFile,
+} from "../../../packages/cli/src/runtime/node-platform.js";
 import {
   getWikiGraphStateDirectoryPathForTesting,
   setWikiGraphStateDirectoryPathForTesting,
@@ -26,6 +36,31 @@ import {
 import { withTempDir } from "../../helpers/temp.js";
 
 const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
+
+async function addBuildJob(
+  options: Omit<AddBuildJobOptions, "archive"> & {
+    readonly archivePath: string;
+  },
+): Promise<BuildJob> {
+  const { archivePath, ...rest } = options;
+  return await addCoreBuildJob({
+    ...rest,
+    archive: new NodeFile(archivePath),
+  });
+}
+
+async function assertNoActiveBuildJobConflicts(input: {
+  readonly archivePath: string;
+  readonly operation: string;
+  readonly requiresTarget?: BuildJobTarget;
+  readonly scope: BuildJobConflictScope;
+}): Promise<void> {
+  const { archivePath, ...rest } = input;
+  await assertNoCoreBuildJobConflicts({
+    ...rest,
+    archive: new NodeFile(archivePath),
+  });
+}
 
 describe("facade/build-queue", () => {
   afterEach(() => {
@@ -305,18 +340,30 @@ describe("facade/build-queue", () => {
         target: "reading-graph",
       });
 
-      expect(job.workspacePath).toBe(`${path}/state/jobs/work/${job.jobId}`);
-      expect(job.cachePath).toBe(`${path}/state/jobs/cache/${job.jobId}`);
-      expect(job.logPath).toBe(`${path}/state/jobs/logs/${job.jobId}`);
-      expect(job.eventsPath).toBe(
+      expect(getNodeResourcePath(job.workspace)).toBe(
+        `${path}/state/jobs/work/${job.jobId}`,
+      );
+      expect(getNodeResourcePath(job.cache)).toBe(
+        `${path}/state/jobs/cache/${job.jobId}`,
+      );
+      expect(getNodeResourcePath(job.log)).toBe(
+        `${path}/state/jobs/logs/${job.jobId}`,
+      );
+      expect(getNodeResourcePath(job.events)).toBe(
         `${path}/state/jobs/events/${job.jobId}.ndjson`,
       );
 
       await runBuildJobWorker({
         concurrency: 1,
         executeJob: async (runningJob, reporter) => {
-          await writeFile(`${runningJob.cachePath}/request.txt`, "cache");
-          await writeFile(`${runningJob.logPath}/run.log`, "log");
+          await writeFile(
+            `${getNodeResourcePath(runningJob.cache)}/request.txt`,
+            "cache",
+          );
+          await writeFile(
+            `${getNodeResourcePath(runningJob.log)}/run.log`,
+            "log",
+          );
           await reporter.setTotals({ totalGraphWords: 100 });
           await reporter.stepStarted("reading-graph");
           await reporter.updateWords({ graphWords: 50 });
@@ -331,10 +378,18 @@ describe("facade/build-queue", () => {
 
       expect(updated.state).toBe("succeeded");
       expect(events.map((event) => event.type)).toContain("succeeded");
-      await expect(access(job.workspacePath)).rejects.toThrow();
-      await expect(access(job.cachePath)).resolves.toBeUndefined();
-      await expect(access(job.logPath)).resolves.toBeUndefined();
-      await expect(access(job.eventsPath)).resolves.toBeUndefined();
+      await expect(
+        access(getNodeResourcePath(job.workspace)),
+      ).rejects.toThrow();
+      await expect(
+        access(getNodeResourcePath(job.cache)),
+      ).resolves.toBeUndefined();
+      await expect(
+        access(getNodeResourcePath(job.log)),
+      ).resolves.toBeUndefined();
+      await expect(
+        access(getNodeResourcePath(job.events)),
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -779,7 +834,9 @@ describe("facade/build-queue", () => {
           (event) => event.type === "failed",
         ),
       ).toHaveLength(1);
-      await expect(access(job.workspacePath)).rejects.toThrow();
+      await expect(
+        access(getNodeResourcePath(job.workspace)),
+      ).rejects.toThrow();
     });
   });
 

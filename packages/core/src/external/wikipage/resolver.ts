@@ -68,13 +68,13 @@ export class WikipageResolver {
   ): Promise<WikipageResolver> {
     const language = normalizeLanguage(options.language);
     const wiki = options.wiki ?? `${language}wiki`;
-    const cache = await WikipageCache.open(options.cacheDatabasePath);
+    const cache = await WikipageCache.open(options.cacheDatabaseFile);
 
     return new WikipageResolver({
       client: new WikimediaClient({
         concurrency: options.concurrency ?? DEFAULT_CONCURRENCY,
         language,
-        requestLog: createWikipageFetchLog(options.logDirPath),
+        requestLog: createWikipageFetchLog(options.logDirectory),
         minRequestIntervalMs:
           options.minRequestIntervalMs ?? DEFAULT_MIN_REQUEST_INTERVAL_MS,
         retryBaseDelayMs:

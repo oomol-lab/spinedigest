@@ -1,8 +1,8 @@
 import { createReadStream } from "fs";
-import { rm } from "fs/promises";
+import { mkdtemp, rm } from "fs/promises";
 import { join } from "path";
+import { tmpdir } from "os";
 
-import { createWikiGraphTempDirectory } from "../../../core/src/runtime/common/wiki-graph/temp.js";
 import {
   getCLIStderr,
   getCLIStdin,
@@ -74,7 +74,7 @@ export async function createTemporaryOutputPath(
   readonly filePath: string;
 }> {
   void prefix;
-  const directoryPath = await createWikiGraphTempDirectory("cli-output");
+  const directoryPath = await mkdtemp(join(tmpdir(), "wikigraph-cli-output-"));
 
   return {
     directoryPath,

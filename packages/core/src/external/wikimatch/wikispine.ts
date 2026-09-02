@@ -1,6 +1,3 @@
-import { binary as platformBinary } from "../../runtime/platform/index.js";
-import { spawn } from "../../runtime/platform/index.js";
-
 import type {
   WikimatchCandidate,
   WikimatchQidOption,
@@ -18,6 +15,7 @@ export interface MatchWikispineSentenceCandidatesOptions {
     progress: WikispineMatchProgress,
   ) => Promise<void> | void;
   readonly provider?: WikispineProvider;
+  readonly commandRunner?: WikispineCommandRunner;
   readonly sentences: readonly WikimatchSentence[];
 }
 
@@ -33,6 +31,17 @@ export interface TestWikispineRuntimeOptions {
   readonly endpoint?: string;
   readonly fetch?: typeof fetch;
   readonly provider?: WikispineProvider;
+  readonly commandRunner?: WikispineCommandRunner;
+}
+
+/** Host capability for invoking the optional WikiSpine command provider. */
+export interface WikispineCommandRunner {
+  run(input: {
+    readonly args: readonly string[];
+    readonly command: string;
+    readonly input: string;
+    readonly onStdout: (chunk: string) => void;
+  }): Promise<{ readonly exitCode: number | null; readonly stderr: string }>;
 }
 
 export interface WikispineRuntimeTestResult {
@@ -163,6 +172,7 @@ export async function testWikispineRuntime(
       text: "北京大学位于北京。",
     },
     {},
+    options.commandRunner,
   );
 
   return {
@@ -176,73 +186,43 @@ async function runWikispineMatch(
   command: string,
   args: readonly string[],
   sentence: WikimatchSentence,
-  options: Pick<MatchWikispineSentenceCandidatesOptions, "onProgress">,
+  options: Pick<
+    MatchWikispineSentenceCandidatesOptions,
+    "commandRunner" | "onProgress"
+  >,
+  commandRunner: WikispineCommandRunner | undefined = options.commandRunner,
 ): Promise<readonly WikispineMatchRecord[]> {
-  return await new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    const progress = createWikispineProgressReporter(options.onProgress, {
-      onFailure: (error: any) => {
-        reject(error);
-        child.kill();
-      },
-    });
-    const parser = createWikispineNdjsonParser({
-      onMatch: (match) => {
-        progress.report({
-          coveredRangeEnd: sentence.range.start + match.end,
-        });
-      },
-    });
-    const stderr: platformBinary[] = [];
-
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      try {
-        parser.push(chunk);
-      } catch (error) {
-        reject(toError(error));
-        child.kill();
-      }
-    });
-    child.stderr.on("data", (chunk: platformBinary) => {
-      stderr.push(chunk);
-    });
-    child.on("error", (error: any) => {
-      reject(
-        new Error(
-          formatWikispineRuntimeError(
-            `Failed to start wikispine command: ${error.message}`,
-          ),
-        ),
-      );
-    });
-    child.on("close", (code: number | null) => {
-      if (code !== 0) {
-        reject(
-          new Error(
-            formatWikispineRuntimeError(
-              `wikispine match failed with exit code ${code}: ${platformBinary.concat(stderr).toString("utf8")}`,
-            ),
-          ),
-        );
-        return;
-      }
-
-      void (async () => {
-        try {
-          const matches = parser.finish();
-          await progress.wait();
-          resolve(matches);
-        } catch (error) {
-          reject(toError(error));
-        }
-      })();
-    });
-
-    child.stdin.end(sentence.text);
+  if (commandRunner === undefined) {
+    throw new Error(
+      formatWikispineRuntimeError(
+        "The cli provider requires a host-supplied WikispineCommandRunner.",
+      ),
+    );
+  }
+  const progress = createWikispineProgressReporter(options.onProgress);
+  const parser = createWikispineNdjsonParser({
+    onMatch: (match) => {
+      progress.report({
+        coveredRangeEnd: sentence.range.start + match.end,
+      });
+    },
   });
+  const result = await commandRunner.run({
+    args,
+    command,
+    input: sentence.text,
+    onStdout: (chunk) => parser.push(chunk),
+  });
+  if (result.exitCode !== 0) {
+    throw new Error(
+      formatWikispineRuntimeError(
+        `wikispine match failed with exit code ${result.exitCode}: ${result.stderr}`,
+      ),
+    );
+  }
+  const matches = parser.finish();
+  await progress.wait();
+  return matches;
 }
 
 function buildMatchArgs(

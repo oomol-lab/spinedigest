@@ -31,6 +31,7 @@ import { writeJobList, writeJobStatus, writeJobSummary } from "./output.js";
 import { watchBuildJob } from "./watch.js";
 import { requireKnowledgeGraphWikispineConfig } from "./worker.js";
 import { resolveArchiveChapterScope } from "../archive-command/run/scope.js";
+import { NodeFile } from "../../runtime/node-platform.js";
 
 export { runQueueWorker } from "./worker.js";
 
@@ -99,7 +100,7 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
           ...(args.all === undefined ? {} : { all: args.all }),
           ...(args.archivePath === undefined
             ? {}
-            : { archivePath: args.archivePath }),
+            : { archive: new NodeFile(args.archivePath) }),
         }),
         { json: args.json ?? false },
       );
@@ -171,7 +172,7 @@ async function resolveQueueChapterIds(
   }
 
   let chapterIds: readonly number[] | undefined;
-  await new WikiGraphArchiveFile(args.archivePath!).readDocument(
+  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).readDocument(
     async (document) => {
       if (args.chapterPath === undefined) {
         chapterIds = (

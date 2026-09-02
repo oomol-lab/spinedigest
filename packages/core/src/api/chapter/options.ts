@@ -6,18 +6,19 @@ import type {
   SerialProgressSink,
 } from "../../serial.js";
 import { resolveExtractionPrompt } from "../../runtime/common/prompts.js";
+import type { Directory } from "../../runtime/platform/index.js";
 
 export interface GenerateChapterGraphOptions {
   readonly extractionPrompt?: string;
   readonly llm: LLM<WikiGraphScope>;
-  readonly logDirPath?: string;
+  readonly logDirectory?: Directory;
   readonly progressTracker?: SerialProgressSink;
   readonly userLanguage?: Language;
 }
 
 export interface GenerateChapterSummaryOptions {
   readonly llm: LLM<WikiGraphScope>;
-  readonly logDirPath?: string;
+  readonly logDirectory?: Directory;
   readonly userLanguage?: Language;
 }
 

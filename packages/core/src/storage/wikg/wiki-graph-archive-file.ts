@@ -1,69 +1,38 @@
-import { type File } from "../../runtime/platform/index.js";
+import type { File } from "../../runtime/platform/index.js";
 
 import { DirectoryDocument } from "../../document/index.js";
+import { WikiGraphArchive } from "../../api/wiki-graph-archive.js";
+import { deleteArchiveSearchSessions } from "../../retrieval/query/index.js";
 
 import { WikgCoordinator } from "./coordinator.js";
-import { deleteArchiveSearchSessions } from "../../retrieval/query/index.js";
-import { WikiGraphArchive } from "../../api/wiki-graph-archive.js";
 
+/** A .wikg archive exposed to Core as an opaque host File capability. */
 export class WikiGraphArchiveFile {
-  readonly #file: File | string;
+  readonly #file: File;
   readonly #coordinator = new WikgCoordinator();
 
-  public constructor(file: File | string) {
+  public constructor(file: File) {
     this.#file = file;
   }
 
   public async read<T>(
-    operation: (digest: WikiGraphArchive) => Promise<T> | T,
-    options: {
-      readonly documentDirPath?: string;
-    } = {},
+    operation: (archive: WikiGraphArchive) => Promise<T> | T,
   ): Promise<T> {
     return await this.readDocument(
-      async (document, directoryPath) =>
+      async (document) =>
         await operation(
-          new WikiGraphArchive(
-            document,
-            typeof this.#file === "string" ? directoryPath : this.#file,
-            {
-              sourceKind:
-                options.documentDirPath === undefined ? "archive" : "directory",
-            },
-          ),
+          new WikiGraphArchive(document, this.#file, { sourceKind: "archive" }),
         ),
-      options,
     );
   }
 
   public async readDocument<T>(
-    operation: (
-      document: DirectoryDocument,
-      directoryPath: string,
-    ) => Promise<T> | T,
-    options: {
-      readonly documentDirPath?: string;
-      readonly searchIndexWritebackPolicy?: "archive" | "cache";
-    } = {},
+    operation: (document: DirectoryDocument) => Promise<T> | T,
+    options: { readonly searchIndexWritebackPolicy?: "archive" | "cache" } = {},
   ): Promise<T> {
     return await this.#coordinator.withArchiveSession(
       this.#file,
       async (session) => {
-        if (options.documentDirPath !== undefined) {
-          return await session.materializeReadWorkspace(
-            options.documentDirPath,
-            async (directoryPath) => {
-              const document = await DirectoryDocument.open(directoryPath);
-
-              try {
-                return await operation(document, directoryPath);
-              } finally {
-                await document.release();
-              }
-            },
-          );
-        }
-
         const fileStore = session.createFileStore({
           readonlyDatabase: true,
           ...(options.searchIndexWritebackPolicy === undefined
@@ -72,16 +41,9 @@ export class WikiGraphArchiveFile {
                 searchIndexWritebackPolicy: options.searchIndexWritebackPolicy,
               }),
         });
-        const document =
-          typeof this.#file === "string"
-            ? await DirectoryDocument.open(this.#file, { fileStore })
-            : await DirectoryDocument.openFileStore(fileStore);
-
+        const document = await DirectoryDocument.openFileStore(fileStore);
         try {
-          return await operation(
-            document,
-            typeof this.#file === "string" ? this.#file : document.path,
-          );
+          return await operation(document);
         } finally {
           await document.release();
         }
@@ -103,20 +65,14 @@ export class WikiGraphArchiveFile {
                 searchIndexWritebackPolicy: options.searchIndexWritebackPolicy,
               }),
         });
-        const document =
-          typeof this.#file === "string"
-            ? await DirectoryDocument.open(this.#file, { fileStore })
-            : await DirectoryDocument.openFileStore(fileStore);
-
+        const document = await DirectoryDocument.openFileStore(fileStore);
         try {
           return await operation(document);
         } finally {
           try {
             await document.release();
           } finally {
-            if (typeof this.#file === "string") {
-              await deleteArchiveSearchSessions(document.path);
-            }
+            await deleteArchiveSearchSessions(this.#file.identity);
           }
         }
       },

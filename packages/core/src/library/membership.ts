@@ -1,20 +1,12 @@
-import { randomBytes } from "../runtime/platform/index.js";
 import {
-  constants,
-  copyFile,
-  mkdir,
-  opendir,
-  realpath,
-  rename,
-  rm,
-  stat,
-} from "../runtime/platform/index.js";
-import {
-  dirname,
-  isAbsolute,
-  join,
-  relative,
-  resolve,
+  ensureRelativeFile,
+  getHostEntryLastModified,
+  getRelativeFile,
+  isDirectory,
+  readHostEntrySize,
+  writeFileContent,
+  type Directory,
+  type File,
 } from "../runtime/platform/index.js";
 
 import {
@@ -24,20 +16,20 @@ import {
   type Database,
   type SqlRow,
 } from "../document/database.js";
-import { openSharedStateDatabase } from "../document/index.js";
-import { resolveWikiGraphCoreDatabasePath } from "../runtime/common/wiki-graph/dir.js";
+import { openWikiGraphStateDatabase } from "../document/index.js";
 import { WIKI_GRAPH_ARCHIVE_EXTENSION } from "../runtime/common/wiki-graph/uri.js";
 import {
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
   WikiGraphArchiveFile,
 } from "../storage/wikg/index.js";
-import { isNodeError } from "../utils/node-error.js";
+import { bytesToHex } from "../utils/bytes.js";
+import { randomBytes } from "../utils/crypto.js";
 import {
   parseWikiGraphLibraryUri,
   resolveWikiGraphLibrary,
   resolveWikiGraphLibraryForScan,
-  updateWikiGraphLibraryFolderPathForRebind,
+  updateWikiGraphLibraryFolderForRebind,
   type ParsedWikiGraphLibraryUri,
   type WikiGraphLibraryRecord,
 } from "./registry.js";
@@ -78,13 +70,13 @@ type LibraryPathIdentityMode = "trusted" | "untrusted";
 type WikiGraphLibraryArchiveStatus = "conflict" | "missing" | "present";
 
 export interface WikiGraphLibraryArchiveRecord {
+  readonly file?: File;
   readonly id: number;
   readonly publicId: string;
   readonly uri: string;
   readonly libraryId: number;
   readonly libraryUri: string;
   readonly relativePath: string;
-  readonly path: string;
   readonly exists: boolean;
   readonly status: WikiGraphLibraryArchiveStatus;
   readonly lastSeenMutationToken?: string;
@@ -101,8 +93,8 @@ export interface WikiGraphLibraryScanResult {
 }
 
 interface DiscoveredLibraryArchiveFile {
+  readonly file: File;
   readonly relativePath: string;
-  readonly path: string;
   readonly mutationToken?: string;
   readonly size: number;
   readonly mtimeMs: number;
@@ -124,17 +116,18 @@ export async function scanWikiGraphLibrary(
 
 export async function rebindWikiGraphLibrary(input: {
   readonly target: ParsedWikiGraphLibraryUri;
-  readonly folderPath: string;
+  readonly folder: Directory;
 }): Promise<WikiGraphLibraryScanResult> {
   if (input.target.kind !== "scope" || input.target.objectUri !== undefined) {
     throw new Error("Library rebind requires a library scope URI.");
   }
+  await assertLibraryDirectoryAvailable(input.folder);
 
   const library = await resolveWikiGraphLibrary(input.target);
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
-    const rebound = await updateWikiGraphLibraryFolderPathForRebind(
+    const rebound = await updateWikiGraphLibraryFolderForRebind(
       library,
-      input.folderPath,
+      input.folder,
     );
     const result = await scanWikiGraphLibraryUnlocked(input.target, rebound, {
       pathIdentity: "untrusted",
@@ -150,7 +143,7 @@ async function scanWikiGraphLibraryUnlocked(
   library: WikiGraphLibraryRecord,
   options: { readonly pathIdentity: LibraryPathIdentityMode },
 ): Promise<WikiGraphLibraryScanResult> {
-  const files = await listWikgFiles(library.folderPath);
+  const files = await listWikgFiles(library.folder);
 
   await withLibraryArchiveMembershipDatabase(async (database) => {
     await database.transaction(async () => {
@@ -263,9 +256,9 @@ export async function getWikiGraphLibraryArchiveById(
   );
 }
 
-export async function resolveWikiGraphLibraryArchivePath(
+export async function resolveWikiGraphLibraryArchiveFile(
   archiveLocator: string,
-): Promise<string> {
+): Promise<File> {
   const target = parseWikiGraphLibraryUri(archiveLocator);
   if (target === undefined || target.kind !== "archive") {
     throw new Error(
@@ -283,49 +276,37 @@ export async function resolveWikiGraphLibraryArchivePath(
     );
   }
 
-  return archive.path;
+  if (archive.file === undefined) {
+    throw new Error(
+      `Wiki Graph library archive is unavailable: ${archiveLocator}`,
+    );
+  }
+  return archive.file;
 }
 
 export async function addWikiGraphLibraryArchive(input: {
   readonly target: ParsedWikiGraphLibraryUri;
-  readonly inputPath: string;
+  readonly inputFile: File;
   readonly to?: string;
 }): Promise<WikiGraphLibraryArchiveRecord> {
-  if (input.inputPath.startsWith("wikg://")) {
-    throw new Error(
-      "Library add --input accepts a file path, not a Wiki Graph URI.",
-    );
-  }
-  if (/^[a-z][a-z0-9+.-]*:\/\//iu.test(input.inputPath)) {
-    throw new Error("Library add does not support URL inputs yet.");
-  }
-
   const library = await resolveWikiGraphLibrary(input.target);
-  await mkdir(library.folderPath, { recursive: true });
-  const sourcePath = resolve(input.inputPath);
-  const sourceStats = await stat(sourcePath);
-  if (!sourceStats.isFile()) {
-    throw new Error(`Library add --input must be a file: ${input.inputPath}`);
-  }
-  const sourceBasename = sourcePath.split(/[\\/]/u).at(-1) ?? "";
   const targetRelativePath = validateLibraryArchiveRelativePath(
-    input.to ?? sourceBasename,
-  );
-  const targetPath = resolveLibraryRelativePath(
-    library.folderPath,
-    targetRelativePath,
+    input.to ?? input.inputFile.name,
   );
 
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
-    await mkdir(dirname(targetPath), { recursive: true });
-    await assertInsideLibrary(
-      await realpath(dirname(targetPath)),
-      library.folderPath,
-    );
-    await copyFile(sourcePath, targetPath, constants.COPYFILE_EXCL);
-    await assertInsideLibrary(await realpath(targetPath), library.folderPath);
+    if (
+      (await getRelativeFile(library.folder, targetRelativePath)) !== undefined
+    ) {
+      throw new Error(
+        `Library archive target already exists: ${targetRelativePath}`,
+      );
+    }
+    const target = await ensureRelativeFile(library.folder, targetRelativePath);
+    const content = await input.inputFile.read();
+    await writeFileContent(target, content);
     const targetFile = await ensureLibraryArchiveFileHasNoSearchIndexAndInspect(
-      library.folderPath,
+      library.folder,
       targetRelativePath,
     );
     const archive = await withLibraryArchiveMembershipDatabase(
@@ -360,11 +341,14 @@ export async function finalizeWikiGraphLibraryArchiveWrite(input: {
   const library = await resolveWikiGraphLibrary(input.target);
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
     const archive = await resolveLibraryArchiveTarget(input.target, library);
+    if (archive.file === undefined) {
+      throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
+    }
     const removed = await ensureLibraryManagedArchiveHasNoSearchIndex(
-      archive.path,
+      archive.file,
     );
     const refreshedFile = await inspectLibraryArchiveFile(
-      library.folderPath,
+      library.folder,
       archive.relativePath,
     );
 
@@ -379,17 +363,17 @@ export async function finalizeWikiGraphLibraryArchiveWrite(input: {
 }
 
 export async function ensureLibraryManagedArchiveHasNoSearchIndex(
-  archivePath: string,
+  archive: File,
 ): Promise<boolean> {
-  if ((await readOptionalWikgMutationToken(archivePath)) === undefined) {
+  if ((await readOptionalWikgMutationToken(archive)) === undefined) {
     return false;
   }
 
-  if (!(await archiveHasSearchIndex(archivePath))) {
+  if (!(await archiveHasSearchIndex(archive))) {
     return false;
   }
 
-  await new WikiGraphArchiveFile(archivePath).write(
+  await new WikiGraphArchiveFile(archive).write(
     async (document) => {
       await document.deleteSearchIndexDatabase();
     },
@@ -398,12 +382,12 @@ export async function ensureLibraryManagedArchiveHasNoSearchIndex(
   return true;
 }
 
-async function archiveHasSearchIndex(archivePath: string): Promise<boolean> {
+async function archiveHasSearchIndex(archive: File): Promise<boolean> {
   for (const entryPath of [
     SEARCH_INDEX_ARCHIVE_ENTRY_PATH,
     LEGACY_SEARCH_INDEX_ARCHIVE_ENTRY_PATH,
   ]) {
-    if ((await readWikgArchiveEntry(archivePath, entryPath)) !== undefined) {
+    if ((await readWikgArchiveEntry(archive, entryPath)) !== undefined) {
       return true;
     }
   }
@@ -418,7 +402,7 @@ export async function removeWikiGraphLibraryArchive(input: {
   const archive = await resolveLibraryArchiveTarget(input.target, library);
 
   await withWikiGraphLibraryLock(library.id, "write", async () => {
-    await rm(archive.path, { force: true });
+    await removeRelativeFile(library.folder, archive.relativePath);
     await withLibraryArchiveMembershipDatabase(async (database) => {
       await database.run("DELETE FROM library_archives WHERE id = ?", [
         archive.id,
@@ -437,26 +421,23 @@ export async function moveWikiGraphLibraryArchive(input: {
   const library = await resolveWikiGraphLibrary(input.target);
   const archive = await resolveLibraryArchiveTarget(input.target, library);
   const targetRelativePath = validateLibraryArchiveRelativePath(input.to);
-  const targetPath = resolveLibraryRelativePath(
-    library.folderPath,
-    targetRelativePath,
-  );
 
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
-    await mkdir(dirname(targetPath), { recursive: true });
-    await assertInsideLibrary(
-      await realpath(dirname(targetPath)),
-      library.folderPath,
-    );
-    if (await pathExists(targetPath)) {
+    if (
+      (await getRelativeFile(library.folder, targetRelativePath)) !== undefined
+    ) {
       throw new Error(
         `Library archive target already exists: ${targetRelativePath}`,
       );
     }
-    await rename(archive.path, targetPath);
-    await assertInsideLibrary(await realpath(targetPath), library.folderPath);
+    if (archive.file === undefined) {
+      throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
+    }
+    const target = await ensureRelativeFile(library.folder, targetRelativePath);
+    await writeFileContent(target, await archive.file.read());
+    await removeRelativeFile(library.folder, archive.relativePath);
     const targetFile = await inspectLibraryArchiveFile(
-      library.folderPath,
+      library.folder,
       targetRelativePath,
     );
     const moved = await withLibraryArchiveMembershipDatabase(
@@ -484,8 +465,8 @@ export async function moveWikiGraphLibraryArchive(input: {
 async function withLibraryArchiveMembershipDatabase<T>(
   operation: (database: Database) => Promise<T>,
 ): Promise<T> {
-  const database = await openSharedStateDatabase(
-    resolveWikiGraphCoreDatabasePath(),
+  const database = await openWikiGraphStateDatabase(
+    "core.sqlite",
     LIBRARY_ARCHIVE_MEMBERSHIP_SCHEMA_SQL,
   );
 
@@ -506,13 +487,8 @@ async function listLibraryArchives(
   const archives: WikiGraphLibraryArchiveRecord[] = [];
   for (const row of rows) {
     const relativePath = getString(row, "relative_path");
-    archives.push(
-      mapLibraryArchiveRecord(
-        library,
-        row,
-        await pathExists(join(library.folderPath, relativePath)),
-      ),
-    );
+    const file = await getRelativeFile(library.folder, relativePath);
+    archives.push(mapLibraryArchiveRecord(library, row, file));
   }
   return archives;
 }
@@ -522,7 +498,7 @@ async function listLibraryArchiveRows(
   library: WikiGraphLibraryRecord,
 ): Promise<WikiGraphLibraryArchiveRecord[]> {
   const rows = await queryLibraryArchiveRows(database, library.id);
-  return rows.map((row) => mapLibraryArchiveRecord(library, row, false));
+  return rows.map((row) => mapLibraryArchiveRecord(library, row));
 }
 
 async function queryLibraryArchiveRows(
@@ -651,14 +627,18 @@ async function requireLibraryArchiveByRelativePath(
       END, id DESC
     `,
     [library.id, relativePath],
-    (row) => mapLibraryArchiveRecord(library, row, true),
+    (row) => row,
   );
   if (archive === undefined) {
     throw new Error(
       `Library archive registry record is missing: ${relativePath}`,
     );
   }
-  return archive;
+  return mapLibraryArchiveRecord(
+    library,
+    archive,
+    await getRelativeFile(library.folder, relativePath),
+  );
 }
 
 async function requireLibraryArchiveByPublicId(
@@ -684,7 +664,7 @@ async function requireLibraryArchiveByPublicId(
   return mapLibraryArchiveRecord(
     library,
     row,
-    await pathExists(join(library.folderPath, relativePath)),
+    await getRelativeFile(library.folder, relativePath),
   );
 }
 
@@ -711,7 +691,7 @@ async function requireLibraryArchiveById(
   return mapLibraryArchiveRecord(
     library,
     row,
-    await pathExists(join(library.folderPath, relativePath)),
+    await getRelativeFile(library.folder, relativePath),
   );
 }
 
@@ -735,7 +715,7 @@ async function resolveLibraryArchiveTarget(
 function mapLibraryArchiveRecord(
   library: WikiGraphLibraryRecord,
   row: SqlRow,
-  exists: boolean,
+  file?: File,
 ): WikiGraphLibraryArchiveRecord {
   const publicId = getString(row, "public_id");
   const relativePath = getString(row, "relative_path");
@@ -744,7 +724,8 @@ function mapLibraryArchiveRecord(
   );
   return {
     createdAt: getString(row, "created_at"),
-    exists,
+    exists: file !== undefined,
+    ...(file === undefined ? {} : { file }),
     id: getNumber(row, "id"),
     libraryId: library.id,
     libraryUri: library.uri,
@@ -756,10 +737,9 @@ function mapLibraryArchiveRecord(
     ...optionalNumberField(row, "last_seen_mtime_ms", "lastSeenMtimeMs"),
     ...optionalNumberField(row, "last_seen_size", "lastSeenSize"),
     ...optionalStringField(row, "last_scanned_at", "lastScannedAt"),
-    path: join(library.folderPath, relativePath),
     publicId,
     relativePath,
-    status: exists ? databaseStatus : "missing",
+    status: file === undefined ? "missing" : databaseStatus,
     updatedAt: getString(row, "updated_at"),
     uri: `${library.uri}/arc/${publicId}`,
   };
@@ -785,13 +765,21 @@ function archivePathMatchRank(archive: WikiGraphLibraryArchiveRecord): number {
 }
 
 async function listWikgFiles(
-  root: string,
+  root: Directory,
 ): Promise<DiscoveredLibraryArchiveFile[]> {
-  await assertLibraryFolderExists(root);
-  const relativePaths: string[] = [];
-  await walkLibraryDirectory(root, root, relativePaths);
+  const discovered: Array<{
+    readonly file: File;
+    readonly relativePath: string;
+  }> = [];
+  try {
+    await walkLibraryDirectory(root, "", discovered);
+  } catch {
+    throw new Error("Wiki Graph library folder is missing or unavailable.");
+  }
   const files: DiscoveredLibraryArchiveFile[] = [];
-  for (const relativePath of relativePaths.sort((a, b) => a.localeCompare(b))) {
+  for (const { relativePath } of discovered.sort((left, right) =>
+    left.relativePath.localeCompare(right.relativePath),
+  )) {
     files.push(
       await ensureLibraryArchiveFileHasNoSearchIndexAndInspect(
         root,
@@ -802,76 +790,72 @@ async function listWikgFiles(
   return files;
 }
 
-async function assertLibraryFolderExists(root: string): Promise<void> {
+async function assertLibraryDirectoryAvailable(
+  directory: Directory,
+): Promise<void> {
   try {
-    const rootStat = await stat(root);
-    if (!rootStat.isDirectory()) {
-      throw new Error(`Wiki Graph library folder is not a directory: ${root}`);
-    }
+    await directory.list();
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      throw new Error(`Wiki Graph library folder is missing: ${root}`);
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String(error.code)
+        : undefined;
+    if (code === "ENOENT") {
+      throw new Error("Wiki Graph library folder does not exist.");
+    }
+    if (code === "ENOTDIR") {
+      throw new Error(
+        "Wiki Graph library folder must be an existing directory.",
+      );
     }
     throw error;
   }
 }
 
 async function ensureLibraryArchiveFileHasNoSearchIndexAndInspect(
-  root: string,
+  root: Directory,
   relativePath: string,
 ): Promise<DiscoveredLibraryArchiveFile> {
-  await ensureLibraryManagedArchiveHasNoSearchIndex(join(root, relativePath));
+  const file = await requireRelativeLibraryFile(root, relativePath);
+  await ensureLibraryManagedArchiveHasNoSearchIndex(file);
   return await inspectLibraryArchiveFile(root, relativePath);
 }
 
 async function walkLibraryDirectory(
-  root: string,
-  directory: string,
-  files: string[],
+  directory: Directory,
+  prefix: string,
+  files: Array<{ readonly file: File; readonly relativePath: string }>,
 ): Promise<void> {
-  let entries;
-  try {
-    entries = await opendir(directory);
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return;
-    }
-    throw error;
-  }
-  for await (const entry of entries) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      await walkLibraryDirectory(root, path, files);
-    } else if (
-      entry.isFile() &&
-      entry.name.endsWith(WIKI_GRAPH_ARCHIVE_EXTENSION)
-    ) {
-      files.push(relative(root, path).replace(/\\/gu, "/"));
+  for (const entry of await directory.list()) {
+    const relativePath = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+    if (isDirectory(entry)) {
+      await walkLibraryDirectory(entry, relativePath, files);
+    } else if (entry.name.endsWith(WIKI_GRAPH_ARCHIVE_EXTENSION)) {
+      files.push({ file: entry, relativePath });
     }
   }
 }
 
 async function inspectLibraryArchiveFile(
-  root: string,
+  root: Directory,
   relativePath: string,
 ): Promise<DiscoveredLibraryArchiveFile> {
-  const path = join(root, relativePath);
-  const fileStat = await stat(path);
-  const mutationToken = await readOptionalWikgMutationToken(path);
+  const file = await requireRelativeLibraryFile(root, relativePath);
+  const mutationToken = await readOptionalWikgMutationToken(file);
   return {
-    mtimeMs: fileStat.mtimeMs,
+    file,
+    mtimeMs: (await getHostEntryLastModified(file)) ?? 0,
     ...(mutationToken === undefined ? {} : { mutationToken }),
-    path,
     relativePath,
-    size: fileStat.size,
+    size: await readHostEntrySize(file),
   };
 }
 
 async function readOptionalWikgMutationToken(
-  path: string,
+  file: File,
 ): Promise<string | undefined> {
   try {
-    return await readWikgArchiveMutationToken(path);
+    return await readWikgArchiveMutationToken(file);
   } catch {
     return undefined;
   }
@@ -883,8 +867,7 @@ function validateLibraryArchiveRelativePath(relativePath: string): string {
     .replace(/^\/+|\/+$/gu, "");
   if (
     normalized === "" ||
-    isAbsolute(relativePath) ||
-    normalized.split("/").includes("..")
+    normalized.split("/").some((part) => part === "." || part === "..")
   ) {
     throw new Error(
       "Library archive target must be a relative path inside the library folder.",
@@ -896,24 +879,30 @@ function validateLibraryArchiveRelativePath(relativePath: string): string {
   return normalized;
 }
 
-function resolveLibraryRelativePath(
-  root: string,
+async function requireRelativeLibraryFile(
+  root: Directory,
   relativePath: string,
-): string {
-  const path = resolve(root, relativePath);
-  const rel = relative(resolve(root), path);
-  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
-    throw new Error("Library archive target escapes the library folder.");
+): Promise<File> {
+  const file = await getRelativeFile(root, relativePath);
+  if (file === undefined) {
+    throw new Error(`Library archive file is missing: ${relativePath}`);
   }
-  return path;
+  return file;
 }
 
-async function assertInsideLibrary(path: string, root: string): Promise<void> {
-  const rootRealPath = await realpath(root);
-  const rel = relative(rootRealPath, path);
-  if (rel.startsWith("..") || isAbsolute(rel)) {
-    throw new Error("Library archive path escapes the library folder.");
+async function removeRelativeFile(
+  root: Directory,
+  relativePath: string,
+): Promise<void> {
+  const parts = validateLibraryArchiveRelativePath(relativePath).split("/");
+  const name = parts.pop()!;
+  let parent = root;
+  for (const part of parts) {
+    const child = await parent.getDirectory(part);
+    if (child === undefined) return;
+    parent = child;
   }
+  await parent.remove(name);
 }
 
 async function ensureLibraryArchiveMembershipColumns(
@@ -1022,7 +1011,7 @@ async function createUniqueLibraryArchivePublicId(
   libraryId: number,
 ): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const publicId = randomBytes(PUBLIC_ID_BYTES).toString("hex");
+    const publicId = bytesToHex(randomBytes(PUBLIC_ID_BYTES));
     const existing = await database.queryOne(
       "SELECT public_id FROM library_archives WHERE library_id = ? AND public_id = ?",
       [libraryId, publicId],
@@ -1033,18 +1022,6 @@ async function createUniqueLibraryArchivePublicId(
     }
   }
   throw new Error("Could not generate a unique library archive id.");
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return false;
-    }
-    throw error;
-  }
 }
 
 function normalizeArchiveStatus(value: string): WikiGraphLibraryArchiveStatus {

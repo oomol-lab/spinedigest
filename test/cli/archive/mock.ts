@@ -526,11 +526,15 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
 
       return Promise.resolve(`/tmp/library/${archiveId}.wikg`);
     }),
+    resolveWikiGraphLibraryArchiveFile: vi.fn((uri: string) => {
+      const archiveId = uri.split("/").at(-1) ?? "archive";
+      return Promise.resolve({ path: `/tmp/library/${archiveId}.wikg` });
+    }),
     WikiGraphArchiveFile: class {
       readonly #path: string;
 
-      public constructor(path: string) {
-        this.#path = path;
+      public constructor(path: string | { readonly path: string }) {
+        this.#path = typeof path === "string" ? path : path.path;
       }
 
       public async readDocument(
@@ -556,8 +560,8 @@ vi.mock(
     WikiGraphArchiveFile: class {
       readonly #path: string;
 
-      public constructor(path: string) {
-        this.#path = path;
+      public constructor(path: string | { readonly path: string }) {
+        this.#path = typeof path === "string" ? path : path.path;
       }
 
       public async readDocument(

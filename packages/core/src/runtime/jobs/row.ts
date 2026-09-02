@@ -4,8 +4,21 @@ import {
   type BuildJobState,
   type BuildJobTarget,
 } from "./types.js";
+import { getWikiGraphPlatform } from "../platform/index.js";
 
-export function mapBuildJob(row: Record<string, unknown>): BuildJob {
+export interface StoredBuildJob extends Omit<
+  BuildJob,
+  "archive" | "cache" | "events" | "log" | "workspace"
+> {
+  readonly archiveIdentity: string;
+  readonly cacheIdentity: string;
+  readonly eventsIdentity: string;
+  readonly logIdentity: string;
+  readonly ownerPid?: number;
+  readonly workspaceIdentity: string;
+}
+
+export function mapBuildJob(row: Record<string, unknown>): StoredBuildJob {
   const currentStep = parseOptionalBuildJobTarget(
     getOptionalString(row, "current_step"),
     "current_step",
@@ -27,17 +40,17 @@ export function mapBuildJob(row: Record<string, unknown>): BuildJob {
 
   return {
     archiveKey: getString(row, "archive_key"),
-    archivePath: getString(row, "archive_path"),
-    cachePath: getString(row, "cache_path"),
+    archiveIdentity: getString(row, "archive_path"),
+    cacheIdentity: getString(row, "cache_path"),
     chapterId: getNumber(row, "chapter_id"),
     createdAt: getNumber(row, "created_at"),
     ...(currentStep === undefined ? {} : { currentStep }),
     ...(errorJSON === undefined ? {} : { errorJSON }),
-    eventsPath: getString(row, "events_path"),
+    eventsIdentity: getString(row, "events_path"),
     ...(finishedAt === undefined ? {} : { finishedAt }),
     jobId: getString(row, "job_id"),
     ...(inputRevision === undefined ? {} : { inputRevision }),
-    logPath: getString(row, "log_path"),
+    logIdentity: getString(row, "log_path"),
     ...(llmJSON === undefined ? {} : { llmJSON }),
     ...(ownerId === undefined ? {} : { ownerId }),
     ...(ownerPid === undefined ? {} : { ownerPid }),
@@ -49,8 +62,41 @@ export function mapBuildJob(row: Record<string, unknown>): BuildJob {
       : { readingSummaryStartedAt }),
     target: parseBuildJobTarget(getString(row, "target"), "target"),
     updatedAt: getNumber(row, "updated_at"),
-    workspacePath: getString(row, "workspace_path"),
+    workspaceIdentity: getString(row, "workspace_path"),
   };
+}
+
+export async function hydrateBuildJob(job: StoredBuildJob): Promise<BuildJob> {
+  const resources = getWikiGraphPlatform().resources;
+  const [archive, cache, events, log, workspace] = await Promise.all([
+    resources.getFile(job.archiveIdentity),
+    resources.getDirectory(job.cacheIdentity),
+    resources.getFile(job.eventsIdentity),
+    resources.getDirectory(job.logIdentity),
+    resources.getDirectory(job.workspaceIdentity),
+  ]);
+  if (archive === undefined)
+    throw missingResource("archive", job.archiveIdentity);
+  if (cache === undefined) throw missingResource("cache", job.cacheIdentity);
+  if (events === undefined) throw missingResource("events", job.eventsIdentity);
+  if (log === undefined) throw missingResource("log", job.logIdentity);
+  if (workspace === undefined) {
+    throw missingResource("workspace", job.workspaceIdentity);
+  }
+  const {
+    archiveIdentity: _archiveIdentity,
+    cacheIdentity: _cacheIdentity,
+    eventsIdentity: _eventsIdentity,
+    logIdentity: _logIdentity,
+    ownerPid: _ownerPid,
+    workspaceIdentity: _workspaceIdentity,
+    ...metadata
+  } = job;
+  return { ...metadata, archive, cache, events, log, workspace };
+}
+
+function missingResource(kind: string, identity: string): Error {
+  return new Error(`Build job ${kind} resource is unavailable: ${identity}`);
 }
 
 function parseBuildJobState(value: string): BuildJobState {

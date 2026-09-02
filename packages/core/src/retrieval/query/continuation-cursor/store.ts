@@ -1,9 +1,8 @@
-import { randomBytes } from "../../../runtime/platform/index.js";
-import { join } from "../../../runtime/platform/index.js";
+import { bytesToBase64Url } from "../../../utils/bytes.js";
+import { randomBytes } from "../../../utils/crypto.js";
 
-import { resolveWikiGraphCacheDirectoryPath } from "../../../runtime/common/wiki-graph/dir.js";
 import { getOptionalString } from "../../../document/database.js";
-import { openSharedStateDatabase } from "../../../document/index.js";
+import { openWikiGraphStateDatabase } from "../../../document/index.js";
 import type { Database } from "../../../document/index.js";
 
 const CONTINUATION_CURSOR_SCHEMA_SQL = `
@@ -29,7 +28,7 @@ export async function createUniqueCursorId(
   database: Database,
 ): Promise<string> {
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const cursorId = `c_${randomBytes(6).toString("base64url")}`;
+    const cursorId = `c_${bytesToBase64Url(randomBytes(6))}`;
     const existing = await database.queryOne(
       "SELECT cursor_id FROM continuation_cursors WHERE cursor_id = ?",
       [cursorId],
@@ -53,14 +52,10 @@ export async function cleanExpiredContinuationCursors(
 }
 
 export async function openContinuationCursorDatabase(): Promise<Database> {
-  return await openSharedStateDatabase(
-    join(getContinuationStateDirectoryPath(), "continuation-cursors.sqlite"),
+  return await openWikiGraphStateDatabase(
+    "cache/continuation-cursors.sqlite",
     CONTINUATION_CURSOR_SCHEMA_SQL,
   );
-}
-
-function getContinuationStateDirectoryPath(): string {
-  return resolveWikiGraphCacheDirectoryPath();
 }
 
 export function parseCursorFormat(value: string): "json" | "jsonl" | "text" {

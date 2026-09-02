@@ -1,30 +1,25 @@
-import { mkdir, rm, stat, utimes, writeFile } from "fs/promises";
+import { mkdir, stat, utimes, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createWikiGraphTempDirectory } from "../../../../packages/core/src/runtime/common/wiki-graph/temp.js";
 import {
   getWikiGraphStateDirectoryPathForTesting,
   resolveWikiGraphHomeDirectoryPath,
   setWikiGraphStateDirectoryPathForTesting,
 } from "../../../../packages/core/src/runtime/common/wiki-graph/dir.js";
-import {
-  Database,
-  DirectoryDocument,
-} from "../../../../packages/core/src/document/index.js";
+import { Database } from "../../../../packages/core/src/document/index.js";
 import { addBuildJob } from "../../../../packages/core/src/api/index.js";
 import { createWikiGraphLibrary } from "../../../../packages/core/src/index.js";
 import { tryRunWikiGraphGc } from "../../../../packages/core/src/runtime/gc/index.js";
-import {
-  createSearchSession,
-  rebuildArchiveSearchIndex,
-} from "../../../../packages/core/src/retrieval/query/index.js";
-import { replaceChapterFtsIndexArtifact } from "../../../../packages/core/src/retrieval/index-artifact/index.js";
-import { writeWikgArchive } from "../../../../packages/core/src/storage/wikg/archive/index.js";
-import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/index.js";
+import { createSearchSession } from "../../../../packages/core/src/retrieval/query/index.js";
 import { WikipageCache } from "../../../../packages/core/src/external/wikipage/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+  NodeFile,
+} from "../../../../packages/cli/src/runtime/node-platform.js";
 
 const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
 
@@ -40,8 +35,9 @@ describe("gc", () => {
       await createExpiredSearchSession();
       const job = await createCompletedOldJob(path);
       const tmpPath = await createOldTmpDirectory();
-      const sqliteCachePath = await createOldCoordinatorSqliteCache(path);
-      const sqliteCacheParentPath = dirname(sqliteCachePath);
+      const abandonedSessionPath = await createCoordinatorSession(path, {
+        ageMs: 2 * 60 * 60 * 1000,
+      });
 
       const report = await tryRunWikiGraphGc();
 
@@ -55,8 +51,7 @@ describe("gc", () => {
         "tmp",
       ]);
       expect(report.removed).toBeGreaterThanOrEqual(3);
-      await expect(stat(sqliteCachePath)).rejects.toThrow();
-      await expect(stat(sqliteCacheParentPath)).rejects.toThrow();
+      await expect(stat(abandonedSessionPath)).rejects.toThrow();
       await expect(stat(tmpPath)).rejects.toThrow();
       await expect(stat(job.workspacePath)).rejects.toThrow();
       await expect(stat(job.cachePath)).rejects.toThrow();
@@ -160,10 +155,11 @@ describe("gc", () => {
   it("removes orphan library index staging while preserving valid and locked libraries", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
       setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
+      await mkdir(join(path, "library"));
       const library = await createWikiGraphLibrary({
-        folderPath: join(path, "library"),
+        folder: new NodeDirectory(join(path, "library")),
       });
-      const validPath = join(library.stagingPath, "index");
+      const validPath = join(getNodeResourcePath(library.staging), "index");
       const orphanPath = join(path, "state", "staging", "library", "999");
       const lockedPath = join(path, "state", "staging", "library", "1000");
       const stateLockedPath = join(path, "state", "staging", "library", "1001");
@@ -216,26 +212,25 @@ describe("gc", () => {
     });
   });
 
-  it("keeps fresh sqlite cache during normal GC", async () => {
+  it("keeps fresh host archive sessions during normal GC", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
       setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      const sqliteCachePath = await createCoordinatorSqliteCache(path, {
-        updatedAt: Date.now(),
-      });
+      const sessionPath = await createCoordinatorSession(path, { ageMs: 0 });
 
       const report = await tryRunWikiGraphGc();
 
       expect(report.skipped).toBe(false);
-      await expect(stat(sqliteCachePath)).resolves.toBeDefined();
+      expect(
+        report.jobs.find((item) => item.name === "wikg-coordinator"),
+      ).toMatchObject({ removed: 0, scanned: 1 });
+      await expect(stat(sessionPath)).resolves.toBeDefined();
     });
   });
 
-  it("removes fresh sqlite cache during forced GC", async () => {
+  it("removes fresh host archive sessions during forced GC", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
       setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      const sqliteCachePath = await createCoordinatorSqliteCache(path, {
-        updatedAt: Date.now(),
-      });
+      const sessionPath = await createCoordinatorSession(path, { ageMs: 0 });
 
       const report = await tryRunWikiGraphGc({ force: true });
 
@@ -246,206 +241,27 @@ describe("gc", () => {
         removed: 1,
         scanned: 1,
       });
-      await expect(stat(sqliteCachePath)).rejects.toThrow();
+      await expect(stat(sessionPath)).rejects.toThrow();
     });
   });
 
-  it("removes stale empty workspace directories", async () => {
+  it("reports abandoned host archive sessions without removing them during dry-run GC", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
       setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      const workspaceBucketPath = join(
-        path,
-        "state",
-        "staging",
-        "work",
-        "archive-key",
-      );
-      const buildJobBucketPath = join(path, "state", "jobs", "work", "job-id");
-
-      await mkdir(workspaceBucketPath, { recursive: true });
-      await mkdir(buildJobBucketPath, { recursive: true });
-      await writeFile(join(workspaceBucketPath, ".DS_Store"), "finder");
-      await writeFile(join(buildJobBucketPath, ".DS_Store"), "finder");
-      await makeOldPath(workspaceBucketPath);
-      await makeOldPath(buildJobBucketPath);
-
-      const report = await tryRunWikiGraphGc();
-
-      expect(report.skipped).toBe(false);
-      const wikgCoordinatorJob = report.jobs.find(
-        (item) => item.name === "wikg-coordinator",
-      );
-
-      expect(wikgCoordinatorJob?.removed).toBeGreaterThanOrEqual(1);
-      expect(
-        report.jobs.find((item) => item.name === "build-queue"),
-      ).toMatchObject({ removed: 1 });
-      await expect(stat(workspaceBucketPath)).rejects.toThrow();
-      await expect(stat(buildJobBucketPath)).rejects.toThrow();
-    });
-  });
-
-  it("removes dirty external fts sqlite cache during normal GC", async () => {
-    await withTempDir("wikigraph-gc-", async (path) => {
-      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      const sqliteCachePath = await createCoordinatorSqliteCache(path, {
-        entryPath: "index.db",
-        updatedAt: Date.now() - 2 * 60 * 60 * 1000,
+      const sessionPath = await createCoordinatorSession(path, {
+        ageMs: 2 * 60 * 60 * 1000,
       });
 
-      const normalReport = await tryRunWikiGraphGc();
+      const report = await tryRunWikiGraphGc({ dryRun: true });
 
-      expect(normalReport.skipped).toBe(false);
+      expect(report.skipped).toBe(false);
       expect(
-        normalReport.jobs.find((item) => item.name === "wikg-coordinator"),
+        report.jobs.find((item) => item.name === "wikg-coordinator"),
       ).toMatchObject({
         removed: 1,
         scanned: 1,
       });
-      await expect(stat(sqliteCachePath)).rejects.toThrow();
-    });
-  });
-
-  it("keeps current external fts sqlite cache during normal GC and removes it during forced GC", async () => {
-    await withTempDir("wikigraph-gc-", async (path) => {
-      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      const { ftsPath } = await createArchiveWithExternalSearchIndex(path);
-
-      await makeCoordinatorOverlayOld("index.db");
-      const normalReport = await tryRunWikiGraphGc();
-
-      expect(normalReport.skipped).toBe(false);
-      await expect(stat(ftsPath)).resolves.toBeDefined();
-      const forcedReport = await tryRunWikiGraphGc({ force: true });
-
-      expect(forcedReport.skipped).toBe(false);
-      expect(
-        forcedReport.jobs.find((item) => item.name === "wikg-coordinator")
-          ?.removed,
-      ).toBeGreaterThanOrEqual(1);
-      await expect(stat(ftsPath)).rejects.toThrow();
-    });
-  });
-
-  it("removes external fts sqlite cache when the source archive is missing", async () => {
-    await withTempDir("wikigraph-gc-", async (path) => {
-      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      const { archivePath, ftsPath } =
-        await createArchiveWithExternalSearchIndex(path);
-
-      await rm(archivePath, { force: true });
-      const report = await tryRunWikiGraphGc();
-
-      expect(report.skipped).toBe(false);
-      await expect(stat(ftsPath)).rejects.toThrow();
-    });
-  });
-
-  it("removes external fts sqlite cache when the archive signature changes", async () => {
-    await withTempDir("wikigraph-gc-", async (path) => {
-      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      const { archivePath, ftsPath } =
-        await createArchiveWithExternalSearchIndex(path);
-
-      await new WikiGraphArchiveFile(archivePath).write(async (document) => {
-        await document.openSession(async (openedDocument) => {
-          const draft = await openedDocument
-            .getSerialFragments(1)
-            .createDraft();
-
-          draft.addSentence("Changed archive content.", 3);
-          await draft.commit();
-        });
-      });
-
-      const report = await tryRunWikiGraphGc();
-
-      expect(report.skipped).toBe(false);
-      await expect(stat(ftsPath)).rejects.toThrow();
-    });
-  });
-
-  it("removes orphaned coordinator workspace files", async () => {
-    await withTempDir("wikigraph-gc-", async (path) => {
-      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      const workspaceBucketPath = join(
-        path,
-        "state",
-        "staging",
-        "work",
-        "archive-key",
-      );
-      const referencedPath = join(workspaceBucketPath, "database.db");
-      const orphanedPath = join(
-        workspaceBucketPath,
-        "texts",
-        "source",
-        "1.txt",
-      );
-
-      await mkdir(dirname(orphanedPath), { recursive: true });
-      await writeFile(referencedPath, "referenced", "utf8");
-      await writeFile(orphanedPath, "orphaned", "utf8");
-      await createCoordinatorOverlay(path, {
-        archiveKey: "archive-key",
-        entryPath: "database.db",
-        workspacePath: referencedPath,
-      });
-
-      const report = await tryRunWikiGraphGc();
-
-      expect(report.skipped).toBe(false);
-      const wikgCoordinatorJob = report.jobs.find(
-        (item) => item.name === "wikg-coordinator",
-      );
-
-      expect(wikgCoordinatorJob?.removed).toBeGreaterThanOrEqual(1);
-      await expect(stat(referencedPath)).resolves.toBeDefined();
-      await expect(stat(orphanedPath)).rejects.toThrow();
-    });
-  });
-
-  it("removes empty coordinator workspace descendants", async () => {
-    await withTempDir("wikigraph-gc-", async (path) => {
-      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      const workspaceBucketPath = join(
-        path,
-        "state",
-        "staging",
-        "work",
-        "archive-key",
-      );
-      const referencedPath = join(workspaceBucketPath, "database.db");
-      const sourceDirectoryPath = join(workspaceBucketPath, "texts", "source");
-      const summaryDirectoryPath = join(
-        workspaceBucketPath,
-        "texts",
-        "summary",
-      );
-
-      await mkdir(sourceDirectoryPath, { recursive: true });
-      await mkdir(summaryDirectoryPath, { recursive: true });
-      await writeFile(referencedPath, "referenced", "utf8");
-      await writeFile(join(summaryDirectoryPath, ".DS_Store"), "finder");
-      await createCoordinatorOverlay(path, {
-        archiveKey: "archive-key",
-        entryPath: "database.db",
-        workspacePath: referencedPath,
-      });
-
-      const report = await tryRunWikiGraphGc();
-
-      expect(report.skipped).toBe(false);
-      const wikgCoordinatorJob = report.jobs.find(
-        (item) => item.name === "wikg-coordinator",
-      );
-
-      expect(wikgCoordinatorJob?.removed).toBeGreaterThanOrEqual(2);
-      await expect(stat(referencedPath)).resolves.toBeDefined();
-      await expect(stat(sourceDirectoryPath)).rejects.toThrow();
-      await expect(stat(summaryDirectoryPath)).rejects.toThrow();
-      await expect(stat(join(workspaceBucketPath, "texts"))).rejects.toThrow();
-      await expect(stat(workspaceBucketPath)).resolves.toBeDefined();
+      await expect(stat(sessionPath)).resolves.toBeDefined();
     });
   });
 
@@ -492,206 +308,20 @@ describe("gc", () => {
   });
 });
 
-async function createOldCoordinatorSqliteCache(path: string): Promise<string> {
-  return await createCoordinatorSqliteCache(path, {
-    updatedAt: Date.now() - 2 * 60 * 60 * 1000,
-  });
-}
-
-async function createArchiveWithExternalSearchIndex(path: string): Promise<{
-  readonly archivePath: string;
-  readonly ftsPath: string;
-}> {
-  const documentPath = join(path, "document");
-  const archivePath = join(path, "book.wikg");
-  const document = await DirectoryDocument.open(documentPath);
-
-  try {
-    await document.openSession(async (openedDocument) => {
-      await openedDocument.createSerial();
-      const draft = await openedDocument.getSerialFragments(1).createDraft();
-
-      draft.addSentence("Indexed source sentence.", 3);
-      await draft.commit();
-      await openedDocument.writeToc({
-        items: [
-          {
-            children: [],
-            key: "a1b2c3d4e5f6",
-            serialId: 1,
-            title: "Indexed",
-          },
-        ],
-        version: 1,
-      });
-    });
-  } finally {
-    await document.release();
-  }
-
-  await writeWikgArchive(documentPath, archivePath);
-  await new WikiGraphArchiveFile(archivePath).write(
-    async (openedDocument) => {
-      await replaceChapterFtsIndexArtifact(openedDocument, 1);
-      await rebuildArchiveSearchIndex(openedDocument);
-    },
-    { searchIndexWritebackPolicy: "cache" },
-  );
-
-  const ftsPath = await readCoordinatorWorkspacePath("index.db");
-
-  if (ftsPath === undefined) {
-    throw new Error("Expected external fts cache overlay.");
-  }
-
-  return { archivePath, ftsPath };
-}
-
-async function readCoordinatorWorkspacePath(
-  entryPath: string,
-): Promise<string | undefined> {
-  const database = await openStateDatabase("staging/staging.sqlite");
-
-  try {
-    return await database.queryOne(
-      `
-SELECT workspace_path
-FROM entry_overlays
-WHERE entry_path = ?
-ORDER BY updated_at DESC
-LIMIT 1
-`,
-      [entryPath],
-      (row) =>
-        typeof row.workspace_path === "string" ? row.workspace_path : undefined,
-    );
-  } finally {
-    await database.close();
-  }
-}
-
-async function makeCoordinatorOverlayOld(entryPath: string): Promise<void> {
-  const database = await openStateDatabase("staging/staging.sqlite");
-
-  try {
-    await database.run(
-      `
-UPDATE entry_overlays
-SET updated_at = ?
-WHERE entry_path = ?
-`,
-      [Date.now() - 2 * 60 * 60 * 1000, entryPath],
-    );
-  } finally {
-    await database.close();
-  }
-}
-
-async function createCoordinatorSqliteCache(
+async function createCoordinatorSession(
   path: string,
-  options: { readonly entryPath?: string; readonly updatedAt: number },
+  options: { readonly ageMs: number },
 ): Promise<string> {
-  const archivePath = join(path, "book.wikg");
-  const workspacePath = join(
-    path,
-    "state",
-    "staging",
-    "work",
-    "archive-key",
-    "db",
-  );
-  const entryPath = options.entryPath ?? "database.db";
-
-  await writeFile(archivePath, "archive", "utf8");
-  await mkdir(join(path, "state", "staging", "work", "archive-key"), {
-    recursive: true,
-  });
-  await writeFile(workspacePath, "sqlite-cache", "utf8");
-  await writeFile(
-    join(path, "state", "staging", "work", "archive-key", ".DS_Store"),
-    "finder",
-    "utf8",
-  );
-
-  const database = await openStateDatabase(
-    "staging/staging.sqlite",
-    `
-CREATE TABLE IF NOT EXISTS entry_overlays (
-  archive_key TEXT NOT NULL,
-  archive_path TEXT NOT NULL,
-  entry_path TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  workspace_path TEXT,
-  archive_signature TEXT,
-  updated_at INTEGER NOT NULL,
-  PRIMARY KEY (archive_key, entry_path)
-);
-`,
-  );
-
-  try {
-    await database.run(
-      `
-INSERT INTO entry_overlays (
-  archive_key, archive_path, entry_path, kind, workspace_path,
-  archive_signature, updated_at
-) VALUES (?, ?, ?, 'file', ?, 'test-signature', ?)
-`,
-      ["archive-key", archivePath, entryPath, workspacePath, options.updatedAt],
-    );
-  } finally {
-    await database.close();
+  const sessionPath = join(path, "state", "documents", ".wikg-session-test");
+  const artifactPath = join(sessionPath, "database.db");
+  await mkdir(sessionPath, { recursive: true });
+  await writeFile(artifactPath, "session data", "utf8");
+  if (options.ageMs > 0) {
+    const modifiedAt = new Date(Date.now() - options.ageMs);
+    await utimes(artifactPath, modifiedAt, modifiedAt);
+    await utimes(sessionPath, modifiedAt, modifiedAt);
   }
-
-  return workspacePath;
-}
-
-async function createCoordinatorOverlay(
-  path: string,
-  input: {
-    readonly archiveKey: string;
-    readonly entryPath: string;
-    readonly workspacePath: string;
-  },
-): Promise<void> {
-  const archivePath = join(path, "book.wikg");
-
-  await writeFile(archivePath, "archive", "utf8");
-  const database = await openStateDatabase(
-    "staging/staging.sqlite",
-    `
-CREATE TABLE IF NOT EXISTS entry_overlays (
-  archive_key TEXT NOT NULL,
-  archive_path TEXT NOT NULL,
-  entry_path TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  workspace_path TEXT,
-  archive_signature TEXT,
-  updated_at INTEGER NOT NULL,
-  PRIMARY KEY (archive_key, entry_path)
-);
-`,
-  );
-
-  try {
-    await database.run(
-      `
-INSERT INTO entry_overlays (
-  archive_key, archive_path, entry_path, kind, workspace_path,
-  archive_signature, updated_at
-) VALUES (?, ?, ?, 'file', ?, 'test-signature', ?)
-`,
-      [
-        input.archiveKey,
-        archivePath,
-        input.entryPath,
-        input.workspacePath,
-        Date.now(),
-      ],
-    );
-  } finally {
-    await database.close();
-  }
+  return sessionPath;
 }
 
 async function createExpiredSearchSession(): Promise<void> {
@@ -789,15 +419,19 @@ async function createCompletedJob(
   readonly workspacePath: string;
 }> {
   const job = await addBuildJob({
-    archivePath: join(path, "book.wikg"),
+    archive: new NodeFile(join(path, "book.wikg")),
     chapterId: 1,
     target: "reading-summary",
   });
-  await mkdir(job.workspacePath, { recursive: true });
-  await writeFile(join(job.workspacePath, "artifact.txt"), "artifact", "utf8");
-  await writeFile(join(job.cachePath, "request.txt"), "cache", "utf8");
-  await writeFile(join(job.logPath, "run.log"), "log", "utf8");
-  await writeFile(job.eventsPath, "event\n", "utf8");
+  const workspacePath = getNodeResourcePath(job.workspace);
+  const cachePath = getNodeResourcePath(job.cache);
+  const logPath = getNodeResourcePath(job.log);
+  const eventsPath = getNodeResourcePath(job.events);
+  await mkdir(workspacePath, { recursive: true });
+  await writeFile(join(workspacePath, "artifact.txt"), "artifact", "utf8");
+  await writeFile(join(cachePath, "request.txt"), "cache", "utf8");
+  await writeFile(join(logPath, "run.log"), "log", "utf8");
+  await writeFile(eventsPath, "event\n", "utf8");
 
   const database = await openStateDatabase("jobs/job.sqlite");
 
@@ -816,11 +450,17 @@ WHERE job_id = ?
     await database.close();
   }
 
-  return job;
+  return { cachePath, eventsPath, logPath, workspacePath };
 }
 
 async function createOldTmpDirectory(): Promise<string> {
-  const tmpPath = await createWikiGraphTempDirectory("cli-output");
+  const tmpPath = join(
+    resolveWikiGraphHomeDirectoryPath(),
+    "tmp",
+    "cli-output",
+    `cli-output-${Date.now()}`,
+  );
+  await mkdir(tmpPath, { recursive: true });
   const filePath = join(tmpPath, "output.txt");
   const oldDate = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
@@ -829,12 +469,6 @@ async function createOldTmpDirectory(): Promise<string> {
   await utimes(tmpPath, oldDate, oldDate);
 
   return tmpPath;
-}
-
-async function makeOldPath(path: string): Promise<void> {
-  const oldDate = new Date(Date.now() - 2 * 60 * 60 * 1000);
-
-  await utimes(path, oldDate, oldDate);
 }
 
 async function insertGcLock(): Promise<void> {

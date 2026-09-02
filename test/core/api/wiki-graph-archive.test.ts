@@ -10,6 +10,10 @@ import { extractWikgArchive } from "../../../packages/core/src/storage/wikg/arch
 import { WikiGraphArchive } from "../../../packages/core/src/api/wiki-graph-archive.js";
 import { EPUB_SOURCE_ADAPTER } from "../../../packages/core/src/text/source/index.js";
 import {
+  NodeDirectory,
+  NodeFile,
+} from "../../../packages/cli/src/runtime/node-platform.js";
+import {
   collectSectionTitles,
   readStreamText,
 } from "../../helpers/fixtures.js";
@@ -23,7 +27,10 @@ describe("facade/wiki-graph", () => {
       try {
         await seedDocument(document);
 
-        const digest = new WikiGraphArchive(document, document.path);
+        const digest = new WikiGraphArchive(
+          document,
+          new NodeDirectory(`${path}/document`),
+        );
         const textPath = `${path}/exports/book.txt`;
         const epubPath = `${path}/exports/book.epub`;
 
@@ -60,14 +67,14 @@ describe("facade/wiki-graph", () => {
         ]);
         expect(await digest.readSerialSummary(2)).toBe("Summary two");
 
-        await digest.exportText(textPath);
+        await digest.exportText(new NodeFile(textPath));
         expect(await readFile(textPath, "utf8")).toBe(
           "Chapter 1\n\nSummary one\n\nAppendix\n\nSummary two\n",
         );
 
-        await digest.exportEpub(epubPath);
+        await digest.exportEpub(new NodeFile(epubPath));
         await EPUB_SOURCE_ADAPTER.openSession(
-          epubPath,
+          new NodeFile(epubPath),
           async (sourceDocument) => {
             const sections = await sourceDocument.readSections();
             const cover = await sourceDocument.readCover();
@@ -112,10 +119,10 @@ describe("facade/wiki-graph", () => {
         {
           flush,
         } as unknown as ReadonlyDocument & { flush(): Promise<void> },
-        sourceDir,
+        new NodeDirectory(sourceDir),
       );
 
-      await digest.saveAs(archivePath);
+      await digest.saveAs(new NodeFile(archivePath));
 
       expect(flush).toHaveBeenCalledTimes(1);
 
@@ -154,7 +161,10 @@ describe("facade/wiki-graph", () => {
           });
         });
 
-        const digest = new WikiGraphArchive(document, document.path);
+        const digest = new WikiGraphArchive(
+          document,
+          new NodeDirectory(`${path}/document`),
+        );
 
         expect(await digest.listSerials()).toStrictEqual([
           {
@@ -220,7 +230,10 @@ describe("facade/wiki-graph", () => {
           });
         });
 
-        const digest = new WikiGraphArchive(document, document.path);
+        const digest = new WikiGraphArchive(
+          document,
+          new NodeDirectory(`${path}/document`),
+        );
 
         await expect(digest.readChapterStage(1)).resolves.toBe("planned");
         await expect(digest.readChapterStage(2)).resolves.toBe("sourced");

@@ -1,5 +1,4 @@
-import { parseLocatedWikiGraphUri } from "wiki-graph-core";
-import { withHelpRoute } from "../support/index.js";
+import { parseLocatedWikiGraphUri, withHelpRoute } from "../support/index.js";
 import {
   isUriHelpPredicate,
   renderUriHelpText,

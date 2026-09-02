@@ -1,12 +1,11 @@
-import { mkdir, writeFile } from "../../runtime/platform/index.js";
-import { dirname } from "../../runtime/platform/index.js";
+import type { File } from "../../runtime/platform/index.js";
 
 import type { ReadonlyDocument } from "../../document/index.js";
 import type { TocItem } from "../source/index.js";
 
 export interface WritePlainTextOptions {
   readonly document: ReadonlyDocument;
-  readonly path: string;
+  readonly file: File;
 }
 
 export async function writePlainText(
@@ -16,8 +15,14 @@ export async function writePlainText(
     async (document) => await buildPlainText(document),
   );
 
-  await mkdir(dirname(options.path), { recursive: true });
-  await writeFile(options.path, text, "utf8");
+  const writer = await options.file.openWriter();
+  try {
+    await writer.write(text);
+    await writer.commit();
+  } catch (error) {
+    await writer.abort();
+    throw error;
+  }
 }
 
 async function buildPlainText(document: ReadonlyDocument): Promise<string> {

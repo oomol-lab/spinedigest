@@ -1,7 +1,9 @@
-import { getWikiGraphStorage, randomBytes } from "../runtime/platform/index.js";
-import { constants } from "../runtime/platform/index.js";
-import { access, mkdir, stat } from "../runtime/platform/index.js";
-import { join, resolve } from "../runtime/platform/index.js";
+import {
+  ensureRelativeDirectory,
+  getWikiGraphPlatform,
+  getWikiGraphStorage,
+  type Directory,
+} from "../runtime/platform/index.js";
 
 import {
   getNumber,
@@ -9,22 +11,19 @@ import {
   type Database,
   type SqlRow,
 } from "../document/database.js";
-import { openSharedStateDatabase } from "../document/index.js";
-import {
-  resolveWikiGraphCoreDatabasePath,
-  resolveWikiGraphHomeDirectoryPath,
-  resolveWikiGraphStagingDirectoryPath,
-} from "../runtime/common/wiki-graph/dir.js";
+import { openWikiGraphStateDatabase } from "../document/index.js";
 import {
   parseWikiGraphUriSyntax,
   WIKI_GRAPH_ARCHIVE_EXTENSION,
 } from "../runtime/common/wiki-graph/uri.js";
-import { isNodeError } from "../utils/node-error.js";
+import { bytesToHex } from "../utils/bytes.js";
+import { randomBytes } from "../utils/crypto.js";
 import { withWikiGraphLibraryLock } from "./lock.js";
 import { RESERVED_LIBRARY_URI_SEGMENTS } from "./segments.js";
 
 const DEFAULT_LIBRARY_FOLDER_NAME = "default-library";
 const PUBLIC_ID_BYTES = 6;
+let registryOperationQueue: Promise<void> = Promise.resolve();
 
 const RESERVED_METADATA_KEYS = new Set([
   "id",
@@ -75,9 +74,9 @@ export interface WikiGraphLibraryRecord {
   readonly id: number;
   readonly publicId: string;
   readonly uri: string;
-  readonly folderPath: string;
+  readonly folder: Directory;
   readonly isDefault: boolean;
-  readonly stagingPath: string;
+  readonly staging: Directory;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -307,25 +306,20 @@ export function formatWikiGraphLibraryUri(publicId?: string): string {
   return publicId === undefined ? "wikg://lib" : `wikg://lib/${publicId}`;
 }
 
-export function resolveDefaultWikiGraphLibraryDirectoryPath(): string {
-  // A host-provided library root is the authoritative location when the
-  // storage adapter is installed. The legacy home-directory fallback remains
-  // for callers that use the low-level registry helpers directly.
-  try {
-    return join(
-      getWikiGraphStorage().library as unknown as string,
-      DEFAULT_LIBRARY_FOLDER_NAME,
-    );
-  } catch {
-    // Keep the existing Node/CLI behavior for backwards compatibility.
-  }
-  return join(resolveWikiGraphHomeDirectoryPath(), DEFAULT_LIBRARY_FOLDER_NAME);
+export async function resolveDefaultWikiGraphLibraryDirectory(): Promise<Directory> {
+  return await ensureRelativeDirectory(
+    getWikiGraphStorage().library,
+    DEFAULT_LIBRARY_FOLDER_NAME,
+  );
 }
 
-export function resolveWikiGraphLibraryStagingDirectoryPath(
+export async function resolveWikiGraphLibraryStagingDirectory(
   id: number,
-): string {
-  return join(resolveWikiGraphStagingDirectoryPath(), "library", String(id));
+): Promise<Directory> {
+  return await ensureRelativeDirectory(
+    getWikiGraphStorage().library,
+    `staging/library/${id}`,
+  );
 }
 
 export async function ensureDefaultWikiGraphLibrary(): Promise<WikiGraphLibraryRecord> {
@@ -338,32 +332,26 @@ export async function ensureDefaultWikiGraphLibrary(): Promise<WikiGraphLibraryR
 
       const now = new Date().toISOString();
       const publicId = await createUniqueLibraryPublicId(database);
-      const folderPath = resolveDefaultWikiGraphLibraryDirectoryPath();
+      const folder = await resolveDefaultWikiGraphLibraryDirectory();
 
       await database.run(
         `
           INSERT INTO libraries (public_id, folder_path, is_default, created_at, updated_at)
           VALUES (?, ?, 1, ?, ?)
         `,
-        [publicId, folderPath, now, now],
+        [publicId, folder.identity, now, now],
       );
 
       return await requireDefaultLibraryRecord(database);
     });
 
-    await mkdir(library.folderPath, { recursive: true });
     return library;
   });
 }
 
 export async function createWikiGraphLibrary(input: {
-  readonly folderPath: string;
+  readonly folder: Directory;
 }): Promise<WikiGraphLibraryRecord> {
-  const folderPath = resolve(input.folderPath);
-  if (await pathExists(folderPath)) {
-    throw new Error(`Library folder already exists: ${folderPath}`);
-  }
-
   return await withLibraryRegistryDatabase(async (database) => {
     return await database.transaction(async () => {
       const now = new Date().toISOString();
@@ -374,9 +362,8 @@ export async function createWikiGraphLibrary(input: {
           INSERT INTO libraries (public_id, folder_path, is_default, created_at, updated_at)
           VALUES (?, ?, 0, ?, ?)
         `,
-        [publicId, folderPath, now, now],
+        [publicId, input.folder.identity, now, now],
       );
-      await mkdir(folderPath);
 
       return await requireLibraryRecordByPublicId(database, publicId);
     });
@@ -387,18 +374,18 @@ export async function listWikiGraphLibraries(): Promise<
   readonly WikiGraphLibraryRecord[]
 > {
   await ensureDefaultWikiGraphLibrary();
-  return await withLibraryRegistryDatabase(
-    async (database) =>
-      await database.queryAll(
-        `
+  return await withLibraryRegistryDatabase(async (database) => {
+    const rows = await database.queryAll(
+      `
           SELECT id, public_id, folder_path, is_default, created_at, updated_at
           FROM libraries
           ORDER BY is_default DESC, public_id
         `,
-        undefined,
-        mapLibraryRecord,
-      ),
-  );
+      undefined,
+      (row) => row,
+    );
+    return await Promise.all(rows.map(mapLibraryRecord));
+  });
 }
 
 export async function resolveWikiGraphLibrary(
@@ -470,51 +457,26 @@ export async function removeWikiGraphLibrary(
   return library;
 }
 
-export async function updateWikiGraphLibraryFolderPathForRebind(
+export async function updateWikiGraphLibraryFolderForRebind(
   library: WikiGraphLibraryRecord,
-  inputFolderPath: string,
+  folder: Directory,
 ): Promise<WikiGraphLibraryRecord> {
-  const folderPath = resolve(inputFolderPath);
-  let folderStats;
-  try {
-    folderStats = await stat(folderPath);
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      throw new Error(`Library path set does not exist: ${folderPath}`);
-    }
-    throw new Error(
-      `Library path set is not accessible: ${folderPath}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  if (!folderStats.isDirectory()) {
-    throw new Error(
-      `Library path set must be an existing directory: ${folderPath}`,
-    );
-  }
-  try {
-    await access(folderPath, constants.R_OK);
-  } catch (error) {
-    throw new Error(
-      `Library path set is not accessible: ${folderPath}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-
   return await withLibraryRegistryDatabase(async (database) => {
     return await database.transaction(async () => {
       const existing = await database.queryOne(
         "SELECT id FROM libraries WHERE folder_path = ?",
-        [folderPath],
+        [folder.identity],
         (row) => getNumber(row, "id"),
       );
       if (existing !== undefined && existing !== library.id) {
         throw new Error(
-          `Library path set is already bound to another library: ${folderPath}`,
+          `Library Directory is already bound to another library: ${folder.identity}`,
         );
       }
 
       await database.run(
         "UPDATE libraries SET folder_path = ?, updated_at = ? WHERE id = ?",
-        [folderPath, new Date().toISOString(), library.id],
+        [folder.identity, new Date().toISOString(), library.id],
       );
       return await requireLibraryRecordById(database, library.id);
     });
@@ -596,30 +558,40 @@ export async function clearWikiGraphLibraryMetadata(
 async function withLibraryRegistryDatabase<T>(
   operation: (database: Database) => Promise<T>,
 ): Promise<T> {
-  const database = await openSharedStateDatabase(
-    resolveWikiGraphCoreDatabasePath(),
-    LIBRARY_REGISTRY_SCHEMA_SQL,
-  );
-
+  const previous = registryOperationQueue;
+  let release!: () => void;
+  registryOperationQueue = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
   try {
-    return await operation(database);
+    const database = await openWikiGraphStateDatabase(
+      "core.sqlite",
+      LIBRARY_REGISTRY_SCHEMA_SQL,
+    );
+    try {
+      return await operation(database);
+    } finally {
+      await database.close();
+    }
   } finally {
-    await database.close();
+    release();
   }
 }
 
 async function readDefaultLibraryRecord(
   database: Database,
 ): Promise<WikiGraphLibraryRecord | undefined> {
-  return await database.queryOne(
+  const row = await database.queryOne(
     `
       SELECT id, public_id, folder_path, is_default, created_at, updated_at
       FROM libraries
       WHERE is_default = 1
     `,
     undefined,
-    mapLibraryRecord,
+    (row) => row,
   );
+  return row === undefined ? undefined : await mapLibraryRecord(row);
 }
 
 async function requireDefaultLibraryRecord(
@@ -636,53 +608,59 @@ async function requireLibraryRecordByPublicId(
   database: Database,
   publicId: string,
 ): Promise<WikiGraphLibraryRecord> {
-  const record = await database.queryOne(
+  const row = await database.queryOne(
     `
       SELECT id, public_id, folder_path, is_default, created_at, updated_at
       FROM libraries
       WHERE public_id = ?
     `,
     [publicId],
-    mapLibraryRecord,
+    (row) => row,
   );
 
-  if (record === undefined) {
+  if (row === undefined) {
     throw new Error(`Unknown Wiki Graph library: ${publicId}`);
   }
-  return record;
+  return await mapLibraryRecord(row);
 }
 
 async function requireLibraryRecordById(
   database: Database,
   id: number,
 ): Promise<WikiGraphLibraryRecord> {
-  const record = await database.queryOne(
+  const row = await database.queryOne(
     `
       SELECT id, public_id, folder_path, is_default, created_at, updated_at
       FROM libraries
       WHERE id = ?
     `,
     [id],
-    mapLibraryRecord,
+    (row) => row,
   );
 
-  if (record === undefined) {
+  if (row === undefined) {
     throw new Error(`Unknown Wiki Graph library: ${id}`);
   }
 
-  return record;
+  return await mapLibraryRecord(row);
 }
 
-function mapLibraryRecord(row: SqlRow): WikiGraphLibraryRecord {
+async function mapLibraryRecord(row: SqlRow): Promise<WikiGraphLibraryRecord> {
   const id = getNumber(row, "id");
   const publicId = getString(row, "public_id");
+  const folderIdentity = getString(row, "folder_path");
+  const folder =
+    await getWikiGraphPlatform().resources.getDirectory(folderIdentity);
+  if (folder === undefined) {
+    throw new Error(`Library Directory is unavailable: ${folderIdentity}`);
+  }
   return {
     createdAt: getString(row, "created_at"),
-    folderPath: getString(row, "folder_path"),
+    folder,
     id,
     isDefault: getNumber(row, "is_default") === 1,
     publicId,
-    stagingPath: resolveWikiGraphLibraryStagingDirectoryPath(id),
+    staging: await resolveWikiGraphLibraryStagingDirectory(id),
     updatedAt: getString(row, "updated_at"),
     uri: formatWikiGraphLibraryUri(
       getNumber(row, "is_default") === 1 ? undefined : publicId,
@@ -736,7 +714,7 @@ async function createUniqueLibraryPublicId(
   database: Database,
 ): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const publicId = randomBytes(PUBLIC_ID_BYTES).toString("hex");
+    const publicId = bytesToHex(randomBytes(PUBLIC_ID_BYTES));
     const existing = await database.queryOne(
       "SELECT public_id FROM libraries WHERE public_id = ?",
       [publicId],
@@ -747,18 +725,6 @@ async function createUniqueLibraryPublicId(
     }
   }
   throw new Error("Could not generate a unique library id.");
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return false;
-    }
-    throw error;
-  }
 }
 
 function rejectReservedMetadataKeys(keys: readonly string[]): void {

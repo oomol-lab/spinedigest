@@ -57,7 +57,7 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
   }
 
   public async resolveSearchIndexDatabasePath(): Promise<File> {
-    this.#searchIndexDatabase = await this.#session.materializeDatabase(
+    this.#searchIndexDatabase ??= await this.#session.materializeDatabase(
       SEARCH_INDEX_DATABASE_ENTRY_PATH,
       { createIfMissing: !this.#readonlyDatabase },
     );

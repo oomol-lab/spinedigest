@@ -148,6 +148,6 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
         ? {}
         : { resolverOptions: options.resolverOptions }),
     }),
-    workspacePath: options.workspacePath,
+    workspace: options.workspace,
   });
 }

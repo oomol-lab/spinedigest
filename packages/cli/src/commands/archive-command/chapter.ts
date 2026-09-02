@@ -26,6 +26,7 @@ import {
   type ChapterEntry,
   type IndexArtifactKind,
 } from "wiki-graph-core";
+import { NodeFile } from "../../runtime/node-platform.js";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIArchiveChapterArguments } from "../../args/index.js";
@@ -52,7 +53,7 @@ export async function runArchiveChapterCommand(
           args.parentChapterPath,
         );
         await assertNoActiveBuildJobConflicts({
-          archivePath: args.path,
+          archive: new NodeFile(args.path),
           operation: "Adding chapter",
           scope: { kind: "archive" },
         });
@@ -101,7 +102,7 @@ export async function runArchiveChapterCommand(
           await resolveRequiredChapterPath(document, args.chapterPath),
       );
       const job = await addBuildJob({
-        archivePath: args.path,
+        archive: new NodeFile(args.path),
         chapterId,
         target: requireIndexArtifactTarget(args.indexArtifactTarget),
       });
@@ -153,7 +154,7 @@ export async function runArchiveChapterCommand(
           args.parentChapterPath,
         );
         await assertNoActiveBuildJobConflicts({
-          archivePath: args.path,
+          archive: new NodeFile(args.path),
           operation: "Moving chapter",
           scope: { kind: "archive" },
         });
@@ -180,7 +181,7 @@ export async function runArchiveChapterCommand(
           args.chapterPath,
         );
         await assertNoActiveBuildJobConflicts({
-          archivePath: args.path,
+          archive: new NodeFile(args.path),
           operation: "Removing chapter",
           scope: { kind: "archive" },
         });
@@ -224,7 +225,7 @@ export async function runArchiveChapterCommand(
           args.chapterPath,
         );
         await assertNoActiveBuildJobs({
-          archivePath: args.path,
+          archive: new NodeFile(args.path),
           chapterIds: [chapterId],
           operation: "Setting chapter source",
         });
@@ -250,7 +251,7 @@ export async function runArchiveChapterCommand(
           args.chapterPath,
         );
         await assertNoActiveBuildJobs({
-          archivePath: args.path,
+          archive: new NodeFile(args.path),
           chapterIds: [chapterId],
           operation: "Setting chapter summary",
           requiresTarget: "reading-summary",
@@ -271,7 +272,7 @@ export async function runArchiveChapterCommand(
           args.chapterPath,
         );
         await assertNoActiveBuildJobs({
-          archivePath: args.path,
+          archive: new NodeFile(args.path),
           chapterIds: [chapterId],
           operation: "Setting chapter title",
         });
@@ -291,7 +292,7 @@ export async function runArchiveChapterCommand(
           async (document) => {
             if (args.dryRun !== true) {
               await assertNoActiveBuildJobConflicts({
-                archivePath: args.path,
+                archive: new NodeFile(args.path),
                 operation: "Changing chapter tree",
                 scope: { kind: "archive" },
               });
@@ -431,7 +432,7 @@ async function runEditableCommand(
 ): Promise<void> {
   if (options.markLibraryDirty === false) {
     const location = await resolveArchiveRuntimeLocation(path);
-    await new WikiGraphArchiveFile(location.archivePath).write(operation);
+    await new WikiGraphArchiveFile(location.archiveFile).write(operation);
     return;
   }
 
@@ -629,20 +630,20 @@ async function assertResetAllowed(
   switch (stage) {
     case "planned":
       await assertNoActiveBuildJobs({
-        archivePath,
+        archive: new NodeFile(archivePath),
         chapterIds: [chapterId],
         operation: "Resetting chapter to planned",
       });
       return;
     case "sourced":
       await assertNoActiveBuildJobs({
-        archivePath,
+        archive: new NodeFile(archivePath),
         chapterIds: [chapterId],
         operation: "Resetting chapter graph",
         requiresTarget: "reading-graph",
       });
       await assertNoActiveBuildJobs({
-        archivePath,
+        archive: new NodeFile(archivePath),
         chapterIds: [chapterId],
         operation: "Resetting chapter summary",
         requiresTarget: "reading-summary",
@@ -650,7 +651,7 @@ async function assertResetAllowed(
       return;
     case "graphed":
       await assertNoActiveBuildJobs({
-        archivePath,
+        archive: new NodeFile(archivePath),
         chapterIds: [chapterId],
         operation: "Resetting chapter summary",
         requiresTarget: "reading-summary",

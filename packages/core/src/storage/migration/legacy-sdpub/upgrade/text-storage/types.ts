@@ -9,7 +9,6 @@ export interface LegacyFragmentFile {
 export interface LegacyFragmentRecord {
   readonly content: LegacyFragmentFile;
   readonly fragmentId: number;
-  readonly path: string;
   readonly signature: string;
 }
 

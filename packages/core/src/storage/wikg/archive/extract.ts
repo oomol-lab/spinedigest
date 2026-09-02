@@ -1,46 +1,62 @@
 import {
-  mkdir,
-  open as openFile,
-  writeFile,
+  ensureRelativeDirectory,
+  getWikiGraphPlatform,
+  resolveHostDirectory,
+  resolveHostFile,
+  type Directory,
+  type File,
 } from "../../../runtime/platform/index.js";
-import { dirname, resolve } from "../../../runtime/platform/index.js";
-
-import {
-  assertWithinDirectory,
-  isWikgArchivePath,
-  normalizeArchivePath,
-} from "./paths.js";
-import { openIndexedArchive, readArchiveEntryBufferFromFile } from "./zip.js";
+import { isWikgArchivePath, normalizeArchivePath } from "./paths.js";
+import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
+import { parseWikgManifest, parseWikgMutationToken } from "./manifest.js";
 
 export async function extractWikgArchive(
-  inputPath: string,
-  outputDirectoryPath: string,
+  inputFileRef: File | string,
+  outputDirectoryRef: Directory | string,
 ): Promise<void> {
-  const { entries, zipFile } = await openIndexedArchive(inputPath);
-  const file = await openFile(inputPath, "r");
+  const inputFile = await resolveHostFile(inputFileRef);
+  const outputDirectory = await resolveHostDirectory(outputDirectoryRef);
+  const archiveEntries = await getWikiGraphPlatform().zip.read(inputFile);
+  const entries = new Map(
+    archiveEntries.map((entry) => [
+      normalizeArchivePath(entry.name),
+      entry.data,
+    ]),
+  );
+  const mutationToken = entries.get(WIKG_MUTATION_TOKEN_PATH);
+  if (mutationToken === undefined) {
+    throw new Error(
+      `Missing WIKG mutation token: ${WIKG_MUTATION_TOKEN_PATH}.`,
+    );
+  }
+  parseWikgMutationToken(new TextDecoder().decode(mutationToken));
+  const manifest = entries.get(WIKG_MANIFEST_PATH);
+  if (manifest === undefined) {
+    throw new Error(`Missing WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
+  }
+  parseWikgManifest(new TextDecoder().decode(manifest));
 
-  try {
-    for (const entry of entries) {
-      const archivePath = normalizeArchivePath(entry.fileName);
-
-      if (archivePath === "") {
-        throw new Error(`Invalid archive entry path: ${entry.fileName}`);
-      }
-      if (!isWikgArchivePath(archivePath)) {
-        continue;
-      }
-
-      const targetPath = resolve(outputDirectoryPath, archivePath);
-
-      assertWithinDirectory(outputDirectoryPath, targetPath, archivePath);
-      await mkdir(dirname(targetPath), { recursive: true });
-      await writeFile(
-        targetPath,
-        await readArchiveEntryBufferFromFile(file, entry),
-      );
+  for (const entry of archiveEntries) {
+    const name = normalizeArchivePath(entry.name);
+    if (name === "")
+      throw new Error(`Invalid archive entry path: ${entry.name}`);
+    if (!isWikgArchivePath(name)) continue;
+    const parts = name.split("/");
+    const fileName = parts.pop();
+    if (!fileName) continue;
+    const parent = await ensureRelativeDirectory(
+      outputDirectory,
+      parts.join("/"),
+    );
+    const file =
+      (await parent.getFile(fileName)) ?? (await parent.createFile(fileName));
+    const writer = await file.openWriter();
+    try {
+      await writer.write(entry.data);
+      await writer.commit();
+    } catch (error) {
+      await writer.abort().catch(() => undefined);
+      throw error;
     }
-  } finally {
-    await file.close();
-    zipFile.close();
   }
 }

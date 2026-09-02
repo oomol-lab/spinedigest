@@ -1,4 +1,3 @@
 export { WikgCoordinator } from "./facade.js";
-export { WikgArchiveSession } from "./session.js";
-export { tryStartWikgFlusher } from "./flusher.js";
+export { HostWikgArchiveSession as WikgArchiveSession } from "./host-session.js";
 export { runWikgCoordinatorGc } from "./gc.js";

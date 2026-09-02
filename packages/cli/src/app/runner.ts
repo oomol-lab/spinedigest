@@ -1,6 +1,6 @@
 import { Readable, Writable } from "stream";
 
-import { withWikiGraphRuntimeStateDirectoryPath } from "../../../core/src/runtime/common/wiki-graph/dir.js";
+import { withNodeWikiGraphStorage } from "../runtime/node-platform.js";
 import { dispatchWikiGraphCLI } from "./dispatch.js";
 import {
   getCLIExitCode,
@@ -101,21 +101,19 @@ export async function runWikiGraphCLIWithEntryPolicy(
     stdoutIsTTY: input.stdoutIsTTY,
   };
 
-  return await withWikiGraphRuntimeStateDirectoryPath(
-    entryContext.stateDir,
-    async () =>
-      withWikiGraphCLIRuntimeContext(context, async () => {
-        const result = await dispatchWikiGraphCLI({
-          argv,
-          stderr,
-          stdinIsTTY: context.stdinIsTTY ?? stdin.isTTY,
-          stdout,
-        });
-        throwIfAborted(input.signal);
-        const exitCode = normalizeExitCode(getCLIExitCode(), result.exitCode);
+  return await withNodeWikiGraphStorage(entryContext.stateDir, async () =>
+    withWikiGraphCLIRuntimeContext(context, async () => {
+      const result = await dispatchWikiGraphCLI({
+        argv,
+        stderr,
+        stdinIsTTY: context.stdinIsTTY ?? stdin.isTTY,
+        stdout,
+      });
+      throwIfAborted(input.signal);
+      const exitCode = normalizeExitCode(getCLIExitCode(), result.exitCode);
 
-        return { exitCode };
-      }),
+      return { exitCode };
+    }),
   );
 }
 

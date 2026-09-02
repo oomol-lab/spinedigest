@@ -1,11 +1,15 @@
-import { createHash } from "../../runtime/platform/index.js";
-import { appendFile } from "../../runtime/platform/index.js";
+import {
+  appendFileText,
+  type Directory,
+  type File,
+} from "../../runtime/platform/index.js";
+import { createPortableHash as createHash } from "../../utils/crypto.js";
 
 import {
   getLogger,
-  resolveArtifactPath,
+  resolveArtifactFile,
 } from "../../runtime/common/logging.js";
-import { formatError } from "../../utils/node-error.js";
+import { formatError } from "../../utils/host-error.js";
 
 const MAX_RESPONSE_TEXT_LENGTH = 16_384;
 
@@ -38,23 +42,22 @@ class SilentWikipageFetchLog implements WikipageFetchLog {
 }
 
 class FileWikipageFetchLog implements WikipageFetchLog {
-  readonly #filePath: string;
+  readonly #file: Promise<File | undefined>;
   #failedWarned = false;
 
-  public constructor(filePath: string) {
-    this.#filePath = filePath;
+  public constructor(file: Promise<File | undefined>) {
+    this.#file = file;
   }
 
-  public get filePath(): string {
-    return this.#filePath;
+  public get filePath(): undefined {
+    return undefined;
   }
 
   public async append(entry: WikipageFetchLogEntry): Promise<void> {
-    await appendFile(
-      this.#filePath,
-      `${JSON.stringify(formatEntry(entry))}\n`,
-      "utf8",
-    );
+    const file = await this.#file;
+    if (file !== undefined) {
+      await appendFileText(file, `${JSON.stringify(formatEntry(entry))}\n`);
+    }
   }
 
   public warnFailed(): void {
@@ -64,25 +67,25 @@ class FileWikipageFetchLog implements WikipageFetchLog {
     this.#failedWarned = true;
 
     getLogger({ component: "wikipage" }).warn(
-      `\n[Wikipage] Failed with fetch log: ${this.#filePath}`,
+      "\n[Wikipage] Failed; inspect the host-provided wikipage fetch log.",
     );
   }
 }
 
-export function createWikipageFetchLog(logDirPath?: string): WikipageFetchLog {
-  if (logDirPath === undefined) {
+export function createWikipageFetchLog(
+  logDirectory?: Directory,
+): WikipageFetchLog {
+  if (logDirectory === undefined) {
     return new SilentWikipageFetchLog();
   }
 
-  const filePath = resolveArtifactPath({
+  const file = resolveArtifactFile({
     category: "wikipage",
     fileName: "wikipage-fetch.jsonl",
-    logDirPath,
+    logDirectory,
   });
 
-  return filePath === undefined
-    ? new SilentWikipageFetchLog()
-    : new FileWikipageFetchLog(filePath);
+  return new FileWikipageFetchLog(file);
 }
 
 function formatEntry(entry: WikipageFetchLogEntry): Record<string, unknown> {
@@ -164,7 +167,7 @@ function formatErrorCause(error: unknown): Record<string, unknown> {
         ? {
             message: formatError(cause),
             name: cause.name,
-            ...formatNodeErrorCode(cause),
+            ...formatHostErrorCode(cause),
           }
         : stringifyUnknown(cause),
   };
@@ -190,7 +193,7 @@ function stringifyUnknown(value: unknown): string {
   }
 }
 
-function formatNodeErrorCode(error: Error): Record<string, unknown> {
+function formatHostErrorCode(error: Error): Record<string, unknown> {
   const code = (error as { readonly code?: unknown }).code;
 
   return typeof code === "string" ? { code } : {};

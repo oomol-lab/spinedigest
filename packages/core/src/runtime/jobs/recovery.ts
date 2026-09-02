@@ -1,26 +1,50 @@
-import { rm } from "../platform/index.js";
 import type { Database } from "../../document/index.js";
-import { isProcessAlive } from "./helpers.js";
-import { mapBuildJob } from "./row.js";
+import {
+  getNumber,
+  getOptionalString,
+  hydrateBuildJob,
+  mapBuildJob,
+} from "./row.js";
 import { markBuildJobCanceled, markBuildJobFailedInState } from "./state.js";
+import { removeJobWorkspace } from "./paths.js";
+
+const WORKER_LEASE_STALE_MS = 20_000;
 
 export async function recoverStaleBuildJobs(state: Database): Promise<void> {
-  const workspacePathsToDelete: string[] = [];
+  const workspaceJobIdsToDelete: string[] = [];
 
   await state.transaction(async () => {
-    const jobs = await state.queryAll(
+    const lease = await state.queryOne(
+      "SELECT owner_id, heartbeat_at FROM build_worker_lease WHERE id = 1",
+      undefined,
+      (row) => ({
+        heartbeatAt:
+          row.heartbeat_at === null
+            ? undefined
+            : getNumber(row, "heartbeat_at"),
+        ownerId: getOptionalString(row, "owner_id"),
+      }),
+    );
+    const activeOwnerId =
+      lease?.ownerId !== undefined &&
+      lease.heartbeatAt !== undefined &&
+      Date.now() - lease.heartbeatAt <= WORKER_LEASE_STALE_MS
+        ? lease.ownerId
+        : undefined;
+    const storedJobs = await state.queryAll(
       `
 SELECT *
 FROM build_jobs
 WHERE state IN ('running', 'canceling')
-  AND owner_pid IS NOT NULL
+  AND owner_id IS NOT NULL
 `,
       undefined,
       mapBuildJob,
     );
+    const jobs = await Promise.all(storedJobs.map(hydrateBuildJob));
 
     for (const job of jobs) {
-      if (job.ownerPid !== undefined && isProcessAlive(job.ownerPid)) {
+      if (job.ownerId === activeOwnerId) {
         continue;
       }
 
@@ -30,15 +54,14 @@ WHERE state IN ('running', 'canceling')
       }
 
       await markBuildJobFailedInState(state, job, {
-        message:
-          "Build worker platformRuntime disappeared before finishing the job.",
+        message: "Build worker lease expired before finishing the job.",
         name: "BuildJobWorkerLost",
       });
-      workspacePathsToDelete.push(job.workspacePath);
+      workspaceJobIdsToDelete.push(job.jobId);
     }
   });
 
-  for (const workspacePath of workspacePathsToDelete) {
-    await rm(workspacePath, { force: true, recursive: true });
+  for (const jobId of workspaceJobIdsToDelete) {
+    await removeJobWorkspace(jobId);
   }
 }

@@ -1,10 +1,10 @@
-import {
-  formatWikiGraphCommandUri,
-  type ArchiveFindEvidencePreview,
-  type ArchivePage,
-} from "wiki-graph-core";
+import type { ArchiveFindEvidencePreview, ArchivePage } from "wiki-graph-core";
 
-import { formatCLIJSON, formatCliCommand } from "../../../support/index.js";
+import {
+  formatCLIJSON,
+  formatCliCommand,
+  formatWikiGraphCommandUri,
+} from "../../../support/index.js";
 import {
   createEvidencePreviewObject,
   createPageObject,

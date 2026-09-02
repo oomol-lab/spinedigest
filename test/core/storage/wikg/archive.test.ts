@@ -15,6 +15,7 @@ import {
   writeWikgArchiveWithOverlays,
 } from "../../../../packages/core/src/storage/wikg/archive/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
+import { NodeFile } from "../../../../packages/cli/src/runtime/node-platform.js";
 
 const VALID_MUTATION_TOKEN_CONTENT = `wikg-mutation-token:v1\n${"a".repeat(43)}\n`;
 
@@ -210,7 +211,7 @@ describe("wikg/archive", () => {
         {
           entryPath: "toc.json",
           kind: "file",
-          workspacePath: `${sourceDir}/database.db`,
+          file: new NodeFile(`${sourceDir}/database.db`),
         },
       ]);
 
@@ -241,7 +242,11 @@ describe("wikg/archive", () => {
       await writeFile(overlayPath, '{"items":[]}', "utf8");
 
       await writeWikgArchiveWithOverlays(archivePath, rewrittenPath, [
-        { entryPath: "toc.json", kind: "file", workspacePath: overlayPath },
+        {
+          entryPath: "toc.json",
+          file: new NodeFile(overlayPath),
+          kind: "file",
+        },
       ]);
 
       await expect(

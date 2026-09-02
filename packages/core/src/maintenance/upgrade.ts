@@ -1,19 +1,12 @@
-import { rm } from "../runtime/platform/index.js";
-import { homedir } from "../runtime/platform/index.js";
-import { resolve } from "../runtime/platform/index.js";
-
 import {
   listWikiGraphLibraryArchives,
-  parseWikiGraphLibraryUri,
   resolveWikiGraphLibrary,
   withWikiGraphLibraryLock,
   type ParsedWikiGraphLibraryUri,
   type WikiGraphLibraryArchiveRecord,
   type WikiGraphLibraryRecord,
 } from "../library/index.js";
-import { resolveWikiGraphHomeDirectoryPath } from "../runtime/common/wiki-graph/dir.js";
-import { migrateLegacySdpubToWikg } from "../storage/migration/legacy-sdpub/upgrade/index.js";
-import { requireArchiveUri } from "../storage/wikg/index.js";
+import type { File } from "../runtime/platform/index.js";
 import {
   CURRENT_ARCHIVE_SCHEMA_VERSION,
   ensureWikiGraphHomeSchemaCurrent,
@@ -22,26 +15,25 @@ import {
   upgradeWikiGraphArchiveSchema,
 } from "../storage/schema-upgrade/index.js";
 
+export type WikiGraphMaintenanceTarget =
+  | { readonly kind: "home" }
+  | { readonly file: File; readonly kind: "archive" }
+  | { readonly kind: "library"; readonly target: ParsedWikiGraphLibraryUri };
+
 export type WikiGraphMaintenanceUpgradeResult =
   | {
       readonly kind: "home";
-      readonly path: string;
       readonly schemaVersionBefore: number;
       readonly schemaVersionAfter: number;
       readonly status: "already-current" | "upgraded";
     }
   | {
+      readonly fileIdentity: string;
+      readonly fileName: string;
       readonly kind: "archive";
-      readonly path: string;
       readonly schemaVersionBefore: number;
       readonly schemaVersionAfter: number;
       readonly status: "already-current" | "upgraded";
-    }
-  | {
-      readonly kind: "sdpub";
-      readonly inputPath: string;
-      readonly outputPath: string;
-      readonly status: "migrated";
     }
   | WikiGraphLibraryUpgradeResult;
 
@@ -51,8 +43,8 @@ export interface WikiGraphLibraryUpgradeResult {
     readonly id: number;
     readonly publicId: string;
     readonly uri: string;
-    readonly folderPath: string;
-    readonly stagingPath: string;
+    readonly folderIdentity: string;
+    readonly stagingIdentity: string;
   };
   readonly upgraded: readonly WikiGraphLibraryArchiveUpgradeItem[];
   readonly skipped: readonly WikiGraphLibraryArchiveUpgradeItem[];
@@ -61,46 +53,31 @@ export interface WikiGraphLibraryUpgradeResult {
 }
 
 export interface WikiGraphLibraryArchiveUpgradeItem {
+  readonly fileIdentity: string;
+  readonly relativePath: string;
   readonly publicId: string;
   readonly uri: string;
-  readonly path: string;
   readonly schemaVersionBefore: number;
   readonly schemaVersionAfter: number;
 }
 
 export interface WikiGraphLibraryArchiveFailure {
+  readonly fileIdentity: string;
+  readonly relativePath: string;
   readonly publicId: string;
   readonly uri: string;
-  readonly path: string;
   readonly message: string;
 }
 
 export async function upgradeWikiGraphMaintenanceTarget(
-  target: string,
-  options: { readonly outputPath?: string } = {},
+  target: WikiGraphMaintenanceTarget,
 ): Promise<WikiGraphMaintenanceUpgradeResult> {
-  if (isLegacySdpubTarget(target)) {
-    const result = await migrateLegacySdpubToWikg(target, options.outputPath);
-    return {
-      kind: "sdpub",
-      inputPath: result.inputPath,
-      outputPath: result.outputPath,
-      status: "migrated",
-    };
-  }
-
-  if (options.outputPath !== undefined) {
-    throw new Error("Only sdpub maintenance upgrade supports --output.");
-  }
-
-  if (isHomeTarget(target)) {
-    const path = resolveWikiGraphHomeDirectoryPath();
+  if (target.kind === "home") {
     const schemaVersionBefore = await readWikiGraphHomeSchemaVersion();
     await ensureWikiGraphHomeSchemaCurrent();
     const schemaVersionAfter = await readWikiGraphHomeSchemaVersion();
     return {
       kind: "home",
-      path,
       schemaVersionBefore,
       schemaVersionAfter,
       status:
@@ -109,29 +86,20 @@ export async function upgradeWikiGraphMaintenanceTarget(
           : "upgraded",
     };
   }
-
-  if (target.startsWith("wikg://lib")) {
-    const parsed = parseWikiGraphLibraryUri(target);
-    if (parsed === undefined) {
-      throw new Error(`Invalid Wiki Graph library upgrade target: ${target}`);
-    }
-    if (parsed.kind === "archive") {
-      throw new Error(
-        `Library archive URIs cannot be upgraded individually. Run: wg maintenance upgrade ${formatLibraryScopeUpgradeTarget(parsed)}`,
-      );
-    }
-    return await upgradeWikiGraphLibrarySchema(parsed);
+  if (target.kind === "library") {
+    return await upgradeWikiGraphLibrarySchema(target.target);
   }
-
-  const archivePath = resolveArchiveUpgradeTarget(target);
-  const schemaVersionBefore =
-    await readWikiGraphArchiveSchemaVersion(archivePath);
-  const upgradeResult = await upgradeWikiGraphArchiveSchema(archivePath);
-  const schemaVersionAfter =
-    await readWikiGraphArchiveSchemaVersion(archivePath);
+  const schemaVersionBefore = await readWikiGraphArchiveSchemaVersion(
+    target.file,
+  );
+  const upgradeResult = await upgradeWikiGraphArchiveSchema(target.file);
+  const schemaVersionAfter = await readWikiGraphArchiveSchemaVersion(
+    target.file,
+  );
   return {
+    fileIdentity: target.file.identity,
+    fileName: target.file.name,
     kind: "archive",
-    path: archivePath,
     schemaVersionBefore,
     schemaVersionAfter,
     status: upgradeResult.changed ? "upgraded" : "already-current",
@@ -148,13 +116,13 @@ export async function assertWikiGraphLibrarySchemaCurrent(
     ...(library.isDefault ? {} : { publicId: library.publicId }),
   });
   for (const archive of archives) {
-    if (!isUpgradeableLibraryArchive(archive)) {
-      continue;
-    }
-    const schemaVersion = await readWikiGraphArchiveSchemaVersion(archive.path);
+    if (!isUpgradeableLibraryArchive(archive)) continue;
+    const schemaVersion = await readWikiGraphArchiveSchemaVersion(
+      requireArchiveFile(archive),
+    );
     if (schemaVersion < CURRENT_ARCHIVE_SCHEMA_VERSION) {
       throw new Error(
-        `This Wiki Graph library must be upgraded before use.\nRun: wg maintenance upgrade ${library.uri}`,
+        `This Wiki Graph library must be upgraded before use: ${library.uri}.`,
       );
     }
   }
@@ -174,38 +142,30 @@ export async function upgradeWikiGraphLibrarySchema(
         ...(library.isDefault ? {} : { publicId: library.publicId }),
       })
     ).filter(isUpgradeableLibraryArchive);
-
     const upgraded: WikiGraphLibraryArchiveUpgradeItem[] = [];
     const skipped: WikiGraphLibraryArchiveUpgradeItem[] = [];
 
     for (const archive of archives) {
-      const schemaVersionBefore = await readWikiGraphArchiveSchemaVersion(
-        archive.path,
-      );
+      const file = requireArchiveFile(archive);
+      const schemaVersionBefore = await readWikiGraphArchiveSchemaVersion(file);
       try {
-        const upgradeResult = await upgradeWikiGraphArchiveSchema(archive.path);
-        const schemaVersionAfter = await readWikiGraphArchiveSchemaVersion(
-          archive.path,
-        );
+        const result = await upgradeWikiGraphArchiveSchema(file);
         const item = {
-          path: archive.path,
+          fileIdentity: file.identity,
           publicId: archive.publicId,
-          schemaVersionAfter,
+          relativePath: archive.relativePath,
+          schemaVersionAfter: await readWikiGraphArchiveSchemaVersion(file),
           schemaVersionBefore,
           uri: archive.uri,
         };
-
-        if (upgradeResult.changed) {
-          upgraded.push(item);
-        } else {
-          skipped.push(item);
-        }
+        (result.changed ? upgraded : skipped).push(item);
       } catch (error) {
         return {
           failed: {
+            fileIdentity: file.identity,
             message: formatErrorMessage(error),
-            path: archive.path,
             publicId: archive.publicId,
+            relativePath: archive.relativePath,
             uri: archive.uri,
           },
           kind: "lib",
@@ -227,69 +187,35 @@ export async function upgradeWikiGraphLibrarySchema(
   });
 }
 
-function resolveArchiveUpgradeTarget(target: string): string {
-  if (target.startsWith("wikg://")) {
-    return requireArchiveUri(target);
-  }
-  if (!target.endsWith(".wikg")) {
-    throw new Error(
-      `Unsupported maintenance upgrade target: ${target}. Expected home, a .wikg archive, a .sdpub archive, or wikg://lib.`,
-    );
-  }
-  return resolveHomeShorthand(target);
-}
-
-function isLegacySdpubTarget(target: string): boolean {
-  return target.toLowerCase().endsWith(".sdpub");
-}
-
-function isHomeTarget(target: string): boolean {
-  const resolved = resolveHomeShorthand(target).replace(/[\\/]+$/u, "");
-  return (
-    target === "home" ||
-    target === "~/.wikigraph" ||
-    resolved === resolveWikiGraphHomeDirectoryPath().replace(/[\\/]+$/u, "")
-  );
-}
-
-function resolveHomeShorthand(path: string): string {
-  return path.startsWith("~/")
-    ? resolve(homedir(), path.slice(2))
-    : resolve(path);
-}
-
 function isUpgradeableLibraryArchive(
   archive: WikiGraphLibraryArchiveRecord,
 ): boolean {
-  return archive.exists && archive.status === "present";
+  return (
+    archive.exists && archive.status === "present" && archive.file !== undefined
+  );
+}
+
+function requireArchiveFile(archive: WikiGraphLibraryArchiveRecord): File {
+  if (archive.file === undefined) {
+    throw new Error(`Library archive is unavailable: ${archive.uri}`);
+  }
+  return archive.file;
 }
 
 async function clearLibraryDerivedData(
   library: WikiGraphLibraryRecord,
 ): Promise<void> {
-  await rm(library.stagingPath, { force: true, recursive: true });
+  for (const entry of await library.staging.list()) {
+    await library.staging.remove(entry.name, { recursive: true });
+  }
 }
 
-function formatLibraryScopeUpgradeTarget(
-  target: ParsedWikiGraphLibraryUri,
-): string {
-  return target.isDefault
-    ? "wikg://lib"
-    : `wikg://lib/${target.publicId ?? "<lib-id>"}`;
-}
-
-function formatLibraryResult(library: WikiGraphLibraryRecord): {
-  readonly id: number;
-  readonly publicId: string;
-  readonly uri: string;
-  readonly folderPath: string;
-  readonly stagingPath: string;
-} {
+function formatLibraryResult(library: WikiGraphLibraryRecord) {
   return {
-    folderPath: library.folderPath,
+    folderIdentity: library.folder.identity,
     id: library.id,
     publicId: library.publicId,
-    stagingPath: library.stagingPath,
+    stagingIdentity: library.staging.identity,
     uri: library.uri,
   };
 }

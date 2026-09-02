@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as CLIQueueAdd from "../../../packages/cli/src/commands/queue/add.js";
 import type * as CLISupport from "../../../packages/cli/src/support/index.js";
+import { NodeFile } from "../../../packages/cli/src/runtime/node-platform.js";
 
 const chapterMockState = vi.hoisted(() => ({
   activeConflictChecks: [] as unknown[],
@@ -87,8 +88,8 @@ vi.mock(
     WikiGraphArchiveFile: class {
       readonly #path: string;
 
-      public constructor(path: string) {
-        this.#path = path;
+      public constructor(path: string | { readonly path: string }) {
+        this.#path = typeof path === "string" ? path : path.path;
       }
 
       public async readDocument(
@@ -432,7 +433,7 @@ describe("cli/archive-chapter", () => {
 
     expect(chapterMockState.buildJobCalls).toStrictEqual([
       {
-        archivePath: "/tmp/book.wikg",
+        archive: new NodeFile("/tmp/book.wikg"),
         chapterId: 2,
         target: "index-embedding-source",
       },
@@ -658,7 +659,7 @@ describe("cli/archive-chapter", () => {
 
     expect(chapterMockState.activeJobChecks).toStrictEqual([
       {
-        archivePath: "/tmp/book.wikg",
+        archive: new NodeFile("/tmp/book.wikg"),
         chapterIds: [2],
         operation: "Setting chapter title",
       },
@@ -682,7 +683,7 @@ describe("cli/archive-chapter", () => {
 
     expect(chapterMockState.activeConflictChecks).toStrictEqual([
       {
-        archivePath: "/tmp/book.wikg",
+        archive: new NodeFile("/tmp/book.wikg"),
         operation: "Moving chapter",
         scope: { kind: "archive" },
       },
@@ -832,7 +833,7 @@ describe("cli/archive-chapter", () => {
 
     expect(chapterMockState.activeConflictChecks).toStrictEqual([
       {
-        archivePath: "/tmp/book.wikg",
+        archive: new NodeFile("/tmp/book.wikg"),
         operation: "Removing chapter",
         scope: { kind: "archive" },
       },

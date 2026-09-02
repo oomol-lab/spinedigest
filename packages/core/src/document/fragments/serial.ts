@@ -1,6 +1,6 @@
-import { join, resolve } from "../../runtime/platform/index.js";
+import { joinRelativePath } from "../../utils/relative-path.js";
 
-import { isNodeError } from "../../utils/node-error.js";
+import { isHostError } from "../../utils/host-error.js";
 import type { FragmentRecord, SentenceRecord } from "../types.js";
 import { FragmentDraft } from "./draft.js";
 import {
@@ -37,7 +37,7 @@ export class SerialFragments implements ReadonlySerialFragments {
     writer?: FragmentWriter,
     fileAccess?: FragmentFileAccess,
   ) {
-    this.#documentPath = resolve(documentPath);
+    this.#documentPath = joinRelativePath(documentPath);
     this.#serialId = serialId;
     this.#fileAccess = fileAccess ?? DEFAULT_FRAGMENT_FILE_ACCESS;
     this.#rootDirectoryName = rootDirectoryName;
@@ -104,7 +104,7 @@ export class SerialFragments implements ReadonlySerialFragments {
         .map((match) => Number(match[1]))
         .sort((left, right) => left - right);
     } catch (error) {
-      if (isNodeError(error) && error.code === "ENOENT") {
+      if (isHostError(error) && error.code === "ENOENT") {
         return [];
       }
 
@@ -163,7 +163,7 @@ export class SerialFragments implements ReadonlySerialFragments {
   }
 
   public get path(): string {
-    return join(
+    return joinRelativePath(
       this.#documentPath,
       this.#rootDirectoryName,
       `${SERIAL_DIRECTORY_PREFIX}${this.#serialId}`,
@@ -241,7 +241,7 @@ export class SerialFragments implements ReadonlySerialFragments {
   }
 
   #getFragmentPath(fragmentId: number): string {
-    return join(this.path, `fragment_${fragmentId}.json`);
+    return joinRelativePath(this.path, `fragment_${fragmentId}.json`);
   }
 
   async #getFileContents(): Promise<ReadonlyMap<string, Uint8Array>> {

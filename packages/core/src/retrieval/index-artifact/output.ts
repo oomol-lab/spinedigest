@@ -1,11 +1,8 @@
 import {
-  createReadStream,
-  createWriteStream,
-  readLines,
+  readFileText,
+  writeFileContent,
+  type File,
 } from "../../runtime/platform/index.js";
-import { mkdir } from "../../runtime/platform/index.js";
-import { dirname } from "../../runtime/platform/index.js";
-import type { Writable } from "../../runtime/platform/index.js";
 import { z } from "zod";
 
 import type {
@@ -67,61 +64,39 @@ export type IndexArtifactOutput =
   | ReplaceFtsIndexArtifactInput;
 
 export async function writeIndexArtifactOutput(
-  path: string,
+  file: File,
   artifact: IndexArtifactOutput,
 ): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const stream = createWriteStream(path, { encoding: "utf8", flags: "w" });
-
-  await writeIndexArtifactOutputToStream(stream, artifact);
-}
-
-export async function writeIndexArtifactOutputToStream(
-  stream: Writable,
-  artifact: IndexArtifactOutput,
-): Promise<void> {
-  const streamErrors = createWritableStreamErrorTracker(stream);
-
-  try {
-    const manifest = createOutputManifest(artifact);
-
-    await writeJSONLRecord(stream, streamErrors, manifest);
-    if ("lexicalRows" in artifact) {
-      for (const row of artifact.lexicalRows) {
-        await writeJSONLRecord(stream, streamErrors, {
-          type: "lexical-row",
-          ...omitEmptyMetadata(row),
-        });
-      }
-      return;
-    }
-
-    for (const segment of artifact.segments) {
-      await writeJSONLRecord(stream, streamErrors, {
-        type: "segment",
-        ...segment,
-      });
-    }
-  } finally {
-    try {
-      await closeWritableStream(stream, streamErrors);
-    } finally {
-      await waitForPendingWritableStreamErrors();
-      streamErrors.dispose();
-    }
+  const records: unknown[] = [createOutputManifest(artifact)];
+  if ("lexicalRows" in artifact) {
+    records.push(
+      ...artifact.lexicalRows.map((row) => ({
+        type: "lexical-row",
+        ...omitEmptyMetadata(row),
+      })),
+    );
+  } else {
+    records.push(
+      ...artifact.segments.map((segment) => ({ type: "segment", ...segment })),
+    );
   }
+  await writeFileContent(
+    file,
+    records.map((record) => JSON.stringify(record)).join("\n") + "\n",
+  );
 }
 
 export async function readIndexArtifactOutput(
-  path: string,
+  file: File,
 ): Promise<IndexArtifactOutput> {
-  const lines = readLines(createReadStream(path, { encoding: "utf8" }));
+  const label = file.name;
+  const lines = (await readFileText(file)).split(/\r?\n/u);
   let manifest: IndexArtifactOutputManifest | undefined;
   const lexicalRows: IndexArtifactLexicalRow[] = [];
   const segments: IndexArtifactEmbeddingSegment[] = [];
   let lineNumber = 0;
 
-  for await (const line of lines) {
+  for (const line of lines) {
     lineNumber += 1;
     if (line.trim() === "") {
       continue;
@@ -132,26 +107,29 @@ export async function readIndexArtifactOutput(
     try {
       record = JSON.parse(line);
     } catch (error) {
-      throw new Error(`Invalid index artifact JSONL at ${path}:${lineNumber}`, {
-        cause: error,
-      });
+      throw new Error(
+        `Invalid index artifact JSONL at ${label}:${lineNumber}`,
+        {
+          cause: error,
+        },
+      );
     }
 
     if (manifest === undefined) {
-      manifest = parseOutputManifest(record, path, lineNumber);
+      manifest = parseOutputManifest(record, label, lineNumber);
       continue;
     }
 
     if (isFtsOutputManifest(manifest)) {
-      lexicalRows.push(parseLexicalRow(record, path, lineNumber));
+      lexicalRows.push(parseLexicalRow(record, label, lineNumber));
       continue;
     }
 
-    segments.push(parseEmbeddingSegment(record, path, lineNumber));
+    segments.push(parseEmbeddingSegment(record, label, lineNumber));
   }
 
   if (manifest === undefined) {
-    throw new Error(`Index artifact output ${path} has no manifest.`);
+    throw new Error(`Index artifact output ${label} has no manifest.`);
   }
 
   if (isFtsOutputManifest(manifest)) {
@@ -395,166 +373,4 @@ function omitEmptyMetadata<T extends { readonly metadata: unknown }>(
   }
 
   return record;
-}
-
-function createWritableStreamErrorTracker(stream: Writable): {
-  readonly dispose: () => void;
-  readonly race: <T>(operation: Promise<T>) => Promise<T>;
-} {
-  let streamError: Error | undefined;
-  const waiters = new Set<(error: Error) => void>();
-  const onError = (error: Error) => {
-    streamError ??= error;
-    for (const reject of waiters) {
-      reject(streamError);
-    }
-  };
-
-  stream.on("error", onError);
-
-  return {
-    dispose() {
-      stream.off("error", onError);
-      waiters.clear();
-    },
-    race<T>(operation: Promise<T>): Promise<T> {
-      if (streamError !== undefined) {
-        return Promise.reject(streamError);
-      }
-
-      return new Promise<T>((resolve, reject) => {
-        const rejectOnStreamError = (error: Error) => reject(error);
-        const cleanup = () => {
-          waiters.delete(rejectOnStreamError);
-        };
-
-        waiters.add(rejectOnStreamError);
-        operation.then(
-          (value) => {
-            cleanup();
-            resolve(value);
-          },
-          (error: unknown) => {
-            cleanup();
-            reject(toError(error));
-          },
-        );
-      });
-    },
-  };
-}
-
-async function closeWritableStream(
-  stream: Writable,
-  streamErrors: ReturnType<typeof createWritableStreamErrorTracker>,
-): Promise<void> {
-  if (stream.closed) {
-    return;
-  }
-
-  const closePromise = waitForWritableStreamClose(stream);
-
-  if (stream.destroyed) {
-    await streamErrors.race(closePromise);
-    return;
-  }
-
-  await streamErrors.race(
-    new Promise<void>((resolveClose, rejectClose) => {
-      try {
-        stream.end((error?: Error | null) => {
-          if (error !== undefined && error !== null) {
-            rejectClose(error);
-            return;
-          }
-
-          resolveClose();
-        });
-      } catch (error) {
-        rejectClose(toError(error));
-      }
-    }),
-  );
-
-  await streamErrors.race(closePromise);
-}
-
-function waitForWritableStreamClose(stream: Writable): Promise<void> {
-  if (stream.closed) {
-    return Promise.resolve();
-  }
-
-  return new Promise((resolve) => {
-    stream.once("close", resolve);
-  });
-}
-
-function waitForPendingWritableStreamErrors(): Promise<void> {
-  return new Promise((resolve) => {
-    setImmediate(resolve);
-  });
-}
-
-function toError(error: unknown): Error {
-  if (error instanceof Error) {
-    return error;
-  }
-
-  return new Error(String(error));
-}
-
-async function writeJSONLRecord(
-  stream: Writable,
-  streamErrors: ReturnType<typeof createWritableStreamErrorTracker>,
-  record: unknown,
-): Promise<void> {
-  await streamErrors.race(
-    new Promise<void>((resolveWrite, rejectWrite) => {
-      let drainDone = false;
-      let needsDrain = false;
-      let settled = false;
-      let writeDone = false;
-
-      const cleanup = () => {
-        stream.off("drain", onDrain);
-      };
-      const settle = (error?: Error | null) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        cleanup();
-        if (error !== undefined && error !== null) {
-          rejectWrite(error);
-          return;
-        }
-        resolveWrite();
-      };
-      const maybeSettle = () => {
-        if (writeDone && (!needsDrain || drainDone)) {
-          settle();
-        }
-      };
-      const onDrain = () => {
-        drainDone = true;
-        maybeSettle();
-      };
-
-      const canContinue = stream.write(
-        `${JSON.stringify(record)}\n`,
-        (error: any) => {
-          if (error !== undefined && error !== null) {
-            settle(error);
-            return;
-          }
-          writeDone = true;
-          maybeSettle();
-        },
-      );
-      if (!canContinue) {
-        needsDrain = true;
-        stream.once("drain", onDrain);
-      }
-    }),
-  );
 }

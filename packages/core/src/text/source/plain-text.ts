@@ -1,61 +1,60 @@
-import { createReadStream } from "../../runtime/platform/index.js";
-import { stat } from "../../runtime/platform/index.js";
-import { basename, extname, resolve } from "../../runtime/platform/index.js";
+import type { File } from "../../runtime/platform/index.js";
 
 import { BOOK_META_VERSION, type BookMeta } from "./meta.js";
 import type { SourceAdapter, SourceDocument } from "./adapter.js";
 import type { SourceAsset, SourceSection, SourceTextStream } from "./types.js";
 
 type PlainTextSourceFormat = "markdown" | "txt";
-
 const ROOT_SECTION_ID = "root";
 
 class PlainTextSection implements SourceSection {
-  readonly #path: string;
-  readonly #id: string;
+  readonly #text: string;
+  readonly #sectionId: string;
 
-  public constructor(path: string, id = ROOT_SECTION_ID) {
-    this.#path = resolve(path);
-    this.#id = id;
+  public constructor(text: string, sectionId = ROOT_SECTION_ID) {
+    this.#text = text;
+    this.#sectionId = sectionId;
   }
 
   public get id(): string {
-    return this.#id;
+    return this.#sectionId;
   }
-
   public get hasContent(): boolean {
     return true;
   }
-
   public get title(): string | undefined {
     return undefined;
   }
-
   public get children(): readonly SourceSection[] {
     return [];
   }
-
   public open(): Promise<SourceTextStream> {
-    return Promise.resolve(createReadStream(this.#path, { encoding: "utf8" }));
+    return Promise.resolve(iterateTextLines(this.#text));
   }
 }
 
 class PlainTextDocument implements SourceDocument {
-  readonly #path: string;
-  readonly #format: PlainTextSourceFormat;
   readonly #section: PlainTextSection;
+  readonly #file: File;
+  readonly #sourceFormat: PlainTextSourceFormat;
 
-  public constructor(path: string, format: PlainTextSourceFormat) {
-    this.#path = resolve(path);
-    this.#format = format;
-    this.#section = new PlainTextSection(this.#path);
+  public constructor(
+    file: File,
+    sourceFormat: PlainTextSourceFormat,
+    content: Uint8Array | string,
+  ) {
+    this.#file = file;
+    this.#sourceFormat = sourceFormat;
+    this.#section = new PlainTextSection(
+      typeof content === "string" ? content : new TextDecoder().decode(content),
+    );
   }
 
   public readMeta(): Promise<BookMeta> {
     return Promise.resolve({
       version: BOOK_META_VERSION,
-      sourceFormat: this.#format,
-      title: getFileStem(this.#path),
+      sourceFormat: this.#sourceFormat,
+      title: getFileStem(this.#file.name),
       authors: [],
       language: null,
       identifier: null,
@@ -64,47 +63,47 @@ class PlainTextDocument implements SourceDocument {
       description: null,
     });
   }
-
   public readCover(): Promise<SourceAsset | undefined> {
     return Promise.resolve(undefined);
   }
-
   public readSections(): Promise<readonly SourceSection[]> {
     return Promise.resolve([this.#section]);
   }
 }
 
 export class PlainTextSourceAdapter implements SourceAdapter {
-  readonly #format: PlainTextSourceFormat;
+  readonly #sourceFormat: PlainTextSourceFormat;
 
-  public constructor(format: PlainTextSourceFormat) {
-    this.#format = format;
+  public constructor(sourceFormat: PlainTextSourceFormat) {
+    this.#sourceFormat = sourceFormat;
   }
 
   public get format(): PlainTextSourceFormat {
-    return this.#format;
+    return this.#sourceFormat;
   }
 
   public async openSession<T>(
-    path: string,
+    file: File,
     operation: (document: SourceDocument) => Promise<T>,
   ): Promise<T> {
-    const resolvedPath = resolve(path);
-    const fileStat = await stat(resolvedPath);
-
-    if (!fileStat.isFile()) {
-      throw new Error(`Source file is not a regular file: ${resolvedPath}`);
-    }
-
-    return await operation(new PlainTextDocument(resolvedPath, this.#format));
+    const content = await file.read({ encoding: "utf8" });
+    return await operation(
+      new PlainTextDocument(file, this.#sourceFormat, content),
+    );
   }
 }
 
 export const TXT_SOURCE_ADAPTER = new PlainTextSourceAdapter("txt");
 export const MARKDOWN_SOURCE_ADAPTER = new PlainTextSourceAdapter("markdown");
 
-function getFileStem(path: string): string | null {
-  const stem = basename(path, extname(path)).trim();
+async function* iterateTextLines(text: string): AsyncIterable<string> {
+  for (const line of text.match(/.*(?:\r?\n|$)/gu) ?? []) {
+    if (line !== "") yield line;
+  }
+}
 
+function getFileStem(name: string): string | null {
+  const separator = name.lastIndexOf(".");
+  const stem = (separator <= 0 ? name : name.slice(0, separator)).trim();
   return stem === "" ? null : stem;
 }

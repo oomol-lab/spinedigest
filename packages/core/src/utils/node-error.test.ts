@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { formatError, isNodeError } from "./node-error.js";
+import { formatError, isHostError } from "./host-error.js";
 
 describe("utils/node-error", () => {
   it("detects Error instances only", () => {
-    expect(isNodeError(new Error("boom"))).toBe(true);
-    expect(isNodeError({ code: "ENOENT" })).toBe(false);
-    expect(isNodeError("boom")).toBe(false);
+    expect(isHostError(new Error("boom"))).toBe(true);
+    expect(isHostError({ code: "ENOENT" })).toBe(false);
+    expect(isHostError("boom")).toBe(false);
   });
 
   it("formats missing files without exposing Node stack wording", () => {

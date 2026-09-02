@@ -53,6 +53,7 @@ describe("writeArchiveDocument", () => {
   it("preserves a successful write result when library index sync fails", async () => {
     const libraryDirtyTarget = { isDefault: true, kind: "scope" } as const;
     vi.mocked(resolveArchiveRuntimeLocation).mockResolvedValue({
+      archiveFile: {} as never,
       archiveKey: "/tmp/book.wikg",
       archivePath: "/tmp/book.wikg",
       indexScope: {
@@ -88,6 +89,7 @@ describe("writeArchiveDocument", () => {
   it("does not sync a missing library index cache after archive writes", async () => {
     const libraryDirtyTarget = { isDefault: true, kind: "scope" } as const;
     vi.mocked(resolveArchiveRuntimeLocation).mockResolvedValue({
+      archiveFile: {} as never,
       archiveKey: "/tmp/book.wikg",
       archivePath: "/tmp/book.wikg",
       indexScope: {

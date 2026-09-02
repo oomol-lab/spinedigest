@@ -11,6 +11,7 @@ import {
   type WikispineProvider,
 } from "wiki-graph-core";
 import { buildLLMOptions } from "../runtime/llm.js";
+import { nodeWikispineCommandRunner } from "../runtime/wikispine.js";
 import { embedQueryText, readEmbeddingConfig } from "../runtime/embedding.js";
 import { setCLIExitCode } from "../runtime/context.js";
 import { writeTextToStderr, writeTextToStdout } from "../support/index.js";
@@ -239,6 +240,9 @@ async function runWikispineConfigTest(
     const provider = parseWikispineProvider(wikispine.provider);
     const result = await testWikispineRuntime({
       provider,
+      ...(provider === "cli"
+        ? { commandRunner: nodeWikispineCommandRunner }
+        : {}),
     });
     const output = {
       durationMs: result.durationMs,

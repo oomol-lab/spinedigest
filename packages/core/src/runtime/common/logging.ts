@@ -1,8 +1,12 @@
-import { AsyncLocalStorage } from "../platform/index.js";
-import { appendFile } from "../platform/index.js";
-import { existsSync, mkdirSync } from "../platform/index.js";
-import { join, resolve } from "../platform/index.js";
-import { runtimeContext as platformRuntime } from "../platform/index.js";
+import {
+  appendFileText,
+  ensureRelativeDirectory,
+  ensureRelativeFile,
+  getWikiGraphPlatform,
+  type Directory,
+  type File,
+  type HostAsyncContext,
+} from "../platform/index.js";
 
 interface CoreLogger {
   child(bindings: Record<string, unknown>): CoreLogger;
@@ -15,13 +19,12 @@ interface CoreLogger {
 
 interface LoggingContext {
   readonly artifactCounters: Map<string, number>;
-  readonly artifactRootDirPath?: string;
+  readonly artifactRoot?: Directory;
   readonly logger: CoreLogger;
-  readonly rootLogDirPath?: string;
-  readonly runId: string;
+  readonly root?: Directory;
 }
 
-const loggingContext = new AsyncLocalStorage<LoggingContext>();
+let loggingContext: HostAsyncContext<LoggingContext> | undefined;
 const artifactCounters = new Map<string, number>();
 const silentLogger: CoreLogger = {
   child: () => silentLogger,
@@ -35,40 +38,37 @@ const silentLogger: CoreLogger = {
 export async function withLoggingContext<T>(
   input: {
     readonly operation: string;
-    readonly logDirPath?: string;
+    readonly logDirectory?: Directory;
     readonly verbose?: boolean;
   },
   operation: () => Promise<T>,
 ): Promise<T> {
-  const rootLogDirPath =
-    input.logDirPath === undefined ? undefined : resolve(input.logDirPath);
-  const runId = createRunId();
-  const runDirPath =
-    rootLogDirPath === undefined ? undefined : join(rootLogDirPath, runId);
-  const artifactRootDirPath =
-    runDirPath === undefined ? undefined : join(runDirPath, "artifacts");
-
-  if (runDirPath !== undefined) {
-    mkdirSync(runDirPath, { recursive: true });
+  let run: Directory | undefined;
+  let artifacts: Directory | undefined;
+  let eventLog: File | undefined;
+  if (input.logDirectory !== undefined) {
+    try {
+      run = await input.logDirectory.createDirectory(createRunId());
+      artifacts = await run.createDirectory("artifacts");
+      eventLog = await run.createFile("run.log");
+    } catch (error) {
+      if (input.verbose === true) {
+        globalThis.console.error("Failed to initialize host logging:", error);
+      }
+    }
   }
-
-  const logger = createLogger({
-    operation: input.operation,
-    runId,
-    verbose: input.verbose ?? false,
-    ...(runDirPath === undefined
-      ? {}
-      : { eventLogPath: join(runDirPath, "run.log") }),
-  });
-
+  const logger = createLogger(eventLog, input.verbose ?? false);
+  loggingContext ??=
+    getWikiGraphPlatform().asyncContext.create<LoggingContext>();
   try {
     return await loggingContext.run(
       {
         artifactCounters: new Map(),
         logger,
-        runId,
-        ...(artifactRootDirPath === undefined ? {} : { artifactRootDirPath }),
-        ...(rootLogDirPath === undefined ? {} : { rootLogDirPath }),
+        ...(artifacts === undefined ? {} : { artifactRoot: artifacts }),
+        ...(run === undefined || input.logDirectory === undefined
+          ? {}
+          : { root: input.logDirectory }),
       },
       operation,
     );
@@ -78,166 +78,107 @@ export async function withLoggingContext<T>(
 }
 
 export function getLogger(bindings?: Record<string, unknown>): CoreLogger {
-  const logger = loggingContext.getStore()?.logger ?? silentLogger;
-
+  const logger = loggingContext?.getStore()?.logger ?? silentLogger;
   return bindings === undefined ? logger : logger.child(bindings);
 }
 
-export function resolveArtifactPath(input: {
+export async function resolveArtifactFile(input: {
   readonly category: string;
   readonly fileName: string;
-  readonly logDirPath?: string;
-}): string | undefined {
-  if (input.logDirPath === undefined) {
-    return undefined;
-  }
-
-  const rootLogDirPath = resolve(input.logDirPath);
-  const context = loggingContext.getStore();
-
-  if (
-    context !== undefined &&
-    context.rootLogDirPath === rootLogDirPath &&
-    context.artifactRootDirPath !== undefined
-  ) {
-    const categoryDirPath = join(context.artifactRootDirPath, input.category);
-
-    mkdirSync(categoryDirPath, { recursive: true });
-
-    return join(categoryDirPath, input.fileName);
-  }
-
-  mkdirSync(rootLogDirPath, { recursive: true });
-
-  return join(rootLogDirPath, input.fileName);
+  readonly logDirectory?: Directory;
+}): Promise<File | undefined> {
+  if (input.logDirectory === undefined) return undefined;
+  const context = loggingContext?.getStore();
+  const root =
+    context?.root?.identity === input.logDirectory.identity &&
+    context.artifactRoot
+      ? context.artifactRoot
+      : input.logDirectory;
+  return await ensureRelativeFile(root, `${input.category}/${input.fileName}`);
 }
 
-export function allocateArtifactPath(input: {
+export async function allocateArtifactFile(input: {
   readonly alwaysNumbered?: boolean;
   readonly category: string;
   readonly extension?: string;
-  readonly logDirPath?: string;
+  readonly logDirectory?: Directory;
   readonly prefix: string;
-}): string | undefined {
-  if (input.logDirPath === undefined) {
-    return undefined;
-  }
-
-  const rootLogDirPath = resolve(input.logDirPath);
-  const context = loggingContext.getStore();
+}): Promise<File | undefined> {
+  if (input.logDirectory === undefined) return undefined;
+  const context = loggingContext?.getStore();
+  const counters = context?.artifactCounters ?? artifactCounters;
   const extension = input.extension ?? ".log";
-  const counterStore = context?.artifactCounters ?? artifactCounters;
-  const counterKey = `${rootLogDirPath}:${input.category}:${input.prefix}:${extension}`;
-  const nextIndex = counterStore.get(counterKey);
-  const startIndex = nextIndex === undefined ? 1 : nextIndex + 1;
-
-  for (let index = startIndex; ; index += 1) {
-    const fileName =
-      input.alwaysNumbered === true
+  const key = `${input.logDirectory.identity}:${input.category}:${input.prefix}:${extension}`;
+  let index = (counters.get(key) ?? 0) + 1;
+  while (true) {
+    const name =
+      input.alwaysNumbered === true || index > 1
         ? `${input.prefix}-${index}${extension}`
-        : index === 1
-          ? `${input.prefix}${extension}`
-          : `${input.prefix}-${index}${extension}`;
-    const resolvedPath = resolveArtifactPath({
-      category: input.category,
-      fileName,
-      logDirPath: input.logDirPath,
-    });
-
-    if (resolvedPath === undefined) {
-      return undefined;
+        : `${input.prefix}${extension}`;
+    const contextRoot =
+      context?.root?.identity === input.logDirectory.identity
+        ? context.artifactRoot
+        : undefined;
+    const root = contextRoot ?? input.logDirectory;
+    const category = await ensureRelativeDirectory(root, input.category);
+    if ((await category.getFile(name)) === undefined) {
+      counters.set(key, index);
+      return await category.createFile(name);
     }
-
-    if (!existsSync(resolvedPath)) {
-      counterStore.set(counterKey, index);
-      return resolvedPath;
-    }
+    index += 1;
   }
 }
 
-function createLogger(input: {
-  readonly eventLogPath?: string;
-  readonly operation: string;
-  readonly runId: string;
-  readonly verbose: boolean;
-}): CoreLogger {
-  if (input.eventLogPath === undefined && !input.verbose) {
-    return silentLogger;
-  }
-
-  return new BufferedLogger(input.eventLogPath, input.verbose);
-}
-
-/**
- * A tiny logger kept in core so logging does not pull a Node-only logger into
- * the portable package. Hosts provide the actual append implementation via
- * the platform adapter; writes are serialized and flushed at the end of a
- * logging context.
- */
 class BufferedLogger implements CoreLogger {
-  #pending: Promise<void> = Promise.resolve();
-
+  #pending = Promise.resolve();
   public constructor(
-    private readonly eventLogPath: string | undefined,
+    private readonly file: File | undefined,
     private readonly verbose: boolean,
   ) {}
-
-  public child(_bindings: Record<string, unknown>): CoreLogger {
-    // Bindings are intentionally not rendered in the human-oriented run log.
+  public child(): CoreLogger {
     return this;
   }
-
   public debug(...args: unknown[]): void {
-    this.#write("DEBUG", args);
+    this.write("DEBUG", args);
   }
-
   public error(...args: unknown[]): void {
-    this.#write("ERROR", args);
+    this.write("ERROR", args);
   }
-
   public info(...args: unknown[]): void {
-    this.#write("INFO", args);
+    this.write("INFO", args);
   }
-
   public warn(...args: unknown[]): void {
-    this.#write("WARN", args);
+    this.write("WARN", args);
   }
-
   public async flush(): Promise<void> {
     await this.#pending;
   }
-
-  #write(level: string, args: readonly unknown[]): void {
+  private write(level: string, args: readonly unknown[]): void {
     const line = `${level} ${formatLogArguments(args)}\n`;
-
-    if (this.eventLogPath !== undefined) {
-      this.#pending = this.#pending.then(async () => {
-        await appendFile(this.eventLogPath!, line, "utf8");
-      });
+    if (this.file !== undefined) {
+      this.#pending = this.#pending
+        .then(async () => await appendFileText(this.file!, line))
+        .catch((error: unknown) => {
+          if (this.verbose) {
+            globalThis.console.error("Failed to write host log:", error);
+          }
+        });
     }
-
-    if (this.verbose) {
-      const stderr = platformRuntime.stderr;
-      if (stderr !== undefined && typeof stderr.write === "function") {
-        stderr.write(line);
-      }
-    }
+    if (this.verbose) globalThis.console.error(line.trimEnd());
   }
 }
 
-function formatLogArguments(args: readonly unknown[]): string {
-  if (args.length === 0) {
-    return "";
-  }
+function createLogger(file: File | undefined, verbose: boolean): CoreLogger {
+  return file === undefined && !verbose
+    ? silentLogger
+    : new BufferedLogger(file, verbose);
+}
 
+function formatLogArguments(args: readonly unknown[]): string {
   return args
     .map((value) => {
-      if (typeof value === "string") {
-        return value;
-      }
-      if (value instanceof Error) {
-        return value.stack ?? value.message;
-      }
+      if (typeof value === "string") return value;
+      if (value instanceof Error) return value.stack ?? value.message;
       try {
         return JSON.stringify(value);
       } catch {
@@ -249,16 +190,6 @@ function formatLogArguments(args: readonly unknown[]): string {
 
 function createRunId(): string {
   const now = new Date();
-  const year = String(now.getUTCFullYear());
-  const month = pad(now.getUTCMonth() + 1);
-  const day = pad(now.getUTCDate());
-  const hours = pad(now.getUTCHours());
-  const minutes = pad(now.getUTCMinutes());
-  const seconds = pad(now.getUTCSeconds());
-
-  return `${year}${month}${day}-${hours}${minutes}${seconds}-${globalThis.crypto.randomUUID().slice(0, 8)}`;
-}
-
-function pad(value: number): string {
-  return String(value).padStart(2, "0");
+  const timestamp = now.toISOString().replaceAll(/[-:]/gu, "").slice(0, 15);
+  return `${timestamp}-${globalThis.crypto.randomUUID().slice(0, 8)}`;
 }

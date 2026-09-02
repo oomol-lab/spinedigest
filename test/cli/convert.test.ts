@@ -56,10 +56,10 @@ vi.mock("../../packages/core/src/index.js", () => ({
     }
 
     public async openSession(
-      path: string,
+      path: string | { readonly path: string },
       operation: (digest: MockDigest) => Promise<unknown>,
     ): Promise<unknown> {
-      cliMockState.openCalls.push(path);
+      cliMockState.openCalls.push(typeof path === "string" ? path : path.path);
       return await operation(createMockDigest());
     }
 
@@ -67,7 +67,7 @@ vi.mock("../../packages/core/src/index.js", () => ({
       options: unknown,
       operation: (digest: MockDigest) => Promise<unknown>,
     ): Promise<unknown> {
-      cliMockState.digestCalls.epub.push(options);
+      cliMockState.digestCalls.epub.push(normalizeSourceOptions(options));
       await emitMockProgress(options);
       return await operation(createMockDigest());
     }
@@ -76,7 +76,7 @@ vi.mock("../../packages/core/src/index.js", () => ({
       options: unknown,
       operation: (digest: MockDigest) => Promise<unknown>,
     ): Promise<unknown> {
-      cliMockState.digestCalls.markdown.push(options);
+      cliMockState.digestCalls.markdown.push(normalizeSourceOptions(options));
       await emitMockProgress(options);
       return await operation(createMockDigest());
     }
@@ -85,7 +85,7 @@ vi.mock("../../packages/core/src/index.js", () => ({
       options: unknown,
       operation: (digest: MockDigest) => Promise<unknown>,
     ): Promise<unknown> {
-      cliMockState.digestCalls.textStream.push(options);
+      cliMockState.digestCalls.textStream.push(normalizeSourceOptions(options));
       await emitMockProgress(options);
       return await operation(createMockDigest());
     }
@@ -94,7 +94,7 @@ vi.mock("../../packages/core/src/index.js", () => ({
       options: unknown,
       operation: (digest: MockDigest) => Promise<unknown>,
     ): Promise<unknown> {
-      cliMockState.digestCalls.txt.push(options);
+      cliMockState.digestCalls.txt.push(normalizeSourceOptions(options));
       await emitMockProgress(options);
       return await operation(createMockDigest());
     }
@@ -601,35 +601,51 @@ describe("cli/convert", () => {
 });
 
 interface MockDigest {
-  exportEpub(path: string): Promise<void>;
-  exportText(path: string): Promise<void>;
-  saveAs(path: string): Promise<void>;
+  exportEpub(path: string | { readonly path: string }): Promise<void>;
+  exportText(path: string | { readonly path: string }): Promise<void>;
+  saveAs(path: string | { readonly path: string }): Promise<void>;
 }
 
 function createMockDigest(): MockDigest {
   return {
-    exportEpub: (path: string) => {
+    exportEpub: (path: string | { readonly path: string }) => {
       cliMockState.exportCalls.push({
         method: "exportEpub",
-        path,
+        path: typeof path === "string" ? path : path.path,
       });
       return Promise.resolve();
     },
-    exportText: (path: string) => {
+    exportText: (path: string | { readonly path: string }) => {
       cliMockState.exportCalls.push({
         method: "exportText",
-        path,
+        path: typeof path === "string" ? path : path.path,
       });
       return Promise.resolve();
     },
-    saveAs: (path: string) => {
+    saveAs: (path: string | { readonly path: string }) => {
       cliMockState.exportCalls.push({
         method: "saveAs",
-        path,
+        path: typeof path === "string" ? path : path.path,
       });
       return Promise.resolve();
     },
   };
+}
+
+function normalizeSourceOptions(options: unknown): Record<string, unknown> {
+  const input = options as Record<string, unknown>;
+  const file = input.file as { readonly path?: unknown } | undefined;
+  const documentDirectory = input.documentDirectory as
+    | { readonly path?: unknown }
+    | undefined;
+  const normalized = { ...input };
+  delete normalized.file;
+  delete normalized.documentDirectory;
+  if (typeof file?.path === "string") normalized.path = file.path;
+  if (typeof documentDirectory?.path === "string") {
+    normalized.documentDirPath = documentDirectory.path;
+  }
+  return normalized;
 }
 
 async function emitMockProgress(options: unknown): Promise<void> {

@@ -14,6 +14,7 @@ import {
   importSourceDocument,
 } from "../../../packages/core/src/api/import.js";
 import { withTempDir } from "../../helpers/temp.js";
+import type { File } from "../../../packages/core/src/runtime/platform/index.js";
 
 const serialMockState = vi.hoisted(() => ({
   blockedSerialIds: new Set<number>(),
@@ -355,7 +356,7 @@ describe("facade/import", () => {
       const adapter = {
         format: "txt" as const,
         openSession: async <T>(
-          _path: string,
+          _file: File,
           operation: (document: SourceDocument) => Promise<T>,
         ): Promise<T> => await operation(sourceDocument),
       };
@@ -366,7 +367,12 @@ describe("facade/import", () => {
           document,
           extractionPrompt: "Keep key beats",
           llm: {} as never,
-          path: "/tmp/source.txt",
+          file: {
+            identity: "test:source",
+            name: "source.txt",
+            openWriter: () => Promise.reject(new Error("not used")),
+            read: () => Promise.reject(new Error("not used")),
+          },
         });
 
         expect(imported.toc.items[0]).toMatchObject({

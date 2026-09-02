@@ -5,7 +5,9 @@ export interface File {
   /** Logical entry name only; never a URI or operating-system path. */
   readonly name: string;
   readonly size?: number;
+  readonly lastModified?: number;
   getSize?(): Promise<number>;
+  getLastModified?(): Promise<number | undefined>;
   read(options?: { readonly encoding?: string }): Promise<Uint8Array | string>;
   openWriter(): Promise<FileWriter>;
 }
@@ -22,6 +24,8 @@ export interface Directory {
   /** Stable opaque identity used only for coordination; it must not be a path. */
   readonly identity: string;
   readonly name: string;
+  readonly lastModified?: number;
+  getLastModified?(): Promise<number | undefined>;
   getFile(name: string): Promise<File | undefined>;
   getDirectory(name: string): Promise<Directory | undefined>;
   list(): Promise<ReadonlyArray<File | Directory>>;
@@ -31,6 +35,16 @@ export interface Directory {
     name: string,
     options?: { readonly recursive?: boolean },
   ): Promise<void>;
+}
+
+/**
+ * Resolves stable host-owned identities back to capabilities. Core persists
+ * identities, never host locations. This is required by jobs and library
+ * membership, whose records can outlive one JavaScript execution context.
+ */
+export interface HostResourceProvider {
+  getDirectory(identity: string): Promise<Directory | undefined>;
+  getFile(identity: string): Promise<File | undefined>;
 }
 
 /** Host storage roots. Their backing locations are never visible to Core. */
@@ -86,10 +100,19 @@ export interface HostZipProvider {
   ): Promise<void>;
 }
 
+export interface HostTemplateProvider {
+  get(templateName: string): {
+    readonly source: string;
+    readonly version?: string;
+  };
+}
+
 /** Platform-neutral host services required before Core operations run. */
 export interface WikiGraphPlatform {
   readonly asyncContext: HostAsyncContextProvider;
   readonly database: HostDatabaseProvider;
+  readonly resources: HostResourceProvider;
+  readonly templates: HostTemplateProvider;
   readonly zip: HostZipProvider;
 }
 

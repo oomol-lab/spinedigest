@@ -1,4 +1,8 @@
-import { readFile, writeFile } from "../../runtime/platform/index.js";
+import {
+  readFileText,
+  writeFileContent,
+  type File,
+} from "../../runtime/platform/index.js";
 
 import {
   summaryInputSnapshotSchema,
@@ -8,10 +12,10 @@ import {
 import type { SummaryInputSnapshotData } from "./types.js";
 
 export async function readSummaryInputSnapshot(
-  filePath: string,
+  file: File,
 ): Promise<SummaryInputSnapshotData> {
   const snapshot = summaryInputSnapshotSchema.parse(
-    JSON.parse(await readFile(filePath, "utf8")),
+    JSON.parse(await readFileText(file)),
   );
 
   return {
@@ -22,8 +26,8 @@ export async function readSummaryInputSnapshot(
 }
 
 export async function writeSummaryInputSnapshot(
-  filePath: string,
+  file: File,
   snapshot: SummaryInputSnapshotData,
 ): Promise<void> {
-  await writeFile(filePath, `${JSON.stringify(snapshot)}\n`, "utf8");
+  await writeFileContent(file, `${JSON.stringify(snapshot)}\n`);
 }

@@ -1,4 +1,4 @@
-import { resolve } from "../platform/index.js";
+import type { File } from "../platform/index.js";
 import { createArchiveKey } from "./helpers.js";
 import { openBuildQueueDatabase } from "./database.js";
 import { recoverStaleBuildJobs } from "./recovery.js";
@@ -6,13 +6,13 @@ import { mapBuildJob } from "./row.js";
 import type { BuildJobConflictScope, BuildJobTarget } from "./types.js";
 
 export async function assertNoActiveBuildJobs(input: {
-  readonly archivePath: string;
+  readonly archive: File;
   readonly chapterIds: readonly number[];
   readonly operation: string;
   readonly requiresTarget?: BuildJobTarget;
 }): Promise<void> {
   await assertNoActiveBuildJobConflicts({
-    archivePath: input.archivePath,
+    archive: input.archive,
     operation: input.operation,
     ...(input.requiresTarget === undefined
       ? {}
@@ -22,7 +22,7 @@ export async function assertNoActiveBuildJobs(input: {
 }
 
 export async function assertNoActiveBuildJobConflicts(input: {
-  readonly archivePath: string;
+  readonly archive: File;
   readonly operation: string;
   readonly requiresTarget?: BuildJobTarget;
   readonly scope: BuildJobConflictScope;
@@ -35,7 +35,7 @@ export async function assertNoActiveBuildJobConflicts(input: {
 
   try {
     await recoverStaleBuildJobs(state);
-    const archiveKey = createArchiveKey(resolve(input.archivePath));
+    const archiveKey = createArchiveKey(input.archive);
     const targetFilter =
       input.requiresTarget === undefined ? "" : "AND target = ?";
     const params: Array<number | string> = [archiveKey];

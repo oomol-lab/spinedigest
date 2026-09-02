@@ -1,7 +1,3 @@
-import { rm } from "../runtime/platform/index.js";
-import { resolve } from "../runtime/platform/index.js";
-
-import { createWikiGraphTempDirectory } from "../runtime/common/wiki-graph/temp.js";
 import { BOOK_META_VERSION, TOC_FILE_VERSION } from "../text/source/index.js";
 import {
   EPUB_SOURCE_ADAPTER,
@@ -28,12 +24,18 @@ import { SerialGeneration, writeSerialSource } from "../serial.js";
 import { importSource } from "./import.js";
 import { WikiGraphArchive } from "./wiki-graph-archive.js";
 import type { ChapterStage } from "./chapter/index.js";
+import {
+  ensureRelativeDirectory,
+  getWikiGraphStorage,
+  type Directory,
+  type File,
+} from "../runtime/platform/index.js";
 
 interface DigestSessionOptions {
-  readonly documentDirPath?: string;
+  readonly documentDirectory?: Directory;
   readonly extractionPrompt: string;
   readonly llm?: LLM<WikiGraphScope>;
-  readonly logDirPath?: string;
+  readonly logDirectory?: Directory;
   readonly onProgress?: WikiGraphProgressCallback;
   readonly segmenter?: ReaderSegmenter;
   readonly targetStage?: ChapterStage;
@@ -41,11 +43,11 @@ interface DigestSessionOptions {
 }
 
 export interface DigestDocumentSessionOptions {
-  readonly documentDirPath?: string;
+  readonly documentDirectory?: Directory;
 }
 
 export interface DigestSourceSessionOptions extends DigestSessionOptions {
-  readonly path: string;
+  readonly file: File;
 }
 
 export interface DigestTextStreamSessionOptions extends DigestSessionOptions {
@@ -90,7 +92,7 @@ export async function digestTextStreamSession<T>(
       : { onProgress: options.onProgress }),
   });
 
-  return await withTemporaryDocumentSession(async (document, directoryPath) => {
+  return await withTemporaryDocumentSession(async (document, directory) => {
     await document.openSession(async (openedDocument) => {
       const serialId = await openedDocument.peekNextSerialId();
       const normalizedTitle = normalizeTitle(options.title);
@@ -114,9 +116,9 @@ export async function digestTextStreamSession<T>(
         const generation = new SerialGeneration({
           document: openedDocument,
           llm: requireDigestLLM(options.llm, targetStage),
-          ...(options.logDirPath === undefined
+          ...(options.logDirectory === undefined
             ? {}
-            : { logDirPath: options.logDirPath }),
+            : { logDirectory: options.logDirectory }),
           ...(options.segmenter === undefined
             ? {}
             : { segmenter: options.segmenter }),
@@ -180,8 +182,8 @@ export async function digestTextStreamSession<T>(
       });
     });
 
-    return await operation(new WikiGraphArchive(document, directoryPath));
-  }, options.documentDirPath);
+    return await operation(new WikiGraphArchive(document, directory));
+  }, options.documentDirectory);
 }
 
 export async function digestTxtSession<T>(
@@ -209,20 +211,20 @@ async function digestSourceSession<T>(
       : { onProgress: options.onProgress }),
   });
 
-  return await withTemporaryDocumentSession(async (document, directoryPath) => {
+  return await withTemporaryDocumentSession(async (document, directory) => {
     await importSource({
       adapter,
       document,
       digestProgressTracker: progressTracker,
       extractionPrompt: options.extractionPrompt,
       ...(options.llm === undefined ? {} : { llm: options.llm }),
-      path: options.path,
+      file: options.file,
       ...(options.targetStage === undefined
         ? {}
         : { targetStage: options.targetStage }),
-      ...(options.logDirPath === undefined
+      ...(options.logDirectory === undefined
         ? {}
-        : { logDirPath: options.logDirPath }),
+        : { logDirectory: options.logDirectory }),
       ...(options.segmenter === undefined
         ? {}
         : { segmenter: options.segmenter }),
@@ -231,29 +233,35 @@ async function digestSourceSession<T>(
         : { userLanguage: options.userLanguage }),
     });
 
-    return await operation(new WikiGraphArchive(document, directoryPath));
-  }, options.documentDirPath);
+    return await operation(new WikiGraphArchive(document, directory));
+  }, options.documentDirectory);
 }
 
 async function withTemporaryDocumentSession<T>(
   operation: (
     document: DirectoryDocument,
-    directoryPath: string,
+    directory: Directory,
   ) => Promise<T> | T,
-  documentDirPath?: string,
+  documentDirectory?: Directory,
 ): Promise<T> {
-  const directoryPath =
-    documentDirPath === undefined
-      ? await createWikiGraphTempDirectory("archive-open")
-      : resolve(documentDirPath);
-  const document = await DirectoryDocument.open(directoryPath);
+  const sessionsRoot =
+    documentDirectory === undefined
+      ? await ensureRelativeDirectory(
+          getWikiGraphStorage().documentStore,
+          "digest-sessions",
+        )
+      : undefined;
+  const sessionName = `digest-${globalThis.crypto.randomUUID()}`;
+  const directory =
+    documentDirectory ?? (await sessionsRoot!.createDirectory(sessionName));
+  const document = await DirectoryDocument.open(directory);
 
   try {
-    return await operation(document, directoryPath);
+    return await operation(document, directory);
   } finally {
     await document.release();
-    if (documentDirPath === undefined) {
-      await rm(directoryPath, { force: true, recursive: true });
+    if (sessionsRoot !== undefined) {
+      await sessionsRoot.remove(sessionName, { recursive: true });
     }
   }
 }

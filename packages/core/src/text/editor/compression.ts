@@ -22,6 +22,7 @@ import {
 } from "./response.js";
 import { CompressionReviewer, type ReviewerHistories } from "./review.js";
 import type { CompressionVersion } from "./types.js";
+import type { Directory } from "../../runtime/platform/index.js";
 
 export interface EditorScopes<S extends string> {
   readonly compress: S;
@@ -34,7 +35,7 @@ export interface EditorOptions<S extends string> {
   readonly document?: ReadonlyDocument;
   readonly groupId: number;
   readonly llm: LLM<S>;
-  readonly logDirPath?: string;
+  readonly logDirectory?: Directory;
   readonly maxClues?: number;
   readonly maxIterations?: number;
   readonly scopes: EditorScopes<S>;
@@ -87,10 +88,10 @@ class EditorOperation<S extends string> {
     this.#log = new CompressionLog(this.#serialId, this.#groupId, {
       compressionRatio: this.#compressionRatio,
       maxIterations: this.#maxIterations,
-      ...(options.logDirPath === undefined
+      ...(options.logDirectory === undefined
         ? {}
         : {
-            logDirPath: options.logDirPath,
+            logDirectory: options.logDirectory,
           }),
     });
     this.#reviewer = new CompressionReviewer(

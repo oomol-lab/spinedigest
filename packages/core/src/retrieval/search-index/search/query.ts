@@ -1,4 +1,3 @@
-import { binary as platformBinary } from "../../../runtime/platform/index.js";
 import { getNumber, type Database } from "../../../document/database.js";
 import type { ReadonlyDocument } from "../../../document/index.js";
 import type {
@@ -401,8 +400,8 @@ async function queryDenseSegmentHits(
       kind: getNumber(row, "kind") as TextSentenceKind,
       startSentenceIndex: getNumber(row, "start_sentence_index"),
       vector:
-        platformBinary.isBuffer(row.vector) || row.vector instanceof Uint8Array
-          ? deserializeFloat32Vector(platformBinary.from(row.vector))
+        row.vector instanceof Uint8Array
+          ? deserializeFloat32Vector(row.vector)
           : [],
     }),
   );

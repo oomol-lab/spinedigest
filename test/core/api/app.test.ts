@@ -1,5 +1,3 @@
-import { basename, isAbsolute } from "path";
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const appMockState = vi.hoisted(() => ({
@@ -62,8 +60,13 @@ import {
   type WikiGraphStorage,
 } from "../../../packages/core/src/runtime/platform/index.js";
 import { withTempDir } from "../../helpers/temp.js";
+import {
+  NodeDirectory,
+  NodeFile,
+} from "../../../packages/cli/src/runtime/node-platform.js";
 
 describe("facade/app", () => {
+  const sourceFile = createUnreadFile("source.txt");
   beforeEach(() => {
     appMockState.digestCalls.epub.length = 0;
     appMockState.digestCalls.markdown.length = 0;
@@ -78,7 +81,7 @@ describe("facade/app", () => {
     await expect(
       app.digestTxtSession(
         {
-          path: "/tmp/source.txt",
+          file: sourceFile,
         },
         () => undefined,
       ),
@@ -92,17 +95,17 @@ describe("facade/app", () => {
       provider: "test-model",
     };
     const app = new WikiGraph({
-      debugLogDirPath: "/tmp/wikigraph-debug",
+      debugLogDirectory: new MemoryDirectory("wikigraph-debug"),
       llm: fakeModel as never,
     });
     const onProgress = vi.fn();
 
     const result = await app.digestTxtSession(
       {
-        documentDirPath: "/tmp/wikigraph-document",
+        documentDirectory: new MemoryDirectory("wikigraph-document"),
         extractionPrompt: "   ",
         onProgress,
-        path: "/tmp/source.txt",
+        file: sourceFile,
         userLanguage: Language.SimplifiedChinese,
       },
       () => "done",
@@ -111,7 +114,6 @@ describe("facade/app", () => {
     expect(result).toBe("done");
     expect(appMockState.llmOptions).toHaveLength(1);
     const llmOptions = appMockState.llmOptions[0] as {
-      readonly dataDirPath: string;
       readonly model: unknown;
       readonly sampling: Record<
         string,
@@ -122,8 +124,6 @@ describe("facade/app", () => {
       >;
     };
 
-    expect(isAbsolute(llmOptions.dataDirPath)).toBe(true);
-    expect(basename(llmOptions.dataDirPath)).toBe("data");
     expect(llmOptions.model).toBe(fakeModel);
     expect(llmOptions.sampling[WikiGraphScope.EditorCompress]).toStrictEqual({
       temperature: 0.7,
@@ -131,19 +131,19 @@ describe("facade/app", () => {
     });
     expect(appMockState.digestCalls.txt).toHaveLength(1);
     const digestCall = appMockState.digestCalls.txt[0] as {
-      readonly documentDirPath: string;
+      readonly documentDirectory: Directory;
       readonly extractionPrompt: string;
       readonly llm: unknown;
-      readonly logDirPath: string;
+      readonly logDirectory: Directory;
       readonly onProgress: typeof onProgress;
-      readonly path: string;
+      readonly file: File;
       readonly userLanguage: string;
     };
 
-    expect(digestCall.documentDirPath).toBe("/tmp/wikigraph-document");
-    expect(digestCall.logDirPath).toBe("/tmp/wikigraph-debug");
+    expect(digestCall.documentDirectory.name).toBe("wikigraph-document");
+    expect(digestCall.logDirectory.name).toBe("wikigraph-debug");
     expect(digestCall.onProgress).toBe(onProgress);
-    expect(digestCall.path).toBe("/tmp/source.txt");
+    expect(digestCall.file).toBe(sourceFile);
     expect(digestCall.userLanguage).toBe(Language.SimplifiedChinese);
     expect(digestCall.llm).toBeTruthy();
     expect(digestCall.extractionPrompt).toContain(
@@ -157,7 +157,7 @@ describe("facade/app", () => {
     };
     const app = new WikiGraph({
       llm: {
-        cacheDirPath: "/tmp/cache",
+        cacheDirectory: new MemoryDirectory("cache"),
         model: fakeModel as never,
         stream: true,
         temperature: 0.3,
@@ -167,7 +167,7 @@ describe("facade/app", () => {
     await app.digestTextStreamSession(
       {
         bookLanguage: "ja",
-        documentDirPath: "/tmp/custom-document",
+        documentDirectory: new MemoryDirectory("custom-document"),
         extractionPrompt: "Keep dialogue only",
         sourceFormat: "markdown",
         stream: ["alpha", "beta"],
@@ -179,8 +179,7 @@ describe("facade/app", () => {
 
     expect(appMockState.llmOptions).toHaveLength(1);
     const llmOptions = appMockState.llmOptions[0] as {
-      readonly cacheDirPath: string;
-      readonly dataDirPath: string;
+      readonly cacheDirectory: MemoryDirectory;
       readonly model: unknown;
       readonly sampling: Record<
         string,
@@ -193,9 +192,7 @@ describe("facade/app", () => {
       readonly temperature: number;
     };
 
-    expect(llmOptions.cacheDirPath).toBe("/tmp/cache");
-    expect(isAbsolute(llmOptions.dataDirPath)).toBe(true);
-    expect(basename(llmOptions.dataDirPath)).toBe("data");
+    expect(llmOptions.cacheDirectory.name).toBe("cache");
     expect(llmOptions.model).toBe(fakeModel);
     expect(llmOptions.stream).toBe(true);
     expect(llmOptions.temperature).toBe(0.3);
@@ -212,7 +209,7 @@ describe("facade/app", () => {
     expect(appMockState.digestCalls.textStream).toHaveLength(1);
     const digestCall = appMockState.digestCalls.textStream[0] as {
       readonly bookLanguage: string;
-      readonly documentDirPath: string;
+      readonly documentDirectory: Directory;
       readonly extractionPrompt: string;
       readonly sourceFormat: string;
       readonly stream: readonly string[];
@@ -221,7 +218,7 @@ describe("facade/app", () => {
     };
 
     expect(digestCall.bookLanguage).toBe("ja");
-    expect(digestCall.documentDirPath).toBe("/tmp/custom-document");
+    expect(digestCall.documentDirectory.name).toBe("custom-document");
     expect(digestCall.sourceFormat).toBe("markdown");
     expect(digestCall.stream).toStrictEqual(["alpha", "beta"]);
     expect(digestCall.title).toBe("  Session Title  ");
@@ -303,12 +300,18 @@ describe("facade/app", () => {
         });
 
         const archivePath = `${path}/fixture/book.wikg`;
-        await new WikiGraphArchive(document, document.path).saveAs(archivePath);
+        await new WikiGraphArchive(
+          document,
+          new NodeDirectory(`${path}/document`),
+        ).saveAs(new NodeFile(archivePath));
 
         const app = new WikiGraph({});
-        const title = await app.openSession(archivePath, async (digest) => {
-          return (await digest.readMeta())?.title;
-        });
+        const title = await app.openSession(
+          new NodeFile(archivePath),
+          async (digest) => {
+            return (await digest.readMeta())?.title;
+          },
+        );
 
         expect(title).toBe("App Open Fixture");
       } finally {
@@ -318,6 +321,15 @@ describe("facade/app", () => {
     });
   });
 });
+
+function createUnreadFile(name: string): File {
+  return {
+    identity: `test:${name}`,
+    name,
+    openWriter: () => Promise.reject(new Error("not used")),
+    read: () => Promise.reject(new Error("not used")),
+  };
+}
 
 function createStorage(name: string): WikiGraphStorage {
   return {

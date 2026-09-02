@@ -191,6 +191,7 @@ let testStateDir: string | undefined;
 function seedArchive(id: number, status = "present") {
   mocks.archives.set(id, {
     exists: true,
+    file: `archive-${id}.wikg`,
     id,
     path: `archive-${id}.wikg`,
     status,

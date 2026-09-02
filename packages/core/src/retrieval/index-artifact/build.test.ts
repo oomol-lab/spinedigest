@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import { Writable } from "stream";
+import { NodeFile } from "../../../../cli/src/runtime/node-platform.js";
 import { describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../document/index.js";
@@ -16,7 +16,6 @@ import {
   replaceChapterSummaryEmbeddingIndexArtifact,
   writeIndexArtifactOutput,
 } from "./index.js";
-import { writeIndexArtifactOutputToStream } from "./output.js";
 
 async function withDocument(
   operation: (document: DirectoryDocument) => Promise<void>,
@@ -224,9 +223,9 @@ describe("index artifact builders", () => {
         sourceRevision: 3,
       });
 
-      await writeIndexArtifactOutput(outputPath, artifact);
+      await writeIndexArtifactOutput(new NodeFile(outputPath), artifact);
 
-      const output = await readIndexArtifactOutput(outputPath);
+      const output = await readIndexArtifactOutput(new NodeFile(outputPath));
       const lines = (await readFile(outputPath, "utf8")).trim().split("\n");
 
       expect(lines).toHaveLength(2);
@@ -263,9 +262,9 @@ describe("index artifact builders", () => {
         sourceRevision: 3,
       });
 
-      await writeIndexArtifactOutput(outputPath, artifact);
+      await writeIndexArtifactOutput(new NodeFile(outputPath), artifact);
 
-      const output = await readIndexArtifactOutput(outputPath);
+      const output = await readIndexArtifactOutput(new NodeFile(outputPath));
       const lines = (await readFile(outputPath, "utf8")).trim().split("\n");
 
       expect(JSON.parse(lines[0]!)).toStrictEqual({
@@ -300,9 +299,9 @@ describe("index artifact builders", () => {
         sourceRevision: 3,
       });
 
-      await writeIndexArtifactOutput(outputPath, artifact);
+      await writeIndexArtifactOutput(new NodeFile(outputPath), artifact);
 
-      const output = await readIndexArtifactOutput(outputPath);
+      const output = await readIndexArtifactOutput(new NodeFile(outputPath));
       const lines = (await readFile(outputPath, "utf8")).trim().split("\n");
 
       expect(JSON.parse(lines[0]!)).toStrictEqual({
@@ -321,40 +320,7 @@ describe("index artifact builders", () => {
       await rm(path, { force: true, recursive: true });
     }
   });
-
-  it("keeps stream errors handled after a failed output write", async () => {
-    const artifact = createFtsIndexArtifactInput({
-      sentences: [{ text: "Alpha beta.", wordsCount: 2 }],
-      serialId: 12,
-      sourceRevision: 3,
-    });
-    const stream = new CallbackThenStreamErrorWritable();
-
-    await expect(
-      writeIndexArtifactOutputToStream(stream, artifact),
-    ).rejects.toThrow("write failed");
-    await new Promise((resolve) => setImmediate(resolve));
-  });
 });
-
-class CallbackThenStreamErrorWritable extends Writable {
-  readonly #error = new Error("write failed");
-
-  public override _final(callback: (error?: Error | null) => void): void {
-    setTimeout(() => callback(), 10);
-  }
-
-  public override _write(
-    _chunk: unknown,
-    _encoding: BufferEncoding,
-    callback: (error?: Error | null) => void,
-  ): void {
-    callback(this.#error);
-    setImmediate(() => {
-      this.emit("error", this.#error);
-    });
-  }
-}
 
 function createFakeEmbeddingProvider(
   options: { readonly identity?: string | undefined } = {

@@ -11,20 +11,21 @@ import type {
 import type { LLM } from "../../external/llm/index.js";
 import type { Language } from "../../runtime/common/language.js";
 import type { WikiGraphScope } from "../../runtime/common/llm-scope.js";
+import type { Directory, File } from "../../runtime/platform/index.js";
 
 export interface ChapterSummaryInputSnapshot {
-  readonly filePath: string;
-  readonly objectsPath: string;
+  readonly file: File;
+  readonly objectsFile: File;
 }
 
 export interface BuildChapterSummaryArtifactOptions {
   readonly llm: LLM<WikiGraphScope>;
-  readonly logDirPath?: string;
-  readonly readingGraphObjectsPath?: string;
-  readonly snapshotPath?: string;
-  readonly sourceDocumentPath?: string;
+  readonly logDirectory?: Directory;
+  readonly readingGraphObjectsFile?: File;
+  readonly snapshotFile?: File;
+  readonly sourceDocumentDirectory?: Directory;
   readonly userLanguage?: Language;
-  readonly workspacePath: string;
+  readonly workspace: Directory;
 }
 
 export interface SummaryInputSnapshotData {

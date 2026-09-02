@@ -37,6 +37,7 @@ export {
   type MatchWikispineSentenceCandidatesOptions,
   testWikispineRuntime,
   type TestWikispineRuntimeOptions,
+  type WikispineCommandRunner,
   type WikispineProvider,
   type WikispineRuntimeTestResult,
 } from "./wikispine.js";

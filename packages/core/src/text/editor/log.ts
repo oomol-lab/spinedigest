@@ -1,5 +1,10 @@
-import { appendFile, writeFile } from "../../runtime/platform/index.js";
-import { allocateArtifactPath } from "../../runtime/common/logging.js";
+import {
+  appendFileText,
+  writeFileContent,
+  type Directory,
+  type File,
+} from "../../runtime/platform/index.js";
+import { allocateArtifactFile } from "../../runtime/common/logging.js";
 
 import type { Language } from "../../runtime/common/language.js";
 import type { Clue } from "./clue.js";
@@ -9,23 +14,23 @@ import type { CompressionVersion, ReviewResult } from "./types.js";
 export class CompressionLog {
   readonly #compressionRatio: number;
   readonly #groupId: number;
-  readonly #logDirPath: string | undefined;
+  readonly #logDirectory: Directory | undefined;
   readonly #maxIterations: number;
   readonly #serialId: number;
-  #filePath: string | undefined;
+  #file: File | undefined;
 
   public constructor(
     serialId: number,
     groupId: number,
     options: {
       readonly compressionRatio: number;
-      readonly logDirPath?: string;
+      readonly logDirectory?: Directory;
       readonly maxIterations: number;
     },
   ) {
     this.#compressionRatio = options.compressionRatio;
     this.#groupId = groupId;
-    this.#logDirPath = options.logDirPath;
+    this.#logDirectory = options.logDirectory;
     this.#maxIterations = options.maxIterations;
     this.#serialId = serialId;
   }
@@ -34,7 +39,7 @@ export class CompressionLog {
     compressedText: string;
     thinkingText: string;
   }): Promise<void> {
-    if (this.#filePath === undefined) {
+    if (this.#file === undefined) {
       return;
     }
 
@@ -59,14 +64,14 @@ export class CompressionLog {
       "",
     );
 
-    await appendFile(this.#filePath, `${parts.join("\n")}\n`, "utf8");
+    await appendFileText(this.#file, `${parts.join("\n")}\n`);
   }
 
   public async appendFinalSelection(
     bestVersion: CompressionVersion,
     originalLength: number,
   ): Promise<void> {
-    if (this.#filePath === undefined) {
+    if (this.#file === undefined) {
       return;
     }
 
@@ -96,14 +101,14 @@ export class CompressionLog {
       );
     }
 
-    await appendFile(this.#filePath, `${parts.join("\n")}\n`, "utf8");
+    await appendFileText(this.#file, `${parts.join("\n")}\n`);
   }
 
   public async appendIterationHeader(
     iteration: number,
     revisionFeedback: string | undefined,
   ): Promise<void> {
-    if (this.#filePath === undefined) {
+    if (this.#file === undefined) {
       return;
     }
 
@@ -125,7 +130,7 @@ export class CompressionLog {
       );
     }
 
-    await appendFile(this.#filePath, `${parts.join("\n")}\n`, "utf8");
+    await appendFileText(this.#file, `${parts.join("\n")}\n`);
   }
 
   public async appendLanguageMismatch(input: {
@@ -134,7 +139,7 @@ export class CompressionLog {
     targetLanguageCode: string;
     userLanguage: Language | undefined;
   }): Promise<void> {
-    if (this.#filePath === undefined) {
+    if (this.#file === undefined) {
       return;
     }
 
@@ -157,28 +162,28 @@ export class CompressionLog {
       "",
     ];
 
-    await appendFile(this.#filePath, `${parts.join("\n")}\n`, "utf8");
+    await appendFileText(this.#file, `${parts.join("\n")}\n`);
   }
 
   public async initialize(clues: readonly Clue[]): Promise<void> {
-    if (this.#logDirPath === undefined) {
+    if (this.#logDirectory === undefined) {
       return;
     }
 
     const timestamp = formatTimestamp(new Date());
 
-    this.#filePath = allocateArtifactPath({
+    this.#file = await allocateArtifactFile({
       category: "editor",
-      logDirPath: this.#logDirPath,
+      logDirectory: this.#logDirectory,
       prefix: `compression-serial-${this.#serialId}-group-${this.#groupId}`,
     });
 
-    if (this.#filePath === undefined) {
+    if (this.#file === undefined) {
       return;
     }
 
-    await writeFile(
-      this.#filePath,
+    await writeFileContent(
+      this.#file,
       [
         "=== Text Compression Log ===",
         `Serial: ${this.#serialId}, Group: ${this.#groupId}`,
@@ -190,7 +195,6 @@ export class CompressionLog {
         formatChunkHierarchy(clues, this.#groupId, this.#serialId),
         "",
       ].join("\n"),
-      "utf8",
     );
   }
 }

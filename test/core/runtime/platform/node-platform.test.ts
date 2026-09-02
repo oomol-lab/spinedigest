@@ -86,4 +86,22 @@ describe("Node File/Directory adapter", () => {
       ]);
     });
   });
+
+  it("restores persisted opaque capabilities without exposing a path to Core", async () => {
+    await withTempDir("wikigraph-host-resources-", async (path) => {
+      const directory = new NodeDirectory(path);
+      const file = await directory.createFile("archive.wikg");
+
+      const restoredDirectory =
+        await nodeWikiGraphPlatform.resources.getDirectory(directory.identity);
+      const restoredFile = await nodeWikiGraphPlatform.resources.getFile(
+        file.identity,
+      );
+
+      expect(restoredDirectory?.identity).toBe(directory.identity);
+      expect(restoredFile?.identity).toBe(file.identity);
+      expect(restoredDirectory).not.toHaveProperty("absolutePath");
+      expect(restoredFile).not.toHaveProperty("absolutePath");
+    });
+  });
 });

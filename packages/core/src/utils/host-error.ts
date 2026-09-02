@@ -1,5 +1,6 @@
-import { type NodeError } from "../runtime/platform/index.js";
-export function isNodeError(error: unknown): error is NodeError {
+import { type HostError } from "../runtime/platform/index.js";
+
+export function isHostError(error: unknown): error is HostError {
   return error instanceof Error;
 }
 
@@ -25,15 +26,15 @@ export function formatError(error: unknown): string {
 }
 
 function describeError(error: Error): string {
-  const errnoError = error as NodeError;
+  const hostError = error as HostError;
   const message = error.message.trim();
   const code =
-    typeof errnoError.code === "string" && errnoError.code !== ""
-      ? errnoError.code
+    typeof hostError.code === "string" && hostError.code !== ""
+      ? hostError.code
       : undefined;
   const path =
-    typeof errnoError.path === "string" && errnoError.path !== ""
-      ? errnoError.path
+    typeof hostError.path === "string" && hostError.path !== ""
+      ? hostError.path
       : undefined;
 
   if (code === "ENOENT") {
@@ -58,28 +59,22 @@ function describeError(error: Error): string {
 function pushErrorMessage(messages: string[], message: string): void {
   const normalizedMessage = message.trim();
 
-  if (normalizedMessage === "") {
-    return;
-  }
+  if (normalizedMessage === "") return;
 
   const lastMessage = messages.at(-1);
-
   if (lastMessage === undefined) {
     messages.push(normalizedMessage);
     return;
   }
-
   if (
     lastMessage === normalizedMessage ||
     lastMessage.includes(normalizedMessage)
   ) {
     return;
   }
-
   if (normalizedMessage.includes(lastMessage)) {
     messages[messages.length - 1] = normalizedMessage;
     return;
   }
-
   messages.push(normalizedMessage);
 }

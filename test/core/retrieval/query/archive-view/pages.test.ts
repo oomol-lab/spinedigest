@@ -15,6 +15,7 @@ import {
   teardownArchiveViewTestState,
   withTempDir,
 } from "./helpers.js";
+import { NodeFile } from "../../../../../packages/cli/src/runtime/node-platform.js";
 
 beforeEach(setupArchiveViewTestState);
 afterEach(teardownArchiveViewTestState);
@@ -144,7 +145,7 @@ describe("archive/query/archive-view/pages", () => {
         await expect(
           readArchivePage(document, "wikg://entity/Q1/wikipage", {
             wikipageResolverOptions: {
-              cacheDatabasePath: `${path}/wikipage-cache.sqlite`,
+              cacheDatabaseFile: new NodeFile(`${path}/wikipage-cache.sqlite`),
               fetch: createEntityWikipageMockFetch(),
               minRequestIntervalMs: 0,
               retryBaseDelayMs: 0,

@@ -1,10 +1,13 @@
-import { CLI_HELP_ROUTES, withHelpRoute } from "../../support/index.js";
+import {
+  CLI_HELP_ROUTES,
+  parseLocatedWikiGraphUri,
+  withHelpRoute,
+} from "../../support/index.js";
 import {
   parseLocalConfigSection,
   type LocalConfigSection,
 } from "../../runtime/local-config.js";
 import {
-  parseLocatedWikiGraphUri,
   parseWikiGraphUriSyntax,
   WIKI_GRAPH_URI_PREFIX,
 } from "wiki-graph-core";

@@ -10,6 +10,7 @@ import {
 import { CompressionLog } from "../../../../packages/core/src/text/editor/log.js";
 import { ReviewSeverity } from "../../../../packages/core/src/text/editor/types.js";
 import { withTempDir } from "../../../helpers/temp.js";
+import { NodeDirectory } from "../../../../packages/cli/src/runtime/node-platform.js";
 
 describe("editor/log", () => {
   it("acts as a no-op when no log directory is configured", async () => {
@@ -49,7 +50,7 @@ describe("editor/log", () => {
     await withTempDir("wikigraph-editor-log-", async (path) => {
       const log = new CompressionLog(1, 2, {
         compressionRatio: 0.25,
-        logDirPath: path,
+        logDirectory: new NodeDirectory(path),
         maxIterations: 3,
       });
 
@@ -111,11 +112,11 @@ describe("editor/log", () => {
         80,
       );
 
-      const fileNames = await readdir(path);
+      const fileNames = await readdir(`${path}/editor`);
 
       expect(fileNames).toHaveLength(1);
       expect(fileNames[0]).toBe("compression-serial-1-group-2.log");
-      const logText = await readFile(`${path}/${fileNames[0]}`, "utf8");
+      const logText = await readFile(`${path}/editor/${fileNames[0]}`, "utf8");
 
       expect(logText).toContain("CHUNK HIERARCHY - Serial 1, Group 2");
       expect(logText).toContain("Lead -> Payoff");

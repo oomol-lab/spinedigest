@@ -13,30 +13,44 @@ const forbidden = new Set([
   "async_hooks",
   "buffer",
   "child_process",
+  "cluster",
   "crypto",
   "events",
   "fs",
   "fs/promises",
   "http",
   "https",
+  "inspector",
   "module",
   "net",
   "os",
   "path",
+  "perf_hooks",
   "readline",
   "sqlite3",
   "stream",
   "stream/promises",
+  "test",
   "timers",
   "timers/promises",
   "url",
   "util",
+  "v8",
+  "vm",
+  "worker_threads",
   "yauzl",
   "yazl",
   "zlib",
 ]);
 const violations = [];
 const seenFiles = new Set();
+const nodeOnlyGlobals = new Set([
+  "Buffer",
+  "NodeJS",
+  "__dirname",
+  "__filename",
+  "process",
+]);
 const forbiddenCapabilities = new Set([
   "readFile",
   "writeFile",
@@ -95,6 +109,23 @@ function moduleName(specifier) {
   return specifier.startsWith("node:") ? specifier.slice(5) : specifier;
 }
 
+function selectExportTarget(value) {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return undefined;
+  for (const key of ["browser", "import", "default", "module"]) {
+    if (key in value) {
+      const selected = selectExportTarget(value[key]);
+      if (selected) return selected;
+    }
+  }
+  for (const [key, nested] of Object.entries(value)) {
+    if (key === "types" || key === "require" || key === "node") continue;
+    const selected = selectExportTarget(nested);
+    if (selected) return selected;
+  }
+  return undefined;
+}
+
 function inspectSource(
   file,
   source,
@@ -114,6 +145,7 @@ function inspectSource(
     scriptKind,
   );
   const relativeImports = new Set();
+  const packageImports = new Set();
   const globalAliases = new Set(["globalThis"]);
   const requireAliases = new Set(["require"]);
   function visit(node) {
@@ -142,6 +174,7 @@ function inspectSource(
           report(file, `imports forbidden module ${specifier.text}`);
         else if (specifier.text.startsWith("."))
           relativeImports.add(specifier.text);
+        else packageImports.add(specifier.text);
       }
     }
     if (ts.isCallExpression(node)) {
@@ -153,6 +186,9 @@ function inspectSource(
           forbidden.has(moduleName(argument.text))
         )
           report(file, "uses a non-literal or forbidden dynamic import");
+        else if (argument.text.startsWith("."))
+          relativeImports.add(argument.text);
+        else packageImports.add(argument.text);
       }
       const aliasedRequire =
         ts.isIdentifier(node.expression) &&
@@ -177,7 +213,6 @@ function inspectSource(
       }
       if (
         !artifact &&
-        !file.includes("runtime/platform") &&
         ts.isIdentifier(node.expression) &&
         node.expression.text === "capability" &&
         node.arguments.length > 0 &&
@@ -202,7 +237,18 @@ function inspectSource(
           parent.expression.text === "globalThis"
         );
       const isDeclaration =
-        ts.isVariableDeclaration(parent) && parent.name === node;
+        (ts.isVariableDeclaration(parent) ||
+          ts.isParameter(parent) ||
+          ts.isFunctionDeclaration(parent) ||
+          ts.isFunctionExpression(parent) ||
+          ts.isMethodDeclaration(parent) ||
+          ts.isMethodSignature(parent) ||
+          ts.isPropertyDeclaration(parent) ||
+          ts.isPropertySignature(parent) ||
+          ts.isClassDeclaration(parent) ||
+          ts.isInterfaceDeclaration(parent) ||
+          ts.isTypeAliasDeclaration(parent)) &&
+        parent.name === node;
       const optionalGlobal =
         allowOptionalGlobals && (name === "process" || name === "Buffer");
       if (
@@ -210,7 +256,7 @@ function inspectSource(
         !optionalGlobal &&
         !isProperty &&
         !isDeclaration &&
-        (name === "process" || name === "Buffer" || name === "NodeJS")
+        nodeOnlyGlobals.has(name)
       )
         report(file, `references Node-only global ${name}`);
     }
@@ -218,7 +264,7 @@ function inspectSource(
       ts.isPropertyAccessExpression(node) &&
       ts.isIdentifier(node.expression) &&
       globalAliases.has(node.expression.text) &&
-      ["process", "Buffer", "NodeJS"].includes(node.name.text) &&
+      nodeOnlyGlobals.has(node.name.text) &&
       (!dependency || strictDependencies) &&
       !allowOptionalGlobals
     ) {
@@ -235,7 +281,7 @@ function inspectSource(
       globalAliases.has(node.expression.text) &&
       node.argumentExpression &&
       ts.isStringLiteral(node.argumentExpression) &&
-      ["process", "Buffer", "NodeJS"].includes(node.argumentExpression.text) &&
+      nodeOnlyGlobals.has(node.argumentExpression.text) &&
       (!dependency || strictDependencies) &&
       !allowOptionalGlobals
     ) {
@@ -247,15 +293,16 @@ function inspectSource(
     ts.forEachChild(node, visit);
   }
   visit(tree);
-  return relativeImports;
+  return { packageImports, relativeImports };
 }
 
 async function scanFile(file, options) {
-  if (seenFiles.has(file)) return;
-  seenFiles.add(file);
+  const scanKey = `${file}\0${options.strictDependencies === true}\0${options.allowOptionalGlobals === true}`;
+  if (seenFiles.has(scanKey)) return;
+  seenFiles.add(scanKey);
   const imports = inspectSource(file, await readFile(file, "utf8"), options);
   if (options.follow) {
-    for (const specifier of imports) {
+    for (const specifier of imports.relativeImports) {
       const base = resolve(dirname(file), specifier);
       for (const candidate of [
         base,
@@ -274,6 +321,17 @@ async function scanFile(file, options) {
         }
       }
     }
+    for (const specifier of imports.packageImports) {
+      const entry = await resolvePackageEntry(specifier, dirname(file));
+      if (entry === undefined) continue;
+      await scanFile(entry.file, {
+        dependency: true,
+        strictDependencies: true,
+        allowOptionalGlobals:
+          auditedBrowserPackageVersions.get(entry.name) === entry.version,
+        follow: true,
+      });
+    }
   }
 }
 
@@ -291,6 +349,67 @@ async function packageRoot(name, fromDirectory) {
   return undefined;
 }
 
+function splitPackageSpecifier(specifier) {
+  const parts = specifier.split("/");
+  const packageName = specifier.startsWith("@")
+    ? parts.slice(0, 2).join("/")
+    : parts[0];
+  return {
+    name: packageName,
+    subpath: parts.slice(specifier.startsWith("@") ? 2 : 1).join("/"),
+  };
+}
+
+async function resolvePackageEntry(specifier, fromDirectory) {
+  const { name, subpath } = splitPackageSpecifier(specifier);
+  const root = await packageRoot(name, fromDirectory);
+  if (root === undefined) return undefined;
+  const manifest = JSON.parse(
+    await readFile(join(root, "package.json"), "utf8"),
+  );
+  const exportKey = subpath === "" ? "." : `./${subpath}`;
+  let exportValue = manifest.exports?.[exportKey];
+  if (exportValue === undefined && subpath === "") {
+    exportValue = manifest.exports;
+  }
+  if (exportValue === undefined && manifest.exports?.["./*"] !== undefined) {
+    exportValue = replaceExportWildcard(manifest.exports["./*"], subpath);
+  }
+  const target =
+    selectExportTarget(exportValue) ??
+    (subpath === ""
+      ? (manifest.browser ?? manifest.module ?? manifest.main ?? "index.js")
+      : subpath);
+  const base = resolve(root, target);
+  for (const candidate of [
+    base,
+    `${base}.js`,
+    `${base}.mjs`,
+    `${base}.cjs`,
+    join(base, "index.js"),
+    join(base, "index.mjs"),
+  ]) {
+    try {
+      await readFile(candidate);
+      return { file: candidate, name, version: manifest.version };
+    } catch {
+      /* try the next package entry candidate */
+    }
+  }
+  return undefined;
+}
+
+function replaceExportWildcard(value, subpath) {
+  if (typeof value === "string") return value.replaceAll("*", subpath);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, nested]) => [
+      key,
+      replaceExportWildcard(nested, subpath),
+    ]),
+  );
+}
+
 async function scanDependency(name, fromDirectory, chain = [], strict = false) {
   if (chain.includes(name)) return;
   const root = await packageRoot(name, fromDirectory);
@@ -299,25 +418,6 @@ async function scanDependency(name, fromDirectory, chain = [], strict = false) {
     await readFile(join(root, "package.json"), "utf8"),
   );
   const entries = new Set();
-  const selectExportTarget = (value) => {
-    if (typeof value === "string") return value;
-    if (!value || typeof value !== "object") return undefined;
-    // Resolve one runtime branch exactly as a browser/ESM host would. Do not
-    // union every conditional export (which would incorrectly pull in Node
-    // and CommonJS branches that are never part of Core's graph).
-    for (const key of ["browser", "import", "default", "module"]) {
-      if (key in value) {
-        const selected = selectExportTarget(value[key]);
-        if (selected) return selected;
-      }
-    }
-    for (const [key, nested] of Object.entries(value)) {
-      if (key === "types" || key === "require" || key === "node") continue;
-      const selected = selectExportTarget(nested);
-      if (selected) return selected;
-    }
-    return undefined;
-  };
   if (manifest.exports) {
     const selected = selectExportTarget(
       manifest.exports["."] ?? manifest.exports,
@@ -362,7 +462,7 @@ async function scanDependency(name, fromDirectory, chain = [], strict = false) {
 
 const extensions = artifactMode ? [".js", ".cjs", ".mjs", ".d.ts"] : [".ts"];
 for (const file of await collect(target, extensions))
-  await scanFile(file, { artifact: artifactMode });
+  await scanFile(file, { artifact: artifactMode, follow: !artifactMode });
 if (!artifactMode) {
   let packageFile = join(repositoryRoot, "..", "packages/core/package.json");
   try {

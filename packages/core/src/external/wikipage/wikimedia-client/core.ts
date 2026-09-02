@@ -1,5 +1,5 @@
 import { getLogger } from "../../../runtime/common/logging.js";
-import { formatError } from "../../../utils/node-error.js";
+import { formatError } from "../../../utils/host-error.js";
 import type { WikipageFetchLog } from "../fetch-log.js";
 import type { WikiClient } from "../types.js";
 import { RateLimiter, parseRetryAfterMs } from "../rate-limiter.js";

@@ -8,6 +8,7 @@ import {
   DEFAULT_WIKISPINE_FETCH_ENDPOINT,
   matchWikispineSentenceCandidates,
 } from "../../../../packages/core/src/external/wikimatch/index.js";
+import { nodeWikispineCommandRunner } from "../../../../packages/cli/src/runtime/wikispine.js";
 
 describe("wikimatch/wikispine", () => {
   it("matches each sentence separately and converts sentence offsets to document ranges", async () => {
@@ -36,6 +37,7 @@ describe("wikimatch/wikispine", () => {
     const progress: number[] = [];
     const candidates = await matchWikispineSentenceCandidates({
       command: commandPath,
+      commandRunner: nodeWikispineCommandRunner,
       maxCandidatesPerSurface: 3,
       onProgress: (event) => {
         progress.push(event.coveredRangeEnd);
@@ -181,6 +183,7 @@ describe("wikimatch/wikispine", () => {
     await expect(
       matchWikispineSentenceCandidates({
         command: commandPath,
+        commandRunner: nodeWikispineCommandRunner,
         onProgress: () => Promise.reject(new Error("progress stopped")),
         sentences: [
           {

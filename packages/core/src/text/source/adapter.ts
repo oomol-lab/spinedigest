@@ -1,5 +1,6 @@
 import type { BookMeta, SourceFormat } from "./meta.js";
 import type { SourceAsset, SourceSection } from "./types.js";
+import type { File } from "../../runtime/platform/index.js";
 
 export interface SourceDocument {
   readMeta(): Promise<BookMeta>;
@@ -10,7 +11,7 @@ export interface SourceDocument {
 export interface SourceAdapter {
   readonly format: SourceFormat;
   openSession<T>(
-    path: string,
+    file: File,
     operation: (document: SourceDocument) => Promise<T>,
   ): Promise<T>;
 }

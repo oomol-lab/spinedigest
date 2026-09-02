@@ -11,6 +11,10 @@ import {
 } from "../../../packages/core/src/api/index.js";
 import type { GuaranteedRequest } from "../../../packages/core/src/external/guaranteed/index.js";
 import { withTempDir } from "../../helpers/temp.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+} from "../../../packages/cli/src/runtime/node-platform.js";
 
 describe("facade/knowledge-graph-build", () => {
   it("generates knowledge graph artifacts from a snapshot without a document session", async () => {
@@ -41,14 +45,14 @@ describe("facade/knowledge-graph-build", () => {
           request: () => {
             throw new Error("LLM should not be called for empty snapshots.");
           },
-          workspacePath: path,
+          workspace: new NodeDirectory(path),
         },
       );
 
-      expect(artifact).toMatchObject({
-        chapterId: 1,
-        workspacePath: `${path}/knowledge-graph/chapter-1`,
-      });
+      expect(artifact.chapterId).toBe(1);
+      expect(getNodeResourcePath(artifact.workspace)).toBe(
+        `${path}/knowledge-graph/chapter-1`,
+      );
     });
   });
 
@@ -78,7 +82,7 @@ describe("facade/knowledge-graph-build", () => {
         {
           policyPrompt: "Recall entities.",
           request: () => Promise.resolve("{}"),
-          workspacePath: "",
+          workspace: new NodeDirectory(""),
         },
       ),
     ).rejects.toThrow("belongs to chapter 1, not chapter 2");
@@ -501,7 +505,7 @@ describe("facade/knowledge-graph-build", () => {
             language: "zh",
             prompt: "只保留神学实体",
           },
-          workspacePath: `${path}/workspace`,
+          workspace: new NodeDirectory(`${path}/workspace`),
         });
 
         await commitChapterKnowledgeGraphArtifact(document, artifact);
@@ -543,7 +547,7 @@ describe("facade/knowledge-graph-build", () => {
                 surface: "伯拉纠",
               },
             ],
-            workspacePath: `${path}/workspace`,
+            workspace: new NodeDirectory(`${path}/workspace`),
           },
         );
 
@@ -608,7 +612,7 @@ describe("facade/knowledge-graph-build", () => {
         const artifact = await buildChapterKnowledgeGraphArtifact(1, {
           mentionLinks: [],
           mentions: [],
-          workspacePath: `${path}/workspace`,
+          workspace: new NodeDirectory(`${path}/workspace`),
         });
 
         await commitChapterKnowledgeGraphArtifact(document, artifact);
@@ -649,7 +653,7 @@ describe("facade/knowledge-graph-build", () => {
               surface: "A",
             },
           ],
-          workspacePath: `${path}/workspace`,
+          workspace: new NodeDirectory(`${path}/workspace`),
         });
 
         await expect(
@@ -679,7 +683,7 @@ describe("facade/knowledge-graph-build", () => {
               surface: "A",
             },
           ],
-          workspacePath: `${path}/workspace`,
+          workspace: new NodeDirectory(`${path}/workspace`),
         }),
       ).rejects.toThrow("sentenceIndex");
     });

@@ -1,25 +1,24 @@
-import { openSharedStateDatabase } from "../../document/index.js";
+import { openWikiGraphStateDatabase } from "../../document/index.js";
 import type { Database } from "../../document/index.js";
 import { BUILD_QUEUE_SCHEMA_SQL } from "./schema.js";
-import { getBuildQueueDatabasePath } from "./paths.js";
-import { getNumber, getString, mapBuildJob } from "./row.js";
+import { getNumber, getString, hydrateBuildJob, mapBuildJob } from "./row.js";
 import type { BuildJob } from "./types.js";
 
 export async function requireBuildJobById(
   state: Database,
   jobId: string,
 ): Promise<BuildJob> {
-  const job = await state.queryOne(
+  const stored = await state.queryOne(
     "SELECT * FROM build_jobs WHERE job_id = ?",
     [jobId],
     mapBuildJob,
   );
 
-  if (job === undefined) {
+  if (stored === undefined) {
     throw new Error(`Build job not found: ${jobId}`);
   }
 
-  return job;
+  return await hydrateBuildJob(stored);
 }
 
 export async function resolveBuildJobIdInState(
@@ -78,8 +77,8 @@ export async function readMinQueueRank(state: Database): Promise<number> {
 }
 
 export async function openBuildQueueDatabase(): Promise<Database> {
-  return await openSharedStateDatabase(
-    getBuildQueueDatabasePath(),
+  return await openWikiGraphStateDatabase(
+    "jobs/job.sqlite",
     BUILD_QUEUE_SCHEMA_SQL,
   );
 }

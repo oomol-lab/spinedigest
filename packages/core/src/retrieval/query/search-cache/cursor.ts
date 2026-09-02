@@ -1,4 +1,7 @@
-import { binary as platformBinary } from "../../../runtime/platform/index.js";
+import {
+  decodeBase64UrlText,
+  encodeBase64UrlText,
+} from "../../../utils/bytes.js";
 import type {
   BucketSearchCursor,
   SearchChapterTitleCursorKey,
@@ -12,9 +15,9 @@ export function encodeSearchSessionCursor(
   offset: number,
   createdAt: number,
 ): string {
-  return platformBinary
-    .from(JSON.stringify({ createdAt, offset, sessionId, v: 3 }))
-    .toString("base64url");
+  return encodeBase64UrlText(
+    JSON.stringify({ createdAt, offset, sessionId, v: 3 }),
+  );
 }
 
 export function encodeBucketSearchSessionCursor(
@@ -22,9 +25,9 @@ export function encodeBucketSearchSessionCursor(
   cursor: BucketSearchCursor,
   createdAt: number,
 ): string {
-  return platformBinary
-    .from(JSON.stringify({ createdAt, cursor, sessionId, v: 4 }))
-    .toString("base64url");
+  return encodeBase64UrlText(
+    JSON.stringify({ createdAt, cursor, sessionId, v: 4 }),
+  );
 }
 
 export function decodeBucketSearchSessionCursor(cursor: string): {
@@ -33,9 +36,7 @@ export function decodeBucketSearchSessionCursor(cursor: string): {
   readonly sessionId: string;
 } {
   try {
-    const parsed: unknown = JSON.parse(
-      platformBinary.from(cursor, "base64url").toString("utf8"),
-    );
+    const parsed: unknown = JSON.parse(decodeBase64UrlText(cursor));
 
     if (
       typeof parsed === "object" &&
@@ -71,9 +72,7 @@ export function decodeSearchSessionCursor(cursor: string): {
   readonly sessionId: string;
 } {
   try {
-    const parsed: unknown = JSON.parse(
-      platformBinary.from(cursor, "base64url").toString("utf8"),
-    );
+    const parsed: unknown = JSON.parse(decodeBase64UrlText(cursor));
 
     if (
       typeof parsed === "object" &&

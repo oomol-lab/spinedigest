@@ -41,7 +41,10 @@ export async function readLibraryArchiveDocument<T>(
   archive: WikiGraphLibraryArchiveRecord,
   operation: (document: ReadonlyDocument) => Promise<T>,
 ): Promise<T> {
-  return await new WikiGraphArchiveFile(archive.path).readDocument(operation);
+  if (archive.file === undefined) {
+    throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
+  }
+  return await new WikiGraphArchiveFile(archive.file).readDocument(operation);
 }
 
 export function createLibrarySource(
@@ -56,5 +59,7 @@ export function createLibrarySource(
 export function isReadableLibraryArchive(
   archive: WikiGraphLibraryArchiveRecord,
 ): boolean {
-  return archive.exists && archive.status === "present";
+  return (
+    archive.file !== undefined && archive.exists && archive.status === "present"
+  );
 }

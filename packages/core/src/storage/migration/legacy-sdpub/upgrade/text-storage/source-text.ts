@@ -1,13 +1,15 @@
-import { binary as platformBinary } from "../../../../../runtime/platform/index.js";
-import { mkdir, writeFile } from "../../../../../runtime/platform/index.js";
-import { join } from "../../../../../runtime/platform/index.js";
+import {
+  ensureRelativeFile,
+  writeFileContent,
+  type Directory,
+} from "../../../../../runtime/platform/index.js";
 
 import type { Database } from "../../../../../document/database.js";
 import type { LegacyFragmentRecord } from "./types.js";
 
 export async function writeLegacySourceTextStream(
   database: Database,
-  workspacePath: string,
+  workspace: Directory,
   input: {
     readonly fragments: readonly LegacyFragmentRecord[];
     readonly serialId: number;
@@ -26,11 +28,9 @@ export async function writeLegacySourceTextStream(
       UNIQUE(kind, chapter_id, sentence_index)
     )
   `);
-  await mkdir(join(workspacePath, "texts", "source"), { recursive: true });
-  await writeFile(
-    join(workspacePath, "texts", "source", `${input.serialId}.txt`),
+  await writeFileContent(
+    await ensureRelativeFile(workspace, `texts/source/${input.serialId}.txt`),
     input.text,
-    "utf8",
   );
   await database.run(
     `
@@ -45,7 +45,7 @@ export async function writeLegacySourceTextStream(
 
   for (const fragment of input.fragments) {
     for (const sentence of fragment.content.sentences) {
-      const byteLength = platformBinary.byteLength(sentence.text, "utf8");
+      const byteLength = new TextEncoder().encode(sentence.text).byteLength;
 
       await database.run(
         `

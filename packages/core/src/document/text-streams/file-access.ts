@@ -1,40 +1,14 @@
-import {
-  mkdir,
-  readFile,
-  readdir,
-  rm,
-  writeFile,
-} from "../../runtime/platform/index.js";
-
-import { isNodeError } from "../../utils/node-error.js";
 import type { TextStreamFileAccess } from "./types.js";
 
-export const DEFAULT_FILE_ACCESS: TextStreamFileAccess = {
-  deleteTree: async (path) => {
-    await rm(path, { force: true, recursive: true });
-  },
-  ensureDirectory: async (path) => {
-    await mkdir(path, { recursive: true });
-  },
-  listFiles: async (path) =>
-    (await readdir(path, { withFileTypes: true }))
-      .filter((entry: any) => entry.isFile())
-      .map((entry: any) => entry.name),
-  readFile: async (path) => {
-    try {
-      return await readFile(path);
-    } catch (error) {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return undefined;
-      }
+function unavailable(): never {
+  throw new Error("Text stream storage requires a host Directory adapter.");
+}
 
-      throw error;
-    }
-  },
-  writeFile: async (path, content, options) => {
-    await writeFile(path, content, {
-      ...(typeof content === "string" ? { encoding: "utf8" as const } : {}),
-      flag: options.overwrite === true ? "w" : "wx",
-    });
-  },
+/** Compatibility sentinel; production documents always inject host storage. */
+export const DEFAULT_FILE_ACCESS: TextStreamFileAccess = {
+  deleteTree: async () => unavailable(),
+  ensureDirectory: async () => unavailable(),
+  listFiles: async () => unavailable(),
+  readFile: async () => unavailable(),
+  writeFile: async () => unavailable(),
 };

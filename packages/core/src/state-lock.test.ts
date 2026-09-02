@@ -5,6 +5,7 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 
 import { Database } from "./document/database.js";
+import { NodeFile } from "../../cli/src/runtime/node-platform.js";
 import {
   acquireStateLock,
   withStateLock,
@@ -165,7 +166,7 @@ describe("state lock coordination", () => {
     });
   });
 
-  it("only cleans stale locks whose heartbeat expired and owner process is gone", async () => {
+  it("cleans locks whose lease heartbeat has expired", async () => {
     await withStateLockTestDatabase(async (databasePath) => {
       const now = Date.now();
       await insertStateLock(databasePath, {
@@ -186,7 +187,7 @@ describe("state lock coordination", () => {
     });
   });
 
-  it("preserves expired locks while the owner process is still alive", async () => {
+  it("does not depend on a host process when reclaiming expired locks", async () => {
     await withStateLockTestDatabase(async (databasePath) => {
       await insertStateLock(databasePath, {
         heartbeatAt: Date.now() - 120_000,
@@ -195,12 +196,14 @@ describe("state lock coordination", () => {
         ownerPid: process.pid,
       });
 
-      await expect(
-        acquireTestLock(databasePath, "write", { wait: false }),
-      ).resolves.toBeUndefined();
-      await expect(listStateLockOwnerIds(databasePath)).resolves.toStrictEqual([
-        "expired-live-owner",
-      ]);
+      const release = await acquireTestLock(databasePath, "write", {
+        wait: false,
+      });
+      expect(release).toBeDefined();
+      await release?.();
+      await expect(listStateLockOwnerIds(databasePath)).resolves.toStrictEqual(
+        [],
+      );
     });
   });
 
@@ -237,7 +240,7 @@ async function withStateLockTestDatabase(
 
 function createTestLockOptions(databasePath: string, mode: StateLockMode) {
   return {
-    databasePath,
+    databaseFile: new NodeFile(databasePath),
     heartbeatMs: 10,
     mode,
     pollMs: 10,

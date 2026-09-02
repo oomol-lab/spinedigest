@@ -14,6 +14,22 @@ import {
 const execFileAsync = promisify(execFile);
 
 describe("SDK host lifecycle", () => {
+  it("imports Core without installing a Node adapter", async () => {
+    const script = `
+const core = await import("./packages/core/src/index.ts");
+console.log(JSON.stringify({ wikiGraph: typeof core.WikiGraph, hasFileFactory: "NodeFile" in core }));
+`;
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ["--import", "tsx", "--input-type=module", "--eval", script],
+      { cwd: process.cwd() },
+    );
+    expect(JSON.parse(stdout.trim())).toEqual({
+      hasFileFactory: false,
+      wikiGraph: "function",
+    });
+  });
+
   it("binds async contexts when the host is installed after Core imports", async () => {
     const script = `
 await import("./packages/core/src/index.ts");

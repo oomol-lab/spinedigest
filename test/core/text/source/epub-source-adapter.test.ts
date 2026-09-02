@@ -1,4 +1,3 @@
-import { Readable } from "stream";
 import { createHash } from "crypto";
 import { readFile } from "fs/promises";
 
@@ -18,11 +17,12 @@ import {
   readStreamText,
 } from "../../../helpers/fixtures.js";
 import { parseSourceTextJsonl } from "../../../../packages/core/src/text/source/provenance.js";
+import { NodeFile } from "../../../../packages/cli/src/runtime/node-platform.js";
 
 describe("source/epub", () => {
   it("reads metadata and cover from the sample epub fixture", async () => {
     await EPUB_SOURCE_ADAPTER.openSession(
-      getFixturePath("sample-observatory-guide.epub"),
+      new NodeFile(getFixturePath("sample-observatory-guide.epub")),
       async (document) => {
         const meta = await document.readMeta();
         const cover = await document.readCover();
@@ -46,7 +46,7 @@ describe("source/epub", () => {
 
   it("builds nested sections from nav anchors and spine fallbacks", async () => {
     await EPUB_SOURCE_ADAPTER.openSession(
-      getFixturePath("sample-observatory-guide.epub"),
+      new NodeFile(getFixturePath("sample-observatory-guide.epub")),
       async (document) => {
         const sections = await document.readSections();
 
@@ -61,7 +61,7 @@ describe("source/epub", () => {
 
   it("splits section text by anchor within the same xhtml file", async () => {
     await EPUB_SOURCE_ADAPTER.openSession(
-      getFixturePath("sample-observatory-guide.epub"),
+      new NodeFile(getFixturePath("sample-observatory-guide.epub")),
       async (document) => {
         const sections = await document.readSections();
         const dawnBrief = sections[0]!;
@@ -88,72 +88,75 @@ describe("source/epub", () => {
     const digest = createHash("sha256")
       .update(await readFile(epubPath))
       .digest("hex");
-    const archive = await EpubArchive.open(epubPath);
+    const archive = await EpubArchive.open(new NodeFile(epubPath));
     const xhtml = await archive.readText("OEBPS/Text/chapter_05.xhtml");
     await archive.close();
 
-    await EPUB_SOURCE_ADAPTER.openSession(epubPath, async (document) => {
-      const section = (await document.readSections())[0]!;
-      const content = await section.openWithProvenance!();
-      const text = await readStreamText(content.stream);
-      const mappings = content.provenance?.mappings ?? [];
+    await EPUB_SOURCE_ADAPTER.openSession(
+      new NodeFile(epubPath),
+      async (document) => {
+        const section = (await document.readSections())[0]!;
+        const content = await section.openWithProvenance!();
+        const text = await readStreamText(content.stream);
+        const mappings = content.provenance?.mappings ?? [];
 
-      expect(text).toContain("Joan Robinson’s first complaint");
-      expect(content.provenance?.artifacts).toMatchObject([
-        {
-          digest,
-          mediaType: "application/epub+zip",
-          name: "Cambridge.epub",
-        },
-      ]);
-      expect(mappings.length).toBeGreaterThan(0);
-      expect(mappings[0]?.sourceStart).toBe(0);
-      expect(mappings.at(-1)?.sourceEnd).toBe(Array.from(text).length);
-      expect(
-        mappings.every((mapping) => mapping.sourceEnd > mapping.sourceStart),
-      ).toBe(true);
-      expect(
-        mappings.every(
-          (mapping, index) =>
-            index === 0 ||
-            mapping.sourceStart === mappings[index - 1]!.sourceEnd,
-        ),
-      ).toBe(true);
-      expect(
-        mappings.every((mapping) => typeof mapping.locator.cfi === "string"),
-      ).toBe(true);
-      expect(
-        resolveCfiText(xhtml, mappings[0]!.locator.cfi as string),
-      ).toContain("Joan Robinson");
-      for (const mapping of mappings) {
-        const cfi = mapping.locator.cfi;
-        expect(typeof cfi).toBe("string");
-        const components = splitCfiComponents(
-          (cfi as string).slice("epubcfi(".length, -1),
-        );
-        expect(components.length === 1 || components.length === 3).toBe(true);
-        if (components.length === 3) {
-          expect(components[1]).toMatch(/:\d+$/u);
-          expect(components[2]).toMatch(/:\d+$/u);
+        expect(text).toContain("Joan Robinson’s first complaint");
+        expect(content.provenance?.artifacts).toMatchObject([
+          {
+            digest,
+            mediaType: "application/epub+zip",
+            name: "Cambridge.epub",
+          },
+        ]);
+        expect(mappings.length).toBeGreaterThan(0);
+        expect(mappings[0]?.sourceStart).toBe(0);
+        expect(mappings.at(-1)?.sourceEnd).toBe(Array.from(text).length);
+        expect(
+          mappings.every((mapping) => mapping.sourceEnd > mapping.sourceStart),
+        ).toBe(true);
+        expect(
+          mappings.every(
+            (mapping, index) =>
+              index === 0 ||
+              mapping.sourceStart === mappings[index - 1]!.sourceEnd,
+          ),
+        ).toBe(true);
+        expect(
+          mappings.every((mapping) => typeof mapping.locator.cfi === "string"),
+        ).toBe(true);
+        expect(
+          resolveCfiText(xhtml, mappings[0]!.locator.cfi as string),
+        ).toContain("Joan Robinson");
+        for (const mapping of mappings) {
+          const cfi = mapping.locator.cfi;
+          expect(typeof cfi).toBe("string");
+          const components = splitCfiComponents(
+            (cfi as string).slice("epubcfi(".length, -1),
+          );
+          expect(components.length === 1 || components.length === 3).toBe(true);
+          if (components.length === 3) {
+            expect(components[1]).toMatch(/:\d+$/u);
+            expect(components[2]).toMatch(/:\d+$/u);
+          }
         }
-      }
-      expect(() =>
-        parseSourceTextJsonl(
-          [
-            JSON.stringify({
-              type: "artifact",
-              digest,
-              mediaType: "application/epub+zip",
-            }),
-            JSON.stringify({
-              type: "text",
-              text: "x",
-              locator: mappings[0]?.locator,
-            }),
-          ].join("\n"),
-        ),
-      ).not.toThrow();
-    });
+        expect(() =>
+          parseSourceTextJsonl(
+            [
+              JSON.stringify({
+                type: "artifact",
+                digest,
+                mediaType: "application/epub+zip",
+              }),
+              JSON.stringify({
+                type: "text",
+                text: "x",
+                locator: mappings[0]?.locator,
+              }),
+            ].join("\n"),
+          ),
+        ).not.toThrow();
+      },
+    );
   });
 
   it("resolves CFI paths from an XHTML root and counts UTF-16 offsets", async () => {
@@ -253,13 +256,13 @@ describe("source/epub", () => {
   });
 
   it("reopens the underlying xhtml entry for repeated section reads", async () => {
-    let openReadStreamCount = 0;
+    let readTextCount = 0;
     const loader = new EpubContentLoader(
       {
-        openReadStream: () => {
-          openReadStreamCount += 1;
+        readText: () => {
+          readTextCount += 1;
           return Promise.resolve(
-            Readable.from(["<html><body><p>Alpha beta.</p></body></html>"]),
+            "<html><body><p>Alpha beta.</p></body></html>",
           );
         },
       } as never,
@@ -283,22 +286,20 @@ describe("source/epub", () => {
     expect(
       await readStreamText(await loader.openSection("chapter.xhtml")),
     ).toBe("Alpha beta.");
-    expect(openReadStreamCount).toBe(2);
+    expect(readTextCount).toBe(2);
   });
 
   it("marks empty section targets as structure-only during analysis", async () => {
     const analyses = await analyzeSectionTargets(
       {
-        openReadStream: () =>
+        readText: () =>
           Promise.resolve(
-            Readable.from([
-              [
-                "<html><body>",
-                '<section id="empty"></section>',
-                '<section id="filled"><p>Alpha beta.</p></section>',
-                "</body></html>",
-              ].join(""),
-            ]),
+            [
+              "<html><body>",
+              '<section id="empty"></section>',
+              '<section id="filled"><p>Alpha beta.</p></section>',
+              "</body></html>",
+            ].join(""),
           ),
       } as never,
       new Map([
@@ -333,7 +334,7 @@ describe("source/epub", () => {
   it("rejects encrypted epub inputs", async () => {
     await expect(
       EPUB_SOURCE_ADAPTER.openSession(
-        getFixturePath("sample-observatory-guide-encrypted.epub"),
+        new NodeFile(getFixturePath("sample-observatory-guide-encrypted.epub")),
         () => Promise.resolve(undefined),
       ),
     ).rejects.toThrow(

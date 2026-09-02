@@ -1,4 +1,4 @@
-import { isNodeError } from "../../utils/node-error.js";
+import { isHostError } from "../../utils/host-error.js";
 import type { DirectoryDocumentContext } from "./context.js";
 import { joinDocumentPath } from "./path.js";
 import type { DocumentFileStore } from "./types.js";
@@ -90,7 +90,7 @@ async function writeFile(input: {
   try {
     await input.fileStore.writeFile(input.path, input.content, input.options);
   } catch (error) {
-    if (isNodeError(error) && error.code === "EEXIST") {
+    if (isHostError(error) && error.code === "EEXIST") {
       throw new Error(`File already exists: ${input.path}`);
     }
 

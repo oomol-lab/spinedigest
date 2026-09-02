@@ -1,8 +1,6 @@
-import {} from "../platform/index.js";
-import { runtimeContext as platformRuntime } from "../platform/index.js";
-import { randomUUID } from "../platform/index.js";
+import { randomUuid } from "../../utils/crypto.js";
 import type { Database } from "../../document/index.js";
-import { delay, isProcessAlive } from "./helpers.js";
+import { delay } from "./helpers.js";
 import {
   BuildJobProgressAccumulator,
   BuildJobStoppedError,
@@ -21,24 +19,17 @@ import { getNumber, getOptionalString, mapBuildJob } from "./row.js";
 import type { BuildJob, BuildJobWorkerOptions } from "./types.js";
 
 const WORKER_HEARTBEAT_INTERVAL_MS = 5_000;
+const WORKER_LEASE_STALE_MS = 20_000;
 
 export async function runBuildJobWorker(
   options: BuildJobWorkerOptions,
 ): Promise<void> {
   const state = await openBuildQueueDatabase();
-  const ownerId = `${platformRuntime.pid}-${randomUUID()}`;
+  const ownerId = randomUuid();
   const concurrency = Math.max(1, options.concurrency);
   const idleTimeoutMs = options.idleTimeoutMs ?? 10_000;
-  let stopping = false;
   let busySlotCount = 0;
   let idleSince = Date.now();
-
-  const stop = (_signal: string): void => {
-    stopping = true;
-  };
-
-  platformRuntime.once("SIGINT", stop);
-  platformRuntime.once("SIGTERM", stop);
 
   const heartbeat = setInterval(() => {
     void heartbeatBuildWorker(ownerId).catch(() => undefined);
@@ -52,7 +43,7 @@ export async function runBuildJobWorker(
     }
 
     const runSlot = async (): Promise<void> => {
-      while (!stopping) {
+      while (options.signal?.aborted !== true) {
         await heartbeatBuildWorker(ownerId, state);
         await recoverStaleBuildJobs(state);
 
@@ -93,8 +84,6 @@ export async function runBuildJobWorker(
     );
   } finally {
     clearInterval(heartbeat);
-    platformRuntime.removeListener("SIGINT", stop);
-    platformRuntime.removeListener("SIGTERM", stop);
     await releaseBuildWorkerLease(state, ownerId);
     await state.close();
   }
@@ -111,6 +100,9 @@ async function executeClaimedBuildJob(
     readBuildJobForStopCheck,
   });
   const abortController = new AbortController();
+  const abortFromWorker = (): void =>
+    abortController.abort(options.signal?.reason);
+  options.signal?.addEventListener("abort", abortFromWorker, { once: true });
   const stopWatcher = setInterval(() => {
     void abortJobWhenStopped(job, ownerId, abortController).catch(
       () => undefined,
@@ -141,6 +133,7 @@ async function executeClaimedBuildJob(
 
     await markBuildJobFailed(job.jobId, ownerId, error);
   } finally {
+    options.signal?.removeEventListener("abort", abortFromWorker);
     clearInterval(stopWatcher);
   }
 }
@@ -195,7 +188,7 @@ UPDATE build_jobs
 SET state = 'running', owner_id = ?, owner_pid = ?, updated_at = ?
 WHERE job_id = ? AND state = 'queued'
 `,
-      [ownerId, platformRuntime.pid, now, job.jobId],
+      [ownerId, 0, now, job.jobId],
     );
 
     return await requireBuildJobById(state, job.jobId);
@@ -211,18 +204,25 @@ async function acquireBuildWorkerLease(
   return await state.transaction(async () => {
     const lease = await state.queryOne(
       `
-SELECT owner_pid
+SELECT owner_id, heartbeat_at
 FROM build_worker_lease
 WHERE id = 1
 `,
       undefined,
       (row) => ({
-        ownerPid:
-          row.owner_pid === null ? undefined : getNumber(row, "owner_pid"),
+        heartbeatAt:
+          row.heartbeat_at === null
+            ? undefined
+            : getNumber(row, "heartbeat_at"),
+        ownerId: getOptionalString(row, "owner_id"),
       }),
     );
 
-    if (lease?.ownerPid !== undefined && isProcessAlive(lease.ownerPid)) {
+    if (
+      lease?.ownerId !== undefined &&
+      lease.heartbeatAt !== undefined &&
+      Date.now() - lease.heartbeatAt <= WORKER_LEASE_STALE_MS
+    ) {
       return false;
     }
 
@@ -232,7 +232,7 @@ UPDATE build_worker_lease
 SET owner_id = ?, owner_pid = ?, heartbeat_at = ?
 WHERE id = 1
 `,
-      [ownerId, platformRuntime.pid, Date.now()],
+      [ownerId, 0, Date.now()],
     );
     return true;
   });
@@ -277,19 +277,23 @@ WHERE id = 1 AND owner_id = ?
 async function recoverStaleBuildWorkerLease(state: Database): Promise<void> {
   const lease = await state.queryOne(
     `
-SELECT owner_id, owner_pid
+SELECT owner_id, heartbeat_at
 FROM build_worker_lease
 WHERE id = 1
 `,
     undefined,
     (row) => ({
       ownerId: getOptionalString(row, "owner_id"),
-      ownerPid:
-        row.owner_pid === null ? undefined : getNumber(row, "owner_pid"),
+      heartbeatAt:
+        row.heartbeat_at === null ? undefined : getNumber(row, "heartbeat_at"),
     }),
   );
 
-  if (lease?.ownerPid === undefined || isProcessAlive(lease.ownerPid)) {
+  if (
+    lease?.ownerId === undefined ||
+    (lease.heartbeatAt !== undefined &&
+      Date.now() - lease.heartbeatAt <= WORKER_LEASE_STALE_MS)
+  ) {
     return;
   }
 

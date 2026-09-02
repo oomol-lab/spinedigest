@@ -1,6 +1,7 @@
 import { readdir, readFile } from "fs/promises";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NodeDirectory } from "../../../../packages/cli/src/runtime/node-platform.js";
 
 const aiMockState = vi.hoisted(() => ({
   generateTextResponse: "generated response",
@@ -136,7 +137,6 @@ describe("llm/client", () => {
 
   it("uses generateText by default", async () => {
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -169,7 +169,6 @@ describe("llm/client", () => {
   it("reports token usage when the provider returns it", async () => {
     const usages: unknown[] = [];
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -198,10 +197,9 @@ describe("llm/client", () => {
   });
 
   it("writes token usage to request logs when the provider returns it", async () => {
-    await withTempDir("wikigraph-llm-log-", async (logDirPath) => {
+    await withTempDir("wikigraph-llm-log-", async (logDirectory) => {
       const llm = new LLM({
-        dataDirPath: process.cwd(),
-        logDirPath,
+        logDirectory: new NodeDirectory(logDirectory),
         model: {
           modelId: "test-model",
           provider: "test-provider",
@@ -217,8 +215,8 @@ describe("llm/client", () => {
         ]),
       ).resolves.toBe("generated response");
 
-      await expect(readdir(logDirPath)).resolves.toContain("request-1.log");
-      await expect(readOnlyRequestLog(logDirPath)).resolves.toContain(
+      await expect(readdir(logDirectory)).resolves.toContain("request-1.log");
+      await expect(readOnlyRequestLog(logDirectory)).resolves.toContain(
         "[[Usage]]:\ninput: 11\ncache: 3\noutput: 7\n\n",
       );
     });
@@ -226,7 +224,6 @@ describe("llm/client", () => {
 
   it("moves a leading system message to the top-level system field", async () => {
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -265,10 +262,9 @@ describe("llm/client", () => {
   });
 
   it("keeps cache keys based on the original messages", async () => {
-    await withTempDir("wikigraph-llm-cache-", async (cacheDirPath) => {
+    await withTempDir("wikigraph-llm-cache-", async (cacheDirectory) => {
       const llm = new LLM({
-        cacheDirPath,
-        dataDirPath: process.cwd(),
+        cacheDirectory: new NodeDirectory(cacheDirectory),
         model: {
           modelId: "test-model",
           provider: "test-provider",
@@ -296,12 +292,11 @@ describe("llm/client", () => {
 
   it("writes cache-hit usage to request logs for cached responses", async () => {
     await withTempDir("wikigraph-llm-cache-log-", async (path) => {
-      const cacheDirPath = `${path}/cache`;
-      const logDirPath = `${path}/logs`;
+      const cacheDirectory = `${path}/cache`;
+      const logDirectory = `${path}/logs`;
       const llm = new LLM({
-        cacheDirPath,
-        dataDirPath: process.cwd(),
-        logDirPath,
+        cacheDirectory: new NodeDirectory(cacheDirectory),
+        logDirectory: new NodeDirectory(logDirectory),
         model: {
           modelId: "test-model",
           provider: "test-provider",
@@ -317,7 +312,7 @@ describe("llm/client", () => {
       await expect(llm.request(messages)).resolves.toBe("generated response");
       await expect(llm.request(messages)).resolves.toBe("generated response");
 
-      const logs = await readRequestLogs(logDirPath);
+      const logs = await readRequestLogs(logDirectory);
 
       expect(logs).toHaveLength(2);
       expect(logs).toContainEqual(
@@ -328,10 +323,9 @@ describe("llm/client", () => {
   });
 
   it("does not use cache for requests without visible non-system content", async () => {
-    await withTempDir("wikigraph-llm-empty-cache-", async (cacheDirPath) => {
+    await withTempDir("wikigraph-llm-empty-cache-", async (cacheDirectory) => {
       const llm = new LLM({
-        cacheDirPath,
-        dataDirPath: process.cwd(),
+        cacheDirectory: new NodeDirectory(cacheDirectory),
         model: {
           modelId: "test-model",
           provider: "test-provider",
@@ -361,7 +355,6 @@ describe("llm/client", () => {
 
   it("preserves non-leading system messages in the messages array", async () => {
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -405,7 +398,6 @@ describe("llm/client", () => {
 
   it("uses streamText when stream mode is enabled", async () => {
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -448,7 +440,6 @@ describe("llm/client", () => {
 
     const llm = new LLM({
       concurrent: 2,
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -504,7 +495,6 @@ describe("llm/client", () => {
 
   it("uses explicit scoped sampling defaults provided by the caller", async () => {
     const llm = new LLM<WikiGraphScope.EditorCompress>({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -543,7 +533,6 @@ describe("llm/client", () => {
 
   it("passes explicit timeout values through as milliseconds", async () => {
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -572,7 +561,6 @@ describe("llm/client", () => {
     aiMockState.generateTextResponse = "";
 
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -620,7 +608,6 @@ describe("llm/client", () => {
     );
 
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -647,7 +634,6 @@ describe("llm/client", () => {
     aiMockState.generateTextError = new TypeError("terminated");
 
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -670,12 +656,11 @@ describe("llm/client", () => {
   });
 
   it("writes unavailable usage and error stack to request logs after failures", async () => {
-    await withTempDir("wikigraph-llm-error-log-", async (logDirPath) => {
+    await withTempDir("wikigraph-llm-error-log-", async (logDirectory) => {
       aiMockState.generateTextError = new TypeError("terminated");
 
       const llm = new LLM({
-        dataDirPath: process.cwd(),
-        logDirPath,
+        logDirectory: new NodeDirectory(logDirectory),
         model: {
           modelId: "test-model",
           provider: "test-provider",
@@ -692,7 +677,7 @@ describe("llm/client", () => {
         ]),
       ).rejects.toThrow("LLM request failed after 6 attempts: terminated");
 
-      const log = await readOnlyRequestLog(logDirPath);
+      const log = await readOnlyRequestLog(logDirectory);
 
       expect(log).toContain(
         "[[Usage]]:\ninput: unavailable\ncache: unavailable\noutput: unavailable\n\n",
@@ -711,7 +696,6 @@ describe("llm/client", () => {
       });
 
       const llm = new LLM({
-        dataDirPath: process.cwd(),
         model: {
           modelId: "test-model",
           provider: "test-provider",
@@ -740,7 +724,6 @@ describe("llm/client", () => {
     aiMockState.generateTextError = abortError;
 
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -783,7 +766,6 @@ describe("llm/client", () => {
       );
 
       const llm = new LLM({
-        dataDirPath: process.cwd(),
         model: {
           modelId: "test-model",
           provider: "test-provider",
@@ -825,7 +807,6 @@ describe("llm/client", () => {
     });
 
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -865,7 +846,6 @@ describe("llm/client", () => {
       });
 
       const llm = new LLM({
-        dataDirPath: process.cwd(),
         model: {
           modelId: "test-model",
           provider: "test-provider",
@@ -895,7 +875,6 @@ describe("llm/client", () => {
     aiMockState.streamTextError = new TypeError("terminated");
 
     const llm = new LLM({
-      dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
@@ -919,20 +898,20 @@ describe("llm/client", () => {
   });
 });
 
-async function readOnlyRequestLog(logDirPath: string): Promise<string> {
-  const logs = await readRequestLogs(logDirPath);
+async function readOnlyRequestLog(logDirectory: string): Promise<string> {
+  const logs = await readRequestLogs(logDirectory);
 
   expect(logs).toHaveLength(1);
   return logs[0]!;
 }
 
-async function readRequestLogs(logDirPath: string): Promise<string[]> {
-  const entries = await readdir(logDirPath);
+async function readRequestLogs(logDirectory: string): Promise<string[]> {
+  const entries = await readdir(logDirectory);
 
   return await Promise.all(
     entries
       .filter((entry) => entry.endsWith(".log"))
       .sort((left, right) => left.localeCompare(right))
-      .map(async (entry) => await readFile(`${logDirPath}/${entry}`, "utf8")),
+      .map(async (entry) => await readFile(`${logDirectory}/${entry}`, "utf8")),
   );
 }

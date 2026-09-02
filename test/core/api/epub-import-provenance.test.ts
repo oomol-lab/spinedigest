@@ -11,6 +11,7 @@ import {
 import { DirectoryDocument } from "../../../packages/core/src/document/index.js";
 import { EPUB_SOURCE_ADAPTER } from "../../../packages/core/src/text/source/index.js";
 import { withTempDir } from "../../helpers/temp.js";
+import { NodeFile } from "../../../packages/cli/src/runtime/node-platform.js";
 
 describe("facade/import EPUB provenance", () => {
   it("persists a provenance map for each imported non-empty section", async () => {
@@ -27,7 +28,7 @@ describe("facade/import EPUB provenance", () => {
           document,
           extractionPrompt: "Keep the source text unchanged.",
           llm: {} as never,
-          path: epubPath,
+          file: new NodeFile(epubPath),
           targetStage: "sourced",
         });
 

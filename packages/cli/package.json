@@ -55,6 +55,7 @@
     "@ai-sdk/google": "^3.0.61",
     "@ai-sdk/openai": "^3.0.52",
     "@ai-sdk/openai-compatible": "^2.0.41",
+    "@noble/hashes": "^2.4.0",
     "ai": "^6.0.154",
     "htmlparser2": "^12.0.0",
     "jsonrepair": "^3.13.3",

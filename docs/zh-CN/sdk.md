@@ -61,9 +61,10 @@ await wikiGraph.openSession(archive, (session) => session.readMeta());
 `WikiGraphPlatform` 是进程级宿主基础设施，负责异步上下文、数据库和 ZIP；应用在 import 后安装一次即可。两个存储目录根则归各自的 `WikiGraph` 实例所有，并发运行多个实例时不会互相覆盖。
 
 ```ts
-import { WikiGraph } from "wiki-graph-core";
+import { WikiGraph, type File } from "wiki-graph-core";
 
-const wikiGraph = new WikiGraph({});
+const wikiGraph = new WikiGraph({ storage });
+const outputArchive = myOutputArchiveFile satisfies File;
 
 await wikiGraph.digestTextStreamSession(
   {
@@ -72,11 +73,11 @@ await wikiGraph.digestTextStreamSession(
     title: "Research note",
   },
   async (archive) => {
-    await archive.saveAs("research.wikg");
+    await archive.saveAs(outputArchive);
   },
 );
 
-await wikiGraph.openSession("research.wikg", async (archive) => {
+await wikiGraph.openSession(outputArchive, async (archive) => {
   console.log(await archive.readMeta());
 });
 ```
@@ -89,7 +90,7 @@ await wikiGraph.openSession("research.wikg", async (archive) => {
 
 ```ts
 import { createOpenAI } from "@ai-sdk/openai";
-import { WikiGraph } from "wiki-graph-core";
+import { WikiGraph, type Directory } from "wiki-graph-core";
 
 const openai = createOpenAI({
   apiKey: "<your-openai-api-key>",
@@ -97,11 +98,12 @@ const openai = createOpenAI({
 
 const wikiGraph = new WikiGraph({
   llm: {
-    cacheDirPath: ".wikigraph-cache",
+    cacheDirectory: myCacheDirectory satisfies Directory,
     concurrent: 3,
-    logDirPath: ".wikigraph-logs",
+    logDirectory: myLogDirectory satisfies Directory,
     model: openai("gpt-4.1-mini"),
   },
+  storage,
 });
 ```
 

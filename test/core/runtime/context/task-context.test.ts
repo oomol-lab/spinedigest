@@ -7,6 +7,10 @@ import {
   WikiGraphTaskContext,
 } from "../../../../packages/core/src/runtime/context/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+} from "../../../../packages/cli/src/runtime/node-platform.js";
 
 describe("context/task-context", () => {
   it("derives task ids from source, parameters, task type, and context version", () => {
@@ -60,7 +64,7 @@ describe("context/task-context", () => {
   it("removes a task directory after a successful run", async () => {
     await withTempDir("wikigraph-context-", async (path) => {
       const context = new WikiGraphTaskContext({
-        rootDirPath: path,
+        root: new NodeDirectory(path),
       });
       let taskPath = "";
 
@@ -73,8 +77,11 @@ describe("context/task-context", () => {
           taskType: "source-to-graph",
         },
         async (task) => {
-          taskPath = task.path;
-          await writeFile(`${task.artifactDirPath}/artifact.txt`, "done");
+          taskPath = `${path}/${task.id}`;
+          await writeFile(
+            `${getNodeResourcePath(await task.artifactDirectory())}/artifact.txt`,
+            "done",
+          );
           return 42;
         },
       );
@@ -87,7 +94,7 @@ describe("context/task-context", () => {
   it("keeps a task directory when a run fails", async () => {
     await withTempDir("wikigraph-context-", async (path) => {
       const context = new WikiGraphTaskContext({
-        rootDirPath: path,
+        root: new NodeDirectory(path),
       });
       let taskPath = "";
 
@@ -99,8 +106,11 @@ describe("context/task-context", () => {
             taskType: "source-to-graph",
           },
           async (task) => {
-            taskPath = task.path;
-            await writeFile(`${task.artifactDirPath}/artifact.txt`, "partial");
+            taskPath = `${path}/${task.id}`;
+            await writeFile(
+              `${getNodeResourcePath(await task.artifactDirectory())}/artifact.txt`,
+              "partial",
+            );
             throw new Error("stop");
           },
         ),
@@ -119,7 +129,7 @@ describe("context/task-context", () => {
   it("reuses the same task directory for the same identity after failure", async () => {
     await withTempDir("wikigraph-context-", async (path) => {
       const context = new WikiGraphTaskContext({
-        rootDirPath: path,
+        root: new NodeDirectory(path),
       });
       const identity = {
         normalizedSource: "Alpha beta.",
@@ -134,18 +144,24 @@ describe("context/task-context", () => {
 
       await expect(
         context.runTask(identity, async (task) => {
-          failedTaskPath = task.path;
-          await writeFile(`${task.artifactDirPath}/artifact.txt`, "partial");
+          failedTaskPath = `${path}/${task.id}`;
+          await writeFile(
+            `${getNodeResourcePath(await task.artifactDirectory())}/artifact.txt`,
+            "partial",
+          );
           throw new Error("stop");
         }),
       ).rejects.toThrow("stop");
 
       const result = await context.runTask(identity, async (task) => {
-        expect(task.path).toBe(failedTaskPath);
+        expect(`${path}/${task.id}`).toBe(failedTaskPath);
+        const artifactDirPath = getNodeResourcePath(
+          await task.artifactDirectory(),
+        );
         await expect(
-          readFile(`${task.artifactDirPath}/artifact.txt`, "utf8"),
+          readFile(`${artifactDirPath}/artifact.txt`, "utf8"),
         ).resolves.toBe("partial");
-        await writeFile(`${task.artifactDirPath}/artifact.txt`, "complete");
+        await writeFile(`${artifactDirPath}/artifact.txt`, "complete");
         return "ok";
       });
 
@@ -157,7 +173,7 @@ describe("context/task-context", () => {
   it("reads a running task status", async () => {
     await withTempDir("wikigraph-context-", async (path) => {
       const context = new WikiGraphTaskContext({
-        rootDirPath: path,
+        root: new NodeDirectory(path),
       });
       let status:
         | Awaited<

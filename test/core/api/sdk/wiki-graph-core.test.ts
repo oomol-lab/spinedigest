@@ -13,6 +13,7 @@ import { tryRunWikiGraphGc } from "wiki-graph-core/gc";
 import { runBuildJobWorker } from "wiki-graph-core/worker";
 import { setWikiGraphStateDirectoryPathForTesting } from "../../../../packages/core/src/runtime/common/wiki-graph/dir.js";
 import { withTempDir } from "../../../helpers/temp.js";
+import { NodeFile } from "../../../../packages/cli/src/runtime/node-platform.js";
 
 describe("wiki-graph-core sdk", () => {
   afterEach(() => {
@@ -46,11 +47,11 @@ describe("wiki-graph-core sdk", () => {
           title: "SDK note",
         },
         async (archive) => {
-          await archive.saveAs(archivePath);
+          await archive.saveAs(new NodeFile(archivePath));
         },
       );
 
-      await app.openSession(archivePath, async (archive) => {
+      await app.openSession(new NodeFile(archivePath), async (archive) => {
         expect((await archive.readMeta())?.title).toBe("SDK note");
       });
       expect((await stat(archivePath)).isFile()).toBe(true);

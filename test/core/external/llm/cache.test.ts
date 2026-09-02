@@ -3,12 +3,13 @@ import { readFile } from "fs/promises";
 import { describe, expect, it } from "vitest";
 
 import { LLMCache } from "../../../../packages/core/src/external/llm/cache.js";
+import { NodeDirectory } from "../../../../packages/cli/src/runtime/node-platform.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("llm/cache", () => {
   it("creates, writes, and reads cache entries", async () => {
     await withTempDir("wikigraph-cache-", async (path) => {
-      const cache = new LLMCache(path);
+      const cache = new LLMCache(new NodeDirectory(path));
       const entry = cache.createEntry("alpha", "cached-response");
 
       await cache.write(entry);
@@ -22,7 +23,7 @@ describe("llm/cache", () => {
 
   it("returns undefined for missing cache entries", async () => {
     await withTempDir("wikigraph-cache-", async (path) => {
-      const cache = new LLMCache(path);
+      const cache = new LLMCache(new NodeDirectory(path));
 
       await expect(cache.read("missing")).resolves.toBeUndefined();
     });

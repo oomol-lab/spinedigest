@@ -1,6 +1,5 @@
 import {
   formatWikiGraphLibraryUri,
-  parseLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
   resolveDataDirPath,
 } from "wiki-graph-core";
@@ -8,7 +7,7 @@ import { createEnv } from "wiki-graph-core";
 
 import { CLI_FULL_COMMAND, CLI_PRIMARY_COMMAND } from "wiki-graph-core";
 import type { ParsedWikiGraphLibraryUri } from "wiki-graph-core";
-import { CLI_FORMATS } from "../support/index.js";
+import { CLI_FORMATS, parseLocatedWikiGraphUri } from "../support/index.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
 import { formatCliCommand } from "../support/index.js";
 import type {

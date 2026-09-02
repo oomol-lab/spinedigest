@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { Fragments } from "../../../packages/core/src/document/index.js";
+import { NodeDirectory } from "../../../packages/cli/src/runtime/node-platform.js";
 import { withTempDir } from "../../helpers/temp.js";
 
 describe("document/fragments", () => {
   it("creates, stores, and reads committed fragments", async () => {
     await withTempDir("wikigraph-fragments-", async (path) => {
-      const fragments = new Fragments(path);
+      const fragments = new Fragments(new NodeDirectory(path));
       await fragments.ensureCreated();
 
       const draft = await fragments.getSerial(3).createDraft();
@@ -31,7 +32,7 @@ describe("document/fragments", () => {
 
   it("does not persist empty drafts", async () => {
     await withTempDir("wikigraph-fragments-", async (path) => {
-      const fragments = new Fragments(path);
+      const fragments = new Fragments(new NodeDirectory(path));
       const draft = await fragments.getSerial(1).createDraft();
 
       await expect(draft.commit()).resolves.toBeUndefined();
@@ -43,7 +44,7 @@ describe("document/fragments", () => {
 
   it("enforces draft lifecycle rules", async () => {
     await withTempDir("wikigraph-fragments-", async (path) => {
-      const serial = new Fragments(path).getSerial(5);
+      const serial = new Fragments(new NodeDirectory(path)).getSerial(5);
       const draft = await serial.createDraft();
 
       await expect(serial.createDraft()).rejects.toThrow(
@@ -59,15 +60,15 @@ describe("document/fragments", () => {
       expect(() => nextDraft.addSentence("Delta", 1)).toThrow(
         "Fragment draft is already finalized",
       );
-      await expect(new Fragments(path).getSentence([5, 4])).rejects.toThrow(
-        "Sentence 4 does not exist",
-      );
+      await expect(
+        new Fragments(new NodeDirectory(path)).getSentence([5, 4]),
+      ).rejects.toThrow("Sentence 4 does not exist");
     });
   });
 
   it("returns serial-wide sentence ids across multiple fragments", async () => {
     await withTempDir("wikigraph-fragments-", async (path) => {
-      const serial = new Fragments(path).getSerial(7);
+      const serial = new Fragments(new NodeDirectory(path)).getSerial(7);
       const first = await serial.createDraft();
 
       expect(first.addSentence("Alpha", 1)).toStrictEqual([7, 0]);
@@ -79,7 +80,7 @@ describe("document/fragments", () => {
       expect(second.addSentence("Gamma", 1)).toStrictEqual([7, 2]);
       await second.commit();
 
-      const fragments = new Fragments(path);
+      const fragments = new Fragments(new NodeDirectory(path));
 
       await expect(fragments.getSentence([7, 2])).resolves.toBe("Gamma");
     });

@@ -3,48 +3,52 @@ import { readFile, writeFile } from "fs/promises";
 import { describe, expect, it } from "vitest";
 
 import {
-  allocateArtifactPath,
+  allocateArtifactFile,
   getLogger,
-  resolveArtifactPath,
+  resolveArtifactFile,
   withLoggingContext,
 } from "../../../../packages/core/src/runtime/common/logging.js";
 import { withTempDir } from "../../../helpers/temp.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+} from "../../../../packages/cli/src/runtime/node-platform.js";
 
 describe("common/logging", () => {
   it("preserves flat artifact paths without an active logging context", async () => {
-    await withTempDir("wikigraph-logging-", (path) => {
-      const artifactPath = resolveArtifactPath({
+    await withTempDir("wikigraph-logging-", async (path) => {
+      const directory = new NodeDirectory(path);
+      const artifact = await resolveArtifactFile({
         category: "llm",
         fileName: "request.log",
-        logDirPath: path,
+        logDirectory: directory,
       });
-
-      expect(artifactPath).toBe(`${path}/request.log`);
-      return Promise.resolve();
+      expect(getNodeResourcePath(artifact!)).toBe(`${path}/llm/request.log`);
     });
   });
 
   it("writes contextual artifacts under the run directory", async () => {
     await withTempDir("wikigraph-logging-", async (path) => {
+      const directory = new NodeDirectory(path);
       const { artifactPath, runDirPath } = await withLoggingContext(
         {
-          logDirPath: path,
+          logDirectory: directory,
           operation: "digest-test",
           verbose: false,
         },
         async () => {
           getLogger({ component: "test" }).info("hello event log");
-          const resolvedPath = resolveArtifactPath({
+          const resolved = await resolveArtifactFile({
             category: "llm",
             fileName: "request.log",
-            logDirPath: path,
+            logDirectory: directory,
           });
-
-          expect(resolvedPath).toBeDefined();
-          await writeFile(resolvedPath!, "request log", "utf8");
+          expect(resolved).toBeDefined();
+          const resolvedPath = getNodeResourcePath(resolved!);
+          await writeFile(resolvedPath, "request log", "utf8");
           return {
-            artifactPath: resolvedPath!,
-            runDirPath: resolvedPath!.split("/artifacts/")[0]!,
+            artifactPath: resolvedPath,
+            runDirPath: resolvedPath.split("/artifacts/")[0]!,
           };
         },
       );
@@ -65,42 +69,42 @@ describe("common/logging", () => {
   });
 
   it("allocates stable artifact names with numeric suffixes when needed", async () => {
-    await withTempDir("wikigraph-logging-", (path) => {
-      const firstPath = allocateArtifactPath({
+    await withTempDir("wikigraph-logging-", async (path) => {
+      const directory = new NodeDirectory(path);
+      const first = await allocateArtifactFile({
         category: "llm",
-        logDirPath: path,
+        logDirectory: directory,
         prefix: "request",
       });
-      const secondPath = allocateArtifactPath({
+      const second = await allocateArtifactFile({
         category: "llm",
-        logDirPath: path,
+        logDirectory: directory,
         prefix: "request",
       });
 
-      expect(firstPath).toBe(`${path}/request.log`);
-      expect(secondPath).toBe(`${path}/request-2.log`);
-      return Promise.resolve();
+      expect(first?.name).toBe("request.log");
+      expect(second?.name).toBe("request-2.log");
     });
   });
 
   it("can allocate numbered artifact names starting at one", async () => {
-    await withTempDir("wikigraph-logging-", (path) => {
-      const firstPath = allocateArtifactPath({
+    await withTempDir("wikigraph-logging-", async (path) => {
+      const directory = new NodeDirectory(path);
+      const first = await allocateArtifactFile({
         alwaysNumbered: true,
         category: "llm",
-        logDirPath: path,
+        logDirectory: directory,
         prefix: "request",
       });
-      const secondPath = allocateArtifactPath({
+      const second = await allocateArtifactFile({
         alwaysNumbered: true,
         category: "llm",
-        logDirPath: path,
+        logDirectory: directory,
         prefix: "request",
       });
 
-      expect(firstPath).toBe(`${path}/request-1.log`);
-      expect(secondPath).toBe(`${path}/request-2.log`);
-      return Promise.resolve();
+      expect(first?.name).toBe("request-1.log");
+      expect(second?.name).toBe("request-2.log");
     });
   });
 });

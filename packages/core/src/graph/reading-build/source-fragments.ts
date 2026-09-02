@@ -3,15 +3,16 @@ import {
   segmentTextStream,
   type ReaderTextStream,
 } from "../../text/reader/index.js";
+import type { Directory } from "../../runtime/platform/index.js";
 
 const GRAPH_ARTIFACT_FRAGMENT_WORDS_COUNT = 320;
 
 export async function writeGraphArtifactSourceFragments(
-  documentPath: string,
+  documentDirectory: Directory,
   chapterId: number,
   sourceText: ReaderTextStream,
 ): Promise<void> {
-  const fragments = new Fragments(documentPath);
+  const fragments = new Fragments(documentDirectory);
   const serial = fragments.getSerial(chapterId);
   let draft = await serial.createDraft();
   let draftWordsCount = 0;

@@ -74,9 +74,10 @@ The two storage roots belong to each `WikiGraph` instance and remain isolated
 when instances run concurrently.
 
 ```ts
-import { WikiGraph } from "wiki-graph-core";
+import { WikiGraph, type File } from "wiki-graph-core";
 
-const wikiGraph = new WikiGraph({});
+const wikiGraph = new WikiGraph({ storage });
+const outputArchive = myOutputArchiveFile satisfies File;
 
 await wikiGraph.digestTextStreamSession(
   {
@@ -85,11 +86,11 @@ await wikiGraph.digestTextStreamSession(
     title: "Research note",
   },
   async (archive) => {
-    await archive.saveAs("research.wikg");
+    await archive.saveAs(outputArchive);
   },
 );
 
-await wikiGraph.openSession("research.wikg", async (archive) => {
+await wikiGraph.openSession(outputArchive, async (archive) => {
   console.log(await archive.readMeta());
 });
 ```
@@ -102,7 +103,7 @@ await wikiGraph.openSession("research.wikg", async (archive) => {
 
 ```ts
 import { createOpenAI } from "@ai-sdk/openai";
-import { WikiGraph } from "wiki-graph-core";
+import { WikiGraph, type Directory } from "wiki-graph-core";
 
 const openai = createOpenAI({
   apiKey: "<your-openai-api-key>",
@@ -110,11 +111,12 @@ const openai = createOpenAI({
 
 const wikiGraph = new WikiGraph({
   llm: {
-    cacheDirPath: ".wikigraph-cache",
+    cacheDirectory: myCacheDirectory satisfies Directory,
     concurrent: 3,
-    logDirPath: ".wikigraph-logs",
+    logDirectory: myLogDirectory satisfies Directory,
     model: openai("gpt-4.1-mini"),
   },
+  storage,
 });
 ```
 

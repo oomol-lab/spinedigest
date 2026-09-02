@@ -1,6 +1,6 @@
 import type { LanguageModelUsage } from "ai";
 
-import { formatError } from "../../../utils/node-error.js";
+import { formatError } from "../../../utils/host-error.js";
 import type { LLMessage, TemperatureSetting } from "../types.js";
 
 export function hasVisibleNonSystemContent(

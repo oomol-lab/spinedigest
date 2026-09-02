@@ -1,7 +1,8 @@
-import { readFile, writeFile } from "../../runtime/platform/index.js";
-import { join } from "../../runtime/platform/index.js";
-
-import { isNodeError } from "../../utils/node-error.js";
+import {
+  readFileText,
+  writeFileContent,
+  type Directory,
+} from "../../runtime/platform/index.js";
 
 export interface PendingCacheEntry {
   cacheKey: string;
@@ -9,36 +10,26 @@ export interface PendingCacheEntry {
 }
 
 export class LLMCache {
-  readonly #cacheDirPath: string;
+  readonly #directory: Directory;
 
-  public constructor(cacheDirPath: string) {
-    this.#cacheDirPath = cacheDirPath;
+  public constructor(directory: Directory) {
+    this.#directory = directory;
   }
 
   public createEntry(cacheKey: string, response: string): PendingCacheEntry {
-    return {
-      cacheKey,
-      response,
-    };
+    return { cacheKey, response };
   }
 
   public async read(cacheKey: string): Promise<string | undefined> {
-    try {
-      return await readFile(this.#getFilePath(cacheKey), "utf8");
-    } catch (error) {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
+    const file = await this.#directory.getFile(`${cacheKey}.txt`);
+    return file === undefined ? undefined : await readFileText(file);
   }
 
   public async write(entry: PendingCacheEntry): Promise<void> {
-    await writeFile(this.#getFilePath(entry.cacheKey), entry.response, "utf8");
-  }
-
-  #getFilePath(cacheKey: string): string {
-    return join(this.#cacheDirPath, `${cacheKey}.txt`);
+    const name = `${entry.cacheKey}.txt`;
+    const file =
+      (await this.#directory.getFile(name)) ??
+      (await this.#directory.createFile(name));
+    await writeFileContent(file, entry.response);
   }
 }

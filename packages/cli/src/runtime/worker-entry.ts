@@ -1,4 +1,4 @@
-import { withWikiGraphRuntimeStateDirectoryPath } from "../../../core/src/runtime/common/wiki-graph/dir.js";
+import { withNodeWikiGraphStorage } from "./node-platform.js";
 
 import { createEntryRuntimeContext } from "./entry-context.js";
 
@@ -27,9 +27,8 @@ export async function withWorkerEntryRuntime<T>(
     stateDir: args.stateDir,
   });
 
-  return await withWikiGraphRuntimeStateDirectoryPath(
-    entryContext.stateDir,
-    () => operation(args),
+  return await withNodeWikiGraphStorage(entryContext.stateDir, () =>
+    operation(args),
   );
 }
 

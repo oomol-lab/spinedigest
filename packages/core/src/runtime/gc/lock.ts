@@ -1,12 +1,7 @@
-import { runtimeContext as platformRuntime } from "../platform/index.js";
-import { randomUUID } from "../platform/index.js";
-import { join } from "../platform/index.js";
-
-import { resolveWikiGraphStateRootPath } from "../common/wiki-graph/temp.js";
+import { randomUuid } from "../../utils/crypto.js";
 import { getNumber, getString, type SqlRow } from "../../document/database.js";
-import { openSharedStateDatabase } from "../../document/index.js";
+import { openWikiGraphStateDatabase } from "../../document/index.js";
 import type { Database } from "../../document/index.js";
-import { isNodeError } from "../../utils/node-error.js";
 
 const GC_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS gc_locks (
@@ -32,7 +27,7 @@ export async function tryAcquireGcLock(
   scope = "global",
 ): Promise<(() => Promise<void>) | undefined> {
   const database = await openGcStateDatabase();
-  const ownerId = `${platformRuntime.pid}-${randomUUID()}`;
+  const ownerId = randomUuid();
   const now = Date.now();
   let acquired = false;
 
@@ -45,7 +40,7 @@ INSERT OR IGNORE INTO gc_locks (
   scope, owner_id, owner_pid, heartbeat_at, created_at
 ) VALUES (?, ?, ?, ?, ?)
 `,
-        [scope, ownerId, platformRuntime.pid, now, now],
+        [scope, ownerId, 0, now, now],
       );
       acquired =
         (await database.queryOne(
@@ -91,7 +86,7 @@ UPDATE gc_locks
 SET heartbeat_at = ?, owner_pid = ?
 WHERE scope = ? AND owner_id = ?
 `,
-      [Date.now(), platformRuntime.pid, scope, ownerId],
+      [Date.now(), 0, scope, ownerId],
     );
   } finally {
     await database.close();
@@ -125,14 +120,11 @@ function isStaleGcLock(lock: GcLock): boolean {
     return false;
   }
 
-  return !isProcessAlive(lock.ownerPid);
+  return true;
 }
 
 async function openGcStateDatabase(): Promise<Database> {
-  return await openSharedStateDatabase(
-    join(resolveWikiGraphStateRootPath(), "gc.sqlite"),
-    GC_SCHEMA_SQL,
-  );
+  return await openWikiGraphStateDatabase("tmp/gc.sqlite", GC_SCHEMA_SQL);
 }
 
 function mapGcLock(row: SqlRow): GcLock {
@@ -152,17 +144,4 @@ function mapGcLockWithScope(row: SqlRow): {
     lock: mapGcLock(row),
     scope: getString(row, "scope"),
   };
-}
-
-function isProcessAlive(pid: number): boolean {
-  try {
-    platformRuntime.kill(pid, 0);
-    return true;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ESRCH") {
-      return false;
-    }
-
-    return true;
-  }
 }

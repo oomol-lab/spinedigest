@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
 import { writePlainText } from "../../../../packages/core/src/text/output/plain-text.js";
 import { withTempDir } from "../../../helpers/temp.js";
+import { NodeFile } from "../../../../packages/cli/src/runtime/node-platform.js";
 
 describe("output/plain-text", () => {
   it("renders toc titles and summaries into a flat text file", async () => {
@@ -36,7 +37,7 @@ describe("output/plain-text", () => {
         const outputPath = `${path}/result/book.txt`;
         await writePlainText({
           document,
-          path: outputPath,
+          file: new NodeFile(outputPath),
         });
 
         expect(await readFile(outputPath, "utf8")).toBe(
@@ -69,7 +70,7 @@ describe("output/plain-text", () => {
         const outputPath = `${path}/result/book.txt`;
         await writePlainText({
           document,
-          path: outputPath,
+          file: new NodeFile(outputPath),
         });
 
         expect(await readFile(outputPath, "utf8")).toBe("Untitled summary\n");
@@ -90,7 +91,7 @@ describe("output/plain-text", () => {
         await expect(
           writePlainText({
             document: missingTocDocument,
-            path: `${path}/missing-toc.txt`,
+            file: new NodeFile(`${path}/missing-toc.txt`),
           }),
         ).rejects.toThrow("Document TOC is missing");
 
@@ -110,7 +111,7 @@ describe("output/plain-text", () => {
         await expect(
           writePlainText({
             document: missingSummaryDocument,
-            path: `${path}/missing-summary.txt`,
+            file: new NodeFile(`${path}/missing-summary.txt`),
           }),
         ).rejects.toThrow("Chapter 7 summary is missing");
       } finally {
