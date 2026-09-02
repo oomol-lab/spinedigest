@@ -168,6 +168,8 @@ export const unlink = (...args: any[]): any =>
   moduleValue("fileSystemPromises", "unlink")(...args);
 export const writeFile = (...args: any[]): any =>
   moduleValue("fileSystemPromises", "writeFile")(...args);
+export const openDatabase = (...args: any[]): any =>
+  moduleValue("database", "open")(...args);
 
 export const constants = new Proxy({} as Record<string, number>, {
   get(_target, property: string): unknown {

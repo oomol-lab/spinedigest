@@ -116,7 +116,10 @@ export class DirectoryDocument implements Document {
     const fileStore = options.fileStore ?? LOCAL_DOCUMENT_FILE_STORE;
     try {
       const databasePath =
-        await fileStore.resolveDatabasePath(resolvedDocumentPath);
+        typeof documentPath === "string"
+          ? await fileStore.resolveDatabasePath(resolvedDocumentPath)
+          : ((await documentPath.getFile("database.db")) ??
+            (await documentPath.createFile("database.db")));
       await fileStore.ensureDirectory(resolvedDocumentPath);
 
       const shouldInitializeDatabaseSchema =

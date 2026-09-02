@@ -2,9 +2,11 @@ import { Buffer as platformBuffer } from "../runtime/platform/index.js";
 import {
   AsyncLocalStorage,
   getSqlite3Module,
+  openDatabase,
   resolve,
   stat,
 } from "../runtime/platform/index.js";
+import type { File } from "../runtime/platform/index.js";
 
 type SqliteDatabase = {
   run(
@@ -46,7 +48,10 @@ const SQLITE_BUSY_TIMEOUT_MS = 15 * 60 * 1000;
 
 type DatabaseOperationScope = symbol;
 
-async function isMissingOrEmptyFile(path: string): Promise<boolean> {
+async function isMissingOrEmptyFile(path: File | string): Promise<boolean> {
+  if (typeof path !== "string") {
+    return path.size === undefined || path.size === 0;
+  }
   const stats = await stat(path).catch((error: unknown) => {
     if (
       typeof error === "object" &&
@@ -81,14 +86,15 @@ export class Database {
   }
 
   public static async open(
-    databasePath: string,
+    databasePath: File | string,
     schemaSql = "",
     options: {
       readonly onWrite?: () => void;
       readonly readonly?: boolean;
     } = {},
   ): Promise<Database> {
-    const resolvedDatabasePath = resolve(databasePath);
+    const resolvedDatabasePath =
+      typeof databasePath === "string" ? resolve(databasePath) : databasePath;
     const shouldMarkSchemaWritten =
       options.readonly !== true &&
       schemaSql.trim() !== "" &&
@@ -380,7 +386,7 @@ export function getOptionalString(
 }
 
 async function openSqliteDatabase(
-  databasePath: string,
+  databasePath: File | string,
   options: { readonly readonly?: boolean } = {},
 ): Promise<SqliteDatabase> {
   const sqlite3 = await loadSqlite3();
@@ -388,6 +394,10 @@ async function openSqliteDatabase(
     (options.readonly === true
       ? sqlite3.OPEN_READONLY
       : sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE) | sqlite3.OPEN_FULLMUTEX;
+
+  if (typeof databasePath !== "string") {
+    return await openDatabase(databasePath, flags);
+  }
 
   return await new Promise<SqliteDatabase>((resolveOpen, rejectOpen) => {
     const database = new sqlite3.Database(databasePath, flags, (error: any) => {

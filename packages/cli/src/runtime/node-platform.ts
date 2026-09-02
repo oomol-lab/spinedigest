@@ -18,6 +18,7 @@ import * as yauzl from "yauzl";
 import * as yazl from "yazl";
 
 import {
+  getHostFileHandle,
   installWikiGraphPlatform,
   installWikiGraphStorage,
   registerDirectoryLocation,
@@ -157,7 +158,17 @@ export const nodeWikiGraphPlatform: WikiGraphPlatform = {
   asyncContext: asyncHooks,
   compression: zlib,
   urlTools: url,
-  database: sqlite3,
+  database: {
+    ...sqlite3,
+    open: async (file: File, flags: number) =>
+      await new Promise((resolve, reject) => {
+        const database = new sqlite3.Database(
+          getHostFileHandle(file),
+          flags,
+          (error) => (error === null ? resolve(database) : reject(error)),
+        );
+      }),
+  },
   archive: { reader: yauzl, writer: yazl },
 };
 
