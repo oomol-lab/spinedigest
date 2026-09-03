@@ -109,15 +109,18 @@ function assertModuleMissing(cwd, specifier) {
   );
 }
 
-function writeInstallPackageJson(cwd, name) {
+function writeInstallWorkspace(cwd, name) {
   mkdirSync(cwd, { recursive: true });
   writeFileSync(
     join(cwd, "package.json"),
     JSON.stringify({
       name,
       private: true,
-      pnpm: { onlyBuiltDependencies: ["sqlite3"] },
     }),
+  );
+  writeFileSync(
+    join(cwd, "pnpm-workspace.yaml"),
+    "allowBuilds:\n  sqlite3: true\n",
   );
 }
 
@@ -132,7 +135,7 @@ try {
   const coreTarballPath = packPackage(coreRoot);
   const cliTarballPath = packPackage(cliRoot);
 
-  writeInstallPackageJson(cliInstallRoot, "wiki-graph-cli-pack-smoke");
+  writeInstallWorkspace(cliInstallRoot, "wiki-graph-cli-pack-smoke");
   installTarballs(cliInstallRoot, [cliTarballPath]);
 
   assertModuleMissing(cliInstallRoot, "wiki-graph-core");
@@ -156,7 +159,7 @@ try {
     );
   }
 
-  writeInstallPackageJson(coreInstallRoot, "wiki-graph-core-pack-smoke");
+  writeInstallWorkspace(coreInstallRoot, "wiki-graph-core-pack-smoke");
   installTarballs(coreInstallRoot, [coreTarballPath]);
 
   assertCommonJsExport(coreInstallRoot, "wiki-graph-core", "WikiGraph");
@@ -178,7 +181,7 @@ try {
     "runBuildJobWorker",
   );
 
-  writeInstallPackageJson(sdkInstallRoot, "wiki-graph-sdk-pack-smoke");
+  writeInstallWorkspace(sdkInstallRoot, "wiki-graph-sdk-pack-smoke");
   installTarballs(sdkInstallRoot, [coreTarballPath, cliTarballPath]);
 
   assertCommonJsExport(sdkInstallRoot, "wiki-graph", "runWikiGraphCLICaptured");
