@@ -1,6 +1,6 @@
 import {
   ensureRelativeDirectory,
-  getWikiGraphPlatform,
+  readHostZipEntries,
   resolveHostDirectory,
   resolveHostFile,
   type Directory,
@@ -16,7 +16,7 @@ export async function extractWikgArchive(
 ): Promise<void> {
   const inputFile = await resolveHostFile(inputFileRef);
   const outputDirectory = await resolveHostDirectory(outputDirectoryRef);
-  const archiveEntries = await getWikiGraphPlatform().zip.read(inputFile);
+  const archiveEntries = await readHostZipEntries(inputFile);
   const entries = new Map(
     archiveEntries.map((entry) => [
       normalizeArchivePath(entry.name),

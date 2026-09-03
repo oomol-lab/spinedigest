@@ -10,7 +10,6 @@ import {
   type Directory,
   type File,
   type HostDatabaseConnection,
-  type HostZipEntry,
   type WikiGraphPlatform,
   withWikiGraphStorage,
 } from "../../../../packages/core/src/runtime/platform/index.js";
@@ -269,6 +268,7 @@ const opaqueNodePlatform: WikiGraphPlatform = {
     open: async (file, options): Promise<HostDatabaseConnection> =>
       await nodeWikiGraphPlatform.database.open(unwrapFile(file), options),
   },
+  lifecycle: nodeWikiGraphPlatform.lifecycle,
   resources: {
     getDirectory: async (identity) => {
       const directory =
@@ -284,8 +284,8 @@ const opaqueNodePlatform: WikiGraphPlatform = {
   },
   templates: nodeWikiGraphPlatform.templates,
   zip: {
-    read: async (file): Promise<readonly HostZipEntry[]> =>
-      await nodeWikiGraphPlatform.zip.read(unwrapFile(file)),
+    open: async (file) =>
+      await nodeWikiGraphPlatform.zip.open(unwrapFile(file)),
     write: async (file, entries) =>
       await nodeWikiGraphPlatform.zip.write(unwrapFile(file), entries),
   },

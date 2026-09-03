@@ -71,7 +71,12 @@ and are removed after the archive session settles. Derived search indexes are
 kept there as persistent caches under opaque, path-free keys; they remain
 outside the `.wikg` archive and can be rebuilt at any time.
 `WikiGraphPlatform` is process-wide host infrastructure for async context,
-database, and ZIP operations, so an application installs it once after import.
+database, ZIP, resource resolution, and execution-liveness operations, so an
+application installs it once after import. Its ZIP reader lists entry names and
+reads entry data on demand; hosts must not require Core to load the complete
+archive for an ordinary read. Its lifecycle provider gives each running host
+instance an opaque ID and reports whether a previously recorded instance is
+still alive, allowing archive sessions to recover published work after a crash.
 The two storage roots belong to each `WikiGraph` instance and remain isolated
 when instances run concurrently.
 

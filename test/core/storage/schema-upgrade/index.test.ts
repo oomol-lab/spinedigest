@@ -78,7 +78,7 @@ describe("schema-upgrade", () => {
 
   it("repairs missing chapter keys even when the schema is current", async () => {
     await withFixture(async ({ archive }) => {
-      const entries = await nodeWikiGraphPlatform.zip.read(archive);
+      const entries = await readZipEntries(archive);
       await nodeWikiGraphPlatform.zip.write(
         archive,
         entries.map((entry) =>
@@ -189,7 +189,7 @@ async function rewriteManifest(
   schemaVersion: number,
   addDerivedIndex: boolean,
 ): Promise<void> {
-  const entries = [...(await nodeWikiGraphPlatform.zip.read(archive))]
+  const entries = (await readZipEntries(archive))
     .filter((entry) => entry.name !== WIKG_MANIFEST_PATH)
     .map((entry) => ({ data: entry.data, name: entry.name }));
   entries.push({
@@ -205,4 +205,20 @@ async function rewriteManifest(
     });
   }
   await nodeWikiGraphPlatform.zip.write(archive, entries);
+}
+
+async function readZipEntries(
+  archive: NodeFile,
+): Promise<Array<{ readonly data: Uint8Array; readonly name: string }>> {
+  const reader = await nodeWikiGraphPlatform.zip.open(archive);
+  try {
+    const entries: Array<{ data: Uint8Array; name: string }> = [];
+    for (const name of await reader.listEntries()) {
+      const data = await reader.readEntry(name);
+      if (data !== undefined) entries.push({ data, name });
+    }
+    return entries;
+  } finally {
+    await reader.close();
+  }
 }

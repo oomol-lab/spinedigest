@@ -1,139 +1,143 @@
-import type {
-  Directory,
-  File,
-  HostZipEntry,
-} from "../../../runtime/platform/index.js";
+import type { File } from "../../../runtime/platform/index.js";
 import {
   ensureRelativeDirectory,
   ensureRelativeFile,
   getRelativeDirectory,
-  getWikiGraphPlatform,
   getWikiGraphStorage,
 } from "../../../runtime/platform/index.js";
 import type { DocumentFileStore } from "../../../document/directory/index.js";
+import { createPortableHash } from "../../../utils/crypto.js";
 
 import {
-  WIKG_MANIFEST_CONTENT,
-  WIKG_SCHEMA_VERSION,
-  createWikgMutationTokenBytes,
-  parseWikgManifest,
-} from "../archive/manifest.js";
-import {
-  WIKG_MANIFEST_PATH,
-  WIKG_MUTATION_TOKEN_PATH,
-} from "../archive/constants.js";
-import {
-  isWikgArchivePath,
-  normalizeArchivePath,
-  sortArchiveEntryPathsForWrite,
-} from "../archive/paths.js";
+  readWikgArchiveMutationToken,
+  WikgArchiveReader,
+} from "../archive/reader.js";
+import { parseWikgMutationToken } from "../archive/manifest.js";
+import { normalizeArchivePath } from "../archive/paths.js";
 import {
   DATABASE_ENTRY_PATH,
   LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
+  OWNER_HEARTBEAT_INTERVAL_MS,
   SEARCH_INDEX_DATABASE_ENTRY_PATH,
 } from "./constants.js";
+import { flushArchiveOverlays, reapArchive } from "./flusher.js";
 import { HostWikgDocumentFileStore } from "./host-file-store.js";
-import type { WorkspaceWritebackPolicy } from "./types.js";
-import { createPortableHash } from "../../../utils/crypto.js";
+import {
+  acquireSqliteLease,
+  releaseSqliteLease,
+  waitForSqliteLeasesToDrain,
+  withEntryLock,
+} from "./locks.js";
+import {
+  createCoordinatorOwner,
+  heartbeatArchiveOwner,
+  registerArchiveOwner,
+  unregisterArchiveOwner,
+} from "./owners.js";
+import {
+  isDirtyOverlay,
+  deleteCleanOverlayIfUnused,
+  listOverlays,
+  publishDeleteOverlay,
+  publishFileOverlay,
+  readOverlay,
+  resolveOverlayFile,
+  restoreOverlay,
+} from "./overlays.js";
+import type {
+  CoordinatorOwner,
+  EntryOverlay,
+  SqliteLeaseMode,
+  WorkspaceWritebackPolicy,
+} from "./types.js";
+import {
+  createWorkspaceSnapshot,
+  removeWorkspaceSnapshot,
+} from "./workspace.js";
 
-type Overlay =
-  | { readonly kind: "deleted" }
-  | { readonly file: File; readonly kind: "file" };
+interface SessionChange {
+  current: EntryOverlay;
+  readonly previous: EntryOverlay | undefined;
+}
 
-const archiveQueues = new Map<string, Promise<void>>();
-let sessionSequence = 0;
-
-/** Serialize use of one opaque host file without inspecting its implementation. */
+/** Run one archive operation within a durable, host-neutral session. */
 export async function withHostArchiveSession<T>(
   archive: File,
   operation: (session: HostWikgArchiveSession) => Promise<T> | T,
 ): Promise<T> {
-  const previous = archiveQueues.get(archive.identity) ?? Promise.resolve();
-  let release!: () => void;
-  const current = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const queued = previous.then(() => current);
-  archiveQueues.set(archive.identity, queued);
-  await previous;
-
+  const session = await HostWikgArchiveSession.open(archive);
   try {
-    const session = await HostWikgArchiveSession.open(archive);
-    try {
-      return await operation(session);
-    } catch (error) {
-      session.abort();
-      throw error;
-    } finally {
-      await session.close();
-    }
+    return await operation(session);
+  } catch (error) {
+    await session.abort();
+    throw error;
   } finally {
-    release();
-    if (archiveQueues.get(archive.identity) === queued) {
-      archiveQueues.delete(archive.identity);
-    }
+    await session.close();
   }
 }
 
-/** Host-neutral archive transaction rooted in the injected document store. */
+/** Coordinates logical archive state without observing host locations. */
 export class HostWikgArchiveSession {
   readonly #archive: File;
-  readonly #entries: Map<string, Uint8Array>;
-  readonly #overlays = new Map<string, Overlay>();
-  readonly #workspaceName: string;
-  readonly #workspace: Directory;
+  readonly #archiveKey: string;
+  readonly #owner: CoordinatorOwner;
+  readonly #heartbeat: ReturnType<typeof globalThis.setInterval>;
+  readonly #changes = new Map<string, SessionChange>();
+  readonly #modifiedEntryPaths = new Set<string>();
+  readonly #observedDirtyEntryPaths = new Set<string>();
+  readonly #materializedEntryPaths = new Set<string>();
+  readonly #leasedEntryPaths = new Set<string>();
   readonly #initialSearchCacheKey: string;
   #searchCacheKey: string;
   #searchCacheFile: File | undefined;
+  #searchCacheWorkspacePath: string | undefined;
   #searchCacheDirty = false;
   #searchCacheDelete = false;
   #closed = false;
   #aborted = false;
 
-  public constructor(
-    archive: File,
-    entries: Map<string, Uint8Array>,
-    workspaceName: string,
-    workspace: Directory,
-    searchCacheKey: string,
-  ) {
-    this.#archive = archive;
-    this.#entries = entries;
-    this.#workspaceName = workspaceName;
-    this.#workspace = workspace;
-    this.#initialSearchCacheKey = searchCacheKey;
-    this.#searchCacheKey = searchCacheKey;
+  // eslint-disable-next-line no-restricted-syntax -- constructors cannot use JavaScript #private syntax.
+  private constructor(input: {
+    readonly archive: File;
+    readonly archiveKey: string;
+    readonly initialSearchCacheKey: string;
+    readonly owner: CoordinatorOwner;
+  }) {
+    this.#archive = input.archive;
+    this.#archiveKey = input.archiveKey;
+    this.#initialSearchCacheKey = input.initialSearchCacheKey;
+    this.#searchCacheKey = input.initialSearchCacheKey;
+    this.#owner = input.owner;
+    this.#heartbeat = globalThis.setInterval(() => {
+      void heartbeatArchiveOwner(this.#archiveKey, this.#owner).catch(
+        () => undefined,
+      );
+    }, OWNER_HEARTBEAT_INTERVAL_MS);
   }
 
   public static async open(archive: File): Promise<HostWikgArchiveSession> {
-    const entries = new Map<string, Uint8Array>();
-    for (const entry of await getWikiGraphPlatform().zip.read(archive)) {
-      const path = normalizeArchivePath(entry.name);
-      if (path !== "" && isWikgArchivePath(path)) entries.set(path, entry.data);
+    const validationReader = await WikgArchiveReader.open(archive);
+    await validationReader.close();
+    const archiveKey = createPortableHash("sha256")
+      .update(archive.identity)
+      .digest("hex");
+    const owner = createCoordinatorOwner();
+    await registerArchiveOwner(archiveKey, owner);
+    try {
+      await reapArchive(archiveKey, owner, archive);
+      const mutationToken = await readWikgArchiveMutationToken(archive);
+      return new HostWikgArchiveSession({
+        archive,
+        archiveKey,
+        initialSearchCacheKey: createPortableHash("sha256")
+          .update(mutationToken)
+          .digest("hex"),
+        owner,
+      });
+    } catch (error) {
+      await unregisterArchiveOwner(archiveKey, owner.ownerId);
+      throw error;
     }
-    const manifestContent = entries.get(WIKG_MANIFEST_PATH);
-    if (manifestContent === undefined) {
-      throw new Error(`Missing WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
-    }
-    const manifest = parseWikgManifest(
-      new TextDecoder().decode(manifestContent),
-    );
-    if (manifest.schemaVersion !== WIKG_SCHEMA_VERSION) {
-      throw new Error(
-        `WIKG schema version ${manifest.schemaVersion} requires migration by a host that supports archive migration.`,
-      );
-    }
-
-    const root = getWikiGraphStorage().documentStore;
-    const workspaceName = await createWorkspaceName(root);
-    const workspace = await root.createDirectory(workspaceName);
-    return new HostWikgArchiveSession(
-      archive,
-      entries,
-      workspaceName,
-      workspace,
-      createSearchCacheKey(archive, entries),
-    );
   }
 
   public createFileStore(
@@ -153,63 +157,183 @@ export class HostWikgArchiveSession {
     return `wikg-search-cache:${this.#searchCacheKey}`;
   }
 
-  public listEntries(): readonly string[] {
-    const paths = new Set(this.#entries.keys());
-    for (const [path, overlay] of this.#overlays) {
-      if (overlay.kind === "deleted") paths.delete(path);
-      else paths.add(path);
+  public async listEntries(): Promise<readonly string[]> {
+    const reader = await WikgArchiveReader.open(this.#archive);
+    try {
+      const entries = new Set(reader.listEntries());
+      for (const overlay of await listOverlays(this.#archiveKey)) {
+        if (overlay.kind === "deleted") entries.delete(overlay.entryPath);
+        else entries.add(overlay.entryPath);
+      }
+      return [...entries].sort((left, right) => left.localeCompare(right));
+    } finally {
+      await reader.close();
     }
-    return [...paths].sort((left, right) => left.localeCompare(right));
   }
 
   public async readEntry(path: string): Promise<Uint8Array | undefined> {
     const entryPath = normalizeArchivePath(path);
-    const overlay = this.#overlays.get(entryPath);
-    if (overlay?.kind === "deleted") return undefined;
-    if (overlay?.kind === "file") return await readBytes(overlay.file);
-    return this.#entries.get(entryPath);
+    return await withEntryLock(
+      this.#archiveKey,
+      entryPath,
+      "read",
+      this.#owner,
+      async () => await this.#readEntryUnlocked(entryPath),
+    );
   }
 
   public async writeEntry(
     path: string,
     content: string | Uint8Array,
+    options: { readonly overwrite?: boolean } = {},
   ): Promise<void> {
     const entryPath = normalizeArchivePath(path);
-    const file = await this.#workspaceFile(entryPath);
-    await replaceFile(file, content);
-    this.#overlays.set(entryPath, { file, kind: "file" });
+    await withEntryLock(
+      this.#archiveKey,
+      entryPath,
+      "write",
+      this.#owner,
+      async () => {
+        if (isSqliteEntry(entryPath)) {
+          await waitForSqliteLeasesToDrain(
+            this.#archiveKey,
+            entryPath,
+            this.#owner,
+          );
+        }
+        const previous = await readOverlay(this.#archiveKey, entryPath);
+        if (
+          options.overwrite !== true &&
+          previous?.kind !== "deleted" &&
+          (previous !== undefined ||
+            (await this.#readArchiveEntry(entryPath)) !== undefined)
+        ) {
+          throw new Error(`File already exists: ${path}`);
+        }
+        const snapshot = await createWorkspaceSnapshot(
+          this.#archiveKey,
+          entryPath,
+        );
+        try {
+          await replaceFile(snapshot.file, content);
+          await publishFileOverlay({
+            archiveIdentity: this.#archive.identity,
+            archiveKey: this.#archiveKey,
+            entryPath,
+            owner: this.#owner,
+            workspaceFile: snapshot.file,
+            workspacePath: snapshot.relativePath,
+          });
+        } catch (error) {
+          await removeWorkspaceSnapshot(snapshot.relativePath);
+          throw error;
+        }
+        await this.#recordChange(entryPath, previous);
+        this.#modifiedEntryPaths.add(entryPath);
+      },
+    );
   }
 
-  public deleteEntry(path: string): void {
-    this.#overlays.set(normalizeArchivePath(path), { kind: "deleted" });
+  public async deleteEntry(path: string): Promise<void> {
+    const entryPath = normalizeArchivePath(path);
+    await withEntryLock(
+      this.#archiveKey,
+      entryPath,
+      "write",
+      this.#owner,
+      async () => {
+        if (isSqliteEntry(entryPath)) {
+          await waitForSqliteLeasesToDrain(
+            this.#archiveKey,
+            entryPath,
+            this.#owner,
+          );
+        }
+        const previous = await readOverlay(this.#archiveKey, entryPath);
+        await publishDeleteOverlay({
+          archiveIdentity: this.#archive.identity,
+          archiveKey: this.#archiveKey,
+          entryPath,
+          owner: this.#owner,
+        });
+        await this.#recordChange(entryPath, previous);
+        this.#modifiedEntryPaths.add(entryPath);
+      },
+    );
   }
 
   public async materializeDatabase(
     path: string,
-    options: { readonly createIfMissing: boolean },
+    options: {
+      readonly createIfMissing: boolean;
+      readonly mode: SqliteLeaseMode;
+    },
   ): Promise<File> {
     const entryPath = normalizeArchivePath(path);
-    const existing = this.#overlays.get(entryPath);
-    if (existing?.kind === "file") return existing.file;
+    await acquireSqliteLease({
+      archiveKey: this.#archiveKey,
+      entryPath,
+      mode: options.mode,
+      owner: this.#owner,
+    });
+    this.#leasedEntryPaths.add(entryPath);
+    try {
+      return await withEntryLock(
+        this.#archiveKey,
+        entryPath,
+        "state",
+        this.#owner,
+        async () => {
+          const existing = await readOverlay(this.#archiveKey, entryPath);
+          if (existing?.kind === "file") {
+            if (await isDirtyOverlay(existing)) {
+              this.#observedDirtyEntryPaths.add(entryPath);
+            }
+            this.#materializedEntryPaths.add(entryPath);
+            return await resolveOverlayFile(existing);
+          }
 
-    const content =
-      (await this.readEntry(entryPath)) ??
-      (entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH
-        ? await this.readEntry(LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH)
-        : undefined);
-    if (content === undefined && !options.createIfMissing) {
-      throw new Error(`Archive SQLite entry is missing: ${entryPath}`);
+          const content = await this.#readArchiveEntry(entryPath);
+          if (content === undefined && !options.createIfMissing) {
+            throw new Error(`Archive SQLite entry is missing: ${entryPath}`);
+          }
+          const bytes = content ?? new Uint8Array();
+          const snapshot = await createWorkspaceSnapshot(
+            this.#archiveKey,
+            entryPath,
+          );
+          try {
+            await replaceFile(snapshot.file, bytes);
+            await publishFileOverlay({
+              archiveIdentity: this.#archive.identity,
+              archiveKey: this.#archiveKey,
+              baseDigest: createPortableHash("sha256")
+                .update(bytes)
+                .digest("hex"),
+              entryPath,
+              owner: this.#owner,
+              workspaceFile: snapshot.file,
+              workspacePath: snapshot.relativePath,
+            });
+          } catch (error) {
+            await removeWorkspaceSnapshot(snapshot.relativePath);
+            throw error;
+          }
+          await this.#recordChange(entryPath, existing);
+          this.#materializedEntryPaths.add(entryPath);
+          return snapshot.file;
+        },
+      );
+    } catch (error) {
+      await this.releaseDatabaseLease(entryPath);
+      throw error;
     }
-    const file = await this.#workspaceFile(entryPath);
-    await replaceFile(file, content ?? new Uint8Array());
-    return file;
   }
 
   public async materializeSearchIndexCache(options: {
     readonly createIfMissing: boolean;
   }): Promise<File> {
     if (this.#searchCacheFile !== undefined) return this.#searchCacheFile;
-
     const persistent = this.#searchCacheDelete
       ? undefined
       : await this.#getPersistentSearchIndexCache(
@@ -225,29 +349,21 @@ export class HostWikgArchiveSession {
         `Archive SQLite entry is missing: ${SEARCH_INDEX_DATABASE_ENTRY_PATH}`,
       );
     }
-
-    const file = await this.#workspaceFile(SEARCH_INDEX_DATABASE_ENTRY_PATH);
-    await replaceFile(file, content ?? new Uint8Array());
-    this.#searchCacheFile = file;
-    // Materializing an archive-backed index establishes the durable external
-    // cache even when the caller only reads it.
+    const snapshot = await createWorkspaceSnapshot(
+      this.#archiveKey,
+      SEARCH_INDEX_DATABASE_ENTRY_PATH,
+    );
+    await replaceFile(snapshot.file, content ?? new Uint8Array());
+    this.#searchCacheFile = snapshot.file;
+    this.#searchCacheWorkspacePath = snapshot.relativePath;
     if (persistent === undefined && content !== undefined) {
       this.#searchCacheDirty = true;
     }
-    return file;
+    return snapshot.file;
   }
 
-  public markDatabaseDirty(path: string, file: File): void {
-    const entryPath = normalizeArchivePath(path);
-    this.#overlays.set(entryPath, { file, kind: "file" });
-    if (
-      entryPath === DATABASE_ENTRY_PATH ||
-      entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH
-    ) {
-      this.#overlays.set(LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH, {
-        kind: "deleted",
-      });
-    }
+  public markDatabaseDirty(path: string): void {
+    this.#modifiedEntryPaths.add(normalizeArchivePath(path));
   }
 
   public markSearchIndexCacheDirty(file: File): void {
@@ -257,71 +373,139 @@ export class HostWikgArchiveSession {
   }
 
   public deleteSearchIndexCache(): void {
-    this.#searchCacheFile = undefined;
     this.#searchCacheDirty = false;
     this.#searchCacheDelete = true;
+  }
+
+  public async releaseDatabaseLease(path: string): Promise<void> {
+    const entryPath = normalizeArchivePath(path);
+    if (!this.#leasedEntryPaths.delete(entryPath)) return;
+    await releaseSqliteLease({
+      archiveKey: this.#archiveKey,
+      entryPath,
+      ownerId: this.#owner.ownerId,
+    });
+  }
+
+  public async abort(): Promise<void> {
+    if (this.#aborted) return;
+    this.#aborted = true;
+    await this.#rollbackChanges();
+    await this.#cleanupSearchCacheWorkspace();
   }
 
   public async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
+    globalThis.clearInterval(this.#heartbeat);
     try {
-      if (!this.#aborted && this.#overlays.size > 0) await this.#commit();
-      if (!this.#aborted) await this.#settleSearchIndexCache();
+      for (const entryPath of [...this.#leasedEntryPaths]) {
+        await this.releaseDatabaseLease(entryPath);
+      }
+      if (!this.#aborted) {
+        for (const entryPath of this.#materializedEntryPaths) {
+          const overlay = await readOverlay(this.#archiveKey, entryPath);
+          if (overlay !== undefined && (await isDirtyOverlay(overlay))) {
+            this.#modifiedEntryPaths.add(entryPath);
+          }
+        }
+        const requested = new Set([
+          ...this.#observedDirtyEntryPaths,
+          ...this.#modifiedEntryPaths,
+        ]);
+        if (requested.size > 0) {
+          const mutationToken = await flushArchiveOverlays(
+            this.#archiveKey,
+            this.#owner,
+            requested,
+            this.#archive,
+          );
+          if (mutationToken !== undefined) {
+            this.#searchCacheKey = createSearchCacheKey(mutationToken);
+          }
+        }
+        await reapArchive(this.#archiveKey, this.#owner, this.#archive);
+        await this.#settleSearchIndexCache();
+        for (const entryPath of this.#materializedEntryPaths) {
+          const overlay = await readOverlay(this.#archiveKey, entryPath);
+          if (overlay !== undefined) {
+            await deleteCleanOverlayIfUnused(overlay);
+          }
+        }
+        await this.#cleanupSupersededSnapshots();
+      }
+    } catch (error) {
+      await this.#rollbackChanges().catch(() => undefined);
+      throw error;
     } finally {
-      await getWikiGraphStorage()
-        .documentStore.remove(this.#workspaceName, { recursive: true })
-        .catch(() => undefined);
+      await this.#cleanupSearchCacheWorkspace();
+      await unregisterArchiveOwner(this.#archiveKey, this.#owner.ownerId);
     }
   }
 
-  public abort(): void {
-    this.#aborted = true;
-  }
-
-  async #workspaceFile(path: string): Promise<File> {
-    const parts = normalizeArchivePath(path).split("/");
-    const name = parts.pop();
-    if (name === undefined || name === "") throw new TypeError("Invalid file");
-    let directory = this.#workspace;
-    for (const part of parts) {
-      directory =
-        (await directory.getDirectory(part)) ??
-        (await directory.createDirectory(part));
+  async #readEntryUnlocked(entryPath: string): Promise<Uint8Array | undefined> {
+    const overlay = await readOverlay(this.#archiveKey, entryPath);
+    if (overlay?.kind === "deleted") {
+      this.#observedDirtyEntryPaths.add(entryPath);
+      return undefined;
     }
-    return (
-      (await directory.getFile(name)) ?? (await directory.createFile(name))
-    );
-  }
-
-  async #commit(): Promise<void> {
-    const paths = new Set(this.#entries.keys());
-    for (const [path, overlay] of this.#overlays) {
-      if (overlay.kind === "deleted") paths.delete(path);
-      else paths.add(path);
-    }
-    paths.add(WIKG_MANIFEST_PATH);
-    paths.add(WIKG_MUTATION_TOKEN_PATH);
-
-    const entries: HostZipEntry[] = [];
-    const mutationToken = createWikgMutationTokenBytes();
-    for (const path of sortArchiveEntryPathsForWrite(paths)) {
-      if (path === WIKG_MUTATION_TOKEN_PATH) {
-        entries.push({ data: mutationToken, name: path });
-        continue;
+    if (overlay?.kind === "file") {
+      if (await isDirtyOverlay(overlay)) {
+        this.#observedDirtyEntryPaths.add(entryPath);
       }
-      if (path === WIKG_MANIFEST_PATH) {
-        entries.push({
-          data: new TextEncoder().encode(WIKG_MANIFEST_CONTENT),
-          name: path,
-        });
-        continue;
-      }
-      const content = await this.readEntry(path);
-      if (content !== undefined) entries.push({ data: content, name: path });
+      return await readBytes(await resolveOverlayFile(overlay));
     }
-    await getWikiGraphPlatform().zip.write(this.#archive, entries);
-    this.#searchCacheKey = createSearchCacheKeyFromToken(mutationToken);
+    return await this.#readArchiveEntry(entryPath);
+  }
+
+  async #readArchiveEntry(entryPath: string): Promise<Uint8Array | undefined> {
+    const reader = await WikgArchiveReader.open(this.#archive);
+    try {
+      return await reader.readEntry(entryPath);
+    } finally {
+      await reader.close();
+    }
+  }
+
+  async #recordChange(
+    entryPath: string,
+    previous: EntryOverlay | undefined,
+  ): Promise<void> {
+    const current = await readOverlay(this.#archiveKey, entryPath);
+    if (current === undefined) {
+      throw new Error(`Could not publish archive entry: ${entryPath}.`);
+    }
+    const existing = this.#changes.get(entryPath);
+    this.#changes.set(entryPath, {
+      current,
+      previous: existing?.previous ?? previous,
+    });
+  }
+
+  async #rollbackChanges(): Promise<void> {
+    for (const change of [...this.#changes.values()].reverse()) {
+      await withEntryLock(
+        this.#archiveKey,
+        change.current.entryPath,
+        "write",
+        this.#owner,
+        async () => {
+          await restoreOverlay(change.current, change.previous);
+        },
+      );
+    }
+    this.#changes.clear();
+    this.#modifiedEntryPaths.clear();
+    this.#observedDirtyEntryPaths.clear();
+  }
+
+  async #cleanupSupersededSnapshots(): Promise<void> {
+    for (const change of this.#changes.values()) {
+      if (change.previous?.workspacePath !== change.current.workspacePath) {
+        await removeWorkspaceSnapshot(change.previous?.workspacePath);
+      }
+    }
+    this.#changes.clear();
   }
 
   async #settleSearchIndexCache(): Promise<void> {
@@ -332,7 +516,6 @@ export class HostWikgArchiveSession {
       await this.#removePersistentSearchIndexCache(this.#initialSearchCacheKey);
     }
     if (!this.#searchCacheDirty || this.#searchCacheFile === undefined) return;
-
     const persistent = await this.#getPersistentSearchIndexCache(
       this.#searchCacheKey,
       true,
@@ -363,29 +546,19 @@ export class HostWikgArchiveSession {
     const archiveCache = await cacheRoot?.getDirectory(key);
     await archiveCache?.remove("index.db").catch(() => undefined);
   }
-}
 
-function createSearchCacheKey(
-  archive: File,
-  entries: ReadonlyMap<string, Uint8Array>,
-): string {
-  const mutationToken = entries.get(WIKG_MUTATION_TOKEN_PATH);
-  return mutationToken === undefined
-    ? createPortableHash("sha256").update(archive.identity).digest("hex")
-    : createSearchCacheKeyFromToken(mutationToken);
-}
-
-function createSearchCacheKeyFromToken(token: Uint8Array): string {
-  return createPortableHash("sha256").update(token).digest("hex");
-}
-
-async function createWorkspaceName(root: Directory): Promise<string> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    sessionSequence += 1;
-    const name = `.wikg-session-${Date.now().toString(36)}-${sessionSequence.toString(36)}`;
-    if ((await root.getDirectory(name)) === undefined) return name;
+  async #cleanupSearchCacheWorkspace(): Promise<void> {
+    await removeWorkspaceSnapshot(this.#searchCacheWorkspacePath);
+    this.#searchCacheWorkspacePath = undefined;
   }
-  throw new Error("Could not allocate a document-store workspace");
+}
+
+function createSearchCacheKey(token: string | Uint8Array): string {
+  const normalized =
+    typeof token === "string"
+      ? token
+      : parseWikgMutationToken(new TextDecoder().decode(token));
+  return createPortableHash("sha256").update(normalized).digest("hex");
 }
 
 async function replaceFile(
@@ -397,7 +570,7 @@ async function replaceFile(
     await writer.write(content);
     await writer.commit();
   } catch (error) {
-    await writer.abort();
+    await writer.abort().catch(() => undefined);
     throw error;
   }
 }
@@ -407,4 +580,12 @@ async function readBytes(file: File): Promise<Uint8Array> {
   return typeof content === "string"
     ? new TextEncoder().encode(content)
     : content;
+}
+
+function isSqliteEntry(entryPath: string): boolean {
+  return (
+    entryPath === DATABASE_ENTRY_PATH ||
+    entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH ||
+    entryPath === LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH
+  );
 }

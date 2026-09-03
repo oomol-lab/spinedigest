@@ -1,6 +1,6 @@
 import {
   ensureRelativeDirectory,
-  getWikiGraphPlatform,
+  readHostZipEntries,
   type Directory,
   type File,
 } from "../../../../runtime/platform/index.js";
@@ -19,7 +19,7 @@ export async function extractLegacySdpubArchive(
   inputFile: File,
   outputDirectory: Directory,
 ): Promise<void> {
-  const entries = await getWikiGraphPlatform().zip.read(inputFile);
+  const entries = await readHostZipEntries(inputFile);
   const paths = new Set(entries.map((entry) => normalize(entry.name)));
   if (!paths.has("database.db") || !paths.has("toc.json")) {
     throw new Error("Unsupported legacy sdpub archive.");

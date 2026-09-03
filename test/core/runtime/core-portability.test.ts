@@ -12,6 +12,15 @@ describe("core portability gate", () => {
     await expectRejected({ "forbidden.ts": 'import "node:fs";\n' });
   });
 
+  it.each(["node:dns", "node:diagnostics_channel", "dns/promises"])(
+    "rejects the complete Node builtin surface through %s",
+    async (specifier) => {
+      await expectRejected({
+        "forbidden.ts": `import ${JSON.stringify(specifier)};\n`,
+      });
+    },
+  );
+
   it("rejects a dynamic Node import in isolation", async () => {
     await expectRejected({
       "forbidden.ts": 'export const load = () => import("node:fs");\n',

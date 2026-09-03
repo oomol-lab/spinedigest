@@ -3,6 +3,7 @@ import type { DocumentFileStore } from "../../../document/directory/index.js";
 
 import {
   DATABASE_ENTRY_PATH,
+  LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
   SEARCH_INDEX_DATABASE_ENTRY_PATH,
 } from "./constants.js";
 import { normalizeArchivePath } from "../archive/paths.js";
@@ -15,6 +16,8 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
   readonly #session: HostWikgArchiveSession;
   #database: File | undefined;
   #searchIndexDatabase: File | undefined;
+  #databaseDirty = false;
+  #searchIndexDatabaseDirty = false;
 
   public constructor(
     session: HostWikgArchiveSession,
@@ -29,8 +32,16 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
       options.searchIndexWritebackPolicy ?? "cache";
   }
 
-  public close(): Promise<void> {
-    return Promise.resolve();
+  public async close(): Promise<void> {
+    await this.#session.releaseDatabaseLease(DATABASE_ENTRY_PATH);
+    await this.#session.releaseDatabaseLease(SEARCH_INDEX_DATABASE_ENTRY_PATH);
+    if (
+      this.#databaseDirty ||
+      (this.#searchIndexDatabaseDirty &&
+        this.#searchIndexWritebackPolicy === "archive")
+    ) {
+      await this.#session.deleteEntry(LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH);
+    }
   }
   public ensureDirectory(): Promise<void> {
     return Promise.resolve();
@@ -51,7 +62,10 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
   public async resolveDatabasePath(): Promise<File> {
     this.#database ??= await this.#session.materializeDatabase(
       DATABASE_ENTRY_PATH,
-      { createIfMissing: !this.#readonlyDatabase },
+      {
+        createIfMissing: !this.#readonlyDatabase,
+        mode: this.#readonlyDatabase ? "read" : "write",
+      },
     );
     return this.#database;
   }
@@ -64,24 +78,26 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
           })
         : await this.#session.materializeDatabase(
             SEARCH_INDEX_DATABASE_ENTRY_PATH,
-            { createIfMissing: !this.#readonlyDatabase },
+            {
+              createIfMissing: !this.#readonlyDatabase,
+              mode: this.#readonlyDatabase ? "read" : "write",
+            },
           );
     return this.#searchIndexDatabase;
   }
 
   public markDatabaseDirty(): void {
     if (!this.#readonlyDatabase && this.#database !== undefined) {
-      this.#session.markDatabaseDirty(DATABASE_ENTRY_PATH, this.#database);
+      this.#databaseDirty = true;
+      this.#session.markDatabaseDirty(DATABASE_ENTRY_PATH);
     }
   }
 
   public markSearchIndexDatabaseDirty(): void {
     if (!this.#readonlyDatabase && this.#searchIndexDatabase !== undefined) {
+      this.#searchIndexDatabaseDirty = true;
       if (this.#searchIndexWritebackPolicy === "archive") {
-        this.#session.markDatabaseDirty(
-          SEARCH_INDEX_DATABASE_ENTRY_PATH,
-          this.#searchIndexDatabase,
-        );
+        this.#session.markDatabaseDirty(SEARCH_INDEX_DATABASE_ENTRY_PATH);
       } else {
         this.#session.markSearchIndexCacheDirty(this.#searchIndexDatabase);
       }
@@ -98,13 +114,7 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
     options: { readonly overwrite?: boolean },
   ): Promise<void> {
     const entryPath = toEntryPath(path);
-    if (
-      options.overwrite !== true &&
-      (await this.#session.readEntry(entryPath)) !== undefined
-    ) {
-      throw new Error(`File already exists: ${path}`);
-    }
-    await this.#session.writeEntry(entryPath, content);
+    await this.#session.writeEntry(entryPath, content, options);
   }
 
   public async deleteFile(path: string): Promise<void> {
@@ -117,15 +127,15 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
       this.#session.deleteSearchIndexCache();
       return;
     }
-    this.#session.deleteEntry(entryPath);
+    await this.#session.deleteEntry(entryPath);
   }
 
   public async deleteTree(path: string): Promise<void> {
     const root = toEntryPath(path);
     const prefix = root === "" ? "" : `${root}/`;
-    for (const entry of this.#session.listEntries()) {
+    for (const entry of await this.#session.listEntries()) {
       if (entry === root || entry.startsWith(prefix)) {
-        this.#session.deleteEntry(entry);
+        await this.#session.deleteEntry(entry);
       }
     }
   }
@@ -133,8 +143,7 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
   public async listFiles(path: string): Promise<readonly string[]> {
     const root = toEntryPath(path);
     const prefix = root === "" ? "" : `${root}/`;
-    return this.#session
-      .listEntries()
+    return (await this.#session.listEntries())
       .filter((entry) => entry.startsWith(prefix))
       .map((entry) => entry.slice(prefix.length))
       .filter((entry) => entry !== "" && !entry.includes("/"))

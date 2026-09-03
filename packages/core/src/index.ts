@@ -476,9 +476,11 @@ export {
   type HostDatabaseProvider,
   type HostDatabaseRow,
   type HostDatabaseValue,
+  type HostLifecycleProvider,
   type HostResourceProvider,
   type HostZipEntry,
   type HostZipProvider,
+  type HostZipReader,
   type WikiGraphPlatform,
   type WikiGraphStorage,
 } from "./runtime/platform/index.js";
