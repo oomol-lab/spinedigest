@@ -326,6 +326,118 @@ describe("facade/chapter", () => {
     });
   });
 
+  it("clears all chapter data when resetting directly to planned", async () => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        const chapter = await addChapter(document, {
+          title: "Chapter 1",
+        });
+        const sourceText = "Alpha beta. Gamma delta.";
+        const artifactDigest = "a".repeat(64);
+        await setChapterSource(document, chapter.chapterId, [sourceText], {
+          provenance: {
+            artifacts: [
+              {
+                digest: artifactDigest,
+                mediaType: "application/pdf",
+              },
+            ],
+            mappings: [
+              {
+                artifactDigest,
+                locator: { bbox: [0, 0, 1, 1], pageIndex: 1 },
+                sourceEnd: sourceText.length,
+                sourceStart: 0,
+              },
+            ],
+          },
+        });
+        await document.chunks.save({
+          content: "Reading chunk",
+          generation: 0,
+          id: 100,
+          label: "Chunk",
+          sentenceId: [chapter.chapterId, 0],
+          sentenceIds: [[chapter.chapterId, 0]],
+          wordsCount: 2,
+          weight: 1,
+        });
+        await document.mentions.save({
+          chapterId: chapter.chapterId,
+          id: "mention-1",
+          qid: "Q1",
+          rangeEnd: 5,
+          rangeStart: 0,
+          sentenceIndex: 0,
+          surface: "Alpha",
+        });
+        await document.serials.setTopologyReady(chapter.chapterId);
+        await document.serials.setKnowledgeGraphReady(chapter.chapterId, true);
+        await setChapterSummary(document, chapter.chapterId, "Summary");
+        const sourceRevision = await document.serials.getRevision(
+          chapter.chapterId,
+        );
+        await document.indexArtifacts.replaceFts({
+          lexicalRows: [],
+          serialId: chapter.chapterId,
+          sourceRevision,
+        });
+        await document.indexArtifacts.replaceEmbedding({
+          kind: "embedding-source",
+          segments: [],
+          serialId: chapter.chapterId,
+          sourceRevision,
+        });
+        await document.indexArtifacts.replaceEmbedding({
+          kind: "embedding-summary",
+          segments: [],
+          serialId: chapter.chapterId,
+          sourceRevision,
+        });
+
+        const reset = await resetChapter(
+          document,
+          chapter.chapterId,
+          "planned",
+        );
+
+        expect(reset).toMatchObject({
+          fragmentCount: 0,
+          graphReady: false,
+          hasSummary: false,
+          stage: "planned",
+        });
+        expect(
+          await document.getSerialFragments(chapter.chapterId).readText(),
+        ).toBeUndefined();
+        expect(await document.readSummary(chapter.chapterId)).toBeUndefined();
+        expect(
+          await document.sourceProvenance.listMap(chapter.chapterId),
+        ).toStrictEqual([]);
+        expect(await document.sourceProvenance.listArtifacts()).toStrictEqual(
+          [],
+        );
+        expect(await document.chunks.listBySerial(chapter.chapterId)).toEqual(
+          [],
+        );
+        expect(
+          await document.mentions.listByChapter(chapter.chapterId),
+        ).toEqual([]);
+        expect(await document.indexArtifacts.list()).toEqual([]);
+        expect(await document.serials.getById(chapter.chapterId)).toMatchObject(
+          {
+            knowledgeGraphReady: false,
+            topologyReady: false,
+          },
+        );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("reads one chapter details without scanning unrelated chapter fragments", async () => {
     await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
