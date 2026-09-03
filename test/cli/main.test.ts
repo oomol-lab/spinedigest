@@ -21,6 +21,7 @@ const mainMockState = vi.hoisted(() => ({
   archiveCoverRunCalls: [] as unknown[],
   archiveMetaRunCalls: [] as unknown[],
   legacyRunCalls: [] as unknown[],
+  maintenanceRunCalls: [] as unknown[],
   archiveRunError: undefined as Error | undefined,
   archiveIndexRunError: undefined as Error | undefined,
   convertRunError: undefined as Error | undefined,
@@ -30,6 +31,7 @@ const mainMockState = vi.hoisted(() => ({
   archiveCoverRunError: undefined as Error | undefined,
   archiveMetaRunError: undefined as Error | undefined,
   legacyRunError: undefined as Error | undefined,
+  maintenanceRunError: undefined as Error | undefined,
 }));
 
 vi.mock("../../packages/cli/src/args/index.js", () => ({
@@ -124,6 +126,15 @@ vi.mock("../../packages/cli/src/commands/index.js", () => ({
 
     return Promise.resolve();
   }),
+  runMaintenanceCommand: vi.fn((args: unknown) => {
+    mainMockState.maintenanceRunCalls.push(args);
+
+    if (mainMockState.maintenanceRunError !== undefined) {
+      return Promise.reject(mainMockState.maintenanceRunError);
+    }
+
+    return Promise.resolve();
+  }),
 }));
 
 vi.mock("wiki-graph-core", async (importOriginal) => {
@@ -137,6 +148,7 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
 import { main } from "../../packages/cli/src/app/index.js";
 import { renderMainHelpText } from "../../packages/cli/src/args/help.js";
 import { LLMPaymentRequiredError } from "../../packages/core/src/external/llm/index.js";
+import { ensureWikiGraphHomeSchemaCurrent } from "wiki-graph-core";
 
 describe("cli/main", () => {
   const originalExitCode = process.exitCode;
@@ -166,6 +178,7 @@ describe("cli/main", () => {
     mainMockState.archiveCoverRunCalls.length = 0;
     mainMockState.archiveMetaRunCalls.length = 0;
     mainMockState.legacyRunCalls.length = 0;
+    mainMockState.maintenanceRunCalls.length = 0;
     mainMockState.archiveRunError = undefined;
     mainMockState.archiveIndexRunError = undefined;
     mainMockState.convertRunError = undefined;
@@ -175,6 +188,8 @@ describe("cli/main", () => {
     mainMockState.archiveCoverRunError = undefined;
     mainMockState.archiveMetaRunError = undefined;
     mainMockState.legacyRunError = undefined;
+    mainMockState.maintenanceRunError = undefined;
+    vi.mocked(ensureWikiGraphHomeSchemaCurrent).mockClear();
     process.exitCode = 0;
     process.argv = ["node", "wg"];
     setStdinTTY(false);
@@ -252,7 +267,54 @@ describe("cli/main", () => {
     ]);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
     expect(mainMockState.localConfigRunCalls).toHaveLength(0);
+    expect(ensureWikiGraphHomeSchemaCurrent).toHaveBeenCalledOnce();
     expect(stdoutChunks).toStrictEqual([]);
+    expect(stderrChunks).toStrictEqual([]);
+    expect(process.exitCode).toBe(0);
+  });
+
+  it("lets an explicit home upgrade bypass the ordinary home gate", async () => {
+    mainMockState.argsResult = {
+      args: {
+        action: "upgrade",
+        target: "home",
+      },
+      help: false,
+      kind: "maintenance-command",
+    };
+
+    await main();
+
+    expect(ensureWikiGraphHomeSchemaCurrent).not.toHaveBeenCalled();
+    expect(mainMockState.maintenanceRunCalls).toStrictEqual([
+      {
+        action: "upgrade",
+        target: "home",
+      },
+    ]);
+    expect(stderrChunks).toStrictEqual([]);
+    expect(process.exitCode).toBe(0);
+  });
+
+  it("keeps the ordinary home gate for non-home maintenance targets", async () => {
+    mainMockState.argsResult = {
+      args: {
+        action: "upgrade",
+        target: "/tmp/book.wikg",
+      },
+      help: false,
+      kind: "maintenance-command",
+    };
+
+    await main();
+
+    expect(ensureWikiGraphHomeSchemaCurrent).toHaveBeenCalledOnce();
+    expect(mainMockState.maintenanceRunCalls).toStrictEqual([
+      {
+        action: "upgrade",
+        target: "/tmp/book.wikg",
+      },
+    ]);
     expect(stderrChunks).toStrictEqual([]);
     expect(process.exitCode).toBe(0);
   });

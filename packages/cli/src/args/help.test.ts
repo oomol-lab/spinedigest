@@ -8,6 +8,7 @@ import {
   renderLibraryPredicateHelpText,
   renderLibraryUriHelpText,
   renderMainHelpText,
+  renderMaintenanceCommandHelpText,
   renderUriHelpText,
   renderUriPredicateHelpText,
   renderTransformHelpText,
@@ -215,6 +216,12 @@ describe("cli/args/help", () => {
         "wikg://book.wikg/chapter/part/title",
       ),
     ).toContain("does not delete the chapter");
+  });
+
+  it("shows the explicit home schema recovery command", () => {
+    expect(renderMaintenanceCommandHelpText("upgrade")).toContain(
+      "wg maintenance upgrade home",
+    );
   });
 
   it("prints help topic pages", () => {

@@ -12,6 +12,8 @@ import { getNumber, getString, Database } from "./database.js";
 
 const CURRENT_HOME_SCHEMA_VERSION = 4;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
+const HOME_UPGRADE_RECOVERY =
+  "Stop the active operation, then run `wg maintenance upgrade home`. See: `wg maintenance upgrade --help`.";
 const HOME_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS schema_versions (
     scope TEXT PRIMARY KEY,
@@ -277,16 +279,6 @@ async function assertBuildQueueSafe(file: File | undefined): Promise<void> {
   if (file === undefined || (await isEmpty(file))) return;
   const database = await Database.open(file, "", { readonly: true });
   try {
-    if (await tableExists(database, "build_jobs")) {
-      const active = await database.queryOne(
-        "SELECT 1 AS active FROM build_jobs WHERE state IN ('queued', 'running', 'canceling', 'paused') LIMIT 1",
-        undefined,
-        () => true,
-      );
-      if (active === true) {
-        throw new Error("Cannot upgrade home with active build jobs.");
-      }
-    }
     if (await tableExists(database, "build_worker_lease")) {
       const columns = await readTableColumns(database, "build_worker_lease");
       const ownerColumns = ["owner_id", "owner_pid"].filter((name) =>
@@ -305,7 +297,9 @@ async function assertBuildQueueSafe(file: File | undefined): Promise<void> {
         () => true,
       );
       if (active === true) {
-        throw new Error("Cannot upgrade home with an active build worker.");
+        throw homeUpgradeBlocked(
+          "Cannot upgrade home with an active build worker.",
+        );
       }
     }
   } finally {
@@ -337,7 +331,9 @@ async function assertCoordinatorInactive(
       for (const owner of owners) {
         if (owner.hostInstanceId === undefined) {
           if (isFresh(owner.heartbeatAt)) {
-            throw new Error(`Cannot upgrade home with active ${label} state.`);
+            throw homeUpgradeBlocked(
+              `Cannot upgrade home with active ${label} state.`,
+            );
           }
           continue;
         }
@@ -348,7 +344,9 @@ async function assertCoordinatorInactive(
           alive === true ||
           (alive === undefined && isFresh(owner.heartbeatAt))
         ) {
-          throw new Error(`Cannot upgrade home with active ${label} state.`);
+          throw homeUpgradeBlocked(
+            `Cannot upgrade home with active ${label} state.`,
+          );
         }
       }
     }
@@ -367,7 +365,9 @@ async function assertCoordinatorInactive(
         () => true,
       );
       if (active === true) {
-        throw new Error(`Cannot upgrade home with active ${label} state.`);
+        throw homeUpgradeBlocked(
+          `Cannot upgrade home with active ${label} state.`,
+        );
       }
     }
   } finally {
@@ -389,11 +389,15 @@ async function assertNoFreshRows(
         [Date.now() - LOCK_STALE_TIMEOUT_MS],
         () => true,
       );
-      if (active === true) throw new Error(message);
+      if (active === true) throw homeUpgradeBlocked(message);
     }
   } finally {
     await database.close();
   }
+}
+
+function homeUpgradeBlocked(message: string): Error {
+  return new Error(`${message} ${HOME_UPGRADE_RECOVERY}`);
 }
 
 function isFresh(heartbeat: number | undefined): boolean {

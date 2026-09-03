@@ -459,8 +459,8 @@ describe("schema-upgrade", () => {
     });
   });
 
-  it("blocks v3 home migration before cleanup when a build job is queued", async () => {
-    await withTempDir("wikigraph-home-build-active-", async (root) => {
+  it("discards unfinished build jobs when no worker lease is active", async () => {
+    await withTempDir("wikigraph-home-build-inactive-", async (root) => {
       const statePath = join(root, "state");
       const libraryPath = join(root, "library");
       await mkdir(libraryPath, { recursive: true });
@@ -492,8 +492,56 @@ describe("schema-upgrade", () => {
       await withWikiGraphStorage(
         createNodeWikiGraphStorage(statePath),
         async () => {
+          await expect(
+            ensureWikiGraphHomeSchemaCurrent(),
+          ).resolves.toBeUndefined();
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
+          await expectPathMissing(join(statePath, "cache/cache.sqlite"));
+          await expectPathMissing(join(statePath, "jobs/job.sqlite"));
+        },
+      );
+    });
+  });
+
+  it("blocks v3 home migration while a build worker lease is active", async () => {
+    await withTempDir("wikigraph-home-build-active-", async (root) => {
+      const statePath = join(root, "state");
+      const libraryPath = join(root, "library");
+      await mkdir(libraryPath, { recursive: true });
+      await createV3Home(statePath, libraryPath);
+      await mkdir(join(statePath, "cache"), { recursive: true });
+      await writeFile(
+        join(statePath, "cache/cache.sqlite"),
+        "keep-before-gate",
+      );
+      await mkdir(join(statePath, "jobs"), { recursive: true });
+      const jobs = await Database.open(
+        new NodeFile(join(statePath, "jobs/job.sqlite")),
+      );
+      try {
+        await jobs.execute(`
+          CREATE TABLE build_jobs (state TEXT NOT NULL);
+          CREATE TABLE build_worker_lease (
+            id INTEGER PRIMARY KEY,
+            owner_id TEXT,
+            owner_pid INTEGER,
+            heartbeat_at INTEGER
+          );
+        `);
+        await jobs.run("INSERT INTO build_jobs VALUES ('running')");
+        await jobs.run(
+          "INSERT INTO build_worker_lease VALUES (1, 'worker', 1234, ?)",
+          [Date.now()],
+        );
+      } finally {
+        await jobs.close();
+      }
+
+      await withWikiGraphStorage(
+        createNodeWikiGraphStorage(statePath),
+        async () => {
           await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-            "active build jobs",
+            "Cannot upgrade home with an active build worker. Stop the active operation, then run `wg maintenance upgrade home`. See: `wg maintenance upgrade --help`.",
           );
           await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(3);
           await expect(
