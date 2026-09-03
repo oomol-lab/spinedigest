@@ -51,6 +51,12 @@ Default behavior:
 
 Use when:
   - You already selected a chapter and want local source, summary, chunk, entity, or triple objects.
+
+Common child targets:
+  - `{{ commandName }} {{ uri }}/source --help`: normalized source text and source ranges.
+  - `{{ commandName }} {{ uri }}/summary --help`: chapter summary text and ranges.
+  - `{{ commandName }} {{ uri }}/state --help`: current stage and readiness.
+  - `{{ commandName }} {{ uri }}/title --help`: explicit chapter title.
 {% elif target.name == "chunk-scope" %}
 URI type:
   Chunk scope
@@ -112,6 +118,7 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` reads source text.
   - Source range fragments such as `#4..8` read sentence numbers 4 through 8, inclusive.
+  - Range fragments are read-only; `set` writes the complete source object.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
   - Whole source reads are plain text streams and do not support `--json`; source range fragments are structured range objects and support `--json`.
 

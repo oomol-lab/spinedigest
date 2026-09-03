@@ -2,23 +2,22 @@ Help Type: command
 Command: {{ commandName }} <chapter-uri>/source set
 
 Purpose:
-  Fill a planned chapter with normalized source text.
+  Fill a planned chapter with its complete source text.
 
 Usage:
-  {{ commandName }} <chapter-uri>/source set [text] [--input <path|->] [--input-format jsonl] [--llm <json>] [--json] [--help|-h]
+  {{ commandName }} <chapter-uri>/source set (<text>|--input <path|->) [--input-format jsonl] [--llm <json>] [--json] [--help|-h]
 
 Input:
-  - Source text is read from a positional value, `--input <path>`, or `--input -` for stdin.
-  - `--input-format jsonl` accepts provenance records with `type: "artifact"` and `type: "text"`.
-  - JSONL text records are concatenated in order; each text record is bound to the most recently declared artifact.
-  - Artifact `digest` is exactly 64 hexadecimal characters. `identifier` is opaque and optional, with a maximum length of 1024 characters.
+  - Supply exactly one positional value or `--input`; files and stdin are UTF-8 plain text unless `--input-format jsonl` is set. File extensions are not inferred.
+  - Plain text writes source without a source-text map.
+  - `--input-format jsonl` writes source and provenance supplied by an external extractor. Read `{{ commandName }} help file-import` for the record contract.
 
 Preconditions:
   - The chapter must be `planned`.
-  - To replace source on a later-stage chapter, first reset it to `planned`.
+  - Read the chapter state and reset help before discarding data from a later-stage chapter.
 
 Behavior:
-  - Writes normalized source text.
+  - Writes the complete source text.
   - Moves the chapter to `source`.
   - Does not generate Reading Graph data.
   - Does not generate or modify a summary.

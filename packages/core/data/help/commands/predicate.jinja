@@ -214,16 +214,17 @@ Notes:
   - This rewires chapter hierarchy and order; it does not rewrite chapter source text or generated graph content.
 {% elif target.name == "chapter-source-object" %}
 Purpose:
-  Replace this chapter source text.
+  Fill a planned chapter with its complete source text.
 
 Usage:
-  {{ commandName }} {{ uri }} set [text] [--input <path|->] [--input-format jsonl]
+  {{ commandName }} {{ uri }} set (<text>|--input <path|->) [--input-format jsonl] [--json]
 
 Notes:
-  - Source text is read from a positional value, `--input <path>`, or `--input -` for stdin.
-  - Use `--input-format jsonl` when an external importer supplies ordered text ranges and source locators; see `{{ commandName }} help file-import` for the input contract.
-  - Source replacement invalidates later generated work for that chapter.
-  - Use `{{ commandName }} {{ uri }} --help` to inspect the source object before replacing it.
+  - Supply exactly one positional value or `--input`; files and stdin are UTF-8 plain text unless `--input-format jsonl` is set. File extensions are not inferred.
+  - `--input-format jsonl` records source provenance supplied by an external extractor. Read `{{ commandName }} help file-import` for the record contract.
+  - The chapter must be `planned`. Read the chapter state and reset help before discarding data from a later-stage chapter.
+  - Plain text writes source without a source-text map. JSONL writes both source and its map.
+  - On success, the chapter moves to `source` and the updated status is printed; `--json` prints one JSON object.
 {% elif target.name == "chapter-summary-object" %}
 Purpose:
   Replace this chapter summary text.
@@ -632,6 +633,11 @@ Library context:
 Related help:
   - {{ commandName }} {{ uri }} --help
   - {{ commandName }} help uri
+{% if target.name == "chapter-source-object" and predicate == "set" %}
+  - {{ commandName }} <chapter-uri>/state --help
+  - {{ commandName }} <chapter-uri> reset --help
+  - {{ commandName }} help file-import
+{% endif %}
 {% if predicate == "related" or predicate == "evidence" or predicate == "pack" or target.name == "index-object" or target.name == "chapter-index-artifact" or target.name == "job-collection-scope" %}
   - {{ commandName }} help readiness
 {% endif %}

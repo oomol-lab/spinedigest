@@ -11,7 +11,7 @@ Usage:
   {{ commandName }} <chapter-uri> move (--parent <chapter-path>|--root|--before <chapter-path>|--after <chapter-path>|--first|--last) [--llm <json>] [--help|-h]
   {{ commandName }} <chapter-uri> remove [--recursive] [--llm <json>] [--help|-h]
   {{ commandName }} <chapter-uri> reset --to <planned|source|reading-graph> [--llm <json>] [--help|-h]
-  {{ commandName }} <chapter-uri>/source set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
+  {{ commandName }} <chapter-uri>/source set (<text>|--input <path|->) [--input-format jsonl] [--llm <json>] [--json] [--help|-h]
   {{ commandName }} <chapter-uri>/summary set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
   {{ commandName }} <chapter-uri>/title set <title> [--llm <json>] [--help|-h]
   {{ commandName }} <chapter-uri>/title clear [--llm <json>] [--help|-h]
@@ -29,7 +29,8 @@ Input rules:
   - `<chapter-uri>` includes the chapter path printed by the chapter collection or `add`.
   - `add` creates an empty planned chapter. Use this for chapter directories, groups, and drafting placeholders.
   - `add --input <path>` creates a chapter and fills it from source text; use `--input -` for stdin.
-  - `<chapter-uri>/source set` and `<chapter-uri>/summary set` read a positional value, `--input <path>`, or `--input -` for stdin.
+  - `<chapter-uri>/source set` fills a planned chapter from one positional value or `--input <path|->`; use `--input-format jsonl` for externally extracted source provenance.
+  - `<chapter-uri>/summary set` reads a positional value, `--input <path>`, or `--input -` for stdin.
   - `<chapter-uri>/title set <title>` renames a chapter in the tree; `<chapter-uri>/title clear` removes the explicit title.
   - `move` changes parent/order only; it does not edit source, graph, or summary data.
   - `tree` prints the chapter tree as JSON with `title: null` for untitled chapters.
