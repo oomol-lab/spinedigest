@@ -123,6 +123,54 @@ describe("Node File/Directory adapter", () => {
     expect(probe.abortCalls).toBe(1);
   });
 
+  it("rejects promptly when the sink fails while an async producer waits", async () => {
+    const probe = createWriterProbe({ failWriteAt: 1 });
+    let releaseProducer: (() => void) | undefined;
+    let signalProducerWaiting: (() => void) | undefined;
+    const producerWaiting = new Promise<void>((resolve) => {
+      signalProducerWaiting = resolve;
+    });
+    const producerRelease = new Promise<void>((resolve) => {
+      releaseProducer = resolve;
+    });
+    const entries = (async function* (): AsyncGenerator<HostZipEntry> {
+      yield {
+        data: new Uint8Array(256 * 1024).fill(1),
+        name: "first.bin",
+      };
+      signalProducerWaiting?.();
+      await producerRelease;
+      yield {
+        data: new Uint8Array(256 * 1024).fill(2),
+        name: "second.bin",
+      };
+    })();
+    const writing = nodeWikiGraphPlatform.zip.write(probe.file, entries);
+
+    await producerWaiting;
+    let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+    try {
+      await expect(
+        Promise.race([
+          writing,
+          new Promise<never>((_resolve, reject) => {
+            timeout = globalThis.setTimeout(
+              () => reject(new Error("stream failure was not propagated")),
+              100,
+            );
+          }),
+        ]),
+      ).rejects.toThrow("stream write failed");
+    } finally {
+      if (timeout !== undefined) globalThis.clearTimeout(timeout);
+      releaseProducer?.();
+      await entries.return(undefined);
+    }
+
+    expect(probe.commitCalls).toBe(0);
+    expect(probe.abortCalls).toBe(1);
+  });
+
   it("aborts a streaming ZIP write when entry production fails", async () => {
     const probe = createWriterProbe();
     const entries = (function* (): Generator<HostZipEntry> {
