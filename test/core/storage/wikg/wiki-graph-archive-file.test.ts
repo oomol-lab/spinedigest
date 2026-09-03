@@ -116,23 +116,88 @@ describe("wikg/wiki-graph-archive-file", () => {
 
   it("serializes concurrent access by opaque file identity", async () => {
     await withArchiveFixture(async ({ archive }) => {
-      const file = new WikiGraphArchiveFile(archive);
+      let watchSecondAccess = false;
+      let secondTouchedBackingFile = false;
+      let markSecondQueued!: () => void;
+      let rejectSecondQueued!: (error: Error) => void;
+      const secondQueued = new Promise<void>((resolve, reject) => {
+        markSecondQueued = resolve;
+        rejectSecondQueued = reject;
+      });
+      // Identity is read at the queue boundary, before the backing file opens.
+      // This makes the second caller's arrival observable without a timer.
+      const observedArchive = new Proxy(archive, {
+        get: (target, property, receiver) => {
+          if (watchSecondAccess && property === "path") {
+            secondTouchedBackingFile = true;
+          }
+          if (watchSecondAccess && property === "identity") {
+            watchSecondAccess = false;
+            if (secondTouchedBackingFile) {
+              rejectSecondQueued(
+                new Error(
+                  "Second archive access touched the backing file before reaching the identity queue.",
+                ),
+              );
+            } else {
+              markSecondQueued();
+            }
+          }
+          return Reflect.get(target, property, receiver) as unknown;
+        },
+      });
+      const firstFile = new WikiGraphArchiveFile(archive);
+      const secondFile = new WikiGraphArchiveFile(observedArchive);
       const order: string[] = [];
-      let release!: () => void;
-      const gate = new Promise<void>((resolve) => {
-        release = resolve;
+      let activeSessions = 0;
+      let maxConcurrentSessions = 0;
+      let markFirstEntered!: () => void;
+      const firstEntered = new Promise<void>((resolve) => {
+        markFirstEntered = resolve;
       });
-      const first = file.write(async () => {
+      let releaseFirst!: () => void;
+      const firstGate = new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+      const first = firstFile.write(async () => {
+        activeSessions += 1;
+        maxConcurrentSessions = Math.max(maxConcurrentSessions, activeSessions);
         order.push("first-start");
-        await gate;
-        order.push("first-end");
+        markFirstEntered();
+        try {
+          await firstGate;
+          order.push("first-end");
+        } finally {
+          activeSessions -= 1;
+        }
       });
-      const second = file.read(() => {
-        order.push("second");
+
+      await firstEntered;
+      watchSecondAccess = true;
+      const second = secondFile.read(() => {
+        activeSessions += 1;
+        maxConcurrentSessions = Math.max(maxConcurrentSessions, activeSessions);
+        try {
+          order.push("second");
+        } finally {
+          activeSessions -= 1;
+        }
       });
-      await Promise.resolve();
-      release();
+      let queueError: Error | undefined;
+      try {
+        await secondQueued;
+      } catch (error) {
+        queueError = error instanceof Error ? error : new Error(String(error));
+      } finally {
+        releaseFirst();
+      }
+      if (queueError !== undefined) {
+        await Promise.allSettled([first, second]);
+        throw queueError;
+      }
       await Promise.all([first, second]);
+
+      expect(maxConcurrentSessions).toBe(1);
       expect(order).toStrictEqual(["first-start", "first-end", "second"]);
     });
   });
