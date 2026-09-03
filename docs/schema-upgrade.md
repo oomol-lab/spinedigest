@@ -60,7 +60,10 @@ the resulting database is written back only by the explicit archive upgrader.
 
 Archive upgraders must refuse active coordinator state for the target archive
 and non-search-index overlays, because those can represent uncommitted important
-data.
+data. This check uses the current host-neutral coordinator state in
+`tmp/wikg-coordinator.sqlite`; an in-process upgrade queue is not a substitute
+for the durable check. Derived `index.db` / `fts.db` overlays may be discarded
+after the archive rewrite commits.
 
 ## Home Gate
 
@@ -85,13 +88,16 @@ code and tests when adding new home SQLite files:
   - build jobs and build worker lease state.
 - `~/.wikigraph/tmp/gc.sqlite`
   - GC locks.
+- `~/.wikigraph/tmp/wikg-coordinator.sqlite`
+  - current host-neutral coordinator overlays, entry locks, owners, sqlite
+    leases, and commit locks.
 - `~/.wikigraph/staging/staging.sqlite`
-  - coordinator overlays, entry locks, owners, sqlite leases, and commit locks.
+  - legacy v3 coordinator state, inspected only by the home upgrader.
 - `~/.wikigraph/staging/library/<library-id>/index/index.db`
   - library aggregate search index SQLite.
-- `~/.wikigraph/staging/work/<archiveKey>/index.db`
-  - archive coordinator external search index cache workspace referenced by
-    `entry_overlays(entry_path = 'index.db')`.
+- the host-provided document store
+  - `.wikg-work` coordinator snapshots, `.wikg-cache` search caches, and
+    abandoned `.wikg-session-*` / `.wikg-upgrade-*` workspaces.
 
 For home schema upgrades, derived home data is deleted or invalidated:
 query/search caches, external cache, GC state, build queue SQLite/cache when
@@ -99,12 +105,34 @@ safe, library aggregate indexes, external archive search index
 overlays/workspaces for `index.db` or legacy `fts.db`, and orphaned SQLite
 materialization cache overlays whose archive file no longer exists. The v2 -> v3
 home upgrader uses the same cleanup boundary because the index-cache semantics
-changed. The upgrader must block when active GC, build job, worker lease,
-coordinator owner/lock/sqlite lease/commit lock, or remaining non-derived
-overlay state is present.
+changed. A home upgrader must block before cleanup when library/state/GC locks,
+build jobs, worker leases, or coordinator owners are still active. Orphaned
+cross-version overlays are rollback state, not a reason to replay a partially
+completed operation against an archive.
 
 Pure information commands such as `wg --version` and help rendering must not open
 home SQLite and must not trigger schema upgrade.
+
+The v3 -> v4 home upgrader is the persistence boundary for the host-neutral
+runtime refactor. It renames `libraries.folder_path` to
+`libraries.folder_identity` and asks the host resource adapter to resolve every
+legacy stored directory reference, then persists only each resulting opaque
+`Directory.identity`. Config sections, library ids/default status, library
+metadata, and `library_archives` membership rows remain unchanged. The archive
+schema remains v4 and no `.wikg` is rewritten by this home migration.
+Hosts that need to accept a v3 home implement the resource adapter's
+`resolveLegacyDirectory` hook; this keeps legacy location syntax outside Core's
+normal file and directory operations.
+
+Before changing the registry or deleting derived state, the upgrader rejects
+fresh library/state/GC locks, active build jobs or worker leases, and live
+legacy or current coordinator owners. Once those checks pass, cross-version
+coordinator state is rolled back: legacy/current coordinator databases and
+their workspaces are discarded, including non-derived overlays, so the last
+atomic `.wikg` commit stays authoritative. Search/cache/index state and inactive
+job queue/work/cache state are likewise invalidated. The v4 marker is written
+last; a failure retains the prior marker and the migration can be retried. A
+second successful run is a no-op.
 
 Search index caches also carry their own `search_index_state.version`. Opening a
 cache whose version is missing, unreadable, or different from the current search

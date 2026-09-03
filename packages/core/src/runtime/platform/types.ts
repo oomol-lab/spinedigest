@@ -45,6 +45,8 @@ export interface Directory {
 export interface HostResourceProvider {
   getDirectory(identity: string): Promise<Directory | undefined>;
   getFile(identity: string): Promise<File | undefined>;
+  /** Resolves a pre-v4 persisted directory reference during home migration. */
+  resolveLegacyDirectory?(reference: string): Promise<Directory | undefined>;
 }
 
 /** Host storage roots. Their backing locations are never visible to Core. */

@@ -31,6 +31,8 @@ const RESERVED_METADATA_KEYS = new Set([
   "publicId",
   "folder_path",
   "folderPath",
+  "folder_identity",
+  "folderIdentity",
   "is_default",
   "isDefault",
   "staging_path",
@@ -48,7 +50,7 @@ const LIBRARY_REGISTRY_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS libraries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     public_id TEXT NOT NULL UNIQUE,
-    folder_path TEXT NOT NULL UNIQUE,
+    folder_identity TEXT NOT NULL UNIQUE,
     is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -336,7 +338,7 @@ export async function ensureDefaultWikiGraphLibrary(): Promise<WikiGraphLibraryR
 
       await database.run(
         `
-          INSERT INTO libraries (public_id, folder_path, is_default, created_at, updated_at)
+          INSERT INTO libraries (public_id, folder_identity, is_default, created_at, updated_at)
           VALUES (?, ?, 1, ?, ?)
         `,
         [publicId, folder.identity, now, now],
@@ -359,7 +361,7 @@ export async function createWikiGraphLibrary(input: {
 
       await database.run(
         `
-          INSERT INTO libraries (public_id, folder_path, is_default, created_at, updated_at)
+          INSERT INTO libraries (public_id, folder_identity, is_default, created_at, updated_at)
           VALUES (?, ?, 0, ?, ?)
         `,
         [publicId, input.folder.identity, now, now],
@@ -377,7 +379,7 @@ export async function listWikiGraphLibraries(): Promise<
   return await withLibraryRegistryDatabase(async (database) => {
     const rows = await database.queryAll(
       `
-          SELECT id, public_id, folder_path, is_default, created_at, updated_at
+          SELECT id, public_id, folder_identity, is_default, created_at, updated_at
           FROM libraries
           ORDER BY is_default DESC, public_id
         `,
@@ -464,7 +466,7 @@ export async function updateWikiGraphLibraryFolderForRebind(
   return await withLibraryRegistryDatabase(async (database) => {
     return await database.transaction(async () => {
       const existing = await database.queryOne(
-        "SELECT id FROM libraries WHERE folder_path = ?",
+        "SELECT id FROM libraries WHERE folder_identity = ?",
         [folder.identity],
         (row) => getNumber(row, "id"),
       );
@@ -475,7 +477,7 @@ export async function updateWikiGraphLibraryFolderForRebind(
       }
 
       await database.run(
-        "UPDATE libraries SET folder_path = ?, updated_at = ? WHERE id = ?",
+        "UPDATE libraries SET folder_identity = ?, updated_at = ? WHERE id = ?",
         [folder.identity, new Date().toISOString(), library.id],
       );
       return await requireLibraryRecordById(database, library.id);
@@ -584,7 +586,7 @@ async function readDefaultLibraryRecord(
 ): Promise<WikiGraphLibraryRecord | undefined> {
   const row = await database.queryOne(
     `
-      SELECT id, public_id, folder_path, is_default, created_at, updated_at
+      SELECT id, public_id, folder_identity, is_default, created_at, updated_at
       FROM libraries
       WHERE is_default = 1
     `,
@@ -610,7 +612,7 @@ async function requireLibraryRecordByPublicId(
 ): Promise<WikiGraphLibraryRecord> {
   const row = await database.queryOne(
     `
-      SELECT id, public_id, folder_path, is_default, created_at, updated_at
+      SELECT id, public_id, folder_identity, is_default, created_at, updated_at
       FROM libraries
       WHERE public_id = ?
     `,
@@ -630,7 +632,7 @@ async function requireLibraryRecordById(
 ): Promise<WikiGraphLibraryRecord> {
   const row = await database.queryOne(
     `
-      SELECT id, public_id, folder_path, is_default, created_at, updated_at
+      SELECT id, public_id, folder_identity, is_default, created_at, updated_at
       FROM libraries
       WHERE id = ?
     `,
@@ -648,7 +650,7 @@ async function requireLibraryRecordById(
 async function mapLibraryRecord(row: SqlRow): Promise<WikiGraphLibraryRecord> {
   const id = getNumber(row, "id");
   const publicId = getString(row, "public_id");
-  const folderIdentity = getString(row, "folder_path");
+  const folderIdentity = getString(row, "folder_identity");
   const folder =
     await getWikiGraphPlatform().resources.getDirectory(folderIdentity);
   if (folder === undefined) {

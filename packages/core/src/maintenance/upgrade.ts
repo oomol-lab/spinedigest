@@ -120,9 +120,11 @@ export async function assertWikiGraphLibrarySchemaCurrent(
     const schemaVersion = await readWikiGraphArchiveSchemaVersion(
       requireArchiveFile(archive),
     );
-    if (schemaVersion < CURRENT_ARCHIVE_SCHEMA_VERSION) {
+    if (schemaVersion !== CURRENT_ARCHIVE_SCHEMA_VERSION) {
       throw new Error(
-        `This Wiki Graph library must be upgraded before use: ${library.uri}.`,
+        schemaVersion > CURRENT_ARCHIVE_SCHEMA_VERSION
+          ? `This Wiki Graph library contains an unsupported future archive schema v${schemaVersion}: ${library.uri}.`
+          : `This Wiki Graph library must be upgraded before use: ${library.uri}.`,
       );
     }
   }
