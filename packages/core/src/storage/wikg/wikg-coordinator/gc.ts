@@ -5,6 +5,7 @@ import {
   readHostEntrySize,
 } from "../../../runtime/platform/index.js";
 import type { GcContext, GcJobResult } from "../../../runtime/gc/index.js";
+import { isHostError } from "../../../utils/host-error.js";
 
 const ABANDONED_SESSION_TTL_MS = 60 * 60 * 1000;
 
@@ -16,7 +17,16 @@ export async function runWikgCoordinatorGc(
   let scanned = 0;
   let removed = 0;
   let freedBytes = 0;
-  for (const entry of await root.list()) {
+  let entries: ReadonlyArray<Awaited<ReturnType<typeof root.list>>[number]>;
+  try {
+    entries = await root.list();
+  } catch (error) {
+    if (isHostError(error) && error.code === "ENOENT") {
+      return { freedBytes, removed, scanned };
+    }
+    throw error;
+  }
+  for (const entry of entries) {
     if (!isDirectory(entry) || !entry.name.startsWith(".wikg-session-")) {
       continue;
     }

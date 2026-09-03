@@ -152,6 +152,25 @@ describe("gc", () => {
     });
   });
 
+  it("treats a missing document store as empty", async () => {
+    await withTempDir("wikigraph-gc-", async (path) => {
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
+
+      const report = await tryRunWikiGraphGc({ dryRun: true });
+      const coordinatorJob = report.jobs.find(
+        (item) => item.name === "wikg-coordinator",
+      );
+
+      expect(report.skipped).toBe(false);
+      expect(coordinatorJob).toStrictEqual({
+        freedBytes: 0,
+        name: "wikg-coordinator",
+        removed: 0,
+        scanned: 0,
+      });
+    });
+  });
+
   it("removes orphan library index staging while preserving valid and locked libraries", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
       setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
