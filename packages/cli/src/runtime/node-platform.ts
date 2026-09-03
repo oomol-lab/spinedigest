@@ -6,6 +6,8 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as pathModule from "node:path";
 import * as process from "node:process";
+import { type Readable, Writable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import * as sqlite3 from "sqlite3";
 import * as yauzl from "yauzl";
 import * as yazl from "yazl";
@@ -423,20 +425,53 @@ async function writeNodeZip(
   entries: Iterable<HostZipEntry> | AsyncIterable<HostZipEntry>,
 ): Promise<void> {
   const zipFile = new yazl.ZipFile();
-  const output = collectNodeStream(zipFile.outputStream);
-  for await (const entry of entries) {
-    zipFile.addBuffer(Buffer.from(entry.data), entry.name, { compress: false });
-  }
-  zipFile.end();
-
   const writer = await file.openWriter();
+  const outputStream = zipFile.outputStream as Readable;
+  const outputDone = writeNodeStream(outputStream, writer);
+  // Observe sink failures immediately while entry production may still be running.
+  void outputDone.catch(() => undefined);
+
   try {
-    await writer.write(await output);
+    for await (const entry of entries) {
+      zipFile.addBuffer(Buffer.from(entry.data), entry.name, {
+        compress: false,
+      });
+    }
+    zipFile.end();
+    await outputDone;
     await writer.commit();
   } catch (error) {
-    await writer.abort();
+    if (!outputStream.destroyed) {
+      outputStream.destroy(
+        error instanceof Error ? error : new Error("Cannot write ZIP archive"),
+      );
+    }
+    await outputDone.catch(() => undefined);
+    await writer.abort().catch(() => undefined);
     throw error;
   }
+}
+
+async function writeNodeStream(
+  input: NodeJS.ReadableStream,
+  writer: FileWriter,
+): Promise<void> {
+  await pipeline(
+    input,
+    new Writable({
+      write: (chunk: Buffer, _encoding, callback) => {
+        void writer.write(chunk).then(
+          () => callback(),
+          (error: unknown) =>
+            callback(
+              error instanceof Error
+                ? error
+                : new Error("Cannot stream ZIP archive"),
+            ),
+        );
+      },
+    }),
+  );
 }
 
 async function collectNodeStream(
