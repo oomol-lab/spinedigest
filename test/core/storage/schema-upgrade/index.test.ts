@@ -6,6 +6,7 @@ import {
   Database,
   DirectoryDocument,
 } from "../../../../packages/core/src/document/index.js";
+import { upgradeWikiGraphArchiveSchema as upgradeWikiGraphArchiveSchemaFromPublicAPI } from "../../../../packages/core/src/index.js";
 import {
   ensureWikiGraphArchiveSchemaCurrent,
   ensureWikiGraphHomeSchemaCurrent,
@@ -29,7 +30,11 @@ import {
   SEARCH_INDEX_DATABASE_PATH,
   WIKG_MANIFEST_PATH,
 } from "../../../../packages/core/src/storage/wikg/archive/constants.js";
-import { withWikiGraphStorage } from "../../../../packages/core/src/runtime/platform/index.js";
+import {
+  installWikiGraphPlatform,
+  type Directory,
+  withWikiGraphStorage,
+} from "../../../../packages/core/src/runtime/platform/index.js";
 import {
   createNodeWikiGraphStorage,
   nodeWikiGraphPlatform,
@@ -246,6 +251,37 @@ describe("schema-upgrade", () => {
     });
   });
 
+  it("upgrades an archive through Core while its home is still v3", async () => {
+    await withFixture(async ({ archive, root }) => {
+      const statePath = join(root, "state");
+      const libraryPath = join(root, "library");
+      await mkdir(libraryPath, { recursive: true });
+      await createV3Home(statePath, libraryPath);
+      const mutationToken = await readWikgArchiveMutationToken(archive);
+      const toc = await readWikgArchiveEntry(archive, "toc.json");
+      await rewriteManifest(archive, 3, true);
+
+      await expect(
+        upgradeWikiGraphArchiveSchemaFromPublicAPI(archive),
+      ).resolves.toMatchObject({ changed: true, schemaChanged: true });
+
+      await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
+      await expect(readWikiGraphArchiveSchemaVersion(archive)).resolves.toBe(4);
+      await expect(readWikgArchiveMutationToken(archive)).resolves.toBe(
+        mutationToken,
+      );
+      await expect(readWikgArchiveEntry(archive, "toc.json")).resolves.toEqual(
+        toc,
+      );
+      await expect(
+        readWikgArchiveEntry(archive, "database.db"),
+      ).resolves.toBeDefined();
+      await expect(
+        new NodeDirectory(join(statePath, "documents")).list(),
+      ).resolves.toStrictEqual([]);
+    });
+  });
+
   it("keeps the v3 marker and important data when migration fails, then retries", async () => {
     await withTempDir("wikigraph-home-retry-", async (root) => {
       const statePath = join(root, "state");
@@ -283,6 +319,104 @@ describe("schema-upgrade", () => {
           await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
         },
       );
+    });
+  });
+
+  it("retries a partially migrated directory identity with a strict host adapter", async () => {
+    await withTempDir("wikigraph-home-strict-retry-", async (root) => {
+      const statePath = join(root, "state");
+      const libraryPath = join(root, "library");
+      await mkdir(libraryPath, { recursive: true });
+      await createV3Home(statePath, libraryPath, {
+        includeOpaqueLibrary: false,
+      });
+
+      const storage = createNodeWikiGraphStorage(statePath);
+      const documentStore = failFirstDirectoryList(storage.documentStore);
+      const migratedIdentity = new NodeDirectory(libraryPath).identity;
+      const legacyReferences: string[] = [];
+      const identityReferences: string[] = [];
+      installWikiGraphPlatform({
+        ...nodeWikiGraphPlatform,
+        resources: {
+          getDirectory: (identity) => {
+            identityReferences.push(identity);
+            return Promise.resolve(
+              identity === migratedIdentity
+                ? new NodeDirectory(libraryPath)
+                : undefined,
+            );
+          },
+          getFile: async (identity) =>
+            await nodeWikiGraphPlatform.resources.getFile(identity),
+          resolveLegacyDirectory: (reference) => {
+            legacyReferences.push(reference);
+            return Promise.resolve(
+              reference === libraryPath
+                ? new NodeDirectory(libraryPath)
+                : undefined,
+            );
+          },
+        },
+      });
+
+      try {
+        await withWikiGraphStorage(
+          { documentStore, library: storage.library },
+          async () => {
+            await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+              "simulated derived cleanup failure",
+            );
+            await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(3);
+
+            const database = await Database.open(
+              new NodeFile(join(statePath, "core.sqlite")),
+              "",
+              { readonly: true },
+            );
+            try {
+              const columns = await database.queryAll(
+                "PRAGMA table_info(libraries)",
+                undefined,
+                (row) => String(row.name),
+              );
+              expect(columns).toContain("folder_identity");
+              await expect(
+                database.queryOne(
+                  "SELECT folder_identity FROM libraries WHERE id = 7",
+                  undefined,
+                  (row) => String(row.folder_identity),
+                ),
+              ).resolves.toBe(migratedIdentity);
+              await expect(
+                database.queryOne(
+                  "SELECT value_json FROM config_sections WHERE section = 'llm'",
+                  undefined,
+                  (row) => String(row.value_json),
+                ),
+              ).resolves.toBe('{"model":"test"}');
+              await expect(
+                database.queryOne(
+                  "SELECT relative_path FROM library_archives WHERE library_id = 7",
+                  undefined,
+                  (row) => String(row.relative_path),
+                ),
+              ).resolves.toBe("book.wikg");
+            } finally {
+              await database.close();
+            }
+
+            await expect(
+              ensureWikiGraphHomeSchemaCurrent(),
+            ).resolves.toBeUndefined();
+            await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
+            expect(legacyReferences).toStrictEqual([libraryPath]);
+            expect(identityReferences).toContain(migratedIdentity);
+          },
+        );
+      } finally {
+        installWikiGraphPlatform(nodeWikiGraphPlatform);
+      }
     });
   });
 
@@ -555,6 +689,7 @@ async function readZipEntries(
 async function createV3Home(
   statePath: string,
   libraryReference: string,
+  options: { readonly includeOpaqueLibrary?: boolean } = {},
 ): Promise<void> {
   await mkdir(statePath, { recursive: true });
   const database = await Database.open(
@@ -605,10 +740,12 @@ async function createV3Home(
       "INSERT INTO libraries VALUES (7, 'fixture-lib', ?, 0, 'created', 'updated')",
       [libraryReference],
     );
-    await database.run(
-      "INSERT INTO libraries VALUES (8, 'opaque-lib', ?, 1, 'created', 'updated')",
-      [new NodeDirectory(join(statePath, "default-library")).identity],
-    );
+    if (options.includeOpaqueLibrary !== false) {
+      await database.run(
+        "INSERT INTO libraries VALUES (8, 'opaque-lib', ?, 1, 'created', 'updated')",
+        [new NodeDirectory(join(statePath, "default-library")).identity],
+      );
+    }
     await database.run(
       `INSERT INTO library_metadata VALUES (7, 'label', '"Fixture"', 'v3')`,
     );
@@ -618,6 +755,26 @@ async function createV3Home(
   } finally {
     await database.close();
   }
+}
+
+function failFirstDirectoryList(directory: Directory): Directory {
+  let shouldFail = true;
+  return {
+    createDirectory: async (name) => await directory.createDirectory(name),
+    createFile: async (name) => await directory.createFile(name),
+    getDirectory: async (name) => await directory.getDirectory(name),
+    getFile: async (name) => await directory.getFile(name),
+    identity: directory.identity,
+    list: async () => {
+      if (shouldFail) {
+        shouldFail = false;
+        throw new Error("simulated derived cleanup failure");
+      }
+      return await directory.list();
+    },
+    name: directory.name,
+    remove: async (name, options) => await directory.remove(name, options),
+  };
 }
 
 async function createDerivedHomeState(statePath: string): Promise<void> {
