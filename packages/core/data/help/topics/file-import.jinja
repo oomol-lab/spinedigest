@@ -1,48 +1,40 @@
 Help Type: topic
 Topic: file-import
 
-Source-File Import
+Source Files and Provenance
 
 Purpose:
-  Import an external source file into a `.wikg` archive while keeping the
-  normalized source text traceable to the file that produced it.
+  Put source-file content into a `.wikg` archive while keeping normalized text
+  traceable to the file and location that produced it.
 
-Usage:
+Built-in EPUB import:
   {{ commandName }} wikg://book.wikg create --import ./book.epub
-  {{ commandName }} wikg://book.wikg create --import ./book.pdf
+  - `create --import` currently accepts EPUB and creates its chapter structure,
+    source text, and source-text map.
 
-Supported source files:
-  - EPUB
-  - PDF
+External extractor input:
+  {{ commandName }} wikg://book.wikg/chapter add --title "Part"
+  {{ commandName }} wikg://book.wikg/chapter/part/source set --input ./source.jsonl --input-format jsonl
+  - Use this path for PDF, or when another extractor handles EPUB.
+  - The selected chapter must be `planned`; use the URI returned by `chapter add`.
 
-Import contract:
-  - The importer is responsible for reading or extracting text from the file.
-  - OCR, layout analysis, and format-specific interpretation are outside this
-    contract.
-  - WG stores the normalized source text and a source-text map that points
-    each imported text range back to its source file and locator.
-  - The source text is its own layer; the file's internal layout does not
-    determine how source text is later split into sentences or other objects.
-  - The original PDF or EPUB file is not embedded in the `.wikg` archive.
+JSONL contract:
+  - Each non-empty line is one `artifact` or `text` object. At least one of each is required.
+  - An artifact record is `{"type":"artifact","digest":"<64 hex SHA-256>","mediaType":"application/pdf|application/epub+zip","name":"<optional>","identifier":"<optional>"}`.
+  - A text record is `{"type":"text","text":"...","locator":{...}}` and belongs to the most recently declared artifact.
+  - PDF locators are `{"pageIndex":1,"bbox":[left,bottom,right,top]}`; page indexes are 1-based and bbox coordinates are ordered numbers in `[0,1]`.
+  - EPUB locators are `{"cfi":"epubcfi(...)"}`.
+  - Text records are concatenated exactly in order. WG computes their Unicode character offsets; offsets are not input fields.
 
-Source identity and locator:
-  - Each imported file has a stable artifact identity.
-  - Each imported text range is mapped to a format-specific locator.
-  - WG preserves the locator for later evidence and does not require an Agent
-    to interpret the source file format.
-
-Advanced input:
-  - Use `--input-format jsonl` with `chapter/<path>/source set` only when an
-    external importer already provides ordered text ranges and locators.
-  - JSONL text ranges are concatenated in order and mapped by source-text
-    character offsets.
-  - For ordinary file import, use `create --import` instead.
+Minimal PDF example:
+  {"type":"artifact","digest":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","mediaType":"application/pdf","name":"book.pdf"}
+  {"type":"text","text":"Source text\n","locator":{"pageIndex":1,"bbox":[0,0,1,1]}}
 
 Boundaries:
-  - File import does not generate Reading Graph, Summary, or Knowledge Graph
+  - OCR, layout analysis, and format-specific extraction belong to the importer; WG consumes the contract above.
+  - WG stores normalized source text and its source-text map, not the original PDF or EPUB file.
+  - Source-file input does not generate Reading Graph, Summary, or Knowledge Graph
     data.
-  - Generation remains a separate, explicit workflow after import.
-  - A source file is an input and evidence origin, not an archive entry.
 
 See also:
   - {{ commandName }} wikg://book.wikg create --help

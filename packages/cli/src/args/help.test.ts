@@ -313,6 +313,43 @@ describe("cli/args/help", () => {
     ).toThrow("The `help` command does not support --llm.\nSee: wg --help");
   });
 
+  it("documents planned chapter source input and provenance JSONL", () => {
+    const chapterHelpText = renderUriHelpText(
+      "chapter-scope",
+      "wikg://book.wikg/chapter/part",
+    );
+    const sourceSetHelpText = renderUriPredicateHelpText(
+      "chapter-source-object",
+      "set",
+      "wikg://book.wikg/chapter/part/source",
+    );
+    const fileImportHelpText = renderHelpTopicText("file-import");
+
+    expect(chapterHelpText).toContain(
+      "wikg://book.wikg/chapter/part/source --help",
+    );
+    expect(chapterHelpText).toContain(
+      "wikg://book.wikg/chapter/part/state --help",
+    );
+    expect(sourceSetHelpText).toContain(
+      "Fill a planned chapter with its complete normalized source text.",
+    );
+    expect(sourceSetHelpText).toContain(
+      "Supply exactly one positional value or `--input`",
+    );
+    expect(sourceSetHelpText).toContain("must be `planned`");
+    expect(sourceSetHelpText).toContain("Plain text writes source without");
+    expect(sourceSetHelpText).toContain("[--json]");
+    expect(fileImportHelpText).toContain(
+      "`create --import` currently accepts EPUB",
+    );
+    expect(fileImportHelpText).not.toContain("create --import ./book.pdf");
+    expect(fileImportHelpText).toContain('"type":"artifact"');
+    expect(fileImportHelpText).toContain('"pageIndex":1');
+    expect(fileImportHelpText).toContain('"cfi":"epubcfi(...)"');
+    expect(fileImportHelpText).toContain("offsets are not input fields");
+  });
+
   it("documents the layered help contract", () => {
     const rootHelpText = renderMainHelpText();
     const uriHelpText = renderHelpTopicText("uri");
@@ -328,7 +365,7 @@ describe("cli/args/help", () => {
     expect(rootHelpText).toContain("wg help readiness");
     expect(rootHelpText).toContain("wg help library");
     expect(rootHelpText).not.toContain("wg help file-import");
-    expect(fileImportHelpText).toContain("Source-File Import");
+    expect(fileImportHelpText).toContain("Source Files and Provenance");
     expect(fileImportHelpText).toContain("source-text map");
     expect(fileImportHelpText).toContain("OCR, layout analysis");
     expect(archiveCreateHelpText).toContain("wg help file-import");

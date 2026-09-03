@@ -214,16 +214,17 @@ Notes:
   - This rewires chapter hierarchy and order; it does not rewrite chapter source text or generated graph content.
 {% elif target.name == "chapter-source-object" %}
 Purpose:
-  Replace this chapter source text.
+  Fill a planned chapter with its complete normalized source text.
 
 Usage:
-  {{ commandName }} {{ uri }} set [text] [--input <path|->] [--input-format jsonl]
+  {{ commandName }} {{ uri }} set (<text>|--input <path|->) [--input-format jsonl] [--json]
 
 Notes:
-  - Source text is read from a positional value, `--input <path>`, or `--input -` for stdin.
-  - Use `--input-format jsonl` when an external importer supplies ordered text ranges and source locators; see `{{ commandName }} help file-import` for the input contract.
-  - Source replacement invalidates later generated work for that chapter.
-  - Use `{{ commandName }} {{ uri }} --help` to inspect the source object before replacing it.
+  - Supply exactly one positional value or `--input`; files and stdin are read as UTF-8, and source input must be non-empty.
+  - `--input-format jsonl` records source provenance supplied by an external extractor. Read `{{ commandName }} help file-import` for the record contract.
+  - The chapter must be `planned`. Reset a later-stage chapter to `planned` first; that reset discards its source and generated chapter data.
+  - Plain text writes source without a source-text map. JSONL writes both source and its map.
+  - On success, the chapter moves to `source` and the updated status is printed; `--json` prints one JSON object.
 {% elif target.name == "chapter-summary-object" %}
 Purpose:
   Replace this chapter summary text.
