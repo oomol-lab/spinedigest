@@ -141,6 +141,7 @@ async function migrateLibraryDirectoryIdentities(file: File): Promise<void> {
     for (const row of rows) {
       const resources = getWikiGraphPlatform().resources;
       const directory =
+        sourceColumn === "folder_identity" ||
         resources.resolveLegacyDirectory === undefined
           ? await resources.getDirectory(row.reference)
           : await resources.resolveLegacyDirectory(row.reference);

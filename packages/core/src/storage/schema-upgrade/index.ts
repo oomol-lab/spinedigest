@@ -100,6 +100,7 @@ export async function upgradeWikiGraphArchiveSchema(
       );
     }
 
+    await ensureWikiGraphHomeSchemaCurrent();
     await assertArchiveUpgradeCoordinatorSafe(archive);
 
     const root = getWikiGraphStorage().documentStore;
@@ -122,7 +123,6 @@ export async function upgradeWikiGraphArchiveSchema(
         };
       }
 
-      await ensureWikiGraphHomeSchemaCurrent();
       if (schemaChanged) {
         entries.delete(SEARCH_INDEX_DATABASE_PATH);
         entries.delete(LEGACY_SEARCH_INDEX_DATABASE_PATH);
