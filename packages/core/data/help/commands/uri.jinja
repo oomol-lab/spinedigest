@@ -120,7 +120,7 @@ Default behavior:
   - Source range fragments such as `#4..8` read sentence numbers 4 through 8, inclusive.
   - Range fragments are read-only; `set` writes the complete source object.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
-  - Whole source reads are plain text streams and do not support `--json`; source range fragments are structured range objects and support `--json`.
+  - Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri` and `text`.
 
 Use when:
   - You need continuous original wording from a selected chapter.
@@ -143,7 +143,7 @@ Default behavior:
   - `{{ commandName }} {{ uri }}` reads summary text.
   - Summary range fragments such as `#4..8` read sentence numbers 4 through 8, inclusive.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
-  - Whole summary reads are plain text streams and do not support `--json`; summary range fragments are structured range objects and support `--json`.
+  - Whole and ranged summary reads print text by default. With `--json`, they return one object containing `uri` and `text`.
   - Summary readiness means a summary object exists and is current for the chapter source. It does not guarantee the prose answers every question about the chapter.
 
 Use when:
