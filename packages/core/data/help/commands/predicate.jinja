@@ -213,18 +213,7 @@ Notes:
   - Use `--input -` to read the tree JSON from stdin.
   - This rewires chapter hierarchy and order; it does not rewrite chapter source text or generated graph content.
 {% elif target.name == "chapter-source-object" %}
-Purpose:
-  Fill a planned chapter with its complete source text.
-
-Usage:
-  {{ commandName }} {{ uri }} set (<text>|--input <path|->) [--input-format jsonl] [--json]
-
-Notes:
-  - Supply exactly one positional value or `--input`; files and stdin are UTF-8 plain text unless `--input-format jsonl` is set. File extensions are not inferred.
-  - `--input-format jsonl` records source provenance supplied by an external extractor. Read `{{ commandName }} help file-import` for the record contract.
-  - The chapter must be `planned`. Read the chapter state and reset help before discarding data from a later-stage chapter.
-  - Plain text writes source without a source-text map. JSONL writes both source and its map.
-  - On success, the chapter moves to `source` and the updated status is printed; `--json` prints one JSON object.
+{% include "help/commands/shared/chapter-source-set.jinja" %}
 {% elif target.name == "chapter-summary-object" %}
 Purpose:
   Replace this chapter summary text.

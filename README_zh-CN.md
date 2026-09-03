@@ -55,10 +55,11 @@ $ wg wikg://quickstart.wikg/chapter/tree
 └─ Second note  wikg://chapter/second-note
 ```
 
-开启并构建 FTS 全文索引（开启后才可使用 `--query` 进行全文搜索）：
+构建 FTS 索引产物，再同步本地索引缓存。完成后即可使用 `--query` 进行全文搜索：
 
 ```bash
-$ wg wikg://quickstart.wikg/index enable
+$ wg wikg://local/job add --input wikg://quickstart.wikg --task index-fts --accept-cost
+$ wg wikg://quickstart.wikg/index sync
 ```
 
 把内容搜出来：

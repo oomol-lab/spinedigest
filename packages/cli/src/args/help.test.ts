@@ -347,6 +347,9 @@ describe("cli/args/help", () => {
     expect(sourceSetHelpText).toContain("must be `planned`");
     expect(sourceSetHelpText).toContain("Plain text writes source without");
     expect(sourceSetHelpText).toContain("File extensions are not inferred");
+    expect(sourceSetHelpText).toContain(
+      "`sourceUnits` is the number of stored source processing fragments",
+    );
     expect(sourceSetHelpText).toContain("<chapter-uri>/state --help");
     expect(sourceSetHelpText).toContain("<chapter-uri> reset --help");
     expect(sourceSetHelpText).toContain("[--json]");
@@ -520,10 +523,10 @@ describe("cli/args/help", () => {
       "Use `--json` when an Agent or script needs one stable machine-readable response.",
     );
     expect(renderHelpTopicText("format")).toContain(
-      "Whole `source` and `summary` text objects are plain text streams and do not support `--json`.",
+      "Whole `source` and `summary` objects print plain text by default; with `--json`, they return one object containing `uri` and `text`.",
     );
     expect(renderHelpTopicText("format")).toContain(
-      "Ranged fragments such as `/source#20..30` and `/summary#20..30` are structured range objects and support `--json`.",
+      "Ranged fragments such as `/source#20..30` and `/summary#20..30` use the same output choices and retain the requested range in `uri`.",
     );
     expect(renderHelpTopicText("format")).toContain(
       "JSONL may contain both object records and control records.",
@@ -730,7 +733,7 @@ describe("cli/args/help", () => {
       "Use `--json` when you want stable Agent-readable fields",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "ranged fragments such as `/source#20..30` support `--json`",
+      "Whole and ranged `source` or `summary` reads return `uri` and `text`",
     );
     expect(uriHelpText).toContain(
       "Ranged fragments such as `/source#4..8` and `/summary#4..8` are structured range objects.",
@@ -741,7 +744,15 @@ describe("cli/args/help", () => {
         "wikg://book.wikg/chapter/part/source",
       ),
     ).toContain(
-      "Whole source reads are plain text streams and do not support `--json`; source range fragments are structured range objects and support `--json`.",
+      "Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri` and `text`.",
+    );
+    expect(
+      renderUriHelpText(
+        "chapter-summary-object",
+        "wikg://book.wikg/chapter/part/summary",
+      ),
+    ).toContain(
+      "Whole and ranged summary reads print text by default. With `--json`, they return one object containing `uri` and `text`.",
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "wg wikg://book.wikg/chapter/part/entity --all --jsonl",

@@ -1,0 +1,19 @@
+Purpose:
+  Fill a planned chapter with its complete source text.
+
+Usage:
+  {{ commandName }} {{ uri }} set (<text>|--input <path|->) [--input-format jsonl] [--json]
+
+Input:
+  - Supply exactly one positional value or `--input`; files and stdin are UTF-8 plain text unless `--input-format jsonl` is set. File extensions are not inferred.
+  - Plain text writes source without a source-text map.
+  - `--input-format jsonl` writes source and provenance supplied by an external extractor. Read `{{ commandName }} help file-import` for the record contract.
+
+Preconditions:
+  - The chapter must be `planned`.
+  - Read the chapter state and reset help before discarding data from a later-stage chapter.
+
+Behavior:
+  - Writes the complete source text and moves the chapter to `source`.
+  - Does not generate Reading Graph data or a summary, and does not call an LLM provider.
+  - With `--json`, prints the updated chapter status as one JSON object. `sourceUnits` is the number of stored source processing fragments, not the number of sentences.
