@@ -1,6 +1,9 @@
+import { access } from "fs/promises";
+import { join } from "path";
 import { describe, expect, it } from "vitest";
 
 import {
+  createNodeWikiGraphStorage,
   NodeDirectory,
   nodeWikiGraphPlatform,
 } from "../../../../packages/cli/src/runtime/node-platform.js";
@@ -13,6 +16,21 @@ import type {
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("Node File/Directory adapter", () => {
+  it("constructs storage capabilities without creating the home directory", async () => {
+    await withTempDir("wikigraph-platform-storage-", async (path) => {
+      const stateRoot = join(path, "not-created");
+      const storage = createNodeWikiGraphStorage(stateRoot);
+
+      expect(storage.library.identity).toBe(
+        new NodeDirectory(stateRoot).identity,
+      );
+      expect(storage.documentStore.identity).toBe(
+        new NodeDirectory(join(stateRoot, "documents")).identity,
+      );
+      await expect(access(stateRoot)).rejects.toThrow();
+    });
+  });
+
   it("performs relative child operations and transactional file writes", async () => {
     await withTempDir("wikigraph-platform-", async (path) => {
       const root = new NodeDirectory(path);

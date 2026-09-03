@@ -7,6 +7,7 @@ import {
   type Directory,
   type File,
 } from "../runtime/platform/index.js";
+import { isHostError } from "../utils/host-error.js";
 import { getNumber, getString, Database } from "./database.js";
 
 const CURRENT_HOME_SCHEMA_VERSION = 4;
@@ -210,7 +211,14 @@ async function cleanupHomeDerivedData(root: Directory): Promise<void> {
   await removeSqlite(jobs, "job.sqlite");
 
   const documentStore = getWikiGraphStorage().documentStore;
-  for (const entry of await documentStore.list()) {
+  let documentStoreEntries: ReadonlyArray<File | Directory>;
+  try {
+    documentStoreEntries = await documentStore.list();
+  } catch (error) {
+    if (isHostError(error) && error.code === "ENOENT") return;
+    throw error;
+  }
+  for (const entry of documentStoreEntries) {
     if (
       entry.name === ".wikg-work" ||
       entry.name === ".wikg-cache" ||
