@@ -12,6 +12,15 @@ describe("core portability gate", () => {
     await expectRejected({ "forbidden.ts": 'import "node:fs";\n' });
   });
 
+  it.each(["node:dns", "node:diagnostics_channel", "dns/promises"])(
+    "rejects the complete Node builtin surface through %s",
+    async (specifier) => {
+      await expectRejected({
+        "forbidden.ts": `import ${JSON.stringify(specifier)};\n`,
+      });
+    },
+  );
+
   it("rejects a dynamic Node import in isolation", async () => {
     await expectRejected({
       "forbidden.ts": 'export const load = () => import("node:fs");\n',
@@ -90,7 +99,11 @@ describe("core portability gate", () => {
         }),
         "node_modules/fixture-dependency/index.js": 'import "node:fs";\n',
       });
-      await expectGateFailure(fixture, false);
+      await expectGateFailure(
+        fixture,
+        false,
+        "node_modules/fixture-dependency/index.js",
+      );
     });
   });
 
@@ -111,7 +124,11 @@ describe("core portability gate", () => {
           "export const portable = true;\n",
         "node_modules/dual-runtime-dependency/node.js": 'import "node:fs";\n',
       });
-      await expectGateFailure(fixture, false);
+      await expectGateFailure(
+        fixture,
+        false,
+        "node_modules/dual-runtime-dependency/node.js",
+      );
     });
   });
 
@@ -135,7 +152,11 @@ describe("core portability gate", () => {
         "node_modules/conditional-runtime-dependency/node-only.cjs":
           'require("node:fs");\n',
       });
-      await expectGateFailure(fixture, false);
+      await expectGateFailure(
+        fixture,
+        false,
+        "node_modules/conditional-runtime-dependency/node-only.cjs",
+      );
     });
   });
 
@@ -156,7 +177,11 @@ describe("core portability gate", () => {
         "node_modules/artifact-runtime-dependency/node.cjs":
           'require("node:fs");\n',
       });
-      await expectGateFailure(fixture, true);
+      await expectGateFailure(
+        fixture,
+        true,
+        "node_modules/artifact-runtime-dependency/node.cjs",
+      );
     });
   });
 });
@@ -167,16 +192,21 @@ async function expectRejected(
 ): Promise<void> {
   await withFixture(async (fixture) => {
     await writeFixture(fixture, files);
-    await expectGateFailure(fixture, artifact);
+    const expectedLocation = Object.keys(files)[0];
+    if (expectedLocation === undefined) {
+      throw new Error("A portability fixture must contain at least one file");
+    }
+    await expectGateFailure(fixture, artifact, expectedLocation);
   });
 }
 
 async function expectGateFailure(
   fixture: string,
   artifact: boolean,
+  expectedLocation: string,
 ): Promise<void> {
-  await expect(
-    execFileAsync(
+  try {
+    await execFileAsync(
       "node",
       [
         "scripts/check-core-portability.mjs",
@@ -184,8 +214,22 @@ async function expectGateFailure(
         ...(artifact ? ["--artifact"] : []),
       ],
       { cwd: process.cwd() },
-    ),
-  ).rejects.toMatchObject({ code: 1 });
+    );
+    throw new Error("Expected the portability gate to reject the fixture");
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Expected the portability gate to reject the fixture"
+    ) {
+      throw error;
+    }
+    const failure = error as {
+      readonly code?: unknown;
+      readonly stderr?: unknown;
+    };
+    expect(failure.code).toBe(1);
+    expect(failure.stderr).toEqual(expect.stringContaining(expectedLocation));
+  }
 }
 
 async function withFixture(

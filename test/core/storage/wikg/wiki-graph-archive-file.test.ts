@@ -1,6 +1,6 @@
 import { mkdir, rename } from "fs/promises";
 import { join } from "path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
@@ -13,13 +13,22 @@ import {
   isArchiveSearchIndexCurrent,
   rebuildArchiveSearchIndex,
 } from "../../../../packages/core/src/retrieval/query/index.js";
-import { withWikiGraphStorage } from "../../../../packages/core/src/runtime/platform/index.js";
+import {
+  installWikiGraphPlatform,
+  withWikiGraphStorage,
+} from "../../../../packages/core/src/runtime/platform/index.js";
 import {
   createNodeWikiGraphStorage,
+  installNodeWikiGraphPlatform,
   NodeDirectory,
   NodeFile,
+  nodeWikiGraphPlatform,
 } from "../../../../packages/cli/src/runtime/node-platform.js";
 import { withTempDir } from "../../../helpers/temp.js";
+
+afterEach(() => {
+  installNodeWikiGraphPlatform();
+});
 
 describe("wikg/wiki-graph-archive-file", () => {
   it("reads and writes an archive through opaque File capabilities", async () => {
@@ -45,6 +54,46 @@ describe("wikg/wiki-graph-archive-file", () => {
       ).resolves.toMatchObject({
         items: [{ serialId: 1, title: "Updated" }],
       });
+    });
+  });
+
+  it("does not materialize unrelated ZIP entries during an ordinary read", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      const initialReader = await nodeWikiGraphPlatform.zip.open(archive);
+      const sentinel = (await initialReader.listEntries()).find((entry) =>
+        entry.startsWith("texts/"),
+      );
+      await initialReader.close();
+      expect(sentinel).toBeDefined();
+
+      const readEntries: string[] = [];
+      installWikiGraphPlatform({
+        ...nodeWikiGraphPlatform,
+        zip: {
+          ...nodeWikiGraphPlatform.zip,
+          open: async (file) => {
+            const reader = await nodeWikiGraphPlatform.zip.open(file);
+            return {
+              close: async () => await reader.close(),
+              listEntries: async () => await reader.listEntries(),
+              readEntry: async (name) => {
+                readEntries.push(name);
+                if (name === sentinel) {
+                  throw new Error(`Unrelated ZIP entry was read: ${name}`);
+                }
+                return await reader.readEntry(name);
+              },
+            };
+          },
+        },
+      });
+
+      await expect(
+        new WikiGraphArchiveFile(archive).read(
+          async (digest) => await digest.readToc(),
+        ),
+      ).resolves.toMatchObject({ items: [{ title: "Original" }] });
+      expect(readEntries).not.toContain(sentinel);
     });
   });
 

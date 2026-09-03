@@ -1,23 +1,26 @@
 import {
   getWikiGraphPlatform,
   type File,
-  type HostZipEntry,
+  type HostZipReader,
 } from "../../../runtime/platform/index.js";
 import { createPortableHash as createHash } from "../../../utils/crypto.js";
 
 /** EPUB reader backed only by the host ZIP and File capabilities. */
 export class EpubArchive {
   readonly #file: File;
-  readonly #entries: ReadonlyMap<string, HostZipEntry>;
+  readonly #entries: ReadonlyMap<string, string>;
+  readonly #reader: HostZipReader;
   readonly #digest: string;
 
   // eslint-disable-next-line no-restricted-syntax -- constructors cannot use JavaScript #private syntax.
   private constructor(
     file: File,
-    entries: ReadonlyMap<string, HostZipEntry>,
+    reader: HostZipReader,
+    entries: ReadonlyMap<string, string>,
     digest: string,
   ) {
     this.#file = file;
+    this.#reader = reader;
     this.#entries = entries;
     this.#digest = digest;
   }
@@ -27,16 +30,22 @@ export class EpubArchive {
     const bytes =
       typeof content === "string" ? new TextEncoder().encode(content) : content;
     const digest = createHash("sha256").update(bytes).digest("hex");
-    const entries = new Map<string, HostZipEntry>();
-    for (const entry of await getWikiGraphPlatform().zip.read(file)) {
-      const name = normalizeArchivePath(entry.name);
-      if (name !== "") entries.set(name, entry);
+    const reader = await getWikiGraphPlatform().zip.open(file);
+    try {
+      const entries = new Map<string, string>();
+      for (const hostName of await reader.listEntries()) {
+        const name = normalizeArchivePath(hostName);
+        if (name !== "") entries.set(name, hostName);
+      }
+      return new EpubArchive(file, reader, entries, digest);
+    } catch (error) {
+      await reader.close();
+      throw error;
     }
-    return new EpubArchive(file, entries, digest);
   }
 
   public close(): Promise<void> {
-    return Promise.resolve();
+    return this.#reader.close();
   }
 
   public hasEntry(path: string): boolean {
@@ -52,7 +61,14 @@ export class EpubArchive {
   }
 
   public async readBuffer(path: string): Promise<Uint8Array> {
-    return this.#getEntry(path).data;
+    const hostName = this.#getEntry(path);
+    const data = await this.#reader.readEntry(hostName);
+    if (data === undefined) {
+      throw new Error(
+        `EPUB entry does not exist: ${normalizeArchivePath(path)}`,
+      );
+    }
+    return data;
   }
 
   public resolveRelativePath(basePath: string, href: string): string {
@@ -92,7 +108,7 @@ export class EpubArchive {
     return this.#digest;
   }
 
-  #getEntry(path: string): HostZipEntry {
+  #getEntry(path: string): string {
     const normalizedPath = normalizeArchivePath(path);
     const entry = this.#entries.get(normalizedPath);
     if (entry === undefined) {

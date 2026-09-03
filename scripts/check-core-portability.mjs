@@ -1,4 +1,5 @@
 import { readdir, readFile } from "node:fs/promises";
+import { builtinModules } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -9,38 +10,10 @@ const target = resolve(
 );
 const artifactMode = process.argv.includes("--artifact");
 const forbidden = new Set([
-  "assert",
-  "async_hooks",
-  "buffer",
-  "child_process",
-  "cluster",
-  "crypto",
-  "events",
-  "fs",
-  "fs/promises",
-  "http",
-  "https",
-  "inspector",
-  "module",
-  "net",
-  "os",
-  "path",
-  "perf_hooks",
-  "readline",
+  ...builtinModules.map((name) => name.replace(/^node:/u, "")),
   "sqlite3",
-  "stream",
-  "stream/promises",
-  "test",
-  "timers",
-  "timers/promises",
-  "url",
-  "util",
-  "v8",
-  "vm",
-  "worker_threads",
   "yauzl",
   "yazl",
-  "zlib",
 ]);
 const violations = [];
 const seenFiles = new Set();
@@ -104,8 +77,8 @@ async function collect(directory, extensions) {
 function report(file, message) {
   violations.push(`${relative(repositoryRoot, file)} ${message}`);
 }
-function moduleName(specifier) {
-  return specifier.startsWith("node:") ? specifier.slice(5) : specifier;
+function isForbiddenModule(specifier) {
+  return specifier.startsWith("node:") || forbidden.has(specifier);
 }
 
 function collectExportTargets(value, targets = new Set()) {
@@ -168,7 +141,7 @@ function inspectSource(
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       const specifier = node.moduleSpecifier;
       if (specifier && ts.isStringLiteral(specifier)) {
-        if (forbidden.has(moduleName(specifier.text)))
+        if (isForbiddenModule(specifier.text))
           report(file, `imports forbidden module ${specifier.text}`);
         else if (specifier.text.startsWith("."))
           relativeImports.add(specifier.text);
@@ -181,7 +154,7 @@ function inspectSource(
         if (
           !argument ||
           !ts.isStringLiteral(argument) ||
-          forbidden.has(moduleName(argument.text))
+          isForbiddenModule(argument.text)
         )
           report(file, "uses a non-literal or forbidden dynamic import");
         else if (argument.text.startsWith("."))
@@ -205,7 +178,7 @@ function inspectSource(
         if (
           !argument ||
           !ts.isStringLiteral(argument) ||
-          forbidden.has(moduleName(argument.text))
+          isForbiddenModule(argument.text)
         )
           report(file, "uses CommonJS require");
         else if (argument.text.startsWith("."))
@@ -468,7 +441,7 @@ async function scanDependency(name, fromDirectory, chain = [], strict = false) {
     ...(manifest.dependencies ?? {}),
     ...(manifest.optionalDependencies ?? {}),
   })) {
-    if (forbidden.has(dependency))
+    if (isForbiddenModule(dependency))
       report(
         join(root, "package.json"),
         `depends on forbidden module ${dependency}`,
@@ -494,7 +467,7 @@ if (!artifactMode) {
   // as non-portable as direct ones.
   const strictDependencyScan = true;
   for (const dependency of Object.keys(manifest.dependencies ?? {})) {
-    if (forbidden.has(dependency))
+    if (isForbiddenModule(dependency))
       report(packageFile, `depends on forbidden module ${dependency}`);
     else
       await scanDependency(

@@ -92,12 +92,25 @@ export interface HostZipEntry {
   readonly name: string;
 }
 
+/** Lazily reads entries from one host-owned ZIP archive. */
+export interface HostZipReader {
+  close(): Promise<void>;
+  listEntries(): Promise<readonly string[]>;
+  readEntry(name: string): Promise<Uint8Array | undefined>;
+}
+
 export interface HostZipProvider {
-  read(file: File): Promise<readonly HostZipEntry[]>;
+  open(file: File): Promise<HostZipReader>;
   write(
     file: File,
     entries: Iterable<HostZipEntry> | AsyncIterable<HostZipEntry>,
   ): Promise<void>;
+}
+
+/** Identifies one host execution and probes executions that may have died. */
+export interface HostLifecycleProvider {
+  readonly instanceId: string;
+  isInstanceAlive(instanceId: string): Promise<boolean | undefined>;
 }
 
 export interface HostTemplateProvider {
@@ -118,6 +131,7 @@ export interface HostTemplateEnvironment {
 export interface WikiGraphPlatform {
   readonly asyncContext: HostAsyncContextProvider;
   readonly database: HostDatabaseProvider;
+  readonly lifecycle: HostLifecycleProvider;
   readonly resources: HostResourceProvider;
   readonly templates: HostTemplateProvider;
   readonly zip: HostZipProvider;

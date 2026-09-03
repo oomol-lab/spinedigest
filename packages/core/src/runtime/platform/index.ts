@@ -2,6 +2,7 @@ import type {
   Directory,
   File,
   HostAsyncContext,
+  HostZipEntry,
   WikiGraphPlatform,
   WikiGraphStorage,
 } from "./types.js";
@@ -17,11 +18,13 @@ export type {
   HostDatabaseRow,
   HostDatabaseValue,
   HostError,
+  HostLifecycleProvider,
   HostResourceProvider,
   HostTemplateProvider,
   HostTemplateEnvironment,
   HostZipEntry,
   HostZipProvider,
+  HostZipReader,
   WikiGraphPlatform,
   WikiGraphStorage,
 } from "./types.js";
@@ -49,6 +52,21 @@ export function getWikiGraphPlatform(): WikiGraphPlatform {
   }
 
   return installedPlatform;
+}
+
+/** Materialize a ZIP only for workflows that inherently consume every entry. */
+export async function readHostZipEntries(file: File): Promise<HostZipEntry[]> {
+  const reader = await getWikiGraphPlatform().zip.open(file);
+  try {
+    const entries: HostZipEntry[] = [];
+    for (const name of await reader.listEntries()) {
+      const data = await reader.readEntry(name);
+      if (data !== undefined) entries.push({ data, name });
+    }
+    return entries;
+  } finally {
+    await reader.close();
+  }
 }
 
 /** Resolve an opaque persisted identity into its host file capability. */

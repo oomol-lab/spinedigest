@@ -73,7 +73,14 @@ describe("Node File/Directory adapter", () => {
         { data: new TextEncoder().encode("alpha"), name: "a.txt" },
         { data: new TextEncoder().encode("beta"), name: "nested/b.txt" },
       ]);
-      const entries = await nodeWikiGraphPlatform.zip.read(zipFile);
+      const reader = await nodeWikiGraphPlatform.zip.open(zipFile);
+      const entries = await Promise.all(
+        (await reader.listEntries()).map(async (name) => ({
+          data: (await reader.readEntry(name)) as Uint8Array,
+          name,
+        })),
+      );
+      await reader.close();
 
       expect(
         entries.map((entry) => [

@@ -8,6 +8,7 @@ import {
   ensureRelativeDirectory,
   getWikiGraphPlatform,
   getWikiGraphStorage,
+  readHostZipEntries,
   resolveHostFile,
   type Directory,
   type File,
@@ -156,7 +157,7 @@ async function readArchiveEntries(
   archive: File,
 ): Promise<Map<string, Uint8Array>> {
   const entries = new Map<string, Uint8Array>();
-  for (const entry of await getWikiGraphPlatform().zip.read(archive)) {
+  for (const entry of await readHostZipEntries(archive)) {
     const name = normalizeArchivePath(entry.name);
     if (name !== "" && isWikgArchivePath(name)) entries.set(name, entry.data);
   }

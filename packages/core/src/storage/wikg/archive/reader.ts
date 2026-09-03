@@ -6,8 +6,8 @@ import {
   resolveHostFile,
   type Directory,
   type File,
+  type HostZipReader,
 } from "../../../runtime/platform/index.js";
-import { ensureWikiGraphArchiveSchemaCurrent } from "../../schema-upgrade/index.js";
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 import {
   WIKG_SCHEMA_VERSION,
@@ -17,27 +17,37 @@ import {
 import { isWikgArchivePath, normalizeArchivePath } from "./paths.js";
 
 export class WikgArchiveReader {
-  readonly #entries: ReadonlyMap<string, Uint8Array>;
+  readonly #entries: ReadonlyMap<string, string>;
+  readonly #reader: HostZipReader;
 
   // eslint-disable-next-line no-restricted-syntax -- constructors cannot use JavaScript #private syntax.
-  private constructor(entries: ReadonlyMap<string, Uint8Array>) {
+  private constructor(
+    reader: HostZipReader,
+    entries: ReadonlyMap<string, string>,
+  ) {
+    this.#reader = reader;
     this.#entries = entries;
   }
 
   public static async open(fileRef: File | string): Promise<WikgArchiveReader> {
     const file = await resolveHostFile(fileRef);
-    await ensureWikiGraphArchiveSchemaCurrent(file);
-    const entries = new Map<string, Uint8Array>();
-    for (const entry of await getWikiGraphPlatform().zip.read(file)) {
-      const name = normalizeArchivePath(entry.name);
-      if (name !== "" && isWikgArchivePath(name)) entries.set(name, entry.data);
+    const reader = await getWikiGraphPlatform().zip.open(file);
+    try {
+      const entries = new Map<string, string>();
+      for (const hostName of await reader.listEntries()) {
+        const name = normalizeArchivePath(hostName);
+        if (name !== "" && isWikgArchivePath(name)) entries.set(name, hostName);
+      }
+      await assertCurrentArchive(reader, entries);
+      return new WikgArchiveReader(reader, entries);
+    } catch (error) {
+      await reader.close();
+      throw error;
     }
-    assertCurrentArchive(entries);
-    return new WikgArchiveReader(entries);
   }
 
-  public close(): void {
-    // The host owns archive reader resources.
+  public async close(): Promise<void> {
+    await this.#reader.close();
   }
 
   public listEntries(): readonly string[] {
@@ -47,7 +57,10 @@ export class WikgArchiveReader {
   }
 
   public async readEntry(entryPath: string): Promise<Uint8Array | undefined> {
-    return this.#entries.get(normalizeArchivePath(entryPath));
+    const hostName = this.#entries.get(normalizeArchivePath(entryPath));
+    return hostName === undefined
+      ? undefined
+      : await this.#reader.readEntry(hostName);
   }
 }
 
@@ -55,7 +68,11 @@ export async function listWikgArchiveEntries(
   file: File | string,
 ): Promise<readonly string[]> {
   const reader = await WikgArchiveReader.open(file);
-  return reader.listEntries();
+  try {
+    return reader.listEntries();
+  } finally {
+    await reader.close();
+  }
 }
 
 export async function readWikgArchiveEntry(
@@ -63,27 +80,43 @@ export async function readWikgArchiveEntry(
   entryPath: string,
 ): Promise<Uint8Array | undefined> {
   const reader = await WikgArchiveReader.open(file);
-  return await reader.readEntry(entryPath);
+  try {
+    return await reader.readEntry(entryPath);
+  } finally {
+    await reader.close();
+  }
 }
 
 export async function readWikgArchiveMutationToken(
   file: File | string,
 ): Promise<string> {
-  const resolved = await resolveHostFile(file);
-  const tokenEntry = (await getWikiGraphPlatform().zip.read(resolved)).find(
-    (entry) => normalizeArchivePath(entry.name) === WIKG_MUTATION_TOKEN_PATH,
+  const reader = await getWikiGraphPlatform().zip.open(
+    await resolveHostFile(file),
   );
-  const content = tokenEntry?.data;
-  if (content === undefined) {
-    throw new Error(
-      `Missing WIKG mutation token: ${WIKG_MUTATION_TOKEN_PATH}.`,
+  try {
+    const hostName = (await reader.listEntries()).find(
+      (name) => normalizeArchivePath(name) === WIKG_MUTATION_TOKEN_PATH,
     );
+    const content =
+      hostName === undefined ? undefined : await reader.readEntry(hostName);
+    if (content === undefined) {
+      throw new Error(
+        `Missing WIKG mutation token: ${WIKG_MUTATION_TOKEN_PATH}.`,
+      );
+    }
+    return parseWikgMutationToken(new TextDecoder().decode(content));
+  } finally {
+    await reader.close();
   }
-  return parseWikgMutationToken(new TextDecoder().decode(content));
 }
 
-function assertCurrentArchive(entries: ReadonlyMap<string, Uint8Array>): void {
-  const manifest = entries.get(WIKG_MANIFEST_PATH);
+async function assertCurrentArchive(
+  reader: HostZipReader,
+  entries: ReadonlyMap<string, string>,
+): Promise<void> {
+  const hostName = entries.get(WIKG_MANIFEST_PATH);
+  const manifest =
+    hostName === undefined ? undefined : await reader.readEntry(hostName);
   if (manifest === undefined) {
     throw new Error(`Missing WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
   }

@@ -5,6 +5,7 @@ import {
   type Directory,
   type File,
   type HostZipEntry,
+  type HostZipReader,
 } from "../../../runtime/platform/index.js";
 import {
   LEGACY_SEARCH_INDEX_DATABASE_PATH,
@@ -61,38 +62,94 @@ export async function writeWikgArchiveWithOverlays(
 ): Promise<void> {
   const inputFile = await resolveHostFile(inputFileRef);
   const outputFile = await resolveHostFile(outputFileRef);
-  const entries = new Map<string, Uint8Array>();
-  for (const entry of await getWikiGraphPlatform().zip.read(inputFile)) {
-    const name = normalizeArchivePath(entry.name);
-    if (name !== "" && isWikgArchivePath(name)) entries.set(name, entry.data);
-  }
-  for (const overlay of overlays) {
-    const name = normalizeArchivePath(overlay.entryPath);
-    if (!isWikgArchivePath(name)) continue;
-    if (overlay.kind === "deleted") entries.delete(name);
-    else {
-      const content = await overlay.file.read();
-      entries.set(
-        name,
-        typeof content === "string"
-          ? new TextEncoder().encode(content)
-          : content,
-      );
+  const reader = await getWikiGraphPlatform().zip.open(inputFile);
+  try {
+    const archiveEntries = new Map<string, string>();
+    for (const hostName of await reader.listEntries()) {
+      const name = normalizeArchivePath(hostName);
+      if (name !== "" && isWikgArchivePath(name)) {
+        archiveEntries.set(name, hostName);
+      }
     }
+    const entries = new Map<
+      string,
+      | { readonly kind: "archive"; readonly hostName: string }
+      | WikgArchiveOverlay
+    >(
+      [...archiveEntries].map(([name, hostName]) => [
+        name,
+        { hostName, kind: "archive" },
+      ]),
+    );
+    for (const overlay of overlays) {
+      const name = normalizeArchivePath(overlay.entryPath);
+      if (!isWikgArchivePath(name)) continue;
+      if (overlay.kind === "deleted") entries.delete(name);
+      else entries.set(name, overlay);
+    }
+    entries.delete(LEGACY_SEARCH_INDEX_DATABASE_PATH);
+    const mutationToken =
+      options.preserveMutationToken === true
+        ? await readArchiveEntry(
+            reader,
+            archiveEntries,
+            WIKG_MUTATION_TOKEN_PATH,
+          )
+        : undefined;
+    entries.delete(WIKG_MUTATION_TOKEN_PATH);
+    entries.delete(WIKG_MANIFEST_PATH);
+    const paths = new Set(entries.keys());
+    paths.add(WIKG_MUTATION_TOKEN_PATH);
+    paths.add(WIKG_MANIFEST_PATH);
+
+    await getWikiGraphPlatform().zip.write(
+      outputFile,
+      (async function* (): AsyncGenerator<HostZipEntry> {
+        for (const name of sortArchiveEntryPathsForWrite(paths)) {
+          if (name === WIKG_MUTATION_TOKEN_PATH) {
+            yield {
+              data: mutationToken ?? createWikgMutationTokenContent(),
+              name,
+            };
+            continue;
+          }
+          if (name === WIKG_MANIFEST_PATH) {
+            yield {
+              data: new TextEncoder().encode(WIKG_MANIFEST_CONTENT),
+              name,
+            };
+            continue;
+          }
+          const source = entries.get(name);
+          if (source === undefined || source.kind === "deleted") continue;
+          if (source.kind === "archive") {
+            const data = await reader.readEntry(source.hostName);
+            if (data !== undefined) yield { data, name };
+            continue;
+          }
+          const content = await source.file.read();
+          yield {
+            data:
+              typeof content === "string"
+                ? new TextEncoder().encode(content)
+                : content,
+            name,
+          };
+        }
+      })(),
+    );
+  } finally {
+    await reader.close();
   }
-  entries.delete(LEGACY_SEARCH_INDEX_DATABASE_PATH);
-  entries.set(
-    WIKG_MUTATION_TOKEN_PATH,
-    options.preserveMutationToken === true &&
-      entries.has(WIKG_MUTATION_TOKEN_PATH)
-      ? (entries.get(WIKG_MUTATION_TOKEN_PATH) as Uint8Array)
-      : createWikgMutationTokenContent(),
-  );
-  entries.set(
-    WIKG_MANIFEST_PATH,
-    new TextEncoder().encode(WIKG_MANIFEST_CONTENT),
-  );
-  await writeEntries(outputFile, entries);
+}
+
+async function readArchiveEntry(
+  reader: HostZipReader,
+  entries: ReadonlyMap<string, string>,
+  name: string,
+): Promise<Uint8Array | undefined> {
+  const hostName = entries.get(name);
+  return hostName === undefined ? undefined : await reader.readEntry(hostName);
 }
 
 async function writeEntries(

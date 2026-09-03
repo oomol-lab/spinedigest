@@ -13,6 +13,8 @@ import { Environment, Loader, type LoaderSource } from "nunjucks";
 
 const nodeProcess =
   (process as unknown as { default?: typeof process }).default ?? process;
+const nodeSqlite3 =
+  (sqlite3 as unknown as { default?: typeof sqlite3 }).default ?? sqlite3;
 
 import {
   installWikiGraphPlatform,
@@ -25,6 +27,7 @@ import {
   type HostDatabaseRow,
   type HostDatabaseValue,
   type HostZipEntry,
+  type HostZipReader,
   type WikiGraphPlatform,
   type WikiGraphStorage,
 } from "../../../core/src/runtime/platform/index.js";
@@ -318,8 +321,9 @@ async function openNodeDatabase(
 ): Promise<NodeDatabaseConnection> {
   const flags =
     (options.readonly === true
-      ? sqlite3.OPEN_READONLY
-      : sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE) | sqlite3.OPEN_FULLMUTEX;
+      ? nodeSqlite3.OPEN_READONLY
+      : nodeSqlite3.OPEN_READWRITE | nodeSqlite3.OPEN_CREATE) |
+    nodeSqlite3.OPEN_FULLMUTEX;
   return new NodeDatabaseConnection(await openNativeNodeDatabase(file, flags));
 }
 
@@ -331,52 +335,87 @@ async function openNativeNodeDatabase(
     throw new TypeError("The Node database adapter requires a NodeFile");
   }
   return await new Promise((resolve, reject) => {
-    const database = new sqlite3.Database(file.path, flags, (error) => {
+    const database = new nodeSqlite3.Database(file.path, flags, (error) => {
       if (error) reject(error);
       else resolve(database);
     });
   });
 }
 
-async function readNodeZip(file: File): Promise<readonly HostZipEntry[]> {
-  const content = await file.read();
-  const source =
-    typeof content === "string" ? Buffer.from(content) : Buffer.from(content);
+async function openNodeZip(file: File): Promise<HostZipReader> {
+  if (!(file instanceof NodeFile)) {
+    throw new TypeError("The Node ZIP adapter requires a NodeFile");
+  }
   const zipFile = await new Promise<yauzl.ZipFile>((resolve, reject) => {
-    yauzl.fromBuffer(source, { lazyEntries: true }, (error, opened) => {
-      if (error || opened === undefined)
-        reject(error ?? new Error("Cannot open ZIP"));
-      else resolve(opened);
-    });
+    yauzl.open(
+      file.path,
+      { autoClose: false, lazyEntries: true },
+      (error, opened) => {
+        if (error || opened === undefined)
+          reject(error ?? new Error("Cannot open ZIP"));
+        else resolve(opened);
+      },
+    );
   });
 
-  return await new Promise((resolve, reject) => {
-    const entries: HostZipEntry[] = [];
-    zipFile.on("entry", (entry: yauzl.Entry) => {
-      if (entry.fileName.endsWith("/")) {
-        zipFile.readEntry();
-        return;
-      }
-      zipFile.openReadStream(entry, (error, stream) => {
-        if (error || stream === undefined) {
-          reject(
-            error ?? new Error(`Cannot read ZIP entry: ${entry.fileName}`),
-          );
-          return;
+  const entries = await new Promise<Map<string, yauzl.Entry>>(
+    (resolve, reject) => {
+      const discovered = new Map<string, yauzl.Entry>();
+      const rejectAndClose = (error: unknown) => {
+        zipFile.close();
+        reject(
+          error instanceof Error
+            ? error
+            : new Error("Cannot scan ZIP central directory"),
+        );
+      };
+      const resolveEntries = () => {
+        zipFile.off("error", rejectAndClose);
+        resolve(discovered);
+      };
+      zipFile.on("entry", (entry: yauzl.Entry) => {
+        if (!entry.fileName.endsWith("/")) {
+          discovered.set(entry.fileName, entry);
         }
-        const chunks: Buffer[] = [];
-        stream.on("data", (chunk: Buffer) => chunks.push(chunk));
-        stream.once("error", reject);
-        stream.once("end", () => {
-          entries.push({ data: Buffer.concat(chunks), name: entry.fileName });
-          zipFile.readEntry();
-        });
+        zipFile.readEntry();
       });
+      zipFile.once("error", rejectAndClose);
+      zipFile.once("end", resolveEntries);
+      zipFile.readEntry();
+    },
+  );
+
+  let closed = false;
+  return {
+    close: () => {
+      if (!closed) zipFile.close();
+      closed = true;
+      return Promise.resolve();
+    },
+    listEntries: () => Promise.resolve([...entries.keys()]),
+    readEntry: async (name) => {
+      if (closed) throw new Error("Cannot read a closed ZIP archive");
+      const entry = entries.get(name);
+      if (entry === undefined) return undefined;
+      return await readNodeZipEntry(zipFile, entry);
+    },
+  };
+}
+
+async function readNodeZipEntry(
+  zipFile: yauzl.ZipFile,
+  entry: yauzl.Entry,
+): Promise<Uint8Array> {
+  const stream = await new Promise<NodeJS.ReadableStream>((resolve, reject) => {
+    zipFile.openReadStream(entry, (error, opened) => {
+      if (error || opened === undefined) {
+        reject(error ?? new Error(`Cannot read ZIP entry: ${entry.fileName}`));
+      } else {
+        resolve(opened);
+      }
     });
-    zipFile.once("error", reject);
-    zipFile.once("end", () => resolve(entries));
-    zipFile.readEntry();
   });
+  return await collectNodeStream(stream);
 }
 
 async function writeNodeZip(
@@ -416,6 +455,27 @@ export const nodeWikiGraphPlatform: WikiGraphPlatform = {
     create: <T>() => new asyncHooks.AsyncLocalStorage<T>(),
   },
   database: { open: openNodeDatabase },
+  lifecycle: {
+    instanceId: `node-process:${nodeProcess.pid}`,
+    isInstanceAlive: (instanceId) => {
+      const match = /^node-process:(\d+)$/u.exec(instanceId);
+      if (match === null) return Promise.resolve(undefined);
+      try {
+        nodeProcess.kill(Number(match[1]), 0);
+        return Promise.resolve(true);
+      } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === "ESRCH"
+        ) {
+          return Promise.resolve(false);
+        }
+        return Promise.resolve(true);
+      }
+    },
+  },
   resources: {
     getDirectory: (identity) => {
       const path = decodeNodeResourceIdentity(identity, "directory");
@@ -434,7 +494,7 @@ export const nodeWikiGraphPlatform: WikiGraphPlatform = {
     createEnvironment: (options) =>
       new Environment(new NodeTemplateLoader(), options),
   },
-  zip: { read: readNodeZip, write: writeNodeZip },
+  zip: { open: openNodeZip, write: writeNodeZip },
 };
 
 class NodeTemplateLoader extends Loader {
