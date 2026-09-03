@@ -5,6 +5,11 @@ import {
   nodeWikiGraphPlatform,
 } from "../../../../packages/cli/src/runtime/node-platform.js";
 import { DirectoryFileStore } from "../../../../packages/core/src/document/directory/directory-file-store.js";
+import type {
+  File,
+  FileWriter,
+  HostZipEntry,
+} from "../../../../packages/core/src/runtime/platform/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("Node File/Directory adapter", () => {
@@ -94,6 +99,123 @@ describe("Node File/Directory adapter", () => {
     });
   });
 
+  it("streams ZIP output through sequential FileWriter chunks", async () => {
+    const probe = createWriterProbe({ writeDelayMs: 1 });
+
+    await nodeWikiGraphPlatform.zip.write(probe.file, createLargeZipEntries());
+
+    expect(probe.writeCalls).toBeGreaterThan(1);
+    expect(probe.maxConcurrentWrites).toBe(1);
+    expect(probe.commitCalls).toBe(1);
+    expect(probe.commitAtWriteCount).toBe(probe.writeCalls);
+    expect(probe.abortCalls).toBe(0);
+  });
+
+  it("aborts a streaming ZIP write when a chunk fails", async () => {
+    const probe = createWriterProbe({ failWriteAt: 2 });
+
+    await expect(
+      nodeWikiGraphPlatform.zip.write(probe.file, createLargeZipEntries()),
+    ).rejects.toThrow("stream write failed");
+
+    expect(probe.writeCalls).toBe(2);
+    expect(probe.commitCalls).toBe(0);
+    expect(probe.abortCalls).toBe(1);
+  });
+
+  it("rejects promptly when the sink fails while an async producer waits", async () => {
+    const probe = createWriterProbe({ failWriteAt: 1 });
+    let releaseProducer: (() => void) | undefined;
+    let signalProducerWaiting: (() => void) | undefined;
+    const producerWaiting = new Promise<void>((resolve) => {
+      signalProducerWaiting = resolve;
+    });
+    const producerRelease = new Promise<void>((resolve) => {
+      releaseProducer = resolve;
+    });
+    const entries = (async function* (): AsyncGenerator<HostZipEntry> {
+      yield {
+        data: new Uint8Array(256 * 1024).fill(1),
+        name: "first.bin",
+      };
+      signalProducerWaiting?.();
+      await producerRelease;
+      yield {
+        data: new Uint8Array(256 * 1024).fill(2),
+        name: "second.bin",
+      };
+    })();
+    const writing = nodeWikiGraphPlatform.zip.write(probe.file, entries);
+
+    await producerWaiting;
+    let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+    try {
+      await expect(
+        Promise.race([
+          writing,
+          new Promise<never>((_resolve, reject) => {
+            timeout = globalThis.setTimeout(
+              () => reject(new Error("stream failure was not propagated")),
+              100,
+            );
+          }),
+        ]),
+      ).rejects.toThrow("stream write failed");
+    } finally {
+      if (timeout !== undefined) globalThis.clearTimeout(timeout);
+      releaseProducer?.();
+      await entries.return(undefined);
+    }
+
+    expect(probe.commitCalls).toBe(0);
+    expect(probe.abortCalls).toBe(1);
+  });
+
+  it("aborts a streaming ZIP write when entry production fails", async () => {
+    const probe = createWriterProbe();
+    const entries = (function* (): Generator<HostZipEntry> {
+      yield {
+        data: new TextEncoder().encode("first"),
+        name: "first.txt",
+      };
+      throw new Error("entry production failed");
+    })();
+
+    await expect(
+      nodeWikiGraphPlatform.zip.write(probe.file, entries),
+    ).rejects.toThrow("entry production failed");
+
+    expect(probe.commitCalls).toBe(0);
+    expect(probe.abortCalls).toBe(1);
+  });
+
+  it("aborts a streaming ZIP write when ZIP entry creation fails", async () => {
+    const probe = createWriterProbe();
+
+    await expect(
+      nodeWikiGraphPlatform.zip.write(probe.file, [
+        {
+          data: new TextEncoder().encode("invalid"),
+          name: "../invalid.txt",
+        },
+      ]),
+    ).rejects.toThrow();
+
+    expect(probe.commitCalls).toBe(0);
+    expect(probe.abortCalls).toBe(1);
+  });
+
+  it("aborts a streaming ZIP write when commit fails", async () => {
+    const probe = createWriterProbe({ failCommit: true });
+
+    await expect(
+      nodeWikiGraphPlatform.zip.write(probe.file, createLargeZipEntries()),
+    ).rejects.toThrow("commit failed");
+
+    expect(probe.commitCalls).toBe(1);
+    expect(probe.abortCalls).toBe(1);
+  });
+
   it("restores persisted opaque capabilities without exposing a path to Core", async () => {
     await withTempDir("wikigraph-host-resources-", async (path) => {
       const directory = new NodeDirectory(path);
@@ -112,3 +234,87 @@ describe("Node File/Directory adapter", () => {
     });
   });
 });
+
+function createLargeZipEntries(): HostZipEntry[] {
+  return Array.from({ length: 4 }, (_, index) => ({
+    data: new Uint8Array(256 * 1024).fill(index + 1),
+    name: `entry-${index}.bin`,
+  }));
+}
+
+function createWriterProbe(
+  options: {
+    readonly failCommit?: boolean;
+    readonly failWriteAt?: number;
+    readonly writeDelayMs?: number;
+  } = {},
+): {
+  readonly file: File;
+  readonly abortCalls: number;
+  readonly commitAtWriteCount: number | undefined;
+  readonly commitCalls: number;
+  readonly maxConcurrentWrites: number;
+  readonly writeCalls: number;
+} {
+  let abortCalls = 0;
+  let activeWrites = 0;
+  let commitAtWriteCount: number | undefined;
+  let commitCalls = 0;
+  let maxConcurrentWrites = 0;
+  let writeCalls = 0;
+  const writer: FileWriter = {
+    abort: () => {
+      abortCalls += 1;
+      return Promise.resolve();
+    },
+    commit: () => {
+      commitCalls += 1;
+      commitAtWriteCount = writeCalls;
+      if (options.failCommit === true) {
+        return Promise.reject(new Error("commit failed"));
+      }
+      return Promise.resolve();
+    },
+    write: async () => {
+      writeCalls += 1;
+      activeWrites += 1;
+      maxConcurrentWrites = Math.max(maxConcurrentWrites, activeWrites);
+      try {
+        if (writeCalls === options.failWriteAt) {
+          throw new Error("stream write failed");
+        }
+        if ((options.writeDelayMs ?? 0) > 0) {
+          await new Promise<void>((resolve) => {
+            globalThis.setTimeout(resolve, options.writeDelayMs);
+          });
+        }
+      } finally {
+        activeWrites -= 1;
+      }
+    },
+  };
+  const file: File = {
+    identity: "writer-probe",
+    name: "probe.zip",
+    openWriter: () => Promise.resolve(writer),
+    read: () => Promise.resolve(new Uint8Array()),
+  };
+  return {
+    get abortCalls() {
+      return abortCalls;
+    },
+    get commitAtWriteCount() {
+      return commitAtWriteCount;
+    },
+    get commitCalls() {
+      return commitCalls;
+    },
+    file,
+    get maxConcurrentWrites() {
+      return maxConcurrentWrites;
+    },
+    get writeCalls() {
+      return writeCalls;
+    },
+  };
+}

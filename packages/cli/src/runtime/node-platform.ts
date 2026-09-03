@@ -6,6 +6,8 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as pathModule from "node:path";
 import * as process from "node:process";
+import { type Readable, Writable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import * as sqlite3 from "sqlite3";
 import * as yauzl from "yauzl";
 import * as yazl from "yazl";
@@ -423,20 +425,101 @@ async function writeNodeZip(
   entries: Iterable<HostZipEntry> | AsyncIterable<HostZipEntry>,
 ): Promise<void> {
   const zipFile = new yazl.ZipFile();
-  const output = collectNodeStream(zipFile.outputStream);
-  for await (const entry of entries) {
-    zipFile.addBuffer(Buffer.from(entry.data), entry.name, { compress: false });
-  }
-  zipFile.end();
-
   const writer = await file.openWriter();
+  const outputStream = zipFile.outputStream as Readable;
+  const outputDone = writeNodeStream(outputStream, writer);
+  const entryState = { cancelled: false, complete: false };
+  let iterator:
+    | Iterator<HostZipEntry>
+    | AsyncIterator<HostZipEntry>
+    | undefined;
+
   try {
-    await writer.write(await output);
+    iterator = getNodeZipEntryIterator(entries);
+    const entriesDone = addNodeZipEntries(zipFile, iterator, entryState);
+    await Promise.race([entriesDone, outputDone]);
+    if (!entryState.complete) {
+      throw new Error("ZIP output ended before entry production completed");
+    }
+    zipFile.end();
+    await outputDone;
     await writer.commit();
   } catch (error) {
-    await writer.abort();
+    entryState.cancelled = true;
+    if (!entryState.complete && iterator !== undefined) {
+      closeNodeZipEntryIterator(iterator);
+    }
+    if (!outputStream.destroyed) {
+      outputStream.destroy(
+        error instanceof Error ? error : new Error("Cannot write ZIP archive"),
+      );
+    }
+    await outputDone.catch(() => undefined);
+    await writer.abort().catch(() => undefined);
     throw error;
   }
+}
+
+async function addNodeZipEntries(
+  zipFile: yazl.ZipFile,
+  iterator: Iterator<HostZipEntry> | AsyncIterator<HostZipEntry>,
+  state: { cancelled: boolean; complete: boolean },
+): Promise<void> {
+  while (!state.cancelled) {
+    const result = await iterator.next();
+    if (state.cancelled) return;
+    if (result.done) {
+      state.complete = true;
+      return;
+    }
+    zipFile.addBuffer(Buffer.from(result.value.data), result.value.name, {
+      compress: false,
+    });
+  }
+}
+
+function getNodeZipEntryIterator(
+  entries: Iterable<HostZipEntry> | AsyncIterable<HostZipEntry>,
+): Iterator<HostZipEntry> | AsyncIterator<HostZipEntry> {
+  const asyncIterator = (entries as AsyncIterable<HostZipEntry>)[
+    Symbol.asyncIterator
+  ];
+  return asyncIterator === undefined
+    ? (entries as Iterable<HostZipEntry>)[Symbol.iterator]()
+    : asyncIterator.call(entries);
+}
+
+function closeNodeZipEntryIterator(
+  iterator: Iterator<HostZipEntry> | AsyncIterator<HostZipEntry>,
+): void {
+  if (iterator.return === undefined) return;
+  try {
+    void Promise.resolve(iterator.return()).catch(() => undefined);
+  } catch {
+    // Preserve the failure that caused iteration to stop.
+  }
+}
+
+async function writeNodeStream(
+  input: NodeJS.ReadableStream,
+  writer: FileWriter,
+): Promise<void> {
+  await pipeline(
+    input,
+    new Writable({
+      write: (chunk: Buffer, _encoding, callback) => {
+        void writer.write(chunk).then(
+          () => callback(),
+          (error: unknown) =>
+            callback(
+              error instanceof Error
+                ? error
+                : new Error("Cannot stream ZIP archive"),
+            ),
+        );
+      },
+    }),
+  );
 }
 
 async function collectNodeStream(
