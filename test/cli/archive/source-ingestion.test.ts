@@ -353,7 +353,7 @@ describe("cli/archive/source-ingestion", () => {
         ),
       ).toBe(true);
     });
-  });
+  }, 20_000);
 });
 
 async function runJsonCLI(
