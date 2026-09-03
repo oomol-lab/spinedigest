@@ -56,7 +56,11 @@ export async function readSourceFragment(
 export async function createTextStreamRangeFragment(
   document: ReadonlyDocument,
   reference: Extract<WikiGraphReference, { readonly type: "text-stream" }>,
-): Promise<ArchiveSourceFragment> {
+): Promise<{
+  readonly fragment: ArchiveSourceFragment;
+  readonly sourceEnd?: number;
+  readonly sourceStart?: number;
+}> {
   const range = await readTextStreamRange(
     document,
     reference.chapterId,
@@ -66,12 +70,18 @@ export async function createTextStreamRangeFragment(
   );
 
   return {
-    fragmentId: range.startSentenceIndex,
-    id: range.id,
-    preview: createSnippet(range.text),
-    sentenceCount: range.endSentenceIndex - range.startSentenceIndex + 1,
-    text: range.text,
-    wordsCount: countWords(range.text),
+    fragment: {
+      fragmentId: range.startSentenceIndex,
+      id: range.id,
+      preview: createSnippet(range.text),
+      sentenceCount: range.endSentenceIndex - range.startSentenceIndex + 1,
+      text: range.text,
+      wordsCount: countWords(range.text),
+    },
+    ...(range.sourceEnd === undefined ? {} : { sourceEnd: range.sourceEnd }),
+    ...(range.sourceStart === undefined
+      ? {}
+      : { sourceStart: range.sourceStart }),
   };
 }
 
@@ -85,6 +95,8 @@ export async function readTextStreamRange(
 ): Promise<{
   readonly endSentenceIndex: number;
   readonly id: string;
+  readonly sourceEnd?: number;
+  readonly sourceStart?: number;
   readonly startSentenceIndex: number;
   readonly text: string;
 }> {
@@ -105,14 +117,26 @@ export async function readTextStreamRange(
   const start = clampInteger(startSentenceIndex, 0, lastSentenceIndex);
   const end = clampInteger(endSentenceIndex, start, lastSentenceIndex);
   const sentences = index.sentences.slice(start, end + 1);
+  const rawRange = await readTextStreamRawRange(
+    document,
+    chapterId,
+    stream,
+    start,
+    end,
+  );
   const text =
-    normalizeRenderedTextStreamRange(
-      await readTextStreamRawRange(document, chapterId, stream, start, end),
-    ) ?? joinTextStreamSentences(sentences);
+    normalizeRenderedTextStreamRange(rawRange?.text) ??
+    joinTextStreamSentences(sentences);
 
   return {
     endSentenceIndex: end,
     id: formatTextStreamRangeUri(chapterId, stream, start, end),
+    ...(rawRange?.sourceEnd === undefined
+      ? {}
+      : { sourceEnd: rawRange.sourceEnd }),
+    ...(rawRange?.sourceStart === undefined
+      ? {}
+      : { sourceStart: rawRange.sourceStart }),
     startSentenceIndex: start,
     text,
   };
@@ -141,10 +165,30 @@ async function readTextStreamRawRange(
   stream: ArchiveTextStreamKind,
   startSentenceIndex: number,
   endSentenceIndex: number,
-): Promise<string | undefined> {
+): Promise<
+  | {
+      readonly sourceEnd?: number;
+      readonly sourceStart?: number;
+      readonly text: string;
+    }
+  | undefined
+> {
   const serial = getTextStreamSerial(document, chapterId, stream);
+  const range = await serial.readTextInRangeWithOffsets?.(
+    startSentenceIndex,
+    endSentenceIndex,
+  );
 
-  return await serial.readTextInRange?.(startSentenceIndex, endSentenceIndex);
+  if (range !== undefined) {
+    return range;
+  }
+
+  const text = await serial.readTextInRange?.(
+    startSentenceIndex,
+    endSentenceIndex,
+  );
+
+  return text === undefined ? undefined : { text };
 }
 
 function getTextStreamSerial(

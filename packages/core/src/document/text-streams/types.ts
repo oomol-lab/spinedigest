@@ -63,6 +63,16 @@ export interface ReadonlySerialTextStream {
     startSentenceIndex: number,
     endSentenceIndex: number,
   ): Promise<string | undefined>;
+  readTextInRangeWithOffsets?(
+    startSentenceIndex: number,
+    endSentenceIndex: number,
+  ): Promise<TextStreamRangeRead | undefined>;
   readonly path: string;
   readonly serialId: number;
+}
+
+export interface TextStreamRangeRead {
+  readonly sourceEnd: number;
+  readonly sourceStart: number;
+  readonly text: string;
 }

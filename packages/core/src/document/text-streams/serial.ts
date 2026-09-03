@@ -18,6 +18,7 @@ import {
   TEXT_STREAM_KIND,
   type ReadonlySerialTextStream,
   type TextSentenceLocation,
+  type TextStreamRangeRead,
   type TextStreamDraftState,
   type TextStreamFileAccess,
   type TextStreamName,
@@ -134,8 +135,20 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     startSentenceIndex: number,
     endSentenceIndex: number,
   ): Promise<string | undefined> {
+    return (
+      await this.readTextInRangeWithOffsets(
+        startSentenceIndex,
+        endSentenceIndex,
+      )
+    )?.text;
+  }
+
+  public async readTextInRangeWithOffsets(
+    startSentenceIndex: number,
+    endSentenceIndex: number,
+  ): Promise<TextStreamRangeRead | undefined> {
     if (endSentenceIndex < startSentenceIndex) {
-      return "";
+      return { sourceEnd: 0, sourceStart: 0, text: "" };
     }
 
     const rows = await this.#database.queryAll(
@@ -162,10 +175,18 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     }
 
     const content = await this.#readContent();
-
-    return new TextDecoder().decode(
+    const text = new TextDecoder().decode(
       content.subarray(first.byteOffset, last.byteOffset + last.byteLength),
     );
+    const sourceStart = Array.from(
+      new TextDecoder().decode(content.subarray(0, first.byteOffset)),
+    ).length;
+
+    return {
+      sourceEnd: sourceStart + Array.from(text).length,
+      sourceStart,
+      text,
+    };
   }
 
   async #getSentenceLocation(

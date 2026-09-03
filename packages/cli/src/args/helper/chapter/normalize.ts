@@ -280,11 +280,11 @@ export function normalizeArchiveChapterArguments(
         values["input-format"] !== undefined &&
         values["input-format"] !== "jsonl"
       ) {
-        rejectActionFlag(
-          values["input-format"],
-          "--input-format",
-          action,
-          helpRoute,
+        throw new Error(
+          withHelpRoute(
+            "`--input-format` for chapter source set only accepts `jsonl`.",
+            helpRoute,
+          ),
         );
       }
       rejectActionFlag(values.parent, "--parent", action, helpRoute);

@@ -401,6 +401,9 @@ describe("cli/archive-chapter", () => {
     expect(chapterMockState.textWrites[0]).toContain(
       "Chapter: wikg://chapter/c3d4e5f6a1b2\n",
     );
+    expect(chapterMockState.textWrites[0]).toContain(
+      "Located URI: wikg:///tmp/book.wikg/chapter/c3d4e5f6a1b2\n",
+    );
   });
 
   it("adds a chapter and prints JSON when requested", async () => {
@@ -415,6 +418,7 @@ describe("cli/archive-chapter", () => {
       childCount: 0,
       graphReady: false,
       hasSummary: false,
+      locatedUri: "wikg:///tmp/book.wikg/chapter/c3d4e5f6a1b2",
       sourceUnits: 2,
       stage: "planned",
       title: "New Chapter",
@@ -545,6 +549,21 @@ describe("cli/archive-chapter", () => {
       }),
     ).rejects.toThrow(
       "Missing input. Pass a positional value, use --input <path>, or use --input - for stdin.",
+    );
+
+    expect(chapterMockState.setSourceCalls).toStrictEqual([]);
+  });
+
+  it("explains every supported source input when source text is empty", async () => {
+    await expect(
+      runArchiveChapterCommand({
+        action: "set-source",
+        chapterPath: "a1b2c3d4e5f6/b2c3d4e5f6a1",
+        inputValue: "  \n",
+        path: "/tmp/book.wikg",
+      }),
+    ).rejects.toThrow(
+      "Source input is empty. Pass non-empty positional text, use --input <path>, or use --input - for stdin.",
     );
 
     expect(chapterMockState.setSourceCalls).toStrictEqual([]);

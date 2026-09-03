@@ -1,4 +1,4 @@
-import type { QueryIndexScope } from "wiki-graph-core";
+import type { QueryIndexScope, SourceTextMapRecord } from "wiki-graph-core";
 import type { CLIArchiveArguments } from "../../../args/index.js";
 
 export type ResultFormat = "json" | "jsonl" | "text";
@@ -26,6 +26,7 @@ export interface ArchiveOutputObject {
   readonly libraryArchiveUri?: string;
   readonly objectLabel?: string;
   readonly predicate?: string;
+  readonly provenance?: readonly SourceTextMapRecord[];
   readonly publisher?: string;
   readonly score?: number;
   readonly state?: Record<string, string>;

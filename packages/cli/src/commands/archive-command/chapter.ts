@@ -8,6 +8,7 @@ import {
   applyChapterTree,
   assertNoActiveBuildJobConflicts,
   assertNoActiveBuildJobs,
+  formatLocatedChapterUri,
   getChapterTree,
   listChapters,
   moveChapter,
@@ -19,6 +20,7 @@ import {
   setChapterSummary,
   setChapterTitle,
   parseSourceTextJsonl,
+  WikiGraphArchiveFile,
   type BuildJobTarget,
   type ChapterTree,
   type ChapterTreeApplyResult,
@@ -27,11 +29,11 @@ import {
   type IndexArtifactKind,
 } from "wiki-graph-core";
 import { NodeFile } from "../../runtime/node-platform.js";
-import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIArchiveChapterArguments } from "../../args/index.js";
 import type { RenderTreeNode } from "../../support/index.js";
 import {
+  parseLocatedWikiGraphUri,
   renderTreeText,
   readTextStreamFromStdin,
   writeTextToStdout,
@@ -70,7 +72,9 @@ export async function runArchiveChapterCommand(
           );
         }
 
-        await writeChapterDetails(details, args.json ?? false);
+        await writeChapterDetails(details, args.json ?? false, {
+          locatedUri: formatChapterCommandUri(args.path, details.path),
+        });
       });
       return;
     case "list":
@@ -472,7 +476,7 @@ async function readRequiredSourceText(
 
   if (content.trim() === "") {
     throw new Error(
-      "Source input is empty. Pass non-empty text with --input <path> or --input -.",
+      "Source input is empty. Pass non-empty positional text, use --input <path>, or use --input - for stdin.",
     );
   }
 
@@ -482,6 +486,7 @@ async function readRequiredSourceText(
 async function writeChapterDetails(
   details: ChapterDetails,
   json: boolean,
+  options: { readonly locatedUri?: string } = {},
 ): Promise<void> {
   if (json) {
     await writeTextToStdout(
@@ -489,6 +494,9 @@ async function writeChapterDetails(
         childCount: details.childCount,
         graphReady: details.graphReady,
         hasSummary: details.hasSummary,
+        ...(options.locatedUri === undefined
+          ? {}
+          : { locatedUri: options.locatedUri }),
         sourceUnits: details.fragmentCount,
         stage: formatStage(details.stage),
         title: details.title,
@@ -500,6 +508,9 @@ async function writeChapterDetails(
 
   const lines = [
     `Chapter: ${details.uri}`,
+    ...(options.locatedUri === undefined
+      ? []
+      : [`Located URI: ${options.locatedUri}`]),
     `Title: ${details.title ?? "[untitled]"}`,
     `Stage: ${formatStage(details.stage)}`,
     `Source Units: ${details.fragmentCount}`,
@@ -509,6 +520,24 @@ async function writeChapterDetails(
   ];
 
   await writeTextToStdout(`${lines.join("\n")}\n`);
+}
+
+function formatChapterCommandUri(
+  archiveLocator: string,
+  chapterPath: string,
+): string {
+  if (archiveLocator.startsWith("wikg://lib/")) {
+    return `${archiveLocator.replace(/\/+$/u, "")}/chapter/${chapterPath}`;
+  }
+  if (archiveLocator.startsWith("wikg://")) {
+    const parsed = parseLocatedWikiGraphUri(archiveLocator);
+
+    if (parsed.archivePath !== undefined) {
+      return formatLocatedChapterUri(parsed.archivePath, chapterPath);
+    }
+  }
+
+  return formatLocatedChapterUri(archiveLocator, chapterPath);
 }
 
 async function writeChapterList(

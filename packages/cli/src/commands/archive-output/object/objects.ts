@@ -306,6 +306,9 @@ export async function createPageObject(
           ...(backlinks === undefined
             ? {}
             : { backlinks: await createBacklinksObject(backlinks, context) }),
+          ...(page.provenance === undefined
+            ? {}
+            : { provenance: page.provenance }),
           text: page.fragment.text,
           uri: toWikiGraphUri(page.id),
         };
