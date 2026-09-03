@@ -106,7 +106,9 @@ overlays/workspaces for `index.db` or legacy `fts.db`, and orphaned SQLite
 materialization cache overlays whose archive file no longer exists. The v2 -> v3
 home upgrader uses the same cleanup boundary because the index-cache semantics
 changed. A home upgrader must block before cleanup when library/state/GC locks,
-build jobs, worker leases, or coordinator owners are still active. Orphaned
+a build worker lease, or coordinator owners are still active. Queued, paused,
+or otherwise unfinished job rows without a live worker are inactive derived
+state and do not block migration. Orphaned
 cross-version overlays are rollback state, not a reason to replay a partially
 completed operation against an archive.
 
@@ -125,7 +127,7 @@ Hosts that need to accept a v3 home implement the resource adapter's
 normal file and directory operations.
 
 Before changing the registry or deleting derived state, the upgrader rejects
-fresh library/state/GC locks, active build jobs or worker leases, and live
+fresh library/state/GC locks, an active build worker lease, and live
 legacy or current coordinator owners. Once those checks pass, cross-version
 coordinator state is rolled back: legacy/current coordinator databases and
 their workspaces are discarded, including non-derived overlays, so the last
@@ -154,7 +156,10 @@ and legacy sdpub inputs. Internal SQLite files such as search sessions, job
 state, staging state, and library `index.db` are implementation details of the
 home or library target and must not become CLI targets.
 
-- `wg maintenance upgrade ~/.wikigraph` explicitly upgrades home state. Real CLI
+- `wg maintenance upgrade home` explicitly upgrades home state. This command
+  bypasses the ordinary home preflight so an old schema can enter its own
+  upgrade flow; `~/.wikigraph` and its shell-expanded configured path are also
+  accepted as aliases. Real CLI
   commands also run a centralized home preflight before touching local state;
   `wg --version`, `wg --help`, `wg help ...`, and other pure help rendering paths
   remain rescue paths and do not create or upgrade home.

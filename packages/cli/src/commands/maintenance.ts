@@ -5,6 +5,7 @@ import {
 } from "wiki-graph-core";
 
 import type { CLIMaintenanceArguments } from "../args/index.js";
+import { isWikiGraphHomeTarget } from "../runtime/home-target.js";
 import { formatCLIJSON, writeTextToStdout } from "../support/index.js";
 import { NodeFile } from "../runtime/node-platform.js";
 import { resolve } from "path";
@@ -55,7 +56,7 @@ function formatMaintenanceUpgradeResult(
 }
 
 function parseMaintenanceTarget(target: string) {
-  if (target === "home" || target === "~/.wikigraph") {
+  if (isWikiGraphHomeTarget(target)) {
     return { kind: "home" as const };
   }
   if (target.startsWith("wikg://lib")) {

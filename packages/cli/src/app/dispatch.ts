@@ -17,6 +17,7 @@ import {
 } from "../commands/index.js";
 import { formatCLIJSON, formatCLIJSONLine } from "../support/index.js";
 import { readCLIVersion } from "../support/index.js";
+import { isWikiGraphHomeTarget } from "../runtime/home-target.js";
 import {
   ensureWikiGraphHomeSchemaCurrent,
   formatError,
@@ -56,7 +57,12 @@ export async function dispatchWikiGraphCLI(
         return { exitCode: 0 };
     }
 
-    await ensureWikiGraphHomeSchemaCurrent();
+    if (
+      parsed.kind !== "maintenance-command" ||
+      !isWikiGraphHomeTarget(parsed.args.target)
+    ) {
+      await ensureWikiGraphHomeSchemaCurrent();
+    }
 
     switch (parsed.kind) {
       case "convert":

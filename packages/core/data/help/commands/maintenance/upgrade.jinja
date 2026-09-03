@@ -9,7 +9,7 @@ Usage:
   {{ commandName }} maintenance upgrade <path.sdpub> [--output <path.wikg>] [--json]
 
 Targets:
-  - Home state: ~/.wikigraph
+  - Home state: home (or ~/.wikigraph)
   - Standalone archive: ./book.wikg, /path/to/book.wikg, wikg://book.wikg, wikg:///path/to/book.wikg
   - Legacy sdpub: ./book.sdpub, optionally with --output
   - Library: wikg://lib or wikg://lib/<lib-id>
@@ -23,7 +23,7 @@ Notes:
   - Library upgrade covers the registry and managed archive members for that library.
 
 Examples:
-  {{ commandName }} maintenance upgrade ~/.wikigraph
+  {{ commandName }} maintenance upgrade home
   {{ commandName }} maintenance upgrade ./book.wikg
   {{ commandName }} maintenance upgrade wikg://lib
   {{ commandName }} maintenance upgrade ./book.sdpub --output ./book.wikg
