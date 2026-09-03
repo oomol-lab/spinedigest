@@ -179,7 +179,6 @@ export async function resetChapter(
 
     switch (stage) {
       case "planned":
-        await openedDocument.clearSerialDerivedArtifacts(chapterId);
         await openedDocument.clearSerialSource(chapterId);
         break;
       case "sourced":

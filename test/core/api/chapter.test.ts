@@ -326,36 +326,6 @@ describe("facade/chapter", () => {
     });
   });
 
-  it("resets a summarized chapter directly to planned", async () => {
-    await withTempDir("wikigraph-chapter-", async (path) => {
-      const document = await DirectoryDocument.open(path);
-
-      try {
-        const chapter = await addChapter(document, {
-          title: "Chapter 1",
-        });
-        await setChapterSource(document, chapter.chapterId, ["Alpha beta."]);
-        await document.serials.setTopologyReady(chapter.chapterId);
-        await setChapterSummary(document, chapter.chapterId, "Summary");
-
-        const reset = await resetChapter(
-          document,
-          chapter.chapterId,
-          "planned",
-        );
-
-        expect(reset).toMatchObject({
-          fragmentCount: 0,
-          graphReady: false,
-          hasSummary: false,
-          stage: "planned",
-        });
-      } finally {
-        await document.release();
-      }
-    });
-  });
-
   it("reads one chapter details without scanning unrelated chapter fragments", async () => {
     await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);

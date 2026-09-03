@@ -20,7 +20,7 @@ External extractor input:
 
 JSONL contract:
   - Each non-empty line is one `artifact` or `text` object. At least one of each is required.
-  - An artifact record is `{"type":"artifact","digest":"<64 hex SHA-256>","mediaType":"application/pdf|application/epub+zip","name":"<optional>","identifier":"<optional>"}`.
+  - An artifact record is `{"type":"artifact","digest":"<64 hex SHA-256 of source file bytes>","mediaType":"application/pdf|application/epub+zip","name":"<optional>","identifier":"<optional>"}`.
   - A text record is `{"type":"text","text":"...","locator":{...}}` and belongs to the most recently declared artifact.
   - PDF locators are `{"pageIndex":1,"bbox":[left,bottom,right,top]}`; page indexes are 1-based and bbox coordinates are ordered numbers in `[0,1]`.
   - EPUB locators are `{"cfi":"epubcfi(...)"}`.
@@ -33,6 +33,7 @@ Minimal PDF example:
 Boundaries:
   - OCR, layout analysis, and format-specific extraction belong to the importer; WG consumes the contract above.
   - WG stores normalized source text and its source-text map, not the original PDF or EPUB file.
+  - Source text remains usable without a source-text map, but evidence cannot point back to a PDF page or EPUB CFI.
   - Source-file input does not generate Reading Graph, Summary, or Knowledge Graph
     data.
 

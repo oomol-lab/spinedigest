@@ -332,13 +332,16 @@ describe("cli/args/help", () => {
       "wikg://book.wikg/chapter/part/state --help",
     );
     expect(sourceSetHelpText).toContain(
-      "Fill a planned chapter with its complete normalized source text.",
+      "Fill a planned chapter with its complete source text.",
     );
     expect(sourceSetHelpText).toContain(
       "Supply exactly one positional value or `--input`",
     );
     expect(sourceSetHelpText).toContain("must be `planned`");
     expect(sourceSetHelpText).toContain("Plain text writes source without");
+    expect(sourceSetHelpText).toContain("File extensions are not inferred");
+    expect(sourceSetHelpText).toContain("<chapter-uri>/state --help");
+    expect(sourceSetHelpText).toContain("<chapter-uri> reset --help");
     expect(sourceSetHelpText).toContain("[--json]");
     expect(fileImportHelpText).toContain(
       "`create --import` currently accepts EPUB",
@@ -348,6 +351,10 @@ describe("cli/args/help", () => {
     expect(fileImportHelpText).toContain('"pageIndex":1');
     expect(fileImportHelpText).toContain('"cfi":"epubcfi(...)"');
     expect(fileImportHelpText).toContain("offsets are not input fields");
+    expect(fileImportHelpText).toContain("SHA-256 of source file bytes");
+    expect(fileImportHelpText).toContain(
+      "evidence cannot point back to a PDF page or EPUB CFI",
+    );
   });
 
   it("documents the layered help contract", () => {
