@@ -1387,9 +1387,7 @@ describe("cli/args/archive", () => {
         "--input-format",
         "txt",
       ]),
-    ).toThrow(
-      "The `chapter set-source` action does not support --input-format.",
-    );
+    ).toThrow("`--input-format` for chapter source set only accepts `jsonl`.");
     expect(
       parseCLIArguments([
         "wikg://book.wikg/chapter",

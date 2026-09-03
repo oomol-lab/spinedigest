@@ -1,6 +1,7 @@
 import type {
   MentionLinkRecord,
   MentionRecord,
+  SourceTextMapRecord,
 } from "../../../document/index.js";
 import type { BookMeta } from "../../../text/source/index.js";
 import type { GraphNeighbor } from "../../../graph/reading.js";
@@ -302,6 +303,7 @@ export type ArchivePage = ArchiveLibrarySourceFields &
         readonly nextFragmentId: string | undefined;
         readonly nodes: readonly ArchiveNodeLabel[];
         readonly previousFragmentId: string | undefined;
+        readonly provenance?: readonly SourceTextMapRecord[];
         readonly title: string;
         readonly type: "fragment";
       }

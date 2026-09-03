@@ -1,4 +1,7 @@
-import type { ReadonlyDocument } from "../../../document/index.js";
+import type {
+  ReadonlyDocument,
+  SourceTextMapRecord,
+} from "../../../document/index.js";
 import { parseWikiGraphUriSyntax } from "../../../runtime/common/wiki-graph/uri.js";
 import {
   getChapterTree,
@@ -408,7 +411,18 @@ async function readWikiGraphPage(
       );
     }
     case "text-stream": {
-      const fragment = await createTextStreamRangeFragment(document, reference);
+      const { fragment, sourceEnd, sourceStart } =
+        await createTextStreamRangeFragment(document, reference);
+      const provenance =
+        reference.stream === "source"
+          ? await listSourceRangeProvenance(
+              document,
+              reference.chapterId,
+              sourceStart,
+              sourceEnd,
+              !Number.isFinite(reference.endSentenceIndex),
+            )
+          : undefined;
       return {
         ...(options.backlinks === true
           ? { backlinks: await createTextStreamBacklinks(document, reference) }
@@ -418,9 +432,38 @@ async function readWikiGraphPage(
         nextFragmentId: undefined,
         nodes: [],
         previousFragmentId: undefined,
+        ...(provenance === undefined ? {} : { provenance }),
         title: displayUri,
         type: "fragment",
       };
     }
   }
+}
+
+async function listSourceRangeProvenance(
+  document: ReadonlyDocument,
+  chapterId: number,
+  sourceStart: number | undefined,
+  sourceEnd: number | undefined,
+  wholeSource: boolean,
+): Promise<readonly SourceTextMapRecord[]> {
+  const [mappings, sourceRevision] = await Promise.all([
+    document.sourceProvenance.listMap(chapterId),
+    document.serials.getRevision(chapterId),
+  ]);
+  const currentMappings = mappings.filter(
+    (mapping) => mapping.sourceRevision === sourceRevision,
+  );
+
+  if (wholeSource) {
+    return currentMappings;
+  }
+  if (sourceStart === undefined || sourceEnd === undefined) {
+    return [];
+  }
+
+  return currentMappings.filter(
+    (mapping) =>
+      mapping.sourceStart < sourceEnd && mapping.sourceEnd > sourceStart,
+  );
 }

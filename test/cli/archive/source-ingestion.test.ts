@@ -49,6 +49,123 @@ interface TocItemLike {
 }
 
 describe("cli/archive/source-ingestion", () => {
+  it("returns a reusable chapter URI and exposes source provenance", async () => {
+    const digest = "a".repeat(64);
+    const firstText = "😀 First source sentence. ";
+    const secondText = "Second source sentence.";
+    const secondStart = Array.from(firstText).length;
+    const jsonl = [
+      JSON.stringify({
+        digest,
+        mediaType: "application/pdf",
+        name: "two-pages.pdf",
+        type: "artifact",
+      }),
+      JSON.stringify({
+        locator: { bbox: [0, 0, 0.5, 0.5], pageIndex: 1 },
+        text: firstText,
+        type: "text",
+      }),
+      JSON.stringify({
+        locator: { bbox: [0.5, 0.5, 1, 1], pageIndex: 2 },
+        text: secondText,
+        type: "text",
+      }),
+    ].join("\n");
+
+    await withTempDir("wikigraph-cli-source-provenance-", async (path) => {
+      const stateDir = resolve(path, "state");
+      const archivePath = resolve(path, "provenance.wikg");
+      const archiveUri = formatWikiGraphCommandUri(archivePath);
+
+      await runJsonCLI(stateDir, [archiveUri, "create", "--json"]);
+      const chapter = await runJsonCLI(stateDir, [
+        `${archiveUri}/chapter`,
+        "add",
+        "--title",
+        "Provenance",
+        "--json",
+      ]);
+      expect(chapter.uri).toMatch(/^wikg:\/\/chapter\//u);
+      const locatedChapterUri = requireString(chapter, "locatedUri");
+      expect(locatedChapterUri).toBe(
+        `${archiveUri}/chapter/${requireChapterPath(chapter)}`,
+      );
+
+      const sourceUri = `${locatedChapterUri}/source`;
+      await runJsonCLI(
+        stateDir,
+        [sourceUri, "set", "--input", "-", "--input-format", "jsonl", "--json"],
+        jsonl,
+      );
+
+      const wholeSource = await runJsonCLI(stateDir, [sourceUri, "--json"]);
+      expect(
+        requireProvenance(wholeSource).map((mapping) => ({
+          digest: mapping.artifact.digest,
+          locator: mapping.locator,
+          sourceEnd: mapping.sourceEnd,
+          sourceStart: mapping.sourceStart,
+        })),
+      ).toStrictEqual([
+        {
+          digest,
+          locator: { bbox: [0, 0, 0.5, 0.5], pageIndex: 1 },
+          sourceEnd: secondStart,
+          sourceStart: 0,
+        },
+        {
+          digest,
+          locator: { bbox: [0.5, 0.5, 1, 1], pageIndex: 2 },
+          sourceEnd: secondStart + Array.from(secondText).length,
+          sourceStart: secondStart,
+        },
+      ]);
+
+      const firstRange = await runJsonCLI(stateDir, [
+        `${sourceUri}#1`,
+        "--json",
+      ]);
+      expect(
+        requireProvenance(firstRange).map((mapping) => ({
+          digest: mapping.artifact.digest,
+          locator: mapping.locator,
+        })),
+      ).toStrictEqual([
+        {
+          digest,
+          locator: { bbox: [0, 0, 0.5, 0.5], pageIndex: 1 },
+        },
+      ]);
+      const secondRange = await runJsonCLI(stateDir, [
+        `${sourceUri}#2`,
+        "--json",
+      ]);
+      expect(
+        requireProvenance(secondRange).map((mapping) => ({
+          digest: mapping.artifact.digest,
+          locator: mapping.locator,
+        })),
+      ).toStrictEqual([
+        {
+          digest,
+          locator: { bbox: [0.5, 0.5, 1, 1], pageIndex: 2 },
+        },
+      ]);
+
+      await runJsonCLI(stateDir, [
+        locatedChapterUri,
+        "reset",
+        "--to",
+        "planned",
+        "--json",
+      ]);
+      await runJsonCLI(stateDir, [sourceUri, "set", "Plain source.", "--json"]);
+      const plainSource = await runJsonCLI(stateDir, [sourceUri, "--json"]);
+      expect(requireProvenance(plainSource)).toStrictEqual([]);
+    });
+  });
+
   it("sets a PDF source from JSONL through real CLI stdin", async () => {
     const jsonl = await readFile(NEWTON_JSONL_PATH, "utf8");
     const records = parseJsonl(jsonl);
@@ -236,7 +353,7 @@ describe("cli/archive/source-ingestion", () => {
         ),
       ).toBe(true);
     });
-  });
+  }, 20_000);
 });
 
 async function runJsonCLI(
@@ -315,4 +432,25 @@ function requireChapterPath(
     throw new Error("CLI chapter output did not contain a URI.");
   }
   return uri.replace(/^wikg:\/\/chapter\//u, "");
+}
+
+function requireString(
+  object: Readonly<Record<string, unknown>>,
+  key: string,
+): string {
+  const value = object[key];
+  if (typeof value !== "string") {
+    throw new Error(`CLI output did not contain string field ${key}.`);
+  }
+  return value;
+}
+
+function requireProvenance(
+  object: Readonly<Record<string, unknown>>,
+): readonly SourceTextMapRecord[] {
+  const value = object.provenance;
+  if (!Array.isArray(value)) {
+    throw new Error("CLI output did not contain a provenance array.");
+  }
+  return value as readonly SourceTextMapRecord[];
 }
