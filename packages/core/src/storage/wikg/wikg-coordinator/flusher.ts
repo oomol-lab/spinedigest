@@ -32,6 +32,7 @@ import {
   deleteCommittedOverlay,
   listOrphanOverlayPaths,
   listOverlays,
+  listSettleableOverlays,
   resolveOverlayFile,
 } from "./overlays.js";
 import { cleanupStaleState, withCoordinatorState } from "./state.js";
@@ -83,8 +84,10 @@ export async function flushArchiveOverlays(
     }
 
     const requested = new Set(entryPaths);
-    const overlays = (await listOverlays(archiveKey)).filter((overlay) =>
-      requested.has(overlay.entryPath),
+    const overlays = await listSettleableOverlays(
+      archiveKey,
+      requested,
+      owner.ownerId,
     );
     if (overlays.length === 0) return undefined;
 

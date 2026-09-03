@@ -2,6 +2,8 @@ import process from "process";
 
 import { DirectoryDocument } from "../../packages/core/src/document/index.js";
 import { WikgCoordinator } from "../../packages/core/src/storage/wikg/coordinator.js";
+import { createWorkspaceSnapshot } from "../../packages/core/src/storage/wikg/wikg-coordinator/workspace.js";
+import { createPortableHash } from "../../packages/core/src/utils/crypto.js";
 import {
   installNodeWikiGraphPlatform,
   NodeFile,
@@ -23,6 +25,24 @@ const coordinator = new WikgCoordinator();
 await run();
 
 async function run(): Promise<void> {
+  if (action === "staging") {
+    await coordinator.withArchiveSession(archive, async () => {
+      send({ type: "ready" });
+      await waitFor("write");
+      const archiveKey = createPortableHash("sha256")
+        .update(archive.identity)
+        .digest("hex");
+      const snapshot = await createWorkspaceSnapshot(archiveKey, "toc.json");
+      const writer = await snapshot.file.openWriter();
+      await writer.write(`${JSON.stringify({ items: [], version: 1 })}\n`);
+      await writer.commit();
+      send({ type: "staged" });
+      await waitFor("crash");
+      process.exit(0);
+    });
+    return;
+  }
+
   if (action === "database") {
     await coordinator.withArchiveSession(archive, async (session) => {
       const document = await DirectoryDocument.openFileStore(

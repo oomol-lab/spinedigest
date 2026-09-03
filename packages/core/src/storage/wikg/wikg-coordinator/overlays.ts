@@ -1,7 +1,11 @@
 import type { File } from "../../../runtime/platform/index.js";
 import { createPortableHash } from "../../../utils/crypto.js";
 
-import { mapEntryOverlay, withCoordinatorState } from "./state.js";
+import {
+  createPlaceholders,
+  mapEntryOverlay,
+  withCoordinatorState,
+} from "./state.js";
 import type { CoordinatorOwner, EntryOverlay } from "./types.js";
 import {
   removeWorkspaceSnapshot,
@@ -33,6 +37,40 @@ WHERE archive_key = ?
 ORDER BY entry_path
 `,
       [archiveKey],
+      mapEntryOverlay,
+    ),
+  );
+}
+
+/**
+ * Returns overlays this owner may commit after the caller has locked their
+ * entries. A foreign live owner can still roll its operation back, so an
+ * observer must leave that overlay for the publishing owner (or a reaper).
+ */
+export async function listSettleableOverlays(
+  archiveKey: string,
+  entryPaths: ReadonlySet<string>,
+  ownerId: string,
+): Promise<readonly EntryOverlay[]> {
+  if (entryPaths.size === 0) return [];
+  const paths = [...entryPaths];
+  return await withCoordinatorState(async (database) =>
+    database.queryAll(
+      `
+SELECT overlay.*
+FROM entry_overlays AS overlay
+LEFT JOIN archive_owners AS publishing_owner
+  ON publishing_owner.archive_key = overlay.archive_key
+ AND publishing_owner.owner_id = overlay.owner_id
+WHERE overlay.archive_key = ?
+  AND overlay.entry_path IN (${createPlaceholders(paths.length)})
+  AND (
+    overlay.owner_id = ?
+    OR publishing_owner.owner_id IS NULL
+  )
+ORDER BY overlay.entry_path
+`,
+      [archiveKey, ...paths, ownerId],
       mapEntryOverlay,
     ),
   );

@@ -25,14 +25,12 @@ const workerPath = fileURLToPath(
 const workerErrors = new WeakMap<ChildProcess, string[]>();
 
 describe("wikg cross-process coordination", () => {
-  it("preserves disjoint writes from overlapping processes", async () => {
+  it("preserves disjoint writes when the later process commits last", async () => {
     await withFixture(async ({ archivePath, stateRoot, storage }) => {
       const metadata = spawnWorker(archivePath, stateRoot, "meta");
+      await waitForMessage(metadata, "ready");
       const toc = spawnWorker(archivePath, stateRoot, "toc");
-      await Promise.all([
-        waitForMessage(metadata, "ready"),
-        waitForMessage(toc, "ready"),
-      ]);
+      await waitForMessage(toc, "ready");
 
       metadata.send({ type: "write" });
       toc.send({ type: "write" });
@@ -41,8 +39,9 @@ describe("wikg cross-process coordination", () => {
         waitForMessage(toc, "published"),
       ]);
       metadata.send({ type: "finish" });
+      await waitForExit(metadata);
       toc.send({ type: "finish" });
-      await Promise.all([waitForExit(metadata), waitForExit(toc)]);
+      await waitForExit(toc);
 
       await withWikiGraphStorage(storage, async () => {
         await expect(
@@ -75,6 +74,24 @@ describe("wikg cross-process coordination", () => {
         ).resolves.toMatchObject({
           title: "Written by metadata worker",
         });
+      });
+    });
+  });
+
+  it("does not recover an unpublished staging snapshot after a hard exit", async () => {
+    await withFixture(async ({ archivePath, stateRoot, storage }) => {
+      const writer = spawnWorker(archivePath, stateRoot, "staging");
+      await waitForMessage(writer, "ready");
+      writer.send({ type: "write" });
+      await waitForMessage(writer, "staged");
+      writer.send({ type: "crash" });
+      await waitForExit(writer);
+
+      await withWikiGraphStorage(storage, async () => {
+        await reapThroughCoordinator(archivePath);
+        await expect(
+          readJsonEntry(archivePath, "toc.json"),
+        ).resolves.toMatchObject({ items: [{ title: "Original" }] });
       });
     });
   });
@@ -148,6 +165,53 @@ describe("wikg cross-process coordination", () => {
         await deletion;
         expect(deleted).toBe(true);
       });
+    });
+  });
+
+  it("does not settle a foreign overlay while its owner can still roll back", async () => {
+    await withFixture(async ({ archivePath }) => {
+      const archive = new NodeFile(archivePath);
+      const coordinator = new WikgCoordinator();
+      let markPublished!: () => void;
+      const published = new Promise<void>((resolve) => {
+        markPublished = resolve;
+      });
+      let failWriter!: () => void;
+      const failureGate = new Promise<void>((resolve) => {
+        failWriter = resolve;
+      });
+      const writer = coordinator.withArchiveSession(
+        archive,
+        async (writerSession) => {
+          await writerSession.writeEntry(
+            "toc.json",
+            `${JSON.stringify({ items: [{ children: [], key: "chapter", serialId: 1, title: "Should rollback" }], version: 1 })}\n`,
+            { overwrite: true },
+          );
+          markPublished();
+          await failureGate;
+          throw new Error("rollback writer");
+        },
+      );
+      await published;
+      await coordinator.withArchiveSession(archive, async (readerSession) => {
+        const content = await readerSession.readEntry("toc.json");
+        if (content === undefined) throw new Error("Expected TOC overlay");
+        expect(
+          JSON.parse(new TextDecoder().decode(content)) as {
+            items: Array<{ title: string }>;
+          },
+        ).toMatchObject({ items: [{ title: "Should rollback" }] });
+      });
+      await expect(
+        readJsonEntry(archivePath, "toc.json"),
+      ).resolves.toMatchObject({ items: [{ title: "Original" }] });
+
+      failWriter();
+      await expect(writer).rejects.toThrow("rollback writer");
+      await expect(
+        readJsonEntry(archivePath, "toc.json"),
+      ).resolves.toMatchObject({ items: [{ title: "Original" }] });
     });
   });
 
