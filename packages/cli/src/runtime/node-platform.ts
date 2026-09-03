@@ -572,6 +572,12 @@ export const nodeWikiGraphPlatform: WikiGraphPlatform = {
         path === undefined ? undefined : new NodeFile(path),
       );
     },
+    resolveLegacyDirectory: (reference) => {
+      const path = decodeNodeResourceIdentity(reference, "directory");
+      return Promise.resolve(
+        path === undefined ? undefined : new NodeDirectory(path),
+      );
+    },
   },
   templates: {
     createEnvironment: (options) =>
@@ -618,7 +624,6 @@ function resolveNodeDataDirectory(): string {
 export function createNodeWikiGraphStorage(
   stateRoot = pathModule.join(os.homedir(), ".wikigraph"),
 ): WikiGraphStorage {
-  fs.mkdirSync(pathModule.join(stateRoot, "documents"), { recursive: true });
   return {
     library: new NodeDirectory(stateRoot),
     documentStore: new NodeDirectory(pathModule.join(stateRoot, "documents")),

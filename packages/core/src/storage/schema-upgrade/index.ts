@@ -30,6 +30,10 @@ import {
   normalizeArchivePath,
   sortArchiveEntryPathsForWrite,
 } from "../wikg/archive/paths.js";
+import {
+  assertArchiveUpgradeCoordinatorSafe,
+  clearArchiveUpgradeDerivedOverlays,
+} from "../wikg/wikg-coordinator/index.js";
 
 export {
   ensureWikiGraphHomeSchemaCurrent,
@@ -96,6 +100,8 @@ export async function upgradeWikiGraphArchiveSchema(
       );
     }
 
+    await assertArchiveUpgradeCoordinatorSafe(archive);
+
     const root = getWikiGraphStorage().documentStore;
     const workspaceName = await createWorkspaceName(root);
     const workspace = await root.createDirectory(workspaceName);
@@ -137,6 +143,7 @@ export async function upgradeWikiGraphArchiveSchema(
           name,
         })),
       );
+      await clearArchiveUpgradeDerivedOverlays(archive);
       await cleanupArchiveDerivedData();
 
       return {
