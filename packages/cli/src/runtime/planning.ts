@@ -62,9 +62,10 @@ export function planGenerationTask(
 export function createGenerationPerformanceHints(input: {
   readonly chapters: number;
   readonly concurrent: GenerationConcurrency;
-  readonly hasGenerationWork: boolean;
+  readonly hasJobWork: boolean;
+  readonly hasRequestWork: boolean;
 }): readonly GenerationPerformanceHint[] {
-  if (!input.hasGenerationWork) {
+  if (!input.hasJobWork) {
     return [];
   }
 
@@ -77,7 +78,7 @@ export function createGenerationPerformanceHints(input: {
         ? 8
         : undefined;
 
-  if (recommendedRequest !== undefined) {
+  if (input.hasRequestWork && recommendedRequest !== undefined) {
     hints.push({
       command: `wg wikg://local/config/concurrent put request ${recommendedRequest}`,
       current: input.concurrent.request,
@@ -94,7 +95,7 @@ export function createGenerationPerformanceHints(input: {
       current: input.concurrent.job,
       kind: "job",
       message:
-        "Multiple chapters need generation and job concurrency is below 4. Raising it lets chapter jobs run in parallel.",
+        "Multiple chapters need work and job concurrency is below 4. Raising it lets chapter jobs run in parallel.",
       recommended: 4,
     });
   }

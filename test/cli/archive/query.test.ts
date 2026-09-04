@@ -87,6 +87,28 @@ describe("cli/archive/query", () => {
     });
   });
 
+  it("gives an executable local FTS recovery command when query is not ready", async () => {
+    archiveMockState.rebuildErrorMessage =
+      'Wiki Graph query is not ready. Chapters "Missing chapter" (wikg://chapter/chapter-2) need a current FTS artifact or source embedding artifact before query.';
+
+    await expect(
+      runArchiveCommand({
+        action: "search",
+        archivePath: "wikg:///tmp/My Book.wikg",
+        format: "text",
+        query: "RAG",
+      }),
+    ).rejects.toThrow(
+      [
+        "Build local FTS artifacts without provider calls:",
+        "  wg wikg://local/job add --input 'wikg:///tmp/My Book.wikg' --task index-fts",
+        "",
+        "Help:",
+        "  wg help readiness",
+      ].join("\n"),
+    );
+  });
+
   it("warns when search skips unindexed chapters", async () => {
     await runArchiveCommand({
       action: "search",

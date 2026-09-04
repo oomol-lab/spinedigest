@@ -697,6 +697,7 @@ describe("cli/queue", () => {
         target: "reading-graph",
         words: 800,
       },
+      jobsCommand: "wg wikg://local/job --json",
       skipped: [
         {
           chapter: {
@@ -708,7 +709,67 @@ describe("cli/queue", () => {
           reason: "planned",
         },
       ],
+      verifyCommand: "wg wikg://book.wikg inspect",
     });
+  });
+
+  it("keeps archive-wide local FTS output free of LLM details", async () => {
+    queueMockState.chapters = [
+      {
+        chapterId: 11,
+        stage: "sourced",
+        words: 400,
+      },
+      {
+        chapterId: 12,
+        stage: "sourced",
+        words: 800,
+      },
+    ];
+
+    await runQueueCommand({
+      action: "add",
+      archivePath: "book.wikg",
+      target: "index-fts",
+    });
+
+    const output = queueMockState.textWrites.join("");
+    expect(output).toContain("Work: index-fts over 2 chapters / 1200 words");
+    expect(output).toContain("Current concurrency: job=3");
+    expect(output).not.toContain("Model:");
+    expect(output).not.toContain("request=");
+    expect(output).not.toContain("LLM request concurrency");
+    expect(output).toContain("Jobs: wg wikg://local/job --json");
+    expect(output).toContain(
+      "Verify after the jobs finish: wg wikg://book.wikg inspect",
+    );
+  });
+
+  it("omits provider-only fields from archive-wide local FTS json", async () => {
+    queueMockState.chapters = [
+      {
+        chapterId: 12,
+        stage: "sourced",
+        words: 800,
+      },
+    ];
+
+    await runQueueCommand({
+      action: "add",
+      archivePath: "book.wikg",
+      json: true,
+      target: "index-fts",
+    });
+
+    const output = JSON.parse(queueMockState.textWrites.join("")) as {
+      readonly estimate: Record<string, unknown>;
+    };
+    expect(output.estimate).toMatchObject({
+      concurrent: { job: 3 },
+      target: "index-fts",
+    });
+    expect(output.estimate).not.toHaveProperty("model");
+    expect(output.estimate.concurrent).not.toHaveProperty("request");
   });
 
   it("suggests job concurrency for multi-chapter archive job add", async () => {

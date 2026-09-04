@@ -70,13 +70,14 @@ interface InspectReport {
     readonly sourceWords: number;
     readonly summaryWords: number;
   };
-  readonly index: {
+  readonly localIndexCache: {
+    readonly blockedBy?: "missing-search-artifacts";
     readonly current: boolean;
     readonly fixCommand?: string;
     readonly impact?: string;
-    readonly querySupport: boolean;
     readonly resource?: string;
-    readonly status: "current" | "missing-or-outdated";
+    readonly status: "blocked" | "current" | "missing-or-outdated";
+    readonly syncAvailable: boolean;
   };
   readonly coverage: {
     readonly ftsIndexArtifact: InspectCoverage;
@@ -86,7 +87,17 @@ interface InspectReport {
     readonly summaryEmbeddingIndexArtifact: InspectCoverage;
     readonly sourceEmbeddingIndexArtifact: InspectCoverage;
   };
-  readonly queryBlockedChapters: readonly InspectChapterReference[];
+  readonly query: {
+    readonly ready: boolean;
+  };
+  readonly searchArtifacts: {
+    readonly blockedChapters: readonly InspectChapterReference[];
+    readonly fixCommand?: string;
+    readonly helpCommand: string;
+    readonly ready: boolean;
+    readonly resource?: string;
+    readonly status: "incomplete" | "ready";
+  };
   readonly retrievalGuidance: readonly string[];
   readonly improvements: readonly InspectImprovement[];
   readonly performanceHints: readonly GenerationPerformanceHint[];
@@ -118,7 +129,7 @@ async function createArchiveInspectReport(
   const [
     chapters,
     summaryWords,
-    ftsCurrent,
+    indexCacheCurrent,
     config,
     ftsArtifactCoverage,
     sourceEmbeddingArtifactCoverage,
@@ -169,19 +180,30 @@ async function createArchiveInspectReport(
     contentChapters,
     summaryEmbeddingArtifactCoverage,
   );
-  const queryBlockedChapters = contentChapters
-    .filter(
-      (chapter) =>
-        !ftsArtifactCovered.includes(chapter) &&
-        !sourceEmbeddingArtifactCovered.includes(chapter),
-    )
-    .map((chapter) => createInspectChapterReference(archiveUri, chapter));
+  const queryBlockedContentChapters = contentChapters.filter(
+    (chapter) =>
+      !ftsArtifactCovered.includes(chapter) &&
+      !sourceEmbeddingArtifactCovered.includes(chapter),
+  );
+  const queryBlockedChapters = queryBlockedContentChapters.map((chapter) =>
+    createInspectChapterReference(archiveUri, chapter),
+  );
+  const queryReady = queryBlockedChapters.length === 0;
+  const buildFtsCommand = formatCliCommand([
+    "wikg://local/job",
+    "add",
+    "--input",
+    scopeUri,
+    "--task",
+    "index-fts",
+  ]);
   const improvements = createInspectImprovements({
     archiveUri,
     concurrent,
     contentChapters,
-    ftsCurrent,
+    indexCacheCurrent,
     planningModel,
+    queryBlockedChapters: queryBlockedContentChapters,
     scopeUri,
     summaryCovered,
     knowledgeGraphCovered,
@@ -193,7 +215,10 @@ async function createArchiveInspectReport(
       ...improvements.map((improvement) => improvement.missingChapters ?? 0),
     ),
     concurrent,
-    hasGenerationWork: improvements.some(
+    hasJobWork: improvements.some(
+      (improvement) => improvement.planning !== undefined,
+    ),
+    hasRequestWork: improvements.some(
       (improvement) => improvement.planning !== undefined,
     ),
   });
@@ -213,18 +238,28 @@ async function createArchiveInspectReport(
       sourceWords,
       summaryWords,
     },
-    index: {
-      current: ftsCurrent,
-      ...(ftsCurrent
-        ? {}
-        : {
-            fixCommand: formatCliCommand([`${archiveUri}/index`, "sync"]),
+    localIndexCache: {
+      current: indexCacheCurrent,
+      ...(!queryReady
+        ? {
+            blockedBy: "missing-search-artifacts" as const,
             impact:
-              "The next archive query may need to sync index cache first.",
-            resource: "local CPU/disk time only; no provider calls.",
-          }),
-      querySupport: queryBlockedChapters.length === 0,
-      status: ftsCurrent ? "current" : "missing-or-outdated",
+              "The cache cannot be built until every content chapter has a current FTS or source embedding artifact.",
+          }
+        : indexCacheCurrent
+          ? {}
+          : {
+              fixCommand: formatCliCommand([`${archiveUri}/index`, "sync"]),
+              impact:
+                "The next archive query may need to sync index cache first.",
+              resource: "local CPU/disk time only; no provider calls.",
+            }),
+      status: !queryReady
+        ? "blocked"
+        : indexCacheCurrent
+          ? "current"
+          : "missing-or-outdated",
+      syncAvailable: queryReady && !indexCacheCurrent,
     },
     coverage: {
       ftsIndexArtifact: createInspectCoverage(
@@ -246,12 +281,27 @@ async function createArchiveInspectReport(
         contentChapters,
       ),
     },
-    queryBlockedChapters,
+    query: {
+      ready: queryReady,
+    },
+    searchArtifacts: {
+      blockedChapters: queryBlockedChapters,
+      ...(!queryReady
+        ? {
+            fixCommand: buildFtsCommand,
+            resource: "local CPU/disk time only; no provider calls.",
+          }
+        : {}),
+      helpCommand: "wg help readiness",
+      ready: queryReady,
+      status: queryReady ? "ready" : "incomplete",
+    },
     retrievalGuidance: formatRetrievalGuidance({
-      ftsCurrent,
+      indexCacheCurrent,
       knowledgeGraphCovered,
       readingGraphCovered,
       contentChapters,
+      queryReady,
       sourceWords,
     }),
     improvements,
@@ -285,15 +335,29 @@ function formatArchiveInspectText(report: InspectReport): string {
       `Source words: ${report.content.sourceWords}`,
       `Summary words: ${report.content.summaryWords}`,
       "",
-      "Index Cache",
-      `Status: ${report.index.current ? "current" : "missing or outdated"}`,
-      `Query support: ${report.index.querySupport ? "available" : "unavailable"}`,
-      ...(report.index.current
+      "Query Readiness",
+      `Status: ${report.query.ready ? "available" : "unavailable"}`,
+      `Search artifacts: ${report.searchArtifacts.status}`,
+      ...(report.searchArtifacts.ready
         ? []
         : [
-            `Impact: ${report.index.impact}`,
-            `Fix: ${report.index.fixCommand}`,
-            `Resource: ${report.index.resource}`,
+            `Fix: ${report.searchArtifacts.fixCommand}`,
+            `Resource: ${report.searchArtifacts.resource}`,
+            `Help: ${report.searchArtifacts.helpCommand}`,
+          ]),
+      "",
+      "Index Cache",
+      `Status: ${report.localIndexCache.status === "missing-or-outdated" ? "missing or outdated" : report.localIndexCache.status}`,
+      ...(report.localIndexCache.current
+        ? []
+        : [
+            `Impact: ${report.localIndexCache.impact}`,
+            ...(report.localIndexCache.fixCommand === undefined
+              ? []
+              : [`Fix: ${report.localIndexCache.fixCommand}`]),
+            ...(report.localIndexCache.resource === undefined
+              ? []
+              : [`Resource: ${report.localIndexCache.resource}`]),
           ]),
       "",
       "Coverage",
@@ -313,11 +377,11 @@ function formatArchiveInspectText(report: InspectReport): string {
       formatCoverageLine("Knowledge Graph", report.coverage.knowledgeGraph),
       formatCoverageLine("Summary Artifact", report.coverage.summary),
       `Summary note: ${report.help.summaryCoverage}`,
-      ...(report.queryBlockedChapters.length === 0
+      ...(report.searchArtifacts.blockedChapters.length === 0
         ? []
         : [
             "Query blockers: these chapters have neither FTS nor source embedding index artifacts:",
-            ...report.queryBlockedChapters.map(
+            ...report.searchArtifacts.blockedChapters.map(
               (chapter) =>
                 `- ${chapter.title === null ? "[untitled]" : chapter.title}: ${chapter.locatedUri}`,
             ),
@@ -456,8 +520,9 @@ function formatCoverageLine(label: string, coverage: InspectCoverage): string {
 
 function formatRetrievalGuidance(input: {
   readonly contentChapters: readonly InspectChapter[];
-  readonly ftsCurrent: boolean;
+  readonly indexCacheCurrent: boolean;
   readonly knowledgeGraphCovered: readonly InspectChapter[];
+  readonly queryReady: boolean;
   readonly readingGraphCovered: readonly InspectChapter[];
   readonly sourceWords: number;
 }): readonly string[] {
@@ -469,7 +534,9 @@ function formatRetrievalGuidance(input: {
   }
 
   const lines = [
-    `Query cache: ${input.ftsCurrent ? "current" : "missing or outdated; archive query can sync it from artifacts"}.`,
+    input.queryReady
+      ? `Query: available; local index cache is ${input.indexCacheCurrent ? "current" : "missing or outdated and can be synced from artifacts"}.`
+      : "Query: unavailable until every content chapter has a current FTS or source embedding artifact.",
   ];
 
   lines.push(
@@ -517,23 +584,15 @@ function createInspectImprovements(input: {
   readonly archiveUri: string;
   readonly concurrent: { readonly job: number; readonly request: number };
   readonly contentChapters: readonly InspectChapter[];
-  readonly ftsCurrent: boolean;
+  readonly indexCacheCurrent: boolean;
   readonly knowledgeGraphCovered: readonly InspectChapter[];
   readonly planningModel: string;
+  readonly queryBlockedChapters: readonly InspectChapter[];
   readonly readingGraphCovered: readonly InspectChapter[];
   readonly scopeUri: string;
   readonly summaryCovered: readonly InspectChapter[];
 }): readonly InspectImprovement[] {
   const improvements: InspectImprovement[] = [];
-
-  if (!input.ftsCurrent) {
-    improvements.push({
-      command: formatCliCommand([`${input.archiveUri}/index`, "sync"]),
-      recommendation:
-        "Sync the index cache from chapter index artifacts so query starts without a lazy cache rebuild.",
-      title: "Sync index cache",
-    });
-  }
 
   if (input.contentChapters.length === 0) {
     improvements.push({
@@ -548,6 +607,31 @@ function createInspectImprovements(input: {
       title: "Add source content",
     });
     return improvements;
+  }
+
+  if (input.queryBlockedChapters.length > 0) {
+    improvements.push({
+      command: formatCliCommand([
+        "wikg://local/job",
+        "add",
+        "--input",
+        input.scopeUri,
+        "--task",
+        "index-fts",
+      ]),
+      missingChapters: input.queryBlockedChapters.length,
+      missingWords: sumWords(input.queryBlockedChapters),
+      recommendation:
+        "Build local FTS artifacts to make this scope queryable. This does not call a provider.",
+      title: "Enable query with local FTS",
+    });
+  } else if (!input.indexCacheCurrent) {
+    improvements.push({
+      command: formatCliCommand([`${input.archiveUri}/index`, "sync"]),
+      recommendation:
+        "Sync the index cache from chapter index artifacts so query starts without a lazy cache rebuild.",
+      title: "Sync index cache",
+    });
   }
 
   improvements.push(
