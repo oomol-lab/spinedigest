@@ -84,6 +84,33 @@ await wikiGraph.openSession(outputArchive, async (archive) => {
 
 `targetStage: "planned"` 会创建归档，但不会调用 LLM。需要构建 Reading Graph、Summary 或 Knowledge Graph 的阶段必须配置 LLM。
 
+### Source locators
+
+Source text、evidence 与 query 结果专注于可读原文。调用方需要导入文件的
+provenance 时，Core 提供与 CLI 相同的独立 locator collection：
+
+```ts
+import {
+  listArchiveSourceLocators,
+  readArchivePage,
+  WikiGraphArchiveFile,
+} from "wiki-graph-core";
+
+const archiveFile = new WikiGraphArchiveFile(myArchiveFile);
+await archiveFile.readDocument(async (document) => {
+  const page = await listArchiveSourceLocators(
+    document,
+    "wikg://chapter/<chapter-path>/source/locators#1..3",
+    { limit: 20 },
+  );
+  const location = await readArchivePage(document, page.items[0]!.uri);
+});
+```
+
+每个 item 将从 1 开始、闭区间的 Unicode 字符 `range` 映射到 artifact
+locator `uri`。URI 的可选 fragment 会先选择 source 句子；分页使用
+`nextCursor`。
+
 ## LLM 配置
 
 `WikiGraph` 接受任意 AI SDK `LanguageModel`。SDK 不读取 CLI 配置文件；应用需要自己传入模型和运行参数。

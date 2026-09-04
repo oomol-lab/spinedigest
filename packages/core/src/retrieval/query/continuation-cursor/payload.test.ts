@@ -148,6 +148,24 @@ describe("continuation cursor payload", () => {
     expect(roundTripCursor(cursor)).toStrictEqual(cursor);
   });
 
+  it("round-trips source locator cursors", () => {
+    const cursor: ContinuationCursor = {
+      archiveKey: "archive-key",
+      archivePath: "/tmp/book.wikg",
+      cursor: "raw-locator-cursor",
+      format: "jsonl",
+      indexScope: {
+        archiveKey: "archive-key",
+        archivePath: "/tmp/book.wikg",
+        kind: "archive-index",
+      },
+      kind: "source-locators",
+      targetUri: "wikg://chapter/chapter-key/source/locators#2..4",
+    };
+
+    expect(roundTripCursor(cursor)).toStrictEqual(cursor);
+  });
+
   it("rejects malformed and mismatched archive index scopes", () => {
     expect(() =>
       parseContinuationCursorRecord({

@@ -129,7 +129,45 @@ export function parseArchiveChapterUriArguments(
         values,
         helpRoute,
       );
+    case "source-locator-scope":
+      return parseSourceLocatorScopeUriArguments(
+        uri,
+        action,
+        tail,
+        values,
+        helpRoute,
+      );
   }
+}
+
+function parseSourceLocatorScopeUriArguments(
+  uri: string,
+  action: CLIArchiveUriAction,
+  tail: readonly string[],
+  values: ArchiveArgumentValues,
+  helpRoute: string,
+): ParsedCLIArguments {
+  if (action !== "list") {
+    throw new Error(
+      withHelpRoute(
+        "The source locator scope is read-only. Read it directly to enumerate locator mappings.",
+        "wg <chapter-uri>/source/locators --help",
+      ),
+    );
+  }
+
+  rejectArchiveChapterFlag("backlinks", values.backlinks, helpRoute);
+  rejectArchiveChapterFlag("context", values.context, helpRoute);
+  rejectArchiveChapterFlag("depth", values.depth, helpRoute);
+  rejectArchiveChapterFlag("evidence", values.evidence, helpRoute);
+  rejectArchiveChapterFlag("reverse", values.reverse, helpRoute);
+  rejectArchiveChapterFlag(
+    "skip-unindexed",
+    values["skip-unindexed"],
+    helpRoute,
+  );
+
+  return parseArchiveArguments("list", [uri, ...tail], values, helpRoute);
 }
 
 function parseChapterIndexArtifactUriArguments(

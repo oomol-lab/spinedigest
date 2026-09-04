@@ -304,7 +304,6 @@ export async function hydrateSearchTextHit(
     hit.sentenceIndex,
     hit.sentenceIndex,
     context,
-    { includeLocators: false },
   );
 
   return {

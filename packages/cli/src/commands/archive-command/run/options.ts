@@ -55,7 +55,8 @@ export function createArchiveOutputContext(
       | "collection"
       | "evidence"
       | "related"
-      | "search";
+      | "search"
+      | "source-locators";
     readonly targetUri?: string;
   } = {},
 ): ArchiveOutputContext {

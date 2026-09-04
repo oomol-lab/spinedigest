@@ -21,9 +21,7 @@ import type {
   ArchiveTextStreamKind,
   ArchiveTextStreamSentence,
   EvidenceReadContext,
-  SourceLocatorMap,
 } from "./types.js";
-import { createSourceLocatorMap } from "./source-locators.js";
 
 function createTextStreamReadContext(): EvidenceReadContext {
   return {
@@ -64,7 +62,6 @@ export async function createTextStreamRangeFragment(
   reference: Extract<WikiGraphReference, { readonly type: "text-stream" }>,
 ): Promise<{
   readonly fragment: ArchiveSourceFragment;
-  readonly locators: SourceLocatorMap;
 }> {
   const range = await readTextStreamRange(
     document,
@@ -83,7 +80,6 @@ export async function createTextStreamRangeFragment(
       text: range.text,
       wordsCount: countWords(range.text),
     },
-    locators: range.locators,
   };
 }
 
@@ -94,11 +90,9 @@ export async function readTextStreamRange(
   startSentenceIndex: number,
   endSentenceIndex: number,
   context: EvidenceReadContext = createTextStreamReadContext(),
-  options: { readonly includeLocators?: boolean } = {},
 ): Promise<{
   readonly endSentenceIndex: number;
   readonly id: string;
-  readonly locators: SourceLocatorMap;
   readonly sourceEnd?: number;
   readonly sourceStart?: number;
   readonly startSentenceIndex: number;
@@ -137,20 +131,9 @@ export async function readTextStreamRange(
     sourceStart === undefined
       ? undefined
       : sourceStart + Array.from(text).length;
-  const locators =
-    stream === "source" && options.includeLocators !== false
-      ? await createSourceLocatorMap(
-          document,
-          chapterId,
-          sourceStart,
-          sourceEnd,
-        )
-      : {};
-
   return {
     endSentenceIndex: end,
     id: formatTextStreamRangeUri(chapter.path, stream, start, end),
-    locators,
     ...(sourceEnd === undefined ? {} : { sourceEnd }),
     ...(sourceStart === undefined ? {} : { sourceStart }),
     startSentenceIndex: start,

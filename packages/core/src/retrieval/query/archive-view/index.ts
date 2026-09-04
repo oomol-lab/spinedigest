@@ -33,6 +33,10 @@ export {
   listArchiveObjects,
 } from "./collection.js";
 export { listArchiveEvidence } from "./evidence.js";
+export {
+  isSourceLocatorScopeUri,
+  listArchiveSourceLocators,
+} from "./source-locators.js";
 export { packArchiveContext } from "./pack.js";
 
 export type {
@@ -70,6 +74,8 @@ export type {
   ArchiveRelatedResult,
   ArchiveRelatedRole,
   ArchiveSourceFragment,
-  SourceLocatorMap,
+  ArchiveSourceLocator,
+  ArchiveSourceLocatorOptions,
+  ArchiveSourceLocatorResult,
   ArchiveTriplePattern,
 } from "./types.js";

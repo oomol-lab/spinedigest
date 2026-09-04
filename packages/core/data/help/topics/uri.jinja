@@ -39,6 +39,7 @@ Short and located URIs:
   Commands may return short object URIs without local file paths:
     wikg://chapter/part/title
     wikg://chapter/part/source#4..8
+    wikg://chapter/part/source/locators#4..8
     wikg://artifact/<sha256-digest>#epubcfi(...)
     wikg://chunk/12
     wikg://entity/Q8018
@@ -93,6 +94,7 @@ Scope URIs:
     wikg://book.wikg/chapter/part/chunk
     wikg://book.wikg/chapter/part/entity
     wikg://book.wikg/chapter/part/triple
+    wikg://book.wikg/chapter/part/source/locators
     wikg://book.wikg/chunk
     wikg://book.wikg/entity
     wikg://book.wikg/triple
@@ -131,10 +133,12 @@ Object boundaries:
   - `chapter/<path>` is a scope, not an object.
   - `chapter/<path>/title` is the queryable chapter title object.
   - Whole `source` and `summary` objects are readable text streams, not collection scopes.
+  - `<chapter-uri>/source/locators` is a collection scope. Its optional fragment selects source sentences before their locator mappings are listed.
   - Chapter-qualified scope URIs such as `<chapter-uri>/chunk`, `<chapter-uri>/entity`, and `<chapter-uri>/triple` expand to the chapter subtree and support `--depth`.
   - Chapter-qualified resource and object URIs such as `/source`, `/summary`, `/title`, `/state`, `/chunk/<id>`, `/entity/<qid>`, and complete `/triple/<subject>/<predicate>/<object>` do not expand to subtrees and do not support `--depth`.
   - `move`, `remove`, and `reset` are chapter node maintenance predicates; they target the chapter node itself, not the subtree. Use `remove --recursive` for explicit recursive deletion.
   - Ranged fragments such as `/source#4..8` and `/summary#4..8` are structured range objects.
+  - In `/source/locators#4..8`, the fragment belongs to the locator scope and selects the same source sentence range.
   - Source and summary range numbers are 1-based and inclusive. `/source#1..2` means the first two source sentences.
   - Source text is the grounding material. `evidence` is not available for source, summary, or chapter scope URIs.
   - `chunk`, `entity`, and `triple` can return source-backed evidence.

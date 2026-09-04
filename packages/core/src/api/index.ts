@@ -28,11 +28,13 @@ export {
   listAllArchiveLinks,
   listArchiveLinks,
   listArchiveObjects,
+  listArchiveSourceLocators,
   listRelatedArchiveObjects,
   packArchiveContext,
   readArchivePage,
   readArchiveText,
   rebuildArchiveSearchIndex,
+  isSourceLocatorScopeUri,
 } from "../retrieval/query/index.js";
 export {
   addBuildJob,
@@ -167,7 +169,9 @@ export type {
   ArchiveLibrarySource,
   ArchivePack,
   ArchivePage,
-  SourceLocatorMap,
+  ArchiveSourceLocator,
+  ArchiveSourceLocatorOptions,
+  ArchiveSourceLocatorResult,
   ArchiveRelatedResult,
   ArchiveTriplePattern,
 } from "../retrieval/query/index.js";

@@ -86,9 +86,7 @@ describe("archive/query/archive-view/text search", () => {
           id: sourceHit.id,
           type: "fragment",
         });
-        expect(sourceHit?.locators).toStrictEqual({
-          [`1..${Array.from(sourceHit?.snippet ?? "").length}`]: `wikg://artifact/${"a".repeat(64)}#epubcfi(/6/2!/4/2)`,
-        });
+        expect(sourceHit).not.toHaveProperty("locators");
 
         const listMap = vi.spyOn(document.sourceProvenance, "listMap");
         const sourceOnly = await findArchiveObjects(document, "Wiki", {
@@ -98,10 +96,8 @@ describe("archive/query/archive-view/text search", () => {
         const typedSourceHit = sourceOnly.items[0];
 
         expect(typedSourceHit?.type).toBe("source");
-        expect(typedSourceHit?.locators).toStrictEqual({
-          [`1..${Array.from(typedSourceHit?.snippet ?? "").length}`]: `wikg://artifact/${"a".repeat(64)}#epubcfi(/6/2!/4/2)`,
-        });
-        expect(listMap).toHaveBeenCalledTimes(1);
+        expect(typedSourceHit).not.toHaveProperty("locators");
+        expect(listMap).not.toHaveBeenCalled();
       } finally {
         await document.release();
       }

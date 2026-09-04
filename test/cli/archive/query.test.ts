@@ -544,7 +544,6 @@ describe("cli/archive/query", () => {
             shown: 1,
             sources: [
               {
-                locators: {},
                 text: "RAG original source fragment.",
                 uri: "wikg://chapter/2/source#1..2",
               },
@@ -676,7 +675,6 @@ describe("cli/archive/query", () => {
             shown: 1,
             sources: [
               {
-                locators: {},
                 text: "RAG original source fragment.",
                 uri: "wikg://chapter/2/source#1..2",
               },
@@ -767,7 +765,6 @@ describe("cli/archive/query", () => {
             shown: 1,
             sources: [
               {
-                locators: {},
                 text: "RAG original source fragment.",
                 uri: "wikg://chapter/2/source#1..2",
               },

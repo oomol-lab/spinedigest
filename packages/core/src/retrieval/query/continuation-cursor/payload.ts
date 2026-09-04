@@ -2,6 +2,12 @@ import type { ContinuationCursor, QueryIndexScope } from "./types.js";
 
 export function createCursorPayload(input: ContinuationCursor): object {
   switch (input.kind) {
+    case "source-locators":
+      return {
+        cursor: input.cursor,
+        indexScope: input.indexScope,
+        targetUri: input.targetUri,
+      };
     case "collection":
       return {
         ...(input.backlinks === undefined
@@ -90,6 +96,18 @@ export function parseContinuationCursorRecord(record: {
 }): ContinuationCursor {
   const payload = parsePayload(record.payloadJSON);
   const indexScope = readCursorIndexScope(payload, record);
+
+  if (record.kind === "source-locators") {
+    return {
+      archiveKey: record.archiveKey,
+      archivePath: record.archivePath,
+      cursor: getPayloadString(payload, "cursor"),
+      format: record.format,
+      indexScope,
+      kind: "source-locators",
+      targetUri: getPayloadString(payload, "targetUri"),
+    };
+  }
 
   if (record.kind === "collection") {
     return {

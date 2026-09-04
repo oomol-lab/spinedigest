@@ -15,7 +15,21 @@ export async function createOutputContinuationCursor(
 
   let input: ContinuationCursor;
 
-  if (context.continuationKind === "evidence") {
+  if (context.continuationKind === "source-locators") {
+    if (context.targetUri === undefined) {
+      throw new Error("Source locator cursors require a target URI.");
+    }
+
+    input = {
+      archiveKey: context.archiveKey,
+      archivePath: context.archivePath,
+      cursor,
+      format: context.format,
+      indexScope: context.indexScope,
+      kind: "source-locators",
+      targetUri: context.targetUri,
+    };
+  } else if (context.continuationKind === "evidence") {
     if (context.targetUri === undefined) {
       throw new Error("Evidence continuation cursors require a target URI.");
     }

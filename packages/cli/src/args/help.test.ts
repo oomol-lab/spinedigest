@@ -164,6 +164,36 @@ describe("cli/args/help", () => {
       help: false,
       kind: "archive",
     });
+    expect(
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/part/source/locators#1..2",
+        "--limit",
+        "3",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "list",
+        archivePath: "wikg://book.wikg/chapter/part/source/locators#1..2",
+        format: "json",
+        limit: 3,
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/part/source/locators#1..2",
+        "--help",
+      ]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderUriHelpText(
+        "chapter-source-locator-scope",
+        "wikg://book.wikg/chapter/part/source/locators#1..2",
+      ),
+      kind: "help",
+    });
     expect(() =>
       parseCLIArguments([
         "wikg://book.wikg/chapter/part/source#1..2",
@@ -420,9 +450,10 @@ describe("cli/args/help", () => {
       "wikg://book.wikg/chapter/part/source set --input",
     );
     expect(fileImportHelpText).toContain(
-      "The response includes a `locators` map for the returned text",
+      "<chapter-uri>/source/locators --json",
     );
-    expect(sourceHelpText).toContain("`uri`, `text`, and a compact `locators`");
+    expect(sourceHelpText).toContain("containing `uri` and `text`");
+    expect(sourceHelpText).toContain("/source/locators");
     expect(fileImportHelpText).toContain(
       "evidence cannot point back to a PDF page or EPUB CFI",
     );
@@ -458,7 +489,9 @@ describe("cli/args/help", () => {
     const locatorHelpText = renderHelpTopicText("source-locators");
     expect(locatorHelpText).toContain("wikg://artifact/<digest>");
     expect(locatorHelpText).toContain("3..13 -> <artifact-locator-uri>");
-    expect(locatorHelpText).toContain("Unicode characters");
+    expect(locatorHelpText).toContain("Returned `range` values count Unicode");
+    expect(locatorHelpText).toContain("<chapter-uri>/source/locators#4..8");
+    expect(locatorHelpText).toContain("--limit <n>");
     expect(
       renderUriHelpText(
         "artifact-object",
@@ -472,6 +505,12 @@ describe("cli/args/help", () => {
         "wikg://book.wikg/entity/Q1",
       ),
     ).toContain("wg help source-locators");
+    expect(
+      renderUriHelpText(
+        "chapter-source-locator-scope",
+        "wikg://book.wikg/chapter/part/source/locators#1..2",
+      ),
+    ).toContain("Source locator collection scope");
     const libraryArtifactHelp = renderUriHelpText(
       "artifact-object",
       `wikg://lib/arc/archive123/artifact/${"a".repeat(64)}`,
@@ -619,7 +658,7 @@ describe("cli/args/help", () => {
       "Use `--json` when an Agent or script needs one stable machine-readable response.",
     );
     expect(renderHelpTopicText("format")).toContain(
-      "Whole `source` and `summary` objects print plain text by default; with `--json`, source also returns `locators`",
+      "Whole `source` and `summary` objects print plain text by default; with `--json`, both return `uri` and `text`",
     );
     expect(renderHelpTopicText("format")).toContain(
       "Ranged fragments such as `/source#20..30` and `/summary#20..30` use the same output choices and retain the requested range in `uri`.",
@@ -829,7 +868,7 @@ describe("cli/args/help", () => {
       "Use `--json` when you want stable Agent-readable fields",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "Whole and ranged `source` reads return `uri`, `text`, and `locators`",
+      "Whole and ranged `source` and `summary` reads return `uri` and `text`",
     );
     expect(uriHelpText).toContain(
       "Ranged fragments such as `/source#4..8` and `/summary#4..8` are structured range objects.",
@@ -840,7 +879,7 @@ describe("cli/args/help", () => {
         "wikg://book.wikg/chapter/part/source",
       ),
     ).toContain(
-      "Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri`, `text`, and a compact `locators` map.",
+      "Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri` and `text`.",
     );
     expect(
       renderUriHelpText(

@@ -265,11 +265,12 @@ The file layout is small, but the archive carries several semantic layers:
   are 1-based and bounding-box coordinates use the normalized `[0,1]`
   lower-left coordinate space. The artifact metadata and locator records live
   in `database.db`; original source files are not stored in the archive.
-- Source locator maps: source passages expose a compact `locators` map from
-  1-based inclusive Unicode-character ranges in the returned text to artifact
-  locator URIs. These character ranges are distinct from the sentence ranges
-  in source URIs such as `source#4..8`; gaps mean that no locator is stored for
-  those characters.
+- Source locator scope: `<chapter-uri>/source/locators` lists mappings from
+  1-based inclusive Unicode-character ranges to artifact locator URIs. Its
+  optional fragment, as in `/source/locators#4..8`, first selects source
+  sentences; returned character ranges are local to that selected text. Gaps
+  mean that no locator is stored for those characters. Ordinary source,
+  evidence, and query results remain focused on the source text.
 - Reading Graph: chunks, reading edges, snakes, and sentence groups in
   `database.db`.
 - Knowledge Graph: mentions, mention links, entity projections, triple

@@ -1,7 +1,7 @@
 Help Type: topic
 Topic: source-locators
 
-Source Artifacts and Locator Maps
+Source Artifacts and Locator Scope
 
 Purpose:
   Trace a returned source passage back to the imported file location that
@@ -17,16 +17,21 @@ Artifact URIs:
   - PDF pages are 1-based. Bounding boxes use normalized `[0,1]` coordinates
     in left,bottom,right,top order with a lower-left origin.
 
-Passage maps:
-  - Plain source passages print locator map lines between the `@@ source-uri @@`
-    header and the text: `3..13 -> <artifact-locator-uri>`.
-  - JSON and JSONL passages expose the same information as a `locators` object.
-  - Source URI fragments such as `source#4..8` count sentences. Locator map keys
-    count Unicode characters within the returned `text`; both are 1-based and
-    inclusive.
+Locator scope:
+  {{ commandName }} <chapter-uri>/source/locators
+  {{ commandName }} <chapter-uri>/source/locators#4..8
+  - Source and evidence reads contain text only. Use this scope when provenance
+    details are needed.
+  - The fragment selects source sentences. Returned `range` values count Unicode
+    characters within the selected source text; both are 1-based and inclusive.
+  - Plain output is `3..13 -> <artifact-locator-uri>`. JSON and JSONL items are
+    `{"range":[3,13],"uri":"<artifact-locator-uri>"}`.
   - Missing ranges mean those characters have no stored source locator.
+  - Use `--limit <n>` and `{{ commandName }} next <cursor>` for paging, or `--all`
+    for the complete collection.
 
 Reading details:
+  {{ commandName }} <chapter-uri>/source/locators --json
   {{ commandName }} wikg://book.wikg/artifact/<digest>
   {{ commandName }} 'wikg://book.wikg/artifact/<digest>#page=21&bbox=0.1,0.2,0.9,0.35'
 

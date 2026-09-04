@@ -38,6 +38,7 @@ export type UriHelpTargetName =
   | "chapter-collection-scope"
   | "chapter-scope"
   | "chapter-source-range-object"
+  | "chapter-source-locator-scope"
   | "chapter-source-object"
   | "chapter-summary-range-object"
   | "chapter-summary-object"
@@ -109,6 +110,7 @@ const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
     predicates: ["move", "remove", "reset"],
   },
   { name: "chapter-source-range-object", predicates: [] },
+  { name: "chapter-source-locator-scope", predicates: [] },
   { name: "chapter-source-object", predicates: ["set"] },
   { name: "chapter-summary-range-object", predicates: [] },
   { name: "chapter-summary-object", predicates: ["set"] },

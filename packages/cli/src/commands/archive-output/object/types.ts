@@ -31,7 +31,6 @@ export interface ArchiveOutputObject {
   readonly label?: string;
   readonly identifier?: string;
   readonly libraryArchiveUri?: string;
-  readonly locators?: Readonly<Record<string, string>>;
   readonly locator?: Readonly<Record<string, unknown>>;
   readonly mediaType?: string;
   readonly name?: string;
@@ -82,7 +81,6 @@ export interface ArchiveOutputEvidencePreview {
 export interface ArchiveOutputSource {
   readonly archiveId?: number;
   readonly libraryArchiveUri?: string;
-  readonly locators: Readonly<Record<string, string>>;
   readonly score?: number;
   readonly text: string;
   readonly uri: string;
@@ -93,7 +91,12 @@ export interface ArchiveOutputContext {
   readonly archivePath: string;
   readonly backlinks?: boolean;
   readonly chapters?: readonly number[];
-  readonly continuationKind?: "collection" | "evidence" | "related" | "search";
+  readonly continuationKind?:
+    | "collection"
+    | "evidence"
+    | "related"
+    | "search"
+    | "source-locators";
   readonly evidenceDisabled?: boolean;
   readonly evidenceLimit?: number;
   readonly format: ResultFormat;

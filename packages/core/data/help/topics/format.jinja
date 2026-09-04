@@ -32,7 +32,8 @@ Command output shapes:
   - Default text output is for direct human reading and quick inspection.
   - Use `--json` when an Agent or script needs one stable machine-readable response.
   - Use `--jsonl` when a command returns many records, streams progress, or feeds a Unix pipeline.
-  - Whole `source` and `summary` objects print plain text by default; with `--json`, source also returns `locators`, while summary returns `uri` and `text`.
+  - Whole `source` and `summary` objects print plain text by default; with `--json`, both return `uri` and `text`.
+  - `<chapter-uri>/source/locators` is a paged collection whose JSON and JSONL items contain `range` and artifact locator `uri`.
   - Ranged fragments such as `/source#20..30` and `/summary#20..30` use the same output choices and retain the requested range in `uri`.
   - Source and summary range numbers are 1-based and inclusive.
   - Commands that do not support `--json` or `--jsonl` say so in their command help or error message.

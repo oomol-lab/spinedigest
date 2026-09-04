@@ -184,7 +184,6 @@ async function hydrateTextStreamHitContext(
   return {
     ...hit,
     id: range.id,
-    locators: range.locators,
     snippet: range.text,
   };
 }
@@ -341,7 +340,6 @@ async function mergeTextStreamHitRangeGroup(
     hit: {
       ...representative.hit,
       id: text.id,
-      locators: text.locators,
       matchCount: Math.max(...hits.map((hit) => hit.matchCount ?? 0)),
       matchedTerms: mergeStringLists(
         hits.flatMap((hit) => hit.matchedTerms ?? []),

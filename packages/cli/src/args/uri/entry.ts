@@ -169,6 +169,7 @@ function classifyArchiveUri(objectUri: string | undefined): ArchiveUriKind {
       case "triple-pattern-lens":
       case "chapter-lens":
       case "chapter-triple-pattern-lens":
+      case "source-locator-scope":
         return "scope";
       case "tree":
       case "chapter-resource":
@@ -222,6 +223,8 @@ function classifyArchiveUriHelpTarget(uri: string): UriHelpTargetName {
         return "chapter-state-object";
       case "chapter-index-artifact":
         return "chapter-index-artifact";
+      case "source-locator-scope":
+        return "chapter-source-locator-scope";
       case "chapter-resource":
         switch (chapterTarget.resource) {
           case "source":

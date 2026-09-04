@@ -16,6 +16,8 @@ import {
   resolveWikiGraphLibrary,
   findArchiveObjects,
   listArchiveQueryableChapterIds,
+  listArchiveSourceLocators,
+  isSourceLocatorScopeUri,
   rebuildArchiveSearchIndex,
   WikiGraphArchiveFile,
   type ArchiveFindOptions,
@@ -40,6 +42,8 @@ import {
   writeList,
   writePack,
   writePage,
+  writeAllSourceLocators,
+  writeSourceLocators,
 } from "../archive-output/index.js";
 import {
   ALL_COLLECTION_OUTPUT_LIMIT,
@@ -146,6 +150,36 @@ export async function runArchiveCommand(
       await readArchiveDocument(
         getArchivePath(args.archivePath),
         async (document) => {
+          const objectUri = getObjectUri(args.archivePath);
+          if (isSourceLocatorScopeUri(objectUri)) {
+            const context = createArchiveOutputContext(args, {
+              continuationKind: "source-locators",
+              targetUri: objectUri,
+            });
+            const readPage = async (cursor: string | undefined) =>
+              await listArchiveSourceLocators(document, objectUri, {
+                ...(cursor === undefined ? {} : { cursor }),
+                ...(args.limit === undefined ? {} : { limit: args.limit }),
+              });
+
+            if (args.all === true) {
+              await writeAllSourceLocators(
+                readPage,
+                args.cursor,
+                context,
+                args.format ?? "text",
+              );
+              return;
+            }
+
+            await writeSourceLocators(
+              await readPage(args.cursor),
+              context,
+              args.format ?? "text",
+            );
+            return;
+          }
+
           const scope = await resolveArchiveChapterScope(document, args);
           const scopedArgs =
             scope === undefined

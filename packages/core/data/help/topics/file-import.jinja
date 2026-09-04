@@ -32,8 +32,8 @@ Minimal PDF example:
   {"type":"text","text":"Source text\n","locator":{"pageIndex":1,"bbox":[0,0,1,1]}}
 
 Verification:
-  {{ commandName }} <chapter-uri>/source --json
-  - The response includes a `locators` map for the returned text. Read `{{ commandName }} help source-locators` for its compact range syntax.
+  {{ commandName }} <chapter-uri>/source/locators --json
+  - This independent scope lists the stored source-text mappings. Read `{{ commandName }} help source-locators` for its range syntax.
 
 Boundaries:
   - OCR, layout analysis, and format-specific extraction belong to the importer; WG consumes the contract above.

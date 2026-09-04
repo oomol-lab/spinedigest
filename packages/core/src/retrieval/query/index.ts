@@ -19,11 +19,13 @@ export {
   listArchiveEvidence,
   listArchiveLinks,
   listArchiveObjects,
+  listArchiveSourceLocators,
   listRelatedArchiveObjects,
   packArchiveContext,
   readArchivePage,
   readArchiveText,
   rebuildArchiveSearchIndex,
+  isSourceLocatorScopeUri,
   writeArchiveIndexProjectionFromArtifacts,
 } from "./view.js";
 export type {
@@ -52,7 +54,9 @@ export type {
   ArchiveObjectType,
   ArchivePack,
   ArchivePage,
-  SourceLocatorMap,
+  ArchiveSourceLocator,
+  ArchiveSourceLocatorOptions,
+  ArchiveSourceLocatorResult,
   ArchiveRelatedResult,
   ArchiveTriplePattern,
 } from "./view.js";
