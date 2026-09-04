@@ -161,6 +161,7 @@ export async function createFindObject(
           }),
         }),
     label: hit.title,
+    ...(hit.type === "source" ? { locators: hit.locators ?? {} } : {}),
     ...(isTextStreamOutputType(hit.type)
       ? { text: hit.snippet }
       : { type: hit.type === "node" ? "chunk" : hit.type }),
@@ -192,6 +193,7 @@ export function createSourceObject(
   return {
     ...createLibrarySourceObject(item),
     ...(item.score === undefined ? {} : { score: item.score }),
+    locators: item.locators ?? {},
     text: item.source,
     uri: item.id,
   };
@@ -232,6 +234,11 @@ export async function createPageObject(
   const librarySource = createLibrarySourceObject(page);
 
   switch (page.type) {
+    case "artifact": {
+      const { id: _id, type: _type, ...rest } = page;
+
+      return { ...librarySource, ...rest, uri: page.id };
+    }
     case "entity-wikipage":
       return {
         ...librarySource,
@@ -306,9 +313,9 @@ export async function createPageObject(
           ...(backlinks === undefined
             ? {}
             : { backlinks: await createBacklinksObject(backlinks, context) }),
-          ...(page.provenance === undefined
-            ? {}
-            : { provenance: page.provenance }),
+          ...(textStreamType === "source"
+            ? { locators: page.locators ?? {} }
+            : {}),
           text: page.fragment.text,
           uri: toWikiGraphUri(page.id),
         };

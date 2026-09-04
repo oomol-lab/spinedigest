@@ -34,6 +34,7 @@ export async function createSourceEvidenceItem(
       range.startSentenceIndex,
       range.endSentenceIndex,
     ),
+    locators: range.locators,
     ...(score === undefined ? {} : { score }),
     source: range.text,
     startSentenceIndex: range.startSentenceIndex,

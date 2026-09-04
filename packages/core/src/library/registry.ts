@@ -292,6 +292,7 @@ function formatWikiGraphUriFragment(
   fragment:
     | number
     | { readonly begin: number; readonly end: number }
+    | { readonly raw: string }
     | undefined,
 ): string | undefined {
   if (fragment === undefined) {
@@ -299,6 +300,9 @@ function formatWikiGraphUriFragment(
   }
   if (typeof fragment === "number") {
     return String(fragment);
+  }
+  if ("raw" in fragment) {
+    return fragment.raw;
   }
 
   return `${fragment.begin}..${fragment.end}`;

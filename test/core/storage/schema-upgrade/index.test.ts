@@ -46,6 +46,7 @@ import { withTempDir } from "../../../helpers/temp.js";
 describe("schema-upgrade", () => {
   it("upgrades a v3 archive in place and preserves its mutation token", async () => {
     await withFixture(async ({ archive, root }) => {
+      await removeV4SourceProvenanceSchema(archive, root);
       await rewriteManifest(archive, 3, true);
       const before = await readWikgArchiveMutationToken(archive);
       await expect(
@@ -76,12 +77,21 @@ describe("schema-upgrade", () => {
         readonly: true,
       });
       try {
-        const provenanceTable = await database.queryOne(
-          "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'source_artifacts'",
+        const locatorColumns = await database.queryAll(
+          "PRAGMA table_info(source_locators)",
           undefined,
-          () => true,
+          (row) => String(row.name),
         );
-        expect(provenanceTable).toBe(true);
+        expect(locatorColumns).toContain("fragment");
+        const locatorIndexes = await database.queryAll(
+          "PRAGMA index_list(source_locators)",
+          undefined,
+          (row) => ({ name: String(row.name), unique: Number(row.unique) }),
+        );
+        expect(locatorIndexes).toContainEqual({
+          name: "sqlite_autoindex_source_locators_1",
+          unique: 1,
+        });
       } finally {
         await database.close();
       }
@@ -716,6 +726,39 @@ async function rewriteManifest(
     });
   }
   await nodeWikiGraphPlatform.zip.write(archive, entries);
+}
+
+async function removeV4SourceProvenanceSchema(
+  archive: NodeFile,
+  root: string,
+): Promise<void> {
+  const entries = await readZipEntries(archive);
+  const databaseEntry = entries.find((entry) => entry.name === "database.db");
+  if (databaseEntry === undefined) {
+    throw new Error("Fixture archive has no database.db entry.");
+  }
+
+  const databasePath = join(root, "v3-database.db");
+  await writeFile(databasePath, databaseEntry.data);
+  const database = await Database.open(new NodeFile(databasePath));
+  try {
+    await database.execute(`
+      DROP TABLE source_text_maps;
+      DROP TABLE source_locators;
+      DROP TABLE source_artifacts;
+    `);
+  } finally {
+    await database.close();
+  }
+  const databaseBytes = await readFile(databasePath);
+  await nodeWikiGraphPlatform.zip.write(
+    archive,
+    entries.map((entry) =>
+      entry.name === "database.db"
+        ? { data: databaseBytes, name: entry.name }
+        : entry,
+    ),
+  );
 }
 
 async function readZipEntries(

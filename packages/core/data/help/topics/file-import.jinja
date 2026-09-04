@@ -32,7 +32,7 @@ Minimal PDF example:
 
 Verification:
   {{ commandName }} <chapter-uri>/source --json
-  - The response includes stored provenance; a ranged source read includes only mappings that overlap the selected text.
+  - The response includes a `locators` map for the returned text. Read `{{ commandName }} help source-locators` for its compact range syntax.
 
 Boundaries:
   - OCR, layout analysis, and format-specific extraction belong to the importer; WG consumes the contract above.
@@ -45,3 +45,4 @@ See also:
   - {{ commandName }} wikg://book.wikg create --help
   - {{ commandName }} wikg://book.wikg/chapter/part/source set --help
   - {{ commandName }} help format
+  - {{ commandName }} help source-locators

@@ -69,5 +69,6 @@ export type {
   ArchiveRelatedResult,
   ArchiveRelatedRole,
   ArchiveSourceFragment,
+  SourceLocatorMap,
   ArchiveTriplePattern,
 } from "./types.js";

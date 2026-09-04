@@ -217,11 +217,12 @@ database.db-shm
 文件布局很小，但归档承载多个语义层：
 
 - Source layer：`texts/source/*.txt`、chapter serials 和 source sentence records。
-- Source provenance：source artifact 和格式专属 locator 存在 `database.db` 中；source text map 用映射范围把规范化 source text 的字符 offset 连接到这些 locator。原始 PDF/EPUB 文件不会存进归档。
+- Source provenance：source artifact 通过文件 SHA-256 标识导入的 PDF 或 EPUB，其归档根级 URI 为 `wikg://artifact/<digest>`。fragment 在 artifact 内选择已存位置：EPUB 使用 `#epubcfi(...)`，PDF 使用 `#page=<page>&bbox=<left>,<bottom>,<right>,<top>`。PDF 页码从 1 开始，bbox 使用左下角为原点的 `[0,1]` 归一化坐标。artifact 元数据与 locator 记录存放在 `database.db` 中；原始源文件不会存进归档。
+- Source locator map：原文片段通过紧凑的 `locators` map，把返回文本内从 1 开始、闭区间的 Unicode 字符范围映射到 artifact locator URI。这种字符范围不同于 `source#4..8` 里的句子范围；未覆盖区间表示没有保存 locator。
 - Reading Graph：`database.db` 中的 chunks、reading edges、snakes 和 sentence groups。
 - Knowledge Graph：`database.db` 中的 mentions、mention links、entity projections、triple projections 和 evidence references。
 - Summary layer：`texts/summary/*.txt` 加上 summary sentence records。
-- Search artifact layer：`database.db` 中的 chapter index artifacts。
+- Search artifact layer：`database.db` 中的 chapter index artifacts。这些是生成的搜索数据，与导入的 source artifact 不同。
 - Metadata layer：`database.db` 中的 archive、chapter、chunk、entity 和 triple metadata，以及可选 cover files。
 
 Reading Graph objects 和 Knowledge Graph objects 是不同层。Chunks 是阅读单元；entities 和 triples 是知识对象。Source text 是两者共同的 grounding layer。

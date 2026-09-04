@@ -112,6 +112,16 @@ describe("wiki graph library registry", () => {
       kind: "scope",
       objectUri: "wikg://entity/Q42",
     });
+    expect(
+      parseWikiGraphLibraryUri(
+        `wikg://lib/arc/archive123/artifact/${"c".repeat(64)}#epubcfi(/6/2!/4/2)`,
+      ),
+    ).toStrictEqual({
+      archivePublicId: "archive123",
+      isDefault: true,
+      kind: "archive",
+      objectUri: `wikg://artifact/${"c".repeat(64)}#epubcfi(/6/2!/4/2)`,
+    });
     const parsed = parseLocatedWikiGraphUri(
       "wikg://tmp/lib/book.wikg/entity/Q42",
     );

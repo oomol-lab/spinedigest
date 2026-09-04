@@ -25,6 +25,13 @@ export type {
 } from "./directory/index.js";
 export { SCHEMA_SQL } from "./schema.js";
 export {
+  formatSourceArtifactUri,
+  formatSourceLocatorFragment,
+  normalizeSourceArtifactDigest,
+  parseSourceLocatorFragment,
+} from "./source-locator.js";
+export type { ParsedSourceLocatorFragment } from "./source-locator.js";
+export {
   ChunkStore,
   FragmentGroupStore,
   GraphBuildParameterStore,
@@ -83,6 +90,7 @@ export type {
   SerialRecord,
   SourceArtifactInput,
   SourceArtifactRecord,
+  SourceLocatorRecord,
   SourceTextMapRecord,
   SourceTextMappingInput,
   SourceTextProvenanceInput,

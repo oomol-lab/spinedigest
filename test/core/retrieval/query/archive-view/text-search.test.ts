@@ -31,6 +31,28 @@ describe("archive/query/archive-view/text search", () => {
 
       try {
         await seedSourcedDocument(document);
+        const sourceText =
+          (await document.getSerialFragments(1).readText()) ?? "";
+        await document.sourceProvenance.replace(
+          1,
+          await document.serials.getRevision(1),
+          {
+            artifacts: [
+              {
+                digest: "a".repeat(64),
+                mediaType: "application/epub+zip",
+              },
+            ],
+            mappings: [
+              {
+                artifactDigest: "a".repeat(64),
+                locator: { cfi: "epubcfi(/6/2!/4/2)" },
+                sourceEnd: Array.from(sourceText).length,
+                sourceStart: 0,
+              },
+            ],
+          },
+        );
 
         const result = await findArchiveObjects(document, "Wiki");
 
@@ -54,6 +76,10 @@ describe("archive/query/archive-view/text search", () => {
             type: "source",
           }),
         );
+        const sourceHit = result.items.find((item) => item.type === "source");
+        expect(sourceHit?.locators).toStrictEqual({
+          [`1..${Array.from(sourceHit?.snippet ?? "").length}`]: `wikg://artifact/${"a".repeat(64)}#epubcfi(/6/2!/4/2)`,
+        });
       } finally {
         await document.release();
       }

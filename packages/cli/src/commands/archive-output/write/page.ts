@@ -39,6 +39,11 @@ export async function writePage(
   }
 
   switch (page.type) {
+    case "artifact":
+      await writeTextToStdout(
+        `${formatPlainObject(await createPageObject(page, context))}\n`,
+      );
+      return;
     case "chapter-title":
       await writeTextToStdout(
         `${formatPlainObject(await createPageObject(page, context))}\n`,

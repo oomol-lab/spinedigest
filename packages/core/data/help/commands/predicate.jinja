@@ -37,6 +37,7 @@ Notes:
   - Add `--skip-unindexed` only with `--query` when you intentionally want to search indexed chapters and ignore uncovered chapters.
   - Without `--query`, `--reverse` reads Document Flow order backward. See `{{ commandName }} help uri`.
   - Evidence previews include nearby source context by default; use `--context 0` for exact cited ranges.
+  - When a source passage includes locator map lines or a JSON `locators` field, read `{{ commandName }} help source-locators`.
   - Source and scope URIs are not evidence targets.
 {% elif predicate == "pack" %}
 Purpose:

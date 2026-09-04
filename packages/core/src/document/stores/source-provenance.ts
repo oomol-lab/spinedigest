@@ -1,8 +1,13 @@
 import { bytesToHex, hexToBytes } from "../../utils/bytes.js";
 import { getNumber, getOptionalString, getString } from "../database.js";
-import type { Database } from "../database.js";
+import type { Database, SqlRow } from "../database.js";
+import {
+  formatSourceLocatorFragment,
+  normalizeSourceArtifactDigest,
+} from "../source-locator.js";
 import type {
   SourceArtifactRecord,
+  SourceLocatorRecord,
   SourceTextMapRecord,
   SourceTextProvenanceInput,
 } from "../types.js";
@@ -15,6 +20,51 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
     this.#database = database;
   }
 
+  public async getArtifact(
+    digestValue: string,
+  ): Promise<SourceArtifactRecord | undefined> {
+    const digest = normalizeSourceArtifactDigest(digestValue);
+
+    return await this.#database.queryOne(
+      `
+        SELECT id, digest, media_type, name, identifier
+        FROM source_artifacts
+        WHERE digest = ?
+      `,
+      [hexToBytes(digest)],
+      mapArtifactRecord,
+    );
+  }
+
+  public async getLocator(
+    digestValue: string,
+    fragment: string,
+  ): Promise<SourceLocatorRecord | undefined> {
+    const digest = normalizeSourceArtifactDigest(digestValue);
+
+    return await this.#database.queryOne(
+      `
+        SELECT
+          source_artifacts.digest AS digest,
+          source_artifacts.media_type AS media_type,
+          source_artifacts.name AS name,
+          source_artifacts.identifier AS identifier,
+          source_locators.fragment AS fragment,
+          source_locators.value_json AS value_json
+        FROM source_locators
+        JOIN source_artifacts
+          ON source_artifacts.id = source_locators.artifact_id
+        WHERE source_artifacts.digest = ? AND source_locators.fragment = ?
+      `,
+      [hexToBytes(digest), fragment],
+      (row) => ({
+        artifact: mapArtifactRecordWithoutId(row),
+        fragment: getString(row, "fragment"),
+        locator: parseLocator(getString(row, "value_json")),
+      }),
+    );
+  }
+
   public async listArtifacts(): Promise<SourceArtifactRecord[]> {
     return await this.#database.queryAll(
       `
@@ -23,17 +73,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
         ORDER BY id
       `,
       undefined,
-      (row) => {
-        const identifier = getOptionalString(row, "identifier");
-        const name = getOptionalString(row, "name");
-        return {
-          digest: readDigest(row.digest),
-          id: getNumber(row, "id"),
-          ...(identifier === undefined ? {} : { identifier }),
-          mediaType: getString(row, "media_type"),
-          ...(name === undefined ? {} : { name }),
-        };
-      },
+      mapArtifactRecord,
     );
   }
 
@@ -48,6 +88,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
           source_artifacts.media_type AS media_type,
           source_artifacts.name AS name,
           source_artifacts.identifier AS identifier,
+          source_locators.fragment AS fragment,
           source_locators.value_json AS value_json
         FROM source_text_maps
         JOIN source_locators
@@ -68,6 +109,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
             mediaType: getString(row, "media_type"),
             ...(name === undefined ? {} : { name }),
           },
+          fragment: getString(row, "fragment"),
           locator: parseLocator(getString(row, "value_json")),
           sourceEnd: getNumber(row, "source_end"),
           sourceRevision: getNumber(row, "source_revision"),
@@ -90,7 +132,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
         const artifactIds = new Map<string, number>();
 
         for (const artifact of input.artifacts) {
-          const digest = normalizeDigest(artifact.digest);
+          const digest = normalizeSourceArtifactDigest(artifact.digest);
           const existing = await this.#database.queryOne(
             `
               SELECT id, media_type
@@ -169,7 +211,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
               "Source text map offsets must be non-negative integer ranges.",
             );
           }
-          const digest = normalizeDigest(mapping.artifactDigest);
+          const digest = normalizeSourceArtifactDigest(mapping.artifactDigest);
           const artifactId = artifactIds.get(digest);
 
           if (artifactId === undefined) {
@@ -178,14 +220,40 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
             );
           }
 
+          const artifact = input.artifacts.find(
+            (candidate) =>
+              normalizeSourceArtifactDigest(candidate.digest) === digest,
+          );
+          if (artifact === undefined) {
+            throw new Error(
+              `Source mapping references undeclared artifact ${digest}.`,
+            );
+          }
+          const fragment = formatSourceLocatorFragment(
+            artifact.mediaType,
+            mapping.locator,
+          );
+
           await this.#database.run(
             `
-              INSERT INTO source_locators (artifact_id, value_json)
-              VALUES (?, ?)
+              INSERT INTO source_locators (artifact_id, fragment, value_json)
+              VALUES (?, ?, ?)
+              ON CONFLICT(artifact_id, fragment) DO NOTHING
             `,
-            [artifactId, JSON.stringify(mapping.locator)],
+            [artifactId, fragment, JSON.stringify(mapping.locator)],
           );
-          const locatorId = await this.#database.getLastInsertRowId();
+          const locatorId = await this.#database.queryOne(
+            `
+              SELECT id
+              FROM source_locators
+              WHERE artifact_id = ? AND fragment = ?
+            `,
+            [artifactId, fragment],
+            (row) => getNumber(row, "id"),
+          );
+          if (locatorId === undefined) {
+            throw new Error("Failed to persist source locator.");
+          }
 
           await this.#database.run(
             `
@@ -226,7 +294,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
     const seen = new Map<string, string>();
     const declared = new Set<string>();
     for (const artifact of input.artifacts) {
-      const digest = normalizeDigest(artifact.digest);
+      const digest = normalizeSourceArtifactDigest(artifact.digest);
       if (artifact.mediaType.length === 0) {
         throw new Error("Source artifact mediaType must not be empty.");
       }
@@ -246,6 +314,11 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
         );
       }
       seen.set(digest, artifact.mediaType);
+      for (const mapping of input.mappings) {
+        if (normalizeSourceArtifactDigest(mapping.artifactDigest) === digest) {
+          formatSourceLocatorFragment(artifact.mediaType, mapping.locator);
+        }
+      }
       const existing = await this.#database.queryOne(
         `SELECT media_type FROM source_artifacts WHERE digest = ?`,
         [hexToBytes(digest)],
@@ -277,35 +350,38 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
           "Source text map offsets must be non-negative character ranges within source text.",
         );
       }
-      if (!declared.has(normalizeDigest(mapping.artifactDigest))) {
+      if (
+        !declared.has(normalizeSourceArtifactDigest(mapping.artifactDigest))
+      ) {
         throw new Error(
           `Source mapping references undeclared artifact ${mapping.artifactDigest}.`,
         );
       }
     }
+
+    const orderedMappings = input.mappings
+      .filter((mapping) => mapping.sourceEnd > mapping.sourceStart)
+      .slice()
+      .sort(
+        (left, right) =>
+          left.sourceStart - right.sourceStart ||
+          left.sourceEnd - right.sourceEnd,
+      );
+    for (let index = 1; index < orderedMappings.length; index += 1) {
+      if (
+        orderedMappings[index]!.sourceStart <
+        orderedMappings[index - 1]!.sourceEnd
+      ) {
+        throw new Error("Source text map ranges must not overlap.");
+      }
+    }
   }
 
   async #deleteSerialRecords(serialId: number): Promise<void> {
-    const locatorIds = await this.#database.queryAll(
-      `
-        SELECT locator_id
-        FROM source_text_maps
-        WHERE serial_id = ?
-      `,
-      [serialId],
-      (row) => getNumber(row, "locator_id"),
-    );
-
     await this.#database.run(
       `DELETE FROM source_text_maps WHERE serial_id = ?`,
       [serialId],
     );
-
-    for (const locatorId of locatorIds) {
-      await this.#database.run(`DELETE FROM source_locators WHERE id = ?`, [
-        locatorId,
-      ]);
-    }
   }
 
   async #deleteUnreferenced(): Promise<void> {
@@ -332,21 +408,32 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
   }
 }
 
-function normalizeDigest(value: string): string {
-  if (!/^[0-9a-f]{64}$/iu.test(value)) {
-    throw new Error(
-      "Source artifact digest must be exactly 64 hex characters.",
-    );
-  }
-
-  return value.toLowerCase();
-}
-
 function readDigest(value: unknown): string {
   if (value instanceof Uint8Array) {
     return bytesToHex(value);
   }
   throw new TypeError("Expected source artifact digest to be binary");
+}
+
+function mapArtifactRecord(row: SqlRow): SourceArtifactRecord {
+  return {
+    ...mapArtifactRecordWithoutId(row),
+    id: getNumber(row, "id"),
+  };
+}
+
+function mapArtifactRecordWithoutId(
+  row: SqlRow,
+): Omit<SourceArtifactRecord, "id"> {
+  const identifier = getOptionalString(row, "identifier");
+  const name = getOptionalString(row, "name");
+
+  return {
+    digest: readDigest(row.digest),
+    ...(identifier === undefined ? {} : { identifier }),
+    mediaType: getString(row, "media_type"),
+    ...(name === undefined ? {} : { name }),
+  };
 }
 
 function parseLocator(value: string): Readonly<Record<string, unknown>> {
