@@ -285,23 +285,24 @@ async function readWikiGraphPage(
   switch (reference.type) {
     case "artifact": {
       const artifact = await document.sourceProvenance.getArtifact(
-        reference.digest,
+        reference.artifactReference,
       );
       if (artifact === undefined) {
         throw new Error(
-          `Source artifact ${formatSourceArtifactUri(reference.digest)} was not found in this archive.`,
+          `Source artifact ${formatSourceArtifactUri(reference.artifactReference)} was not found in this archive.`,
         );
       }
 
       if (reference.fragment === undefined) {
         return {
           digest: artifact.digest,
-          id: formatSourceArtifactUri(artifact.digest),
+          id: formatSourceArtifactUri(artifact.shortUid),
           ...(artifact.identifier === undefined
             ? {}
             : { identifier: artifact.identifier }),
           mediaType: artifact.mediaType,
           ...(artifact.name === undefined ? {} : { name: artifact.name }),
+          shortUid: artifact.shortUid,
           type: "artifact",
         };
       }
@@ -318,19 +319,20 @@ async function readWikiGraphPage(
       );
       if (locator === undefined) {
         throw new Error(
-          `Source locator ${formatSourceArtifactUri(artifact.digest, parsedLocator.fragment)} was not found in this archive.`,
+          `Source locator ${formatSourceArtifactUri(artifact.shortUid, parsedLocator.fragment)} was not found in this archive.`,
         );
       }
 
       return {
         digest: artifact.digest,
-        id: formatSourceArtifactUri(artifact.digest, parsedLocator.fragment),
+        id: formatSourceArtifactUri(artifact.shortUid, parsedLocator.fragment),
         ...(artifact.identifier === undefined
           ? {}
           : { identifier: artifact.identifier }),
         locator: locator.locator,
         mediaType: artifact.mediaType,
         ...(artifact.name === undefined ? {} : { name: artifact.name }),
+        shortUid: artifact.shortUid,
         type: "artifact",
       };
     }

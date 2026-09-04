@@ -207,7 +207,7 @@ function classifyArchiveUriHelpTarget(uri: string): UriHelpTargetName {
   if (path === "index") {
     return "index-object";
   }
-  if (/^artifact\/[0-9a-f]{64}(?:#.+)?$/iu.test(path)) {
+  if (/^artifact\/[0-9a-f]{12,64}(?:#.+)?$/iu.test(path)) {
     return "artifact-object";
   }
   const chapterTarget = parseChapterTarget(objectUri);

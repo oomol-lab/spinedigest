@@ -1,4 +1,22 @@
-import type { Database } from "./database.js";
+import {
+  getNumber,
+  getOptionalString,
+  getString,
+  type Database,
+} from "./database.js";
+import { createSourceArtifactShortUid } from "./source-locator.js";
+
+const SOURCE_ARTIFACT_COLUMNS_SQL = `
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    digest BLOB NOT NULL UNIQUE,
+    short_uid TEXT NOT NULL UNIQUE
+      CHECK(length(short_uid) BETWEEN 12 AND 64)
+      CHECK(short_uid NOT GLOB '*[^0-9a-f]*')
+      CHECK(short_uid = substr(lower(hex(digest)), 1, length(short_uid))),
+    media_type TEXT NOT NULL,
+    name TEXT,
+    identifier TEXT
+`;
 
 export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS serials (
@@ -294,11 +312,7 @@ export const SCHEMA_SQL = `
   ON text_sentence_records(kind, chapter_id, sentence_index);
 
   CREATE TABLE IF NOT EXISTS source_artifacts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    digest BLOB NOT NULL UNIQUE,
-    media_type TEXT NOT NULL,
-    name TEXT,
-    identifier TEXT
+${SOURCE_ARTIFACT_COLUMNS_SQL}
   );
 
   CREATE TABLE IF NOT EXISTS source_locators (
@@ -447,6 +461,7 @@ ${SEARCH_INDEX_TEXT_SENTENCE_RECORDS_COLUMNS_SQL}
 export async function initializeDocumentSchema(
   database: Database,
 ): Promise<void> {
+  await migrateSourceArtifactShortUids(database);
   await migrateSerialDocumentOrder(database);
   await ensureGraphBuildParameterTable(database);
   await migrateSerialStateRevision(database);
@@ -454,6 +469,102 @@ export async function initializeDocumentSchema(
   await migrateSerialStateGraphParameterHashes(database);
   await ensureSerialDocumentOrderIndex(database);
   await ensureGraphBuildParameterIndexes(database);
+}
+
+async function migrateSourceArtifactShortUids(
+  database: Database,
+): Promise<void> {
+  const columns = await listTableColumns(database, "source_artifacts");
+  if (columns.has("short_uid")) return;
+
+  const foreignKeysEnabled = await database.queryOne(
+    "PRAGMA foreign_keys",
+    undefined,
+    (row) => Number(row.foreign_keys) === 1,
+  );
+  if (foreignKeysEnabled === true) {
+    await database.execute("PRAGMA foreign_keys = OFF");
+  }
+
+  try {
+    await database.transaction(async () => {
+      const transactionColumns = await listTableColumns(
+        database,
+        "source_artifacts",
+      );
+      if (transactionColumns.has("short_uid")) return;
+
+      const artifacts = await database.queryAll(
+        `
+          SELECT id, digest, lower(hex(digest)) AS digest_hex,
+                 media_type, name, identifier
+          FROM source_artifacts
+          ORDER BY id
+        `,
+        undefined,
+        (row) => ({
+          digest: row.digest,
+          digestHex: getString(row, "digest_hex"),
+          id: getNumber(row, "id"),
+          identifier: getOptionalString(row, "identifier"),
+          mediaType: getString(row, "media_type"),
+          name: getOptionalString(row, "name"),
+        }),
+      );
+      const shortUids = new Set<string>();
+
+      await database.execute(`
+        CREATE TABLE source_artifacts_short_uid_migration (
+${SOURCE_ARTIFACT_COLUMNS_SQL}
+        )
+      `);
+      for (const artifact of artifacts) {
+        if (!(artifact.digest instanceof Uint8Array)) {
+          throw new TypeError("Expected source artifact digest to be binary");
+        }
+        const shortUid = createSourceArtifactShortUid(
+          artifact.digestHex,
+          shortUids,
+        );
+        await database.run(
+          `
+            INSERT INTO source_artifacts_short_uid_migration (
+              id, digest, short_uid, media_type, name, identifier
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+          `,
+          [
+            artifact.id,
+            artifact.digest,
+            shortUid,
+            artifact.mediaType,
+            artifact.name ?? null,
+            artifact.identifier ?? null,
+          ],
+        );
+        shortUids.add(shortUid);
+      }
+
+      await database.run("DROP TABLE source_artifacts");
+      await database.run(
+        "ALTER TABLE source_artifacts_short_uid_migration RENAME TO source_artifacts",
+      );
+      const foreignKeyErrors = await database.queryAll(
+        "PRAGMA foreign_key_check",
+        undefined,
+        (row) => row,
+      );
+      if (foreignKeyErrors.length > 0) {
+        throw new Error(
+          "Source artifact short UID migration broke a foreign key.",
+        );
+      }
+    });
+  } finally {
+    if (foreignKeysEnabled === true) {
+      await database.execute("PRAGMA foreign_keys = ON");
+    }
+  }
 }
 
 async function migrateSerialDocumentOrder(database: Database): Promise<void> {

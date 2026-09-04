@@ -217,7 +217,7 @@ database.db-shm
 文件布局很小，但归档承载多个语义层：
 
 - Source layer：`texts/source/*.txt`、chapter serials 和 source sentence records。
-- Source provenance：source artifact 通过文件 SHA-256 标识导入的 PDF 或 EPUB，其归档根级 URI 为 `wikg://artifact/<digest>`。fragment 在 artifact 内选择已存位置：EPUB 使用 `#epubcfi(...)`，PDF 使用 `#page=<page>&bbox=<left>,<bottom>,<right>,<top>`。PDF 页码从 1 开始，bbox 使用左下角为原点的 `[0,1]` 归一化坐标。artifact 元数据与 locator 记录存放在 `database.db` 中；原始源文件不会存进归档。
+- Source provenance：source artifact 通过文件 SHA-256 标识导入的 PDF 或 EPUB，默认使用归档内的短地址 `wikg://artifact/<short-uid>`；短 UID 从 digest 的前 12 位开始，发生冲突时延长。完整形式 `wikg://artifact/<sha256-digest>` 仍然合法，完整 digest 是跨归档可移植的内容身份。fragment 在 artifact 内选择已存位置：EPUB 使用 `#epubcfi(...)`，PDF 使用 `#page=<page>&bbox=<left>,<bottom>,<right>,<top>`。PDF 页码从 1 开始，bbox 使用左下角为原点的 `[0,1]` 归一化坐标。artifact 元数据与 locator 记录存放在 `database.db` 中；原始源文件不会存进归档。
 - Source locator scope：`<chapter-uri>/source/locators` 将从 1 开始、闭区间的 Unicode 字符范围映射到 artifact locator URI。可选 fragment（如 `/source/locators#4..8`）先选择 source 句子，返回的字符范围相对于所选文本重新计数；未覆盖区间表示没有保存 locator。普通 source、evidence 与 query 结果仍专注于原文。
 - Reading Graph：`database.db` 中的 chunks、reading edges、snakes 和 sentence groups。
 - Knowledge Graph：`database.db` 中的 mentions、mention links、entity projections、triple projections 和 evidence references。

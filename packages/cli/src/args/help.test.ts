@@ -487,11 +487,24 @@ describe("cli/args/help", () => {
     expect(fileImportHelpText).toContain("OCR, layout analysis");
     expect(archiveCreateHelpText).toContain("wg help file-import");
     const locatorHelpText = renderHelpTopicText("source-locators");
-    expect(locatorHelpText).toContain("wikg://artifact/<digest>");
+    expect(locatorHelpText).toContain("wikg://artifact/<short-uid>");
+    expect(locatorHelpText).toContain("wikg://artifact/<sha256-digest>");
     expect(locatorHelpText).toContain("3..13 -> <artifact-locator-uri>");
     expect(locatorHelpText).toContain("Returned `range` values count Unicode");
     expect(locatorHelpText).toContain("<chapter-uri>/source/locators#4..8");
     expect(locatorHelpText).toContain("--limit <n>");
+    expect(
+      renderUriHelpText(
+        "artifact-object",
+        `wikg://book.wikg/artifact/${"a".repeat(12)}`,
+      ),
+    ).toContain("Source artifact object");
+    expect(
+      parseCLIArguments([
+        `wikg://lib/arc/archive123/artifact/${"a".repeat(12)}#epubcfi(/6/2!/4/2)`,
+        "--help",
+      ]),
+    ).toMatchObject({ kind: "help" });
     expect(
       renderUriHelpText(
         "artifact-object",
@@ -516,7 +529,7 @@ describe("cli/args/help", () => {
       `wikg://lib/arc/archive123/artifact/${"a".repeat(64)}`,
     );
     expect(libraryArtifactHelp).toContain(
-      "wikg://lib/arc/<archive-id>/artifact/<digest>",
+      "wikg://lib/arc/<archive-id>/artifact/<short-uid>",
     );
     expect(libraryArtifactHelp).not.toContain(
       "wikg://lib/arc/<archive-id>/entity",

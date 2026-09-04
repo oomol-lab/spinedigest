@@ -20,9 +20,9 @@ import type {
 } from "../types.js";
 
 export interface ReadonlySourceProvenanceStore {
-  getArtifact(digest: string): Promise<SourceArtifactRecord | undefined>;
+  getArtifact(reference: string): Promise<SourceArtifactRecord | undefined>;
   getLocator(
-    digest: string,
+    reference: string,
     fragment: string,
   ): Promise<SourceLocatorRecord | undefined>;
   listArtifacts(): Promise<SourceArtifactRecord[]>;

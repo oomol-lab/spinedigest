@@ -1,4 +1,7 @@
 const SOURCE_ARTIFACT_DIGEST_PATTERN = /^[0-9a-f]{64}$/iu;
+const SOURCE_ARTIFACT_REFERENCE_PATTERN = /^[0-9a-f]{12,64}$/iu;
+
+export const SOURCE_ARTIFACT_SHORT_UID_LENGTH = 12;
 
 export interface ParsedSourceLocatorFragment {
   readonly fragment: string;
@@ -16,13 +19,41 @@ export function normalizeSourceArtifactDigest(value: string): string {
   return value.toLowerCase();
 }
 
+export function normalizeSourceArtifactReference(value: string): string {
+  if (!SOURCE_ARTIFACT_REFERENCE_PATTERN.test(value)) {
+    throw new Error(
+      "Source artifact reference must be 12 to 64 hex characters.",
+    );
+  }
+
+  return value.toLowerCase();
+}
+
+export function createSourceArtifactShortUid(
+  digestValue: string,
+  existingShortUids: ReadonlySet<string>,
+): string {
+  const digest = normalizeSourceArtifactDigest(digestValue);
+
+  for (
+    let length = SOURCE_ARTIFACT_SHORT_UID_LENGTH;
+    length <= digest.length;
+    length += 1
+  ) {
+    const candidate = digest.slice(0, length);
+    if (!existingShortUids.has(candidate)) return candidate;
+  }
+
+  throw new Error(`Unable to allocate a unique short UID for ${digest}.`);
+}
+
 export function formatSourceArtifactUri(
-  digest: string,
+  reference: string,
   fragment?: string,
 ): string {
-  const normalizedDigest = normalizeSourceArtifactDigest(digest);
+  const normalizedReference = normalizeSourceArtifactReference(reference);
 
-  return `wikg://artifact/${normalizedDigest}${
+  return `wikg://artifact/${normalizedReference}${
     fragment === undefined ? "" : `#${fragment}`
   }`;
 }

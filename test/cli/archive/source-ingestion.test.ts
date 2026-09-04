@@ -51,6 +51,7 @@ interface TocItemLike {
 describe("cli/archive/source-ingestion", () => {
   it("lists source locators separately and opens their artifact URIs", async () => {
     const digest = "a".repeat(64);
+    const shortUid = digest.slice(0, 12);
     const firstText = "😀 First source sentence. ";
     const secondText = "Second source sentence.";
     const secondStart = Array.from(firstText).length;
@@ -100,8 +101,8 @@ describe("cli/archive/source-ingestion", () => {
       );
 
       const wholeSource = await runJsonCLI(stateDir, [sourceUri, "--json"]);
-      const firstLocator = `wikg://artifact/${digest}#page=1&bbox=0,0,0.5,0.5`;
-      const secondLocator = `wikg://artifact/${digest}#page=2&bbox=0.5,0.5,1,1`;
+      const firstLocator = `wikg://artifact/${shortUid}#page=1&bbox=0,0,0.5,0.5`;
+      const secondLocator = `wikg://artifact/${shortUid}#page=2&bbox=0.5,0.5,1,1`;
       expect(wholeSource).not.toHaveProperty("locators");
       const wholePlain = await runWikiGraphCLICaptured({
         argv: [sourceUri],
@@ -153,7 +154,8 @@ describe("cli/archive/source-ingestion", () => {
         digest,
         mediaType: "application/pdf",
         name: "two-pages.pdf",
-        uri: `wikg://artifact/${digest}`,
+        shortUid,
+        uri: `wikg://artifact/${shortUid}`,
       });
       const locator = await runJsonCLI(stateDir, [
         `${archiveUri}/artifact/${digest}#page=1&bbox=0,0,0.5,0.5`,
@@ -163,6 +165,17 @@ describe("cli/archive/source-ingestion", () => {
         locator: { bbox: [0, 0, 0.5, 0.5], pageIndex: 1 },
         uri: firstLocator,
       });
+      await expect(
+        runJsonCLI(stateDir, [
+          `${archiveUri}/artifact/${shortUid}#page=1&bbox=0,0,0.5,0.5`,
+          "--json",
+        ]),
+      ).resolves.toMatchObject({ digest, shortUid, uri: firstLocator });
+      const unassignedPrefix = await runWikiGraphCLICaptured({
+        argv: [`${archiveUri}/artifact/${digest.slice(0, 13)}`, "--json"],
+        stateDir,
+      });
+      expect(unassignedPrefix.exitCode).toBe(1);
 
       const plain = await runWikiGraphCLICaptured({
         argv: [`${sourceUri}#2`],
@@ -311,6 +324,7 @@ describe("cli/archive/source-ingestion", () => {
     const epubDigest = createHash("sha256")
       .update(await readFile(LITTLE_PRINCE_EPUB_PATH))
       .digest("hex");
+    const epubShortUid = epubDigest.slice(0, 12);
     const generatedJsonl = parseJsonl(
       await readFile(LITTLE_PRINCE_JSONL_PATH, "utf8"),
     );
@@ -382,7 +396,7 @@ describe("cli/archive/source-ingestion", () => {
       };
       expect(firstLocator.range[0]).toBe(1);
       expect(firstLocator.uri).toContain(
-        `wikg://artifact/${epubDigest}#epubcfi(`,
+        `wikg://artifact/${epubShortUid}#epubcfi(`,
       );
       const sentenceLocatorPage = await runJsonCLI(stateDir, [
         `${chapterUri}/locators#1`,
@@ -397,7 +411,7 @@ describe("cli/archive/source-ingestion", () => {
       expect(sentenceLocators[0]?.range[0]).toBe(1);
       expect(
         sentenceLocators.every((locator) =>
-          locator.uri.includes(`wikg://artifact/${epubDigest}#epubcfi(`),
+          locator.uri.includes(`wikg://artifact/${epubShortUid}#epubcfi(`),
         ),
       ).toBe(true);
       const artifactLocator = await runJsonCLI(stateDir, [

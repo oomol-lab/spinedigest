@@ -2,8 +2,10 @@ import { bytesToHex, hexToBytes } from "../../utils/bytes.js";
 import { getNumber, getOptionalString, getString } from "../database.js";
 import type { Database, SqlRow } from "../database.js";
 import {
+  createSourceArtifactShortUid,
   formatSourceLocatorFragment,
   normalizeSourceArtifactDigest,
+  normalizeSourceArtifactReference,
 } from "../source-locator.js";
 import type {
   SourceArtifactRecord,
@@ -21,31 +23,34 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
   }
 
   public async getArtifact(
-    digestValue: string,
+    referenceValue: string,
   ): Promise<SourceArtifactRecord | undefined> {
-    const digest = normalizeSourceArtifactDigest(digestValue);
+    const reference = normalizeSourceArtifactReference(referenceValue);
+    const byDigest = reference.length === 64;
 
     return await this.#database.queryOne(
       `
-        SELECT id, digest, media_type, name, identifier
+        SELECT id, digest, short_uid, media_type, name, identifier
         FROM source_artifacts
-        WHERE digest = ?
+        WHERE ${byDigest ? "digest" : "short_uid"} = ?
       `,
-      [hexToBytes(digest)],
+      [byDigest ? hexToBytes(reference) : reference],
       mapArtifactRecord,
     );
   }
 
   public async getLocator(
-    digestValue: string,
+    referenceValue: string,
     fragment: string,
   ): Promise<SourceLocatorRecord | undefined> {
-    const digest = normalizeSourceArtifactDigest(digestValue);
+    const reference = normalizeSourceArtifactReference(referenceValue);
+    const byDigest = reference.length === 64;
 
     return await this.#database.queryOne(
       `
         SELECT
           source_artifacts.digest AS digest,
+          source_artifacts.short_uid AS short_uid,
           source_artifacts.media_type AS media_type,
           source_artifacts.name AS name,
           source_artifacts.identifier AS identifier,
@@ -54,9 +59,10 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
         FROM source_locators
         JOIN source_artifacts
           ON source_artifacts.id = source_locators.artifact_id
-        WHERE source_artifacts.digest = ? AND source_locators.fragment = ?
+        WHERE source_artifacts.${byDigest ? "digest" : "short_uid"} = ?
+          AND source_locators.fragment = ?
       `,
-      [hexToBytes(digest), fragment],
+      [byDigest ? hexToBytes(reference) : reference, fragment],
       (row) => ({
         artifact: mapArtifactRecordWithoutId(row),
         fragment: getString(row, "fragment"),
@@ -68,7 +74,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
   public async listArtifacts(): Promise<SourceArtifactRecord[]> {
     return await this.#database.queryAll(
       `
-        SELECT id, digest, media_type, name, identifier
+        SELECT id, digest, short_uid, media_type, name, identifier
         FROM source_artifacts
         ORDER BY id
       `,
@@ -85,6 +91,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
           source_text_maps.source_start AS source_start,
           source_text_maps.source_end AS source_end,
           source_artifacts.digest AS digest,
+          source_artifacts.short_uid AS short_uid,
           source_artifacts.media_type AS media_type,
           source_artifacts.name AS name,
           source_artifacts.identifier AS identifier,
@@ -108,6 +115,7 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
             ...(identifier === undefined ? {} : { identifier }),
             mediaType: getString(row, "media_type"),
             ...(name === undefined ? {} : { name }),
+            shortUid: getString(row, "short_uid"),
           },
           fragment: getString(row, "fragment"),
           locator: parseLocator(getString(row, "value_json")),
@@ -130,6 +138,13 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
 
       if (input !== undefined) {
         const artifactIds = new Map<string, number>();
+        const existingShortUids = new Set(
+          await this.#database.queryAll(
+            `SELECT short_uid FROM source_artifacts`,
+            undefined,
+            (row) => getString(row, "short_uid"),
+          ),
+        );
 
         for (const artifact of input.artifacts) {
           const digest = normalizeSourceArtifactDigest(artifact.digest);
@@ -156,20 +171,26 @@ export class SourceProvenanceStore implements ReadonlySourceProvenanceStore {
           }
 
           if (existing === undefined) {
+            const shortUid = createSourceArtifactShortUid(
+              digest,
+              existingShortUids,
+            );
             await this.#database.run(
               `
                 INSERT INTO source_artifacts (
-                  digest, media_type, name, identifier
+                  digest, short_uid, media_type, name, identifier
                 )
-                VALUES (?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?)
               `,
               [
                 hexToBytes(digest),
+                shortUid,
                 artifact.mediaType,
                 artifact.name ?? null,
                 artifact.identifier ?? null,
               ],
             );
+            existingShortUids.add(shortUid);
             artifactIds.set(digest, await this.#database.getLastInsertRowId());
           } else {
             const existingMetadata = await this.#database.queryOne(
@@ -433,6 +454,7 @@ function mapArtifactRecordWithoutId(
     ...(identifier === undefined ? {} : { identifier }),
     mediaType: getString(row, "media_type"),
     ...(name === undefined ? {} : { name }),
+    shortUid: getString(row, "short_uid"),
   };
 }
 
