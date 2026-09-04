@@ -40,6 +40,13 @@ describe("archive/query/archive-view/pages", () => {
           type: "chapter-title",
         });
         await expect(
+          readArchivePage(document, "wikg://chapter/introduction/title"),
+        ).resolves.toStrictEqual({
+          id: "wikg://chapter/introduction/title",
+          title: "Introduction",
+          type: "chapter-title",
+        });
+        await expect(
           readArchivePage(document, "wikg://chapter/1/state"),
         ).resolves.toStrictEqual({
           id: "wikg://chapter/1/state",
