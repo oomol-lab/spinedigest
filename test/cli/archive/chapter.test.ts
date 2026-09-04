@@ -43,6 +43,7 @@ const chapterMockState = vi.hoisted(() => ({
       uri: "wikg://chapter/a1b2c3d4e5f6",
     },
     {
+      chapterId: 2,
       childCount: 0,
       depth: 1,
       fragmentCount: 2,
@@ -444,7 +445,8 @@ describe("cli/archive-chapter", () => {
     ]);
     expect(chapterMockState.textWrites).toStrictEqual([
       [
-        "Job job-index-1 queued index-embedding-source chapter 2 /tmp/book.wikg",
+        'Job job-index-1 queued index-embedding-source chapter "Chapter 1" (wikg://chapter/a1b2c3d4e5f6/b2c3d4e5f6a1)',
+        "Chapter URI: wikg:///tmp/book.wikg/chapter/a1b2c3d4e5f6/b2c3d4e5f6a1",
         "Job is queued; the requested artifact or generated data is not ready until the job succeeds.",
         "Watch: wg wikg://local/job/job-index-1 watch",
         "",

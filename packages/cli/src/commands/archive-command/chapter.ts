@@ -100,19 +100,32 @@ export async function runArchiveChapterCommand(
       });
       return;
     case "build-index-artifact": {
-      const chapterId = await readArchiveDocument(
-        args.path,
-        async (document) =>
-          await resolveRequiredChapterPath(document, args.chapterPath),
-      );
+      const chapter = await readArchiveDocument(args.path, async (document) => {
+        const chapterId = await resolveRequiredChapterPath(
+          document,
+          args.chapterPath,
+        );
+        const matched = (await listChapters(document)).find(
+          (entry) => entry.chapterId === chapterId,
+        );
+
+        if (matched === undefined) {
+          throw new Error(`Chapter internal id ${chapterId} does not exist.`);
+        }
+        return matched;
+      });
       const job = await addBuildJob({
         archive: new NodeFile(args.path),
-        chapterId,
+        chapterId: chapter.chapterId,
         target: requireIndexArtifactTarget(args.indexArtifactTarget),
       });
 
       tryStartQueueWorker();
-      await writeJobSummary(job, { json: args.json ?? false, watch: true });
+      await writeJobSummary(job, {
+        chapter,
+        json: args.json ?? false,
+        watch: true,
+      });
       return;
     }
     case "delete-index-artifact":

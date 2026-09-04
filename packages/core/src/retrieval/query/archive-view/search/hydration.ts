@@ -14,7 +14,7 @@ import {
 } from "../../../search-index/search/index.js";
 
 import { createSnippet, createNodePosition } from "../helpers.js";
-import { formatNodeId, formatTextStreamRangeUri } from "../references.js";
+import { formatNodeId } from "../references.js";
 import {
   createUnscoredEntityEvidenceMention,
   selectEntityLabel,
@@ -311,12 +311,7 @@ export async function hydrateSearchTextHit(
     chapter: hit.chapterId,
     ...createArchiveScopeFields(hit.archiveId),
     field: stream,
-    id: formatTextStreamRangeUri(
-      hit.chapterId,
-      stream,
-      range.startSentenceIndex,
-      range.endSentenceIndex,
-    ),
+    id: range.id,
     matchCount: 1,
     position: {
       chapter: hit.chapterId,

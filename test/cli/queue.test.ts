@@ -315,7 +315,22 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
     },
   ),
   listBuildJobs: vi.fn(() => Promise.resolve(queueMockState.jobs)),
-  listChapters: vi.fn(() => Promise.resolve(queueMockState.chapters)),
+  listChapters: vi.fn(() =>
+    Promise.resolve(
+      queueMockState.chapters.map((chapter) => ({
+        ...chapter,
+        childCount: 0,
+        depth: 0,
+        documentOrder: chapter.chapterId,
+        fragmentCount: chapter.stage === "planned" ? 0 : 1,
+        key: `chapter-${chapter.chapterId}`,
+        path: `chapter-${chapter.chapterId}`,
+        title: `Chapter ${chapter.chapterId}`,
+        tocPath: [`chapter-${chapter.chapterId}`],
+        uri: `wikg://chapter/chapter-${chapter.chapterId}`,
+      })),
+    ),
+  ),
   pauseBuildJob: vi.fn(),
   readBuildJobEvents: vi.fn(() => Promise.resolve(queueMockState.events)),
   resolveChapterPathReadonly: vi.fn(
@@ -684,6 +699,11 @@ describe("cli/queue", () => {
       },
       skipped: [
         {
+          chapter: {
+            locatedUri: "wikg://book.wikg/chapter/chapter-11",
+            title: "Chapter 11",
+            uri: "wikg://chapter/chapter-11",
+          },
           chapterId: 11,
           reason: "planned",
         },
@@ -837,7 +857,7 @@ describe("cli/queue", () => {
     });
 
     expect(queueMockState.textWrites).toStrictEqual([
-      "JOB      STATE     STEP    TARGET  CHAPTER ARCHIVE\njob-1-fu running   reading-summary reading-summary      12 book.wikg\n",
+      "JOB      STATE     STEP    TARGET  CHAPTER\njob-1-fu running   reading-summary reading-summary Chapter 12 wikg:///books/book.wikg/chapter/chapter-12\n",
     ]);
   });
 
@@ -879,6 +899,11 @@ describe("cli/queue", () => {
         {
           archiveKey: "archive-key",
           archivePath: "/books/book.wikg",
+          chapter: {
+            locatedUri: "wikg:///books/book.wikg/chapter/chapter-12",
+            title: "Chapter 12",
+            uri: "wikg://chapter/chapter-12",
+          },
           chapterId: 12,
           createdAt: 1,
           eventsPath: "events.ndjson",

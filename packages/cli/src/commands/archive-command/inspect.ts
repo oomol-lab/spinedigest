@@ -48,6 +48,13 @@ interface InspectCoverage {
   readonly totalWords: number;
 }
 
+interface InspectChapterReference {
+  readonly chapterId: number;
+  readonly locatedUri: string;
+  readonly title: string | null;
+  readonly uri: string;
+}
+
 interface InspectReport {
   readonly uri: string;
   readonly scope: {
@@ -79,7 +86,7 @@ interface InspectReport {
     readonly summaryEmbeddingIndexArtifact: InspectCoverage;
     readonly sourceEmbeddingIndexArtifact: InspectCoverage;
   };
-  readonly queryBlockedChapters: readonly number[];
+  readonly queryBlockedChapters: readonly InspectChapterReference[];
   readonly retrievalGuidance: readonly string[];
   readonly improvements: readonly InspectImprovement[];
   readonly performanceHints: readonly GenerationPerformanceHint[];
@@ -108,10 +115,6 @@ async function createArchiveInspectReport(
   args: CLIArchiveArguments,
 ): Promise<InspectReport> {
   const archiveUri = formatArchiveInspectCommandUri(args.archivePath);
-  const scopeUri =
-    args.chapterId === undefined
-      ? archiveUri
-      : `${archiveUri}/chapter/${args.chapterId}`;
   const [
     chapters,
     summaryWords,
@@ -129,6 +132,12 @@ async function createArchiveInspectReport(
     readIndexArtifactCoverage(document, "embedding-source", args.chapterId),
     readIndexArtifactCoverage(document, "embedding-summary", args.chapterId),
   ]);
+  const selectedChapter =
+    args.chapterId === undefined ? undefined : chapters[0];
+  const scopeUri =
+    selectedChapter === undefined
+      ? archiveUri
+      : formatInspectLocatedChapterUri(archiveUri, selectedChapter);
   const concurrent = {
     job: config.concurrent?.job ?? DEFAULT_GENERATION_JOB_CONCURRENCY,
     request:
@@ -166,7 +175,7 @@ async function createArchiveInspectReport(
         !ftsArtifactCovered.includes(chapter) &&
         !sourceEmbeddingArtifactCovered.includes(chapter),
     )
-    .map((chapter) => chapter.chapterId);
+    .map((chapter) => createInspectChapterReference(archiveUri, chapter));
   const improvements = createInspectImprovements({
     archiveUri,
     concurrent,
@@ -268,7 +277,7 @@ function formatArchiveInspectText(report: InspectReport): string {
     [
       "Archive Inspect",
       `URI: ${report.uri}`,
-      `Scope: ${report.scope.type === "archive" ? "archive" : `chapter ${report.scope.chapterId}`}`,
+      `Scope: ${report.scope.type === "archive" ? "archive" : report.uri}`,
       "",
       "Content",
       `Chapters: ${report.content.chapters.content} content / ${report.content.chapters.total} total`,
@@ -307,7 +316,11 @@ function formatArchiveInspectText(report: InspectReport): string {
       ...(report.queryBlockedChapters.length === 0
         ? []
         : [
-            `Query blockers: chapters ${report.queryBlockedChapters.join(", ")} have neither FTS nor source embedding index artifacts.`,
+            "Query blockers: these chapters have neither FTS nor source embedding index artifacts:",
+            ...report.queryBlockedChapters.map(
+              (chapter) =>
+                `- ${chapter.title === null ? "[untitled]" : chapter.title}: ${chapter.locatedUri}`,
+            ),
           ]),
       "",
       "Retrieval Guidance",
@@ -325,6 +338,25 @@ function formatArchiveInspectText(report: InspectReport): string {
           ]),
     ].join("\n") + "\n"
   );
+}
+
+function createInspectChapterReference(
+  archiveUri: string,
+  chapter: ChapterEntry,
+): InspectChapterReference {
+  return {
+    chapterId: chapter.chapterId,
+    locatedUri: formatInspectLocatedChapterUri(archiveUri, chapter),
+    title: chapter.title,
+    uri: chapter.uri,
+  };
+}
+
+function formatInspectLocatedChapterUri(
+  archiveUri: string,
+  chapter: Pick<ChapterEntry, "uri">,
+): string {
+  return `${archiveUri.replace(/\/+$/u, "")}/${chapter.uri.replace(/^wikg:\/\//u, "")}`;
 }
 
 async function readInspectChapters(
