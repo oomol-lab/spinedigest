@@ -1,4 +1,5 @@
 import type { ReadingEdgeRecord } from "../../../document/index.js";
+import { parseChapterPath } from "../../../document/chapter/path.js";
 import {
   parseWikiGraphUriSyntax,
   WIKI_GRAPH_URI_PREFIX,
@@ -36,11 +37,12 @@ export function formatFragmentId(serialId: number, fragmentId: number): string {
 }
 
 export function formatTextStreamRangeUri(
-  chapterPath: number | string,
+  chapterPath: string,
   stream: ArchiveTextStreamKind,
   startSentenceIndex: number,
   endSentenceIndex: number,
 ): string {
+  chapterPath = parseChapterPath(chapterPath);
   const startSentenceNumber = startSentenceIndex + 1;
   const endSentenceNumber = endSentenceIndex + 1;
   const hash =
@@ -49,6 +51,49 @@ export function formatTextStreamRangeUri(
       : `${startSentenceNumber}..${endSentenceNumber}`;
 
   return `wikg://chapter/${chapterPath}/${stream}#${hash}`;
+}
+
+export function parseTextStreamRangeUri(uri: string):
+  | {
+      readonly chapterPath: string;
+      readonly endSentenceIndex: number;
+      readonly startSentenceIndex: number;
+      readonly stream: ArchiveTextStreamKind;
+    }
+  | undefined {
+  uri = normalizeWikiGraphObjectUri(uri);
+  if (!isWikiGraphObjectUri(uri)) {
+    return undefined;
+  }
+
+  try {
+    const parsedUri = parseWikiGraphUriSyntax(uri);
+    const pathParts = parsedUri.path;
+    const stream = pathParts.at(-1);
+
+    if (
+      parsedUri.protocol !== "wikg" ||
+      pathParts[0] !== "chapter" ||
+      pathParts.length < 3 ||
+      (stream !== "source" && stream !== "summary")
+    ) {
+      return undefined;
+    }
+
+    const chapterPath = parseChapterPath(pathParts.slice(1, -1).join("/"));
+    const [startSentenceIndex, endSentenceIndex] = parseSentenceRange(
+      formatParsedFragment(parsedUri.fragment),
+    );
+
+    return {
+      chapterPath,
+      endSentenceIndex,
+      startSentenceIndex,
+      stream,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 export type WikiGraphReference =

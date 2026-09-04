@@ -612,7 +612,17 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
   listArchiveCollection: vi.fn(() =>
     Promise.resolve(archiveMockState.collection),
   ),
-  listChapters: vi.fn(() => Promise.resolve(archiveMockState.inspectChapters)),
+  listChapters: vi.fn(() =>
+    Promise.resolve(
+      archiveMockState.inspectChapters.map((chapter) => ({
+        ...chapter,
+        documentOrder: chapter.chapterId,
+        key: `chapter-${chapter.chapterId}`,
+        path: `chapter-${chapter.chapterId}`,
+        uri: `wikg://chapter/chapter-${chapter.chapterId}`,
+      })),
+    ),
+  ),
   resolveChapterPathReadonly: vi.fn(
     (_document: unknown, chapterPath: string) => {
       const chapterId = Number(chapterPath);

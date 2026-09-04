@@ -1,7 +1,6 @@
 import type { ReadonlyDocument } from "../../../../document/index.js";
 import type { ChapterEntry } from "../../../../document/chapter/index.js";
 
-import { formatTextStreamRangeUri } from "../references.js";
 import { readTextStreamRange } from "../text-streams.js";
 import type { ArchiveEvidenceItem, EvidenceReadContext } from "../types.js";
 import { requireChapter } from "../core.js";
@@ -28,12 +27,7 @@ export async function createSourceEvidenceItem(
     chapterId,
     endSentenceIndex: range.endSentenceIndex,
     fragmentId: range.startSentenceIndex,
-    id: formatTextStreamRangeUri(
-      chapterId,
-      "source",
-      range.startSentenceIndex,
-      range.endSentenceIndex,
-    ),
+    id: range.id,
     locators: range.locators,
     ...(score === undefined ? {} : { score }),
     source: range.text,

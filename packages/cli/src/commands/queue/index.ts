@@ -80,6 +80,7 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
         });
 
         await writeJobSummary(await addChapterJob(args, chapterId), {
+          chapter,
           estimate,
           json: args.json ?? false,
           watch: true,

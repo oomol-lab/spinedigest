@@ -340,12 +340,15 @@ async function readWikiGraphPage(
       throw new Error(
         `${displayUri} is a scope URI, not a readable object. Use ${displayUri}/title or ${displayUri}/state.`,
       );
-    case "chapter-title":
-      return await readArchivePage(
-        document,
-        formatChapterTitleId(reference.chapterId),
-        options,
-      );
+    case "chapter-title": {
+      const chapter = await requireChapter(document, reference.chapterId);
+
+      return {
+        id: displayUri,
+        title: chapter.title ?? `[chapter ${chapter.path}]`,
+        type: "chapter-title",
+      };
+    }
     case "chapter-state": {
       const details = await requireChapter(document, reference.chapterId);
       const targets = await createChapterState(document, details);

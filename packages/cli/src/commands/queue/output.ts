@@ -1,4 +1,10 @@
-import type { BuildJob, ChapterEntry } from "wiki-graph-core";
+import {
+  formatLocatedChapterUri,
+  listChapters,
+  WikiGraphArchiveFile,
+  type BuildJob,
+  type ChapterEntry,
+} from "wiki-graph-core";
 
 import {
   formatCLIJSON,
@@ -10,14 +16,25 @@ import {
   formatQueueAddEstimateLines,
   type QueueAddEstimate,
 } from "./estimate.js";
-import { getNodeResourcePath } from "../../runtime/node-platform.js";
+import { getNodeResourcePath, NodeFile } from "../../runtime/node-platform.js";
+
+interface JobChapterReference {
+  readonly locatedUri: string;
+  readonly title: string | null;
+  readonly uri: string;
+}
 
 export async function writeJobList(
   jobs: readonly BuildJob[],
   options: { readonly json: boolean },
 ): Promise<void> {
+  const chapters = await resolveJobChapters(jobs);
   if (options.json) {
-    await writeTextToStdout(formatCLIJSON({ items: jobs.map(formatJobJSON) }));
+    await writeTextToStdout(
+      formatCLIJSON({
+        items: jobs.map((job) => formatJobJSON(job, chapters.get(job.jobId))),
+      }),
+    );
     return;
   }
 
@@ -30,22 +47,23 @@ export async function writeJobList(
     `${formatJobListHeader()}\n${jobs
       .map(
         (job) =>
-          `${job.jobId.slice(0, 8).padEnd(8)} ${job.state.padEnd(9)} ${(job.currentStep ?? "-").padEnd(7)} ${job.target.padEnd(7)} ${job.chapterId.toString().padStart(7)} ${formatArchiveName(requireJobResourcePath(job, "archive", "archivePath"))}`,
+          `${job.jobId.slice(0, 8).padEnd(8)} ${job.state.padEnd(9)} ${(job.currentStep ?? "-").padEnd(7)} ${job.target.padEnd(7)} ${formatJobChapterListLabel(job, chapters.get(job.jobId))}`,
       )
       .join("\n")}\n`,
   );
 }
 
 function formatJobListHeader(): string {
-  return `${"JOB".padEnd(8)} ${"STATE".padEnd(9)} ${"STEP".padEnd(7)} ${"TARGET".padEnd(7)} ${"CHAPTER".padStart(7)} ARCHIVE`;
+  return `${"JOB".padEnd(8)} ${"STATE".padEnd(9)} ${"STEP".padEnd(7)} ${"TARGET".padEnd(7)} CHAPTER`;
 }
 
 export async function writeJobStatus(
   job: BuildJob,
   options: { readonly json: boolean },
 ): Promise<void> {
+  const chapter = await resolveJobChapter(job);
   if (options.json) {
-    await writeTextToStdout(formatCLIJSON(formatJobJSON(job)));
+    await writeTextToStdout(formatCLIJSON(formatJobJSON(job, chapter)));
     return;
   }
 
@@ -54,7 +72,8 @@ export async function writeJobStatus(
       `Job: ${job.jobId}`,
       `State: ${job.state}`,
       `Archive: ${requireJobResourcePath(job, "archive", "archivePath")}`,
-      `Chapter: ${job.chapterId}`,
+      `Chapter: ${formatJobChapterLabel(job, chapter)}`,
+      ...(chapter === undefined ? [] : [`Chapter URI: ${chapter.locatedUri}`]),
       `Target: ${job.target}`,
       `Step: ${job.currentStep ?? "-"}`,
       `Workspace: ${getJobResourcePath(job, "workspace", "workspacePath") ?? "-"}`,
@@ -65,12 +84,24 @@ export async function writeJobStatus(
   );
 }
 
-function formatJobJSON(job: BuildJob): Record<string, unknown> {
+function formatJobJSON(
+  job: BuildJob,
+  chapter?: JobChapterReference,
+): Record<string, unknown> {
   return {
     archiveKey: job.archiveKey,
     archivePath: getJobResourcePath(job, "archive", "archivePath"),
     cachePath: getJobResourcePath(job, "cache", "cachePath"),
     chapterId: job.chapterId,
+    ...(chapter === undefined
+      ? {}
+      : {
+          chapter: {
+            locatedUri: chapter.locatedUri,
+            title: chapter.title,
+            uri: chapter.uri,
+          },
+        }),
     createdAt: job.createdAt,
     ...(job.currentStep === undefined ? {} : { currentStep: job.currentStep }),
     ...(job.errorJSON === undefined ? {} : { errorJSON: job.errorJSON }),
@@ -162,14 +193,19 @@ export async function writeJobSummary(
   job: BuildJob,
   options: {
     readonly estimate?: QueueAddEstimate;
+    readonly chapter?: ChapterEntry;
     readonly json: boolean;
     readonly watch?: boolean;
   } = { json: false },
 ): Promise<void> {
+  const chapter =
+    options.chapter === undefined
+      ? await resolveJobChapter(job)
+      : createJobChapterReference(job, options.chapter);
   if (options.json) {
     await writeTextToStdout(
       formatCLIJSON({
-        ...formatJobJSON(job),
+        ...formatJobJSON(job, chapter),
         ...(formatJobQueuedNotice(job) === undefined
           ? {}
           : { notice: formatJobQueuedNotice(job) }),
@@ -191,7 +227,8 @@ export async function writeJobSummary(
 
   await writeTextToStdout(
     [
-      `Job ${job.jobId} ${job.state} ${job.target} chapter ${job.chapterId} ${requireJobResourcePath(job, "archive", "archivePath")}`,
+      `Job ${job.jobId} ${job.state} ${job.target} chapter ${formatJobChapterLabel(job, chapter)}`,
+      ...(chapter === undefined ? [] : [`Chapter URI: ${chapter.locatedUri}`]),
       ...(formatJobQueuedNotice(job) === undefined
         ? []
         : [formatJobQueuedNotice(job)!]),
@@ -212,6 +249,7 @@ export async function writeJobSummary(
 }
 
 export async function writeArchiveAddSummary(input: {
+  readonly archivePath: string;
   readonly created: readonly {
     readonly chapter: ChapterEntry;
     readonly job: BuildJob;
@@ -219,18 +257,29 @@ export async function writeArchiveAddSummary(input: {
   readonly estimate?: QueueAddEstimate;
   readonly json: boolean;
   readonly skipped: readonly {
-    readonly chapterId: number;
+    readonly chapter: ChapterEntry;
     readonly reason: string;
   }[];
 }): Promise<void> {
   if (input.json) {
     await writeTextToStdout(
       formatCLIJSON({
-        created: input.created.map((item) => formatJobJSON(item.job)),
+        created: input.created.map((item) =>
+          formatJobJSON(
+            item.job,
+            createJobChapterReference(item.job, item.chapter),
+          ),
+        ),
         ...(input.estimate === undefined
           ? {}
           : { estimate: formatQueueAddEstimateJSON(input.estimate) }),
-        skipped: input.skipped,
+        skipped: input.skipped.map((item) => ({
+          chapterId: item.chapter.chapterId,
+          chapter: formatChapterJSON(
+            createJobChapterReferenceFromPath(input.archivePath, item.chapter),
+          ),
+          reason: item.reason,
+        })),
       }),
     );
     return;
@@ -243,11 +292,14 @@ export async function writeArchiveAddSummary(input: {
 
   for (const job of input.created) {
     lines.push(
-      `Job ${job.job.jobId} ${job.job.state} ${job.job.target} chapter ${job.job.chapterId}`,
+      `Job ${job.job.jobId} ${job.job.state} ${job.job.target} chapter ${formatChapterLabel(job.chapter)}`,
+      `Chapter URI: ${createJobChapterReference(job.job, job.chapter).locatedUri}`,
     );
   }
   for (const skipped of input.skipped) {
-    lines.push(`Skipped chapter ${skipped.chapterId}: ${skipped.reason}`);
+    lines.push(
+      `Skipped chapter ${formatChapterLabel(skipped.chapter)}: ${skipped.reason}`,
+    );
   }
   if (input.estimate !== undefined) {
     lines.push("", ...formatQueueAddEstimateLines(input.estimate));
@@ -256,8 +308,113 @@ export async function writeArchiveAddSummary(input: {
   await writeTextToStdout(`${lines.join("\n")}\n`);
 }
 
-function formatArchiveName(path: string): string {
-  return path.split(/[\\/]/u).at(-1) ?? path;
+function formatJobChapterLabel(
+  job: BuildJob,
+  chapter: JobChapterReference | undefined,
+): string {
+  return chapter === undefined
+    ? `[unavailable; internal id ${job.chapterId}]`
+    : formatChapterLabel(chapter);
+}
+
+function formatJobChapterListLabel(
+  job: BuildJob,
+  chapter: JobChapterReference | undefined,
+): string {
+  return chapter === undefined
+    ? `[unavailable; internal id ${job.chapterId}]`
+    : `${chapter.title ?? "[untitled]"} ${chapter.locatedUri}`;
+}
+
+function formatChapterLabel(
+  chapter: Pick<JobChapterReference, "title" | "uri">,
+): string {
+  return chapter.title === null || chapter.title === undefined
+    ? chapter.uri
+    : `${JSON.stringify(chapter.title)} (${chapter.uri})`;
+}
+
+function formatChapterJSON(
+  chapter: JobChapterReference,
+): Record<string, unknown> {
+  return {
+    locatedUri: chapter.locatedUri,
+    title: chapter.title,
+    uri: chapter.uri,
+  };
+}
+
+function createJobChapterReference(
+  job: BuildJob,
+  chapter: ChapterEntry,
+): JobChapterReference {
+  return createJobChapterReferenceFromPath(
+    requireJobResourcePath(job, "archive", "archivePath"),
+    chapter,
+  );
+}
+
+function createJobChapterReferenceFromPath(
+  archivePath: string,
+  chapter: ChapterEntry,
+): JobChapterReference {
+  return {
+    locatedUri: formatLocatedChapterUri(archivePath, chapter.path),
+    title: chapter.title,
+    uri: chapter.uri,
+  };
+}
+
+async function resolveJobChapters(
+  jobs: readonly BuildJob[],
+): Promise<ReadonlyMap<string, JobChapterReference>> {
+  const jobsByArchive = new Map<string, BuildJob[]>();
+  for (const job of jobs) {
+    const archivePath = requireJobResourcePath(job, "archive", "archivePath");
+    const grouped = jobsByArchive.get(archivePath) ?? [];
+    grouped.push(job);
+    jobsByArchive.set(archivePath, grouped);
+  }
+  const entries = (
+    await Promise.all(
+      [...jobsByArchive].map(async ([archivePath, archiveJobs]) => {
+        try {
+          let chapters: readonly ChapterEntry[] = [];
+          await new WikiGraphArchiveFile(
+            new NodeFile(archivePath),
+          ).readDocument(async (document) => {
+            chapters = await listChapters(document);
+          });
+          const chaptersById = new Map(
+            chapters.map((chapter) => [chapter.chapterId, chapter]),
+          );
+
+          return archiveJobs.flatMap((job) => {
+            const chapter = chaptersById.get(job.chapterId);
+
+            return chapter === undefined
+              ? []
+              : [
+                  [
+                    job.jobId,
+                    createJobChapterReferenceFromPath(archivePath, chapter),
+                  ] as const,
+                ];
+          });
+        } catch {
+          return [];
+        }
+      }),
+    )
+  ).flat();
+
+  return new Map(entries);
+}
+
+async function resolveJobChapter(
+  job: BuildJob,
+): Promise<JobChapterReference | undefined> {
+  return (await resolveJobChapters([job])).get(job.jobId);
 }
 
 function getJobResourcePath(

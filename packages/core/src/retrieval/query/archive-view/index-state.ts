@@ -164,9 +164,19 @@ export async function assertArchiveIndexArtifactsReady(
     return;
   }
 
-  const serials = blocked.map((record) => record.serialId).join(", ");
+  const blockedIds = new Set(blocked.map((record) => record.serialId));
+  const chapters = (await listChapters(document)).filter((chapter) =>
+    blockedIds.has(chapter.chapterId),
+  );
+  const chapterReferences = chapters
+    .map((chapter) =>
+      chapter.title === null
+        ? chapter.uri
+        : `${JSON.stringify(chapter.title)} (${chapter.uri})`,
+    )
+    .join(", ");
   throw new Error(
-    `Wiki Graph query is not ready. Chapters ${serials} need a current FTS artifact or source embedding artifact before query.`,
+    `Wiki Graph query is not ready. Chapters ${chapterReferences} need a current FTS artifact or source embedding artifact before query.`,
   );
 }
 

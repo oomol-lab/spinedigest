@@ -1,13 +1,8 @@
 import type { ReadonlyDocument } from "../../../document/index.js";
 
 import { readEntitySearchEvidenceMentions } from "../search-cache/index.js";
-import {
-  isWikiGraphObjectUri,
-  mergeStringLists,
-  normalizeWikiGraphObjectUri,
-} from "./helpers.js";
-import { parseWikiGraphReference } from "./references.js";
-import type { WikiGraphReference } from "./references.js";
+import { mergeStringLists } from "./helpers.js";
+import { parseTextStreamRangeUri } from "./references.js";
 import { readTextStreamRange } from "./text-streams.js";
 import type {
   ArchiveFindHit,
@@ -171,7 +166,7 @@ async function hydrateTextStreamHitContext(
     return hit;
   }
 
-  const reference = parseTextStreamHitReference(hit.id);
+  const reference = parseTextStreamHitReference(hit);
 
   if (reference === undefined) {
     return hit;
@@ -194,20 +189,23 @@ async function hydrateTextStreamHitContext(
   };
 }
 
-function parseTextStreamHitReference(
-  uri: string,
-): Extract<WikiGraphReference, { readonly type: "text-stream" }> | undefined {
-  if (!isWikiGraphObjectUri(uri)) {
+function parseTextStreamHitReference(hit: ArchiveFindHit):
+  | {
+      readonly chapterId: number;
+      readonly endSentenceIndex: number;
+      readonly startSentenceIndex: number;
+      readonly stream: "source" | "summary";
+    }
+  | undefined {
+  if (hit.chapter === undefined) {
+    return undefined;
+  }
+  const reference = parseTextStreamRangeUri(hit.id);
+  if (reference === undefined) {
     return undefined;
   }
 
-  try {
-    const reference = parseWikiGraphReference(normalizeWikiGraphObjectUri(uri));
-
-    return reference.type === "text-stream" ? reference : undefined;
-  } catch {
-    return undefined;
-  }
+  return { ...reference, chapterId: hit.chapter };
 }
 
 async function coalesceTextStreamFindHits(
@@ -278,7 +276,7 @@ function parseSearchTextStreamHitRange(
     return undefined;
   }
 
-  const reference = parseTextStreamHitReference(hit.id);
+  const reference = parseTextStreamHitReference(hit);
 
   if (reference === undefined) {
     return undefined;

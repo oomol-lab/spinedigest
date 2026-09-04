@@ -2,6 +2,10 @@ import type {
   ReadonlyDocument,
   ReadonlySerialTextStream,
 } from "../../../document/index.js";
+import {
+  listChapters,
+  type ChapterEntry,
+} from "../../../document/chapter/index.js";
 import { countTextWords } from "../../../utils/text-word-count.js";
 
 import { createSnippet } from "./helpers.js";
@@ -101,16 +105,15 @@ export async function readTextStreamRange(
   readonly text: string;
 }> {
   const index = await getTextStreamIndex(document, chapterId, stream, context);
+  const chapter = await getTextStreamChapter(document, chapterId, context);
   if (index.sentences.length === 0) {
-    throw new Error(
-      `Chapter ${formatChapterId(chapterId)} has no ${stream} text.`,
-    );
+    throw new Error(`Chapter ${chapter.uri} has no ${stream} text.`);
   }
 
   const lastSentenceIndex = index.sentences.length - 1;
   if (startSentenceIndex > lastSentenceIndex) {
     throw new Error(
-      `${stream} range ${formatTextStreamRangeUri(chapterId, stream, startSentenceIndex, endSentenceIndex)} is out of bounds. Last sentence number is ${lastSentenceIndex + 1}.`,
+      `${stream} range ${formatTextStreamRangeUri(chapter.path, stream, startSentenceIndex, endSentenceIndex)} is out of bounds. Last sentence number is ${lastSentenceIndex + 1}.`,
     );
   }
 
@@ -146,13 +149,37 @@ export async function readTextStreamRange(
 
   return {
     endSentenceIndex: end,
-    id: formatTextStreamRangeUri(chapterId, stream, start, end),
+    id: formatTextStreamRangeUri(chapter.path, stream, start, end),
     locators,
     ...(sourceEnd === undefined ? {} : { sourceEnd }),
     ...(sourceStart === undefined ? {} : { sourceStart }),
     startSentenceIndex: start,
     text,
   };
+}
+
+async function getTextStreamChapter(
+  document: ReadonlyDocument,
+  chapterId: number,
+  context: EvidenceReadContext,
+): Promise<ChapterEntry> {
+  let chapter = context.chapters.get(chapterId);
+
+  if (chapter === undefined) {
+    chapter = listChapters(document).then((chapters) => {
+      const matched = chapters.find((entry) => entry.chapterId === chapterId);
+
+      if (matched === undefined) {
+        throw new Error(
+          `Chapter ${formatChapterId(chapterId)} does not exist.`,
+        );
+      }
+      return matched;
+    });
+    context.chapters.set(chapterId, chapter);
+  }
+
+  return await chapter;
 }
 
 export async function readTextStreamText(

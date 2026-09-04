@@ -68,7 +68,7 @@ describe("archive/query/archive-view/text search", () => {
         expect(result.items).toContainEqual(
           expect.objectContaining({
             field: "source",
-            id: "wikg://chapter/1/source#1..3",
+            id: "wikg://chapter/introduction/source#1..3",
             position: {
               chapter: 1,
               sentence: 0,
@@ -77,6 +77,15 @@ describe("archive/query/archive-view/text search", () => {
           }),
         );
         const sourceHit = result.items.find((item) => item.type === "source");
+        if (sourceHit === undefined) {
+          throw new Error("Expected source search hit");
+        }
+        await expect(
+          readArchivePage(document, sourceHit.id),
+        ).resolves.toMatchObject({
+          id: sourceHit.id,
+          type: "fragment",
+        });
         expect(sourceHit?.locators).toStrictEqual({
           [`1..${Array.from(sourceHit?.snippet ?? "").length}`]: `wikg://artifact/${"a".repeat(64)}#epubcfi(/6/2!/4/2)`,
         });
@@ -111,7 +120,14 @@ describe("archive/query/archive-view/text search", () => {
             .getSerialFragments(1)
             .writeTextStream(sourceText);
           await openedDocument.writeToc({
-            items: [{ children: [], serialId: 1, title: "Chapter 1" }],
+            items: [
+              {
+                children: [],
+                key: "rendered-source",
+                serialId: 1,
+                title: "Chapter 1",
+              },
+            ],
             version: 1,
           });
         });
@@ -167,7 +183,14 @@ describe("archive/query/archive-view/text search", () => {
             version: 1,
           });
           await openedDocument.writeToc({
-            items: [{ children: [], serialId: 1, title: "Chapter 1" }],
+            items: [
+              {
+                children: [],
+                key: "coalesced-source",
+                serialId: 1,
+                title: "Chapter 1",
+              },
+            ],
             version: 1,
           });
         });
@@ -178,7 +201,7 @@ describe("archive/query/archive-view/text search", () => {
         expect(result.items).toStrictEqual([
           expect.objectContaining({
             field: "source",
-            id: "wikg://chapter/1/source#1..3",
+            id: "wikg://chapter/coalesced-source/source#1..3",
             snippet:
               "# Test NoteAlice studies graph retrieval.Bob cites Alice in a research note.",
             type: "source",
@@ -208,7 +231,9 @@ describe("archive/query/archive-view/text search", () => {
         const sourceHit = result.items.find(
           (item) => item.type === "source" && item.field === "source",
         );
-        expect(sourceHit?.id).toMatch(/^wikg:\/\/chapter\/1\/source#/u);
+        expect(sourceHit?.id).toMatch(
+          /^wikg:\/\/chapter\/introduction\/source#/u,
+        );
         expect(sourceHit).toMatchObject({
           field: "source",
           type: "source",
@@ -305,6 +330,7 @@ describe("archive/query/archive-view/text search", () => {
             items: [
               {
                 children: [],
+                key: "ranking",
                 serialId: 1,
                 title: "Ranking",
               },
@@ -320,8 +346,8 @@ describe("archive/query/archive-view/text search", () => {
         });
 
         expect(result.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/1/source#2",
-          "wikg://chapter/1/source#1",
+          "wikg://chapter/ranking/source#2",
+          "wikg://chapter/ranking/source#1",
         ]);
         expect(result.items[0]?.score).toBeGreaterThan(
           result.items[1]?.score ?? 0,

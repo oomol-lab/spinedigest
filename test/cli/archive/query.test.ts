@@ -32,6 +32,44 @@ describe("cli/archive/query", () => {
     );
   });
 
+  it("preserves the public chapter path in title page output", async () => {
+    vi.mocked(readArchivePage).mockResolvedValue({
+      id: "wikg://chapter/a1b2c3d4e5f6/title",
+      title: "Public chapter",
+      type: "chapter-title",
+    });
+
+    await runArchiveCommand({
+      action: "get",
+      archivePath: "wikg:///tmp/book.wikg/chapter/a1b2c3d4e5f6/title",
+      format: "json",
+      objectId: "wikg:///tmp/book.wikg/chapter/a1b2c3d4e5f6/title",
+    });
+
+    expect(readArchivePage).toHaveBeenCalledWith(
+      {},
+      "wikg://chapter/a1b2c3d4e5f6/title",
+      {},
+    );
+    expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
+      title: "Public chapter",
+      type: "chapter-title",
+      uri: "wikg://chapter/a1b2c3d4e5f6/title",
+    });
+
+    archiveMockState.textWrites.length = 0;
+    await runArchiveCommand({
+      action: "get",
+      archivePath: "wikg:///tmp/book.wikg/chapter/a1b2c3d4e5f6/title",
+      format: "text",
+      objectId: "wikg:///tmp/book.wikg/chapter/a1b2c3d4e5f6/title",
+    });
+
+    expect(archiveMockState.textWrites[0]).toContain(
+      "uri: wikg://chapter/a1b2c3d4e5f6/title",
+    );
+  });
+
   it("prints search hits as Wiki Graph URI objects", async () => {
     await runArchiveCommand({
       action: "search",

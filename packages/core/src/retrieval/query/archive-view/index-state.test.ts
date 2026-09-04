@@ -224,7 +224,7 @@ describe("archive search index state", () => {
       await writeSourceChapter(document);
 
       await expect(assertArchiveIndexArtifactsReady(document)).rejects.toThrow(
-        "Wiki Graph query is not ready. Chapters 1 need a current FTS artifact or source embedding artifact before query.",
+        'Wiki Graph query is not ready. Chapters "Dense" (wikg://chapter/dense) need a current FTS artifact or source embedding artifact before query.',
       );
     });
   });
@@ -237,7 +237,7 @@ describe("archive search index state", () => {
       await replaceChapterSourceEmbeddingIndexArtifact(document, 2, provider);
 
       await expect(assertArchiveIndexArtifactsReady(document)).rejects.toThrow(
-        "Wiki Graph query is not ready. Chapters 1 need a current FTS artifact or source embedding artifact before query.",
+        'Wiki Graph query is not ready. Chapters "Unindexed" (wikg://chapter/unindexed) need a current FTS artifact or source embedding artifact before query.',
       );
       await expect(
         assertArchiveIndexArtifactsReady(document, { chapters: [2] }),
@@ -389,6 +389,7 @@ async function writeSourceChapters(
     await openedDocument.writeToc({
       items: titles.map((title, index) => ({
         children: [],
+        key: title.toLowerCase(),
         serialId: serialIds[index]!,
         title,
       })),

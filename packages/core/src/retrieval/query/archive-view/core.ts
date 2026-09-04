@@ -90,6 +90,12 @@ export async function readNodeSourceFragments(
   node: GraphNode,
 ): Promise<readonly ArchiveNodeSourceFragment[]> {
   const fragmentIds = await collectNodeSourceFragmentIds(document, node);
+  const chapters = new Map(
+    (await listChapters(document)).map((chapter) => [
+      chapter.chapterId,
+      chapter,
+    ]),
+  );
 
   return await Promise.all(
     fragmentIds.map(async ([chapterId, fragmentId]) => {
@@ -105,13 +111,16 @@ export async function readNodeSourceFragments(
       const firstSentence = fragmentSentences[0];
       const lastSentence = fragmentSentences[fragmentSentences.length - 1];
       const text = truncateSourceExcerpt(fragment.text);
+      const chapter = chapters.get(chapterId);
 
       return {
         id:
-          firstSentence === undefined || lastSentence === undefined
+          firstSentence === undefined ||
+          lastSentence === undefined ||
+          chapter === undefined
             ? fragment.id
             : formatTextStreamRangeUri(
-                chapterId,
+                chapter.path,
                 "source",
                 firstSentence.globalIndex,
                 lastSentence.globalIndex,

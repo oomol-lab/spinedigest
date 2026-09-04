@@ -37,7 +37,7 @@ export async function addArchiveJobs(
     readonly job: BuildJob;
   }> = [];
   const skipped: Array<{
-    readonly chapterId: number;
+    readonly chapter: ChapterEntry;
     readonly reason: string;
   }> = [];
 
@@ -55,7 +55,7 @@ export async function addArchiveJobs(
         }
         if (chapter.stage === "planned") {
           skipped.push({
-            chapterId: chapter.chapterId,
+            chapter,
             reason: "planned",
           });
           continue;
@@ -65,7 +65,7 @@ export async function addArchiveJobs(
           const summary = await document.readSummary(chapter.chapterId);
           if (summary === undefined || summary.trim() === "") {
             skipped.push({
-              chapterId: chapter.chapterId,
+              chapter,
               reason: "missing summary",
             });
             continue;
@@ -81,7 +81,7 @@ export async function addArchiveJobs(
           );
           if (artifact?.sourceRevision !== revision) {
             skipped.push({
-              chapterId: chapter.chapterId,
+              chapter,
               reason: "missing current FTS index artifact",
             });
             continue;
@@ -95,7 +95,7 @@ export async function addArchiveJobs(
           });
         } catch (error) {
           skipped.push({
-            chapterId: chapter.chapterId,
+            chapter,
             reason: error instanceof Error ? error.message : String(error),
           });
         }
@@ -104,6 +104,7 @@ export async function addArchiveJobs(
   );
 
   await writeArchiveAddSummary({
+    archivePath: args.archivePath!,
     created,
     ...(created.length === 0
       ? {}

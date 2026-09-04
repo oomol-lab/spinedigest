@@ -529,6 +529,40 @@ describe("cli/archive/object", () => {
     ]);
   });
 
+  it("reports query blockers with public, reopenable chapter URIs", async () => {
+    archiveMockState.indexArtifactCoverage["embedding-source"] =
+      archiveMockState.indexArtifactCoverage["embedding-source"].map(
+        (item) => ({ ...item, current: false }),
+      );
+
+    await runArchiveCommand({
+      action: "inspect",
+      archivePath: "/tmp/book.wikg",
+      json: true,
+    });
+
+    expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toMatchObject({
+      queryBlockedChapters: [
+        {
+          chapterId: 2,
+          locatedUri: "wikg:///tmp/book.wikg/chapter/chapter-2",
+          title: "Missing chapter",
+          uri: "wikg://chapter/chapter-2",
+        },
+      ],
+    });
+
+    archiveMockState.textWrites.length = 0;
+    await runArchiveCommand({
+      action: "inspect",
+      archivePath: "/tmp/book.wikg",
+    });
+
+    expect(archiveMockState.textWrites[0]).toContain(
+      "- Missing chapter: wikg:///tmp/book.wikg/chapter/chapter-2",
+    );
+  });
+
   it("inspects empty archive content without showing zero-percent coverage", async () => {
     archiveMockState.inspectChapters = [];
     archiveMockState.summaryWords = 0;
