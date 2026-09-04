@@ -47,7 +47,40 @@ import { withTempDir } from "../../../helpers/temp.js";
 describe("schema-upgrade", () => {
   it("upgrades a copied v3 archive and supports source provenance", async () => {
     await withFixture(async ({ archive, root }) => {
-      await removeV4SourceProvenanceSchema(archive, root);
+      const firstDigest = "a".repeat(64);
+      const secondDigest = `${"a".repeat(12)}b${"1".repeat(51)}`;
+      const thirdDigest = `${"a".repeat(12)}bc${"2".repeat(50)}`;
+      const fragments = [
+        "epubcfi(/6/2!/4/2)",
+        "epubcfi(/6/2!/4/4)",
+        "epubcfi(/6/2!/4/6)",
+      ] as const;
+      const seededArchive = new WikiGraphArchiveFile(archive);
+      await seededArchive.write(async (document) => {
+        await document.sourceProvenance.replace(
+          1,
+          await document.serials.getRevision(1),
+          {
+            artifacts: [firstDigest, secondDigest, thirdDigest].map(
+              (digest, index) => ({
+                digest,
+                identifier: `chapter-${index + 1}.xhtml`,
+                mediaType: "application/epub+zip",
+                name: "book.epub",
+              }),
+            ),
+            mappings: [firstDigest, secondDigest, thirdDigest].map(
+              (digest, index) => ({
+                artifactDigest: digest,
+                locator: { cfi: fragments[index]! },
+                sourceEnd: index + 1,
+                sourceStart: index,
+              }),
+            ),
+          },
+        );
+      });
+      await removeSourceArtifactShortUidColumn(archive, root);
       await rewriteManifest(archive, 3, true);
       const sourceBytes = await readFile(archive.path);
       const sourceToken = await readWikgArchiveMutationToken(archive);
@@ -120,54 +153,91 @@ describe("schema-upgrade", () => {
           name: "sqlite_autoindex_source_locators_1",
           unique: 1,
         });
+        await expect(
+          database.queryAll(
+            "PRAGMA foreign_key_check",
+            undefined,
+            (row) => row,
+          ),
+        ).resolves.toStrictEqual([]);
       } finally {
         await database.close();
       }
 
-      const digest = "c".repeat(64);
-      const fragment = "epubcfi(/6/2!/4/2)";
       const upgraded = new WikiGraphArchiveFile(upgradedArchive);
-      await upgraded.write(async (document) => {
-        await document.sourceProvenance.replace(
-          1,
-          await document.serials.getRevision(1),
-          {
-            artifacts: [
-              { digest, mediaType: "application/epub+zip", name: "book.epub" },
-            ],
-            mappings: [
-              {
-                artifactDigest: digest,
-                locator: { cfi: fragment },
-                sourceEnd: 7,
-                sourceStart: 0,
-              },
-            ],
-          },
-        );
-      });
       await upgraded.readDocument(async (document) => {
-        await expect(
-          document.sourceProvenance.getArtifact(digest),
-        ).resolves.toMatchObject({
-          digest,
-          mediaType: "application/epub+zip",
-          shortUid: digest.slice(0, 12),
-        });
-        await expect(
-          document.sourceProvenance.getArtifact(digest.slice(0, 12)),
-        ).resolves.toMatchObject({ digest });
-        await expect(
-          document.sourceProvenance.getLocator(digest, fragment),
-        ).resolves.toMatchObject({ fragment, locator: { cfi: fragment } });
-        await expect(
-          document.sourceProvenance.listMap(1),
-        ).resolves.toMatchObject([
+        expect(
+          (await document.sourceProvenance.listArtifacts()).map(
+            ({ digest, id, shortUid }) => ({ digest, id, shortUid }),
+          ),
+        ).toStrictEqual([
+          { digest: firstDigest, id: 1, shortUid: "a".repeat(12) },
           {
-            artifact: { digest, mediaType: "application/epub+zip" },
-            fragment,
-            sourceEnd: 7,
+            digest: secondDigest,
+            id: 2,
+            shortUid: `${"a".repeat(12)}b`,
+          },
+          {
+            digest: thirdDigest,
+            id: 3,
+            shortUid: `${"a".repeat(12)}bc`,
+          },
+        ]);
+        await expect(
+          document.sourceProvenance.getArtifact("a".repeat(12)),
+        ).resolves.toMatchObject({ digest: firstDigest });
+        await expect(
+          document.sourceProvenance.getArtifact(`${"a".repeat(12)}b`),
+        ).resolves.toMatchObject({ digest: secondDigest });
+        await expect(
+          document.sourceProvenance.getArtifact(secondDigest),
+        ).resolves.toMatchObject({ shortUid: `${"a".repeat(12)}b` });
+        await expect(
+          document.sourceProvenance.getArtifact(`${"a".repeat(12)}b1`),
+        ).resolves.toBeUndefined();
+        await expect(
+          document.sourceProvenance.getLocator(
+            `${"a".repeat(12)}bc`,
+            fragments[2],
+          ),
+        ).resolves.toMatchObject({
+          artifact: { digest: thirdDigest },
+          fragment: fragments[2],
+          locator: { cfi: fragments[2] },
+        });
+        expect(await document.sourceProvenance.listMap(1)).toMatchObject([
+          {
+            artifact: {
+              digest: firstDigest,
+              identifier: "chapter-1.xhtml",
+              mediaType: "application/epub+zip",
+              name: "book.epub",
+              shortUid: "a".repeat(12),
+            },
+            fragment: fragments[0],
+            locator: { cfi: fragments[0] },
+            sourceEnd: 1,
             sourceStart: 0,
+          },
+          {
+            artifact: {
+              digest: secondDigest,
+              identifier: "chapter-2.xhtml",
+              shortUid: `${"a".repeat(12)}b`,
+            },
+            fragment: fragments[1],
+            sourceEnd: 2,
+            sourceStart: 1,
+          },
+          {
+            artifact: {
+              digest: thirdDigest,
+              identifier: "chapter-3.xhtml",
+              shortUid: `${"a".repeat(12)}bc`,
+            },
+            fragment: fragments[2],
+            sourceEnd: 3,
+            sourceStart: 2,
           },
         ]);
       });
@@ -810,7 +880,7 @@ async function rewriteManifest(
   await nodeWikiGraphPlatform.zip.write(archive, entries);
 }
 
-async function removeV4SourceProvenanceSchema(
+async function removeSourceArtifactShortUidColumn(
   archive: NodeFile,
   root: string,
 ): Promise<void> {
@@ -825,9 +895,21 @@ async function removeV4SourceProvenanceSchema(
   const database = await Database.open(new NodeFile(databasePath));
   try {
     await database.execute(`
-      DROP TABLE source_text_maps;
-      DROP TABLE source_locators;
+      PRAGMA foreign_keys = OFF;
+      CREATE TABLE source_artifacts_legacy (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        digest BLOB NOT NULL UNIQUE,
+        media_type TEXT NOT NULL,
+        name TEXT,
+        identifier TEXT
+      );
+      INSERT INTO source_artifacts_legacy (
+        id, digest, media_type, name, identifier
+      )
+      SELECT id, digest, media_type, name, identifier
+      FROM source_artifacts;
       DROP TABLE source_artifacts;
+      ALTER TABLE source_artifacts_legacy RENAME TO source_artifacts;
     `);
   } finally {
     await database.close();
