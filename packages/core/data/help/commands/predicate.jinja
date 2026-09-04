@@ -138,6 +138,10 @@ Notes:
   - With `--input <path>`, creates a chapter and fills source text.
   - Use `--input -` to read source text from stdin.
   - Source input must not be empty when `--input` is used.
+
+Output:
+  - Text output includes `Chapter`, the archive-relative handle, and `Located URI`, the complete target for later commands.
+  - With `--json`, the same values are `uri` and `locatedUri`; reuse `locatedUri` for later commands.
 {% elif predicate == "add" and target.name == "job-collection-scope" %}
 Purpose:
   Add a local build job.

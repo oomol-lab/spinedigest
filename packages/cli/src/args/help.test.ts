@@ -321,9 +321,18 @@ describe("cli/args/help", () => {
   });
 
   it("documents planned chapter source input and provenance JSONL", () => {
+    const chapterAddHelpText = renderUriPredicateHelpText(
+      "chapter-collection-scope",
+      "add",
+      "wikg://book.wikg/chapter",
+    );
     const chapterHelpText = renderUriHelpText(
       "chapter-scope",
       "wikg://book.wikg/chapter/part",
+    );
+    const sourceHelpText = renderUriHelpText(
+      "chapter-source-object",
+      "wikg://book.wikg/chapter/part/source",
     );
     const sourceSetHelpText = renderUriPredicateHelpText(
       "chapter-source-object",
@@ -335,6 +344,8 @@ describe("cli/args/help", () => {
     expect(chapterHelpText).toContain(
       "wikg://book.wikg/chapter/part/source --help",
     );
+    expect(chapterAddHelpText).toContain("Located URI");
+    expect(chapterAddHelpText).toContain("`uri` and `locatedUri`");
     expect(chapterHelpText).toContain(
       "wikg://book.wikg/chapter/part/state --help",
     );
@@ -362,6 +373,11 @@ describe("cli/args/help", () => {
     expect(fileImportHelpText).toContain('"cfi":"epubcfi(...)"');
     expect(fileImportHelpText).toContain("offsets are not input fields");
     expect(fileImportHelpText).toContain("SHA-256 of source file bytes");
+    expect(fileImportHelpText).toContain("`chapter add --json`");
+    expect(fileImportHelpText).toContain(
+      "a ranged source read includes only mappings that overlap",
+    );
+    expect(sourceHelpText).toContain("`uri`, `text`, and source `provenance`");
     expect(fileImportHelpText).toContain(
       "evidence cannot point back to a PDF page or EPUB CFI",
     );
@@ -523,7 +539,7 @@ describe("cli/args/help", () => {
       "Use `--json` when an Agent or script needs one stable machine-readable response.",
     );
     expect(renderHelpTopicText("format")).toContain(
-      "Whole `source` and `summary` objects print plain text by default; with `--json`, they return one object containing `uri` and `text`.",
+      "Whole `source` and `summary` objects print plain text by default; with `--json`, source also returns `provenance`",
     );
     expect(renderHelpTopicText("format")).toContain(
       "Ranged fragments such as `/source#20..30` and `/summary#20..30` use the same output choices and retain the requested range in `uri`.",
@@ -733,7 +749,7 @@ describe("cli/args/help", () => {
       "Use `--json` when you want stable Agent-readable fields",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "Whole and ranged `source` or `summary` reads return `uri` and `text`",
+      "Whole and ranged `source` reads return `uri`, `text`, and `provenance`",
     );
     expect(uriHelpText).toContain(
       "Ranged fragments such as `/source#4..8` and `/summary#4..8` are structured range objects.",
@@ -744,7 +760,7 @@ describe("cli/args/help", () => {
         "wikg://book.wikg/chapter/part/source",
       ),
     ).toContain(
-      "Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri` and `text`.",
+      "Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri`, `text`, and source `provenance` mappings.",
     );
     expect(
       renderUriHelpText(
@@ -820,6 +836,9 @@ describe("cli/args/help", () => {
     ).toContain("The chapter must be `reading-graph`");
     expect(renderArchiveMaintenanceChapterActionHelpText("add")).toContain(
       "[--json]",
+    );
+    expect(renderArchiveMaintenanceChapterActionHelpText("add")).toContain(
+      "`uri` and `locatedUri`",
     );
     expect(
       renderArchiveMaintenanceChapterActionHelpText("set-source"),

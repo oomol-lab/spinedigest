@@ -120,7 +120,7 @@ Default behavior:
   - Source range fragments such as `#4..8` read sentence numbers 4 through 8, inclusive.
   - Range fragments are read-only; `set` writes the complete source object.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
-  - Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri` and `text`.
+  - Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri`, `text`, and source `provenance` mappings.
 
 Use when:
   - You need continuous original wording from a selected chapter.
@@ -131,7 +131,7 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` reads a structured source sentence range.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
-  - Source range fragments support `--json`.
+  - Source range fragments support `--json`; the result includes provenance mappings that overlap the selected text.
 
 Use when:
   - You need bounded original wording with machine-readable range metadata.
