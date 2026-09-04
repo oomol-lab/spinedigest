@@ -1,7 +1,6 @@
 import type {
   MentionLinkRecord,
   MentionRecord,
-  SourceTextMapRecord,
 } from "../../../document/index.js";
 import type { BookMeta } from "../../../text/source/index.js";
 import type { GraphNeighbor } from "../../../graph/reading.js";
@@ -12,6 +11,7 @@ import type {
 import type { SearchIndexEmbeddingProvider } from "../../search-index/index.js";
 
 export type ArchiveObjectType =
+  | "artifact"
   | "chapter"
   | "chapter-title"
   | "chapter-tree"
@@ -93,6 +93,7 @@ export interface ArchiveFindHit extends ArchiveLibrarySourceFields {
   readonly evidenceMentions?: readonly EntityEvidenceMention[];
   readonly field: ArchiveFindField;
   readonly id: string;
+  readonly locators?: SourceLocatorMap;
   readonly matchCount?: number;
   readonly matchedTerms?: readonly string[];
   readonly missingTerms?: readonly string[];
@@ -248,7 +249,7 @@ export type ArchiveListItem = ArchiveLibrarySourceFields &
         readonly score?: number;
         readonly state?: ChapterState;
         readonly summary: string;
-        readonly type: Exclude<ArchiveObjectType, "triple">;
+        readonly type: Exclude<ArchiveObjectType, "artifact" | "triple">;
       }
     | {
         readonly evidence?: ArchiveFindEvidencePreview;
@@ -268,6 +269,15 @@ export type ArchiveListItem = ArchiveLibrarySourceFields &
 
 export type ArchivePage = ArchiveLibrarySourceFields &
   (
+    | {
+        readonly digest: string;
+        readonly id: string;
+        readonly identifier?: string;
+        readonly locator?: Readonly<Record<string, unknown>>;
+        readonly mediaType: string;
+        readonly name?: string;
+        readonly type: "artifact";
+      }
     | {
         readonly id: string;
         readonly state: ChapterState;
@@ -303,7 +313,7 @@ export type ArchivePage = ArchiveLibrarySourceFields &
         readonly nextFragmentId: string | undefined;
         readonly nodes: readonly ArchiveNodeLabel[];
         readonly previousFragmentId: string | undefined;
-        readonly provenance?: readonly SourceTextMapRecord[];
+        readonly locators?: SourceLocatorMap;
         readonly title: string;
         readonly type: "fragment";
       }
@@ -400,6 +410,7 @@ export interface ArchiveEvidenceItem extends ArchiveLibrarySourceFields {
   readonly endSentenceIndex: number;
   readonly fragmentId?: number;
   readonly id: string;
+  readonly locators?: SourceLocatorMap;
   readonly score?: number;
   readonly source: string;
   readonly startSentenceIndex: number;
@@ -425,6 +436,8 @@ export interface ArchiveSourceFragment {
   readonly text: string;
   readonly wordsCount: number;
 }
+
+export type SourceLocatorMap = Readonly<Record<string, string>>;
 
 export type ArchiveTextStreamKind = "source" | "summary";
 export type SourceEvidenceRange = {

@@ -1,6 +1,7 @@
-import type {
-  ReadonlyDocument,
-  SourceTextMapRecord,
+import {
+  formatSourceArtifactUri,
+  parseSourceLocatorFragment,
+  type ReadonlyDocument,
 } from "../../../document/index.js";
 import { parseWikiGraphUriSyntax } from "../../../runtime/common/wiki-graph/uri.js";
 import {
@@ -255,6 +256,7 @@ function formatParsedUriFragment(
   fragment:
     | number
     | { readonly begin: number; readonly end: number }
+    | { readonly raw: string }
     | undefined,
 ): string | undefined {
   if (fragment === undefined) {
@@ -262,6 +264,9 @@ function formatParsedUriFragment(
   }
   if (typeof fragment === "number") {
     return String(fragment);
+  }
+  if ("raw" in fragment) {
+    return fragment.raw;
   }
 
   return `${fragment.begin}..${fragment.end}`;
@@ -278,6 +283,57 @@ async function readWikiGraphPage(
   const reference = parseWikiGraphReference(uri);
 
   switch (reference.type) {
+    case "artifact": {
+      const artifact = await document.sourceProvenance.getArtifact(
+        reference.digest,
+      );
+      if (artifact === undefined) {
+        throw new Error(
+          `Source artifact ${formatSourceArtifactUri(reference.digest)} was not found in this archive.`,
+        );
+      }
+
+      if (reference.fragment === undefined) {
+        return {
+          digest: artifact.digest,
+          id: formatSourceArtifactUri(artifact.digest),
+          ...(artifact.identifier === undefined
+            ? {}
+            : { identifier: artifact.identifier }),
+          mediaType: artifact.mediaType,
+          ...(artifact.name === undefined ? {} : { name: artifact.name }),
+          type: "artifact",
+        };
+      }
+
+      const parsedLocator = parseSourceLocatorFragment(reference.fragment);
+      if (parsedLocator.mediaType !== artifact.mediaType) {
+        throw new Error(
+          `Source locator ${reference.fragment} does not match artifact mediaType ${artifact.mediaType}.`,
+        );
+      }
+      const locator = await document.sourceProvenance.getLocator(
+        artifact.digest,
+        parsedLocator.fragment,
+      );
+      if (locator === undefined) {
+        throw new Error(
+          `Source locator ${formatSourceArtifactUri(artifact.digest, parsedLocator.fragment)} was not found in this archive.`,
+        );
+      }
+
+      return {
+        digest: artifact.digest,
+        id: formatSourceArtifactUri(artifact.digest, parsedLocator.fragment),
+        ...(artifact.identifier === undefined
+          ? {}
+          : { identifier: artifact.identifier }),
+        locator: locator.locator,
+        mediaType: artifact.mediaType,
+        ...(artifact.name === undefined ? {} : { name: artifact.name }),
+        type: "artifact",
+      };
+    }
     case "meta":
       return await readArchivePage(document, ARCHIVE_ROOT_ID, options);
     case "chapter":
@@ -411,18 +467,10 @@ async function readWikiGraphPage(
       );
     }
     case "text-stream": {
-      const { fragment, sourceEnd, sourceStart } =
-        await createTextStreamRangeFragment(document, reference);
-      const provenance =
-        reference.stream === "source"
-          ? await listSourceRangeProvenance(
-              document,
-              reference.chapterId,
-              sourceStart,
-              sourceEnd,
-              !Number.isFinite(reference.endSentenceIndex),
-            )
-          : undefined;
+      const { fragment, locators } = await createTextStreamRangeFragment(
+        document,
+        reference,
+      );
       return {
         ...(options.backlinks === true
           ? { backlinks: await createTextStreamBacklinks(document, reference) }
@@ -432,38 +480,10 @@ async function readWikiGraphPage(
         nextFragmentId: undefined,
         nodes: [],
         previousFragmentId: undefined,
-        ...(provenance === undefined ? {} : { provenance }),
+        ...(reference.stream === "source" ? { locators } : {}),
         title: displayUri,
         type: "fragment",
       };
     }
   }
-}
-
-async function listSourceRangeProvenance(
-  document: ReadonlyDocument,
-  chapterId: number,
-  sourceStart: number | undefined,
-  sourceEnd: number | undefined,
-  wholeSource: boolean,
-): Promise<readonly SourceTextMapRecord[]> {
-  const [mappings, sourceRevision] = await Promise.all([
-    document.sourceProvenance.listMap(chapterId),
-    document.serials.getRevision(chapterId),
-  ]);
-  const currentMappings = mappings.filter(
-    (mapping) => mapping.sourceRevision === sourceRevision,
-  );
-
-  if (wholeSource) {
-    return currentMappings;
-  }
-  if (sourceStart === undefined || sourceEnd === undefined) {
-    return [];
-  }
-
-  return currentMappings.filter(
-    (mapping) =>
-      mapping.sourceStart < sourceEnd && mapping.sourceEnd > sourceStart,
-  );
 }

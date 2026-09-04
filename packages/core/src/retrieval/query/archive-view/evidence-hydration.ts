@@ -33,6 +33,7 @@ export async function hydrateFindHitEvidence(
   document: ReadonlyDocument,
   hits: readonly ArchiveFindHit[],
   options: {
+    readonly coalesceTextStreams?: boolean;
     readonly evidenceLimit?: number;
     readonly order?: ArchiveFindOrder;
     readonly sessionId?: string;
@@ -116,7 +117,9 @@ export async function hydrateFindHitEvidence(
     }),
   );
 
-  return await coalesceTextStreamFindHits(document, hydrated, evidenceContext);
+  return options.coalesceTextStreams === false
+    ? hydrated
+    : await coalesceTextStreamFindHits(document, hydrated, evidenceContext);
 }
 
 async function hydrateEntityDisplayHit(
@@ -161,7 +164,7 @@ async function hydrateTextStreamHitContext(
   sourceContext: number,
   context: EvidenceReadContext,
 ): Promise<ArchiveFindHit> {
-  if (sourceContext <= 0 || (hit.type !== "source" && hit.type !== "summary")) {
+  if (hit.type !== "source" && hit.type !== "summary") {
     return hit;
   }
   if (hit.matchCount === undefined && hit.matchedTerms === undefined) {
@@ -186,6 +189,7 @@ async function hydrateTextStreamHitContext(
   return {
     ...hit,
     id: range.id,
+    locators: range.locators,
     snippet: range.text,
   };
 }
@@ -339,6 +343,7 @@ async function mergeTextStreamHitRangeGroup(
     hit: {
       ...representative.hit,
       id: text.id,
+      locators: text.locators,
       matchCount: Math.max(...hits.map((hit) => hit.matchCount ?? 0)),
       matchedTerms: mergeStringLists(
         hits.flatMap((hit) => hit.matchedTerms ?? []),

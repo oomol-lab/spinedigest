@@ -31,6 +31,7 @@ Library locators:
     wikg://lib/arc/<archive-id>/chapter
     wikg://lib/arc/<archive-id>/entity
     wikg://lib/arc/<archive-id>/triple
+    wikg://lib/arc/<archive-id>/artifact/<sha256-digest>
   - Library-wide scopes such as `wikg://lib/entity` query the aggregate library index.
   - Read `{{ commandName }} help library` before managing registry, membership, path binding, or library index lifecycle.
 
@@ -38,6 +39,7 @@ Short and located URIs:
   Commands may return short object URIs without local file paths:
     wikg://chapter/part/title
     wikg://chapter/part/source#4..8
+    wikg://artifact/<sha256-digest>#epubcfi(...)
     wikg://chunk/12
     wikg://entity/Q8018
     wikg://triple/Q8018/discusses/Q123
@@ -106,6 +108,7 @@ Object URIs:
     wikg://book.wikg/chapter/part/source#4..8
     wikg://book.wikg/chapter/part/summary
     wikg://book.wikg/chapter/part/summary#4..8
+    wikg://book.wikg/artifact/<sha256-digest>
     wikg://book.wikg/chapter/part/chunk/12
     wikg://book.wikg/chapter/part/entity/Q8018
     wikg://book.wikg/chapter/part/triple/Q8018/discusses/Q123

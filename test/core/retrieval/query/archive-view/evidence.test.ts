@@ -18,6 +18,42 @@ beforeEach(setupArchiveViewTestState);
 afterEach(teardownArchiveViewTestState);
 
 describe("archive/query/archive-view/evidence", () => {
+  it("returns the same locator map with source evidence", async () => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        const sourceText =
+          (await document.getSerialFragments(1).readText()) ?? "";
+        const digest = "b".repeat(64);
+        await document.sourceProvenance.replace(
+          1,
+          await document.serials.getRevision(1),
+          {
+            artifacts: [{ digest, mediaType: "application/pdf" }],
+            mappings: [
+              {
+                artifactDigest: digest,
+                locator: { bbox: [0, 0, 1, 1], pageIndex: 3 },
+                sourceEnd: Array.from(sourceText).length,
+                sourceStart: 0,
+              },
+            ],
+          },
+        );
+
+        const result = await listArchiveEvidence(document, "wikg://chunk/100");
+        const [source] = result.items;
+        expect(source?.locators).toStrictEqual({
+          [`1..${Array.from(source?.source ?? "").length}`]: `wikg://artifact/${digest}#page=3&bbox=0,0,1,1`,
+        });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("applies evidence limits when reading entity pages", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);

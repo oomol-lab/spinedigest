@@ -51,6 +51,7 @@ export type {
   ArchiveObjectType,
   ArchivePack,
   ArchivePage,
+  SourceLocatorMap,
   ArchiveRelatedResult,
   ArchiveTriplePattern,
 } from "./view.js";

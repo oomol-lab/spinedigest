@@ -21,6 +21,7 @@ import { parseChapterTarget } from "./uri/chapter/target.js";
 export const HELP_TOPICS = [
   "format",
   "file-import",
+  "source-locators",
   "config",
   "runtime",
   "uri",
@@ -33,6 +34,7 @@ export type HelpTopic = (typeof HELP_TOPICS)[number];
 
 export type UriHelpTargetName =
   | "archive-scope"
+  | "artifact-object"
   | "chapter-collection-scope"
   | "chapter-scope"
   | "chapter-source-range-object"
@@ -97,6 +99,7 @@ const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
     name: "archive-scope",
     predicates: ["create", "export", "inspect"],
   },
+  { name: "artifact-object", predicates: [] },
   {
     name: "chapter-collection-scope",
     predicates: ["add"],
@@ -187,6 +190,11 @@ const HELP_TOPIC_METADATA: readonly {
     summary: "Advanced source-file import and source-text provenance behavior.",
   },
   {
+    name: "source-locators",
+    rootVisible: false,
+    summary: "Source artifact URIs and source-text locator mappings.",
+  },
+  {
     name: "config",
     summary: "Configuration overview, precedence, and when each layer applies.",
   },
@@ -235,6 +243,7 @@ const ARCHIVE_MAINTENANCE_COMMAND_METADATA: readonly {
 const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
   format: "help/topics/format",
   "file-import": "help/topics/file-import",
+  "source-locators": "help/topics/source-locators",
   config: "help/topics/config",
   runtime: "help/topics/runtime",
   uri: "help/topics/uri",

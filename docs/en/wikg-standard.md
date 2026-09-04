@@ -258,16 +258,25 @@ The file layout is small, but the archive carries several semantic layers:
 
 - Source layer: `texts/source/*.txt`, chapter serials, and source sentence
   records.
-- Source provenance: source artifacts and format-specific locators are stored
-  in `database.db`; source text map ranges connect normalized source text
-  character offsets to those locators. Original PDF/EPUB files are never
-  stored in the archive.
+- Source provenance: a source artifact identifies an imported PDF or EPUB by
+  its file SHA-256 and has the archive-root URI `wikg://artifact/<digest>`.
+  A fragment selects a stored location in that artifact: `#epubcfi(...)` for
+  EPUB, or `#page=<page>&bbox=<left>,<bottom>,<right>,<top>` for PDF. PDF pages
+  are 1-based and bounding-box coordinates use the normalized `[0,1]`
+  lower-left coordinate space. The artifact metadata and locator records live
+  in `database.db`; original source files are not stored in the archive.
+- Source locator maps: source passages expose a compact `locators` map from
+  1-based inclusive Unicode-character ranges in the returned text to artifact
+  locator URIs. These character ranges are distinct from the sentence ranges
+  in source URIs such as `source#4..8`; gaps mean that no locator is stored for
+  those characters.
 - Reading Graph: chunks, reading edges, snakes, and sentence groups in
   `database.db`.
 - Knowledge Graph: mentions, mention links, entity projections, triple
   projections, and evidence references in `database.db`.
 - Summary layer: `texts/summary/*.txt` plus summary sentence records.
-- Search artifact layer: chapter index artifacts in `database.db`.
+- Search artifact layer: chapter index artifacts in `database.db`. These are
+  generated search data, distinct from imported source artifacts.
 - Metadata layer: archive, chapter, chunk, entity, and triple metadata in
   `database.db`, plus optional cover files.
 

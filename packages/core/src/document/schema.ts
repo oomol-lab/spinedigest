@@ -304,7 +304,9 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS source_locators (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     artifact_id INTEGER NOT NULL,
+    fragment TEXT NOT NULL,
     value_json TEXT NOT NULL,
+    UNIQUE(artifact_id, fragment),
     FOREIGN KEY (artifact_id) REFERENCES source_artifacts(id)
   );
 

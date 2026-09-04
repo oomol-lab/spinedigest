@@ -86,6 +86,15 @@ describe("wiki graph URI helpers", () => {
       protocol: "wikg",
       path: ["/", "file", "path", "to.wikg", "entity", "Q1"],
     });
+    expect(
+      parseWikiGraphUriSyntax(
+        `wikg://artifact/${"a".repeat(64)}#epubcfi(/6/2!/4/2)`,
+      ),
+    ).toStrictEqual({
+      fragment: { raw: "epubcfi(/6/2!/4/2)" },
+      protocol: "wikg",
+      path: ["artifact", "a".repeat(64)],
+    });
     expect(() => parseWikiGraphUriSyntax("wikg://lib//arc")).toThrow(
       "empty path segment",
     );
@@ -111,6 +120,14 @@ describe("wiki graph URI helpers", () => {
     ).toStrictEqual({
       archivePath: "wikg://lib/arc/archive123",
       objectUri: "wikg://chapter/part/source#1..5",
+    });
+    expect(
+      parseLocatedWikiGraphUri(
+        `wikg:///file/book.wikg/artifact/${"b".repeat(64)}#page=2&bbox=0,0,1,1`,
+      ),
+    ).toStrictEqual({
+      archivePath: "/file/book.wikg",
+      objectUri: `wikg://artifact/${"b".repeat(64)}#page=2&bbox=0,0,1,1`,
     });
   });
 });

@@ -111,6 +111,17 @@ Use when:
 {% if libraryContext.isLibraryWide %}
   - Open returned triple object URIs for `evidence`; expand related context through the subject or object entity.
 {% endif %}
+{% elif target.name == "artifact-object" %}
+URI type:
+  Source artifact object
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` reads the imported file identity and available metadata.
+  - An artifact fragment selects one stored PDF page box or EPUB CFI; it is not a separate object.
+
+Use when:
+  - A source passage returns an artifact locator URI and you need to inspect its source location.
+  - Read `{{ commandName }} help source-locators` for the mapping syntax.
 {% elif target.name == "chapter-source-object" %}
 URI type:
   Chapter source object
@@ -120,10 +131,11 @@ Default behavior:
   - Source range fragments such as `#4..8` read sentence numbers 4 through 8, inclusive.
   - Range fragments are read-only; `set` writes the complete source object.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
-  - Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri`, `text`, and source `provenance` mappings.
+  - Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri`, `text`, and a compact `locators` map.
 
 Use when:
   - You need continuous original wording from a selected chapter.
+  - Read `{{ commandName }} help source-locators` when locator map lines are present.
 {% elif target.name == "chapter-source-range-object" %}
 URI type:
   Chapter source range object
@@ -131,10 +143,11 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` reads a structured source sentence range.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
-  - Source range fragments support `--json`; the result includes provenance mappings that overlap the selected text.
+  - Source range fragments support `--json`; the result includes a `locators` map clipped to the selected text.
 
 Use when:
   - You need bounded original wording with machine-readable range metadata.
+  - Read `{{ commandName }} help source-locators` when locator map lines are present.
 {% elif target.name == "chapter-summary-object" or target.name == "summary-object" %}
 URI type:
   Summary object
@@ -342,6 +355,8 @@ Library context:
 {% endif %}
   - Library archive shortcuts such as `wikg://lib/arc/<archive-id>/chapter` query or maintain one managed archive through its membership id.
   - Use a standalone archive URI or library archive shortcut for chapter maintenance writes.
+{% elif target.name == "artifact-object" %}
+  - A source artifact belongs to one archive. Use a library archive shortcut such as `wikg://lib/arc/<archive-id>/artifact/<digest>` to open it through library membership.
 {% elif target.name == "triple-scope" or target.name == "triple-object" %}
 {% if libraryContext.isLibraryWide %}
   - Library-wide scopes such as `wikg://lib/triple` use the aggregate library index.

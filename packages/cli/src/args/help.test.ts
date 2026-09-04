@@ -304,7 +304,7 @@ describe("cli/args/help", () => {
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of format, file-import, config, runtime, uri, recipe, readiness, library.\nSee: wg --help",
+      "Invalid help topic: unknown. Expected one of format, file-import, source-locators, config, runtime, uri, recipe, readiness, library.\nSee: wg --help",
     );
     expect(() =>
       parseCLIArguments(["help", "object", "entity", "extra"]),
@@ -375,9 +375,9 @@ describe("cli/args/help", () => {
     expect(fileImportHelpText).toContain("SHA-256 of source file bytes");
     expect(fileImportHelpText).toContain("`chapter add --json`");
     expect(fileImportHelpText).toContain(
-      "a ranged source read includes only mappings that overlap",
+      "The response includes a `locators` map for the returned text",
     );
-    expect(sourceHelpText).toContain("`uri`, `text`, and source `provenance`");
+    expect(sourceHelpText).toContain("`uri`, `text`, and a compact `locators`");
     expect(fileImportHelpText).toContain(
       "evidence cannot point back to a PDF page or EPUB CFI",
     );
@@ -398,10 +398,38 @@ describe("cli/args/help", () => {
     expect(rootHelpText).toContain("wg help readiness");
     expect(rootHelpText).toContain("wg help library");
     expect(rootHelpText).not.toContain("wg help file-import");
+    expect(rootHelpText).not.toContain("wg help source-locators");
     expect(fileImportHelpText).toContain("Source Files and Provenance");
     expect(fileImportHelpText).toContain("source-text map");
     expect(fileImportHelpText).toContain("OCR, layout analysis");
     expect(archiveCreateHelpText).toContain("wg help file-import");
+    const locatorHelpText = renderHelpTopicText("source-locators");
+    expect(locatorHelpText).toContain("wikg://artifact/<digest>");
+    expect(locatorHelpText).toContain("3..13 -> <artifact-locator-uri>");
+    expect(locatorHelpText).toContain("Unicode characters");
+    expect(
+      renderUriHelpText(
+        "artifact-object",
+        `wikg://book.wikg/artifact/${"a".repeat(64)}`,
+      ),
+    ).toContain("Source artifact object");
+    expect(
+      renderUriPredicateHelpText(
+        "entity-object",
+        "evidence",
+        "wikg://book.wikg/entity/Q1",
+      ),
+    ).toContain("wg help source-locators");
+    const libraryArtifactHelp = renderUriHelpText(
+      "artifact-object",
+      `wikg://lib/arc/archive123/artifact/${"a".repeat(64)}`,
+    );
+    expect(libraryArtifactHelp).toContain(
+      "wikg://lib/arc/<archive-id>/artifact/<digest>",
+    );
+    expect(libraryArtifactHelp).not.toContain(
+      "wikg://lib/arc/<archive-id>/entity",
+    );
     expect(rootHelpText).toContain("Core concepts:");
     expect(rootHelpText).toContain("knowledge-base archives");
     expect(rootHelpText).toContain("Do not edit archive internals:");
@@ -539,7 +567,7 @@ describe("cli/args/help", () => {
       "Use `--json` when an Agent or script needs one stable machine-readable response.",
     );
     expect(renderHelpTopicText("format")).toContain(
-      "Whole `source` and `summary` objects print plain text by default; with `--json`, source also returns `provenance`",
+      "Whole `source` and `summary` objects print plain text by default; with `--json`, source also returns `locators`",
     );
     expect(renderHelpTopicText("format")).toContain(
       "Ranged fragments such as `/source#20..30` and `/summary#20..30` use the same output choices and retain the requested range in `uri`.",
@@ -749,7 +777,7 @@ describe("cli/args/help", () => {
       "Use `--json` when you want stable Agent-readable fields",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "Whole and ranged `source` reads return `uri`, `text`, and `provenance`",
+      "Whole and ranged `source` reads return `uri`, `text`, and `locators`",
     );
     expect(uriHelpText).toContain(
       "Ranged fragments such as `/source#4..8` and `/summary#4..8` are structured range objects.",
@@ -760,7 +788,7 @@ describe("cli/args/help", () => {
         "wikg://book.wikg/chapter/part/source",
       ),
     ).toContain(
-      "Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri`, `text`, and source `provenance` mappings.",
+      "Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri`, `text`, and a compact `locators` map.",
     );
     expect(
       renderUriHelpText(

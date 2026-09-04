@@ -99,6 +99,7 @@ function formatObjectSummaryLines(object: ArchiveOutputObject): string[] {
   ) {
     return [
       ...formatSourceObject({
+        locators: object.locators ?? {},
         text: object.text,
         uri: object.uri,
       }).split("\n"),

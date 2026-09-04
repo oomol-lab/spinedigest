@@ -53,6 +53,11 @@ export function formatTextStreamRangeUri(
 
 export type WikiGraphReference =
   | {
+      readonly digest: string;
+      readonly fragment?: string;
+      readonly type: "artifact";
+    }
+  | {
       readonly type: "meta";
     }
   | {
@@ -147,6 +152,18 @@ export function parseWikiGraphReference(uri: string): WikiGraphReference {
   }
 
   switch (pathParts[0]) {
+    case "artifact":
+      if (pathParts.length === 2) {
+        const digest = pathParts[1];
+        if (digest !== undefined && /^[0-9a-f]{64}$/iu.test(digest)) {
+          return {
+            digest: digest.toLowerCase(),
+            ...(hash === "" ? {} : { fragment: hash }),
+            type: "artifact",
+          };
+        }
+      }
+      break;
     case "chapter":
       if (pathParts.length === 2) {
         return {
@@ -333,6 +350,9 @@ function formatParsedFragment(
   }
   if (typeof fragment === "number") {
     return String(fragment);
+  }
+  if ("raw" in fragment) {
+    return fragment.raw;
   }
 
   return `${fragment.begin}..${fragment.end}`;

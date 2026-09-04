@@ -49,7 +49,7 @@ interface TocItemLike {
 }
 
 describe("cli/archive/source-ingestion", () => {
-  it("returns a reusable chapter URI and exposes source provenance", async () => {
+  it("returns source locator maps and opens their artifact URIs", async () => {
     const digest = "a".repeat(64);
     const firstText = "😀 First source sentence. ";
     const secondText = "Second source sentence.";
@@ -100,58 +100,71 @@ describe("cli/archive/source-ingestion", () => {
       );
 
       const wholeSource = await runJsonCLI(stateDir, [sourceUri, "--json"]);
-      expect(
-        requireProvenance(wholeSource).map((mapping) => ({
-          digest: mapping.artifact.digest,
-          locator: mapping.locator,
-          sourceEnd: mapping.sourceEnd,
-          sourceStart: mapping.sourceStart,
-        })),
-      ).toStrictEqual([
-        {
-          digest,
-          locator: { bbox: [0, 0, 0.5, 0.5], pageIndex: 1 },
-          sourceEnd: secondStart,
-          sourceStart: 0,
-        },
-        {
-          digest,
-          locator: { bbox: [0.5, 0.5, 1, 1], pageIndex: 2 },
-          sourceEnd: secondStart + Array.from(secondText).length,
-          sourceStart: secondStart,
-        },
-      ]);
+      const firstLocator = `wikg://artifact/${digest}#page=1&bbox=0,0,0.5,0.5`;
+      const secondLocator = `wikg://artifact/${digest}#page=2&bbox=0.5,0.5,1,1`;
+      expect(requireLocatorMap(wholeSource)).toStrictEqual({
+        [`1..${secondStart}`]: firstLocator,
+        [`${secondStart + 1}..${secondStart + Array.from(secondText).length}`]:
+          secondLocator,
+      });
+      const wholePlain = await runWikiGraphCLICaptured({
+        argv: [sourceUri],
+        stateDir,
+      });
+      expect(wholePlain.exitCode, wholePlain.stderr).toBe(0);
+      expect(wholePlain.stdout).toBe(`${firstText}${secondText}\n`);
 
       const firstRange = await runJsonCLI(stateDir, [
         `${sourceUri}#1`,
         "--json",
       ]);
-      expect(
-        requireProvenance(firstRange).map((mapping) => ({
-          digest: mapping.artifact.digest,
-          locator: mapping.locator,
-        })),
-      ).toStrictEqual([
-        {
-          digest,
-          locator: { bbox: [0, 0, 0.5, 0.5], pageIndex: 1 },
-        },
-      ]);
+      expect(requireLocatorMap(firstRange)).toStrictEqual({
+        [`1..${secondStart}`]: firstLocator,
+      });
       const secondRange = await runJsonCLI(stateDir, [
         `${sourceUri}#2`,
         "--json",
       ]);
-      expect(
-        requireProvenance(secondRange).map((mapping) => ({
-          digest: mapping.artifact.digest,
-          locator: mapping.locator,
-        })),
-      ).toStrictEqual([
-        {
-          digest,
-          locator: { bbox: [0.5, 0.5, 1, 1], pageIndex: 2 },
-        },
+      expect(requireLocatorMap(secondRange)).toStrictEqual({
+        [`1..${Array.from(secondText).length}`]: secondLocator,
+      });
+
+      const artifact = await runJsonCLI(stateDir, [
+        `${archiveUri}/artifact/${digest}`,
+        "--json",
       ]);
+      expect(artifact).toMatchObject({
+        digest,
+        mediaType: "application/pdf",
+        name: "two-pages.pdf",
+        uri: `wikg://artifact/${digest}`,
+      });
+      const locator = await runJsonCLI(stateDir, [
+        `${archiveUri}/artifact/${digest}#page=1&bbox=0,0,0.5,0.5`,
+        "--json",
+      ]);
+      expect(locator).toMatchObject({
+        locator: { bbox: [0, 0, 0.5, 0.5], pageIndex: 1 },
+        uri: firstLocator,
+      });
+
+      const plain = await runWikiGraphCLICaptured({
+        argv: [`${sourceUri}#2`],
+        stateDir,
+      });
+      expect(plain.exitCode, plain.stderr).toBe(0);
+      expect(plain.stdout).toBe(
+        `@@ ${requireString(wholeSource, "uri")}#2 @@\n1..${Array.from(secondText).length} -> ${secondLocator}\n\n${secondText}\n`,
+      );
+      const jsonlResult = await runWikiGraphCLICaptured({
+        argv: [`${sourceUri}#1`, "--jsonl"],
+        stateDir,
+      });
+      expect(jsonlResult.exitCode, jsonlResult.stderr).toBe(0);
+      expect(JSON.parse(jsonlResult.stdout)).toMatchObject({
+        locators: { [`1..${secondStart}`]: firstLocator },
+        text: firstText,
+      });
 
       await runJsonCLI(stateDir, [
         locatedChapterUri,
@@ -162,7 +175,7 @@ describe("cli/archive/source-ingestion", () => {
       ]);
       await runJsonCLI(stateDir, [sourceUri, "set", "Plain source.", "--json"]);
       const plainSource = await runJsonCLI(stateDir, [sourceUri, "--json"]);
-      expect(requireProvenance(plainSource)).toStrictEqual([]);
+      expect(requireLocatorMap(plainSource)).toStrictEqual({});
     });
   });
 
@@ -445,12 +458,12 @@ function requireString(
   return value;
 }
 
-function requireProvenance(
+function requireLocatorMap(
   object: Readonly<Record<string, unknown>>,
-): readonly SourceTextMapRecord[] {
-  const value = object.provenance;
-  if (!Array.isArray(value)) {
-    throw new Error("CLI output did not contain a provenance array.");
+): Readonly<Record<string, string>> {
+  const value = object.locators;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("CLI output did not contain a locators object.");
   }
-  return value as readonly SourceTextMapRecord[];
+  return value as Readonly<Record<string, string>>;
 }

@@ -579,6 +579,7 @@ describe("cli/archive/object", () => {
         shown: 1,
         sources: [
           {
+            locators: {},
             uri: "wikg://chapter/2/source#1..2",
             text: "RAG original source fragment.",
           },
@@ -778,10 +779,12 @@ describe("cli/archive/object", () => {
         shown: 2,
         sources: [
           {
+            locators: {},
             text: "\n\t\nRAG original source fragment.\n   \n\t\nSecond paragraph.\n\n",
             uri: "wikg://chapter/2/source#1..2",
           },
           {
+            locators: {},
             text: "Follow-up source fragment.",
             uri: "wikg://chapter/2/source#4",
           },

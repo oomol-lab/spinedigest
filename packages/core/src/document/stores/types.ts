@@ -15,10 +15,16 @@ import type {
   SnakeEdgeRecord,
   SnakeRecord,
   SourceArtifactRecord,
+  SourceLocatorRecord,
   SourceTextMapRecord,
 } from "../types.js";
 
 export interface ReadonlySourceProvenanceStore {
+  getArtifact(digest: string): Promise<SourceArtifactRecord | undefined>;
+  getLocator(
+    digest: string,
+    fragment: string,
+  ): Promise<SourceLocatorRecord | undefined>;
   listArtifacts(): Promise<SourceArtifactRecord[]>;
   listMap(serialId: number): Promise<SourceTextMapRecord[]>;
 }

@@ -160,6 +160,8 @@ export async function formatPackAnchor(
   context: ArchiveOutputContext,
 ): Promise<string> {
   switch (anchor.type) {
+    case "artifact":
+      return formatPlainObject(await createPageObject(anchor, context));
     case "chapter-title":
     case "chapter":
       return formatPlainObject(await createPageObject(anchor, context));

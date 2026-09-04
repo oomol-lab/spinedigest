@@ -17,7 +17,9 @@ import type {
   ArchiveTextStreamKind,
   ArchiveTextStreamSentence,
   EvidenceReadContext,
+  SourceLocatorMap,
 } from "./types.js";
+import { createSourceLocatorMap } from "./source-locators.js";
 
 function createTextStreamReadContext(): EvidenceReadContext {
   return {
@@ -58,8 +60,7 @@ export async function createTextStreamRangeFragment(
   reference: Extract<WikiGraphReference, { readonly type: "text-stream" }>,
 ): Promise<{
   readonly fragment: ArchiveSourceFragment;
-  readonly sourceEnd?: number;
-  readonly sourceStart?: number;
+  readonly locators: SourceLocatorMap;
 }> {
   const range = await readTextStreamRange(
     document,
@@ -78,10 +79,7 @@ export async function createTextStreamRangeFragment(
       text: range.text,
       wordsCount: countWords(range.text),
     },
-    ...(range.sourceEnd === undefined ? {} : { sourceEnd: range.sourceEnd }),
-    ...(range.sourceStart === undefined
-      ? {}
-      : { sourceStart: range.sourceStart }),
+    locators: range.locators,
   };
 }
 
@@ -92,9 +90,11 @@ export async function readTextStreamRange(
   startSentenceIndex: number,
   endSentenceIndex: number,
   context: EvidenceReadContext = createTextStreamReadContext(),
+  options: { readonly includeLocators?: boolean } = {},
 ): Promise<{
   readonly endSentenceIndex: number;
   readonly id: string;
+  readonly locators: SourceLocatorMap;
   readonly sourceEnd?: number;
   readonly sourceStart?: number;
   readonly startSentenceIndex: number;
@@ -124,19 +124,32 @@ export async function readTextStreamRange(
     start,
     end,
   );
-  const text =
-    normalizeRenderedTextStreamRange(rawRange?.text) ??
-    joinTextStreamSentences(sentences);
+  const normalizedRange = normalizeRenderedTextStreamRange(rawRange?.text);
+  const text = normalizedRange?.text ?? joinTextStreamSentences(sentences);
+  const sourceStart =
+    rawRange?.sourceStart === undefined
+      ? undefined
+      : rawRange.sourceStart + (normalizedRange?.removedStart ?? 0);
+  const sourceEnd =
+    sourceStart === undefined
+      ? undefined
+      : sourceStart + Array.from(text).length;
+  const locators =
+    stream === "source" && options.includeLocators !== false
+      ? await createSourceLocatorMap(
+          document,
+          chapterId,
+          sourceStart,
+          sourceEnd,
+        )
+      : {};
 
   return {
     endSentenceIndex: end,
     id: formatTextStreamRangeUri(chapterId, stream, start, end),
-    ...(rawRange?.sourceEnd === undefined
-      ? {}
-      : { sourceEnd: rawRange.sourceEnd }),
-    ...(rawRange?.sourceStart === undefined
-      ? {}
-      : { sourceStart: rawRange.sourceStart }),
+    locators,
+    ...(sourceEnd === undefined ? {} : { sourceEnd }),
+    ...(sourceStart === undefined ? {} : { sourceStart }),
     startSentenceIndex: start,
     text,
   };
@@ -209,10 +222,18 @@ function joinTextStreamSentences(
 
 function normalizeRenderedTextStreamRange(
   text: string | undefined,
-): string | undefined {
-  return text
-    ?.replace(/^(?:[^\S\r\n]*(?:\r\n|\n|\r))+/u, "")
-    .replace(/(?:(?:\r\n|\n|\r)[^\S\r\n]*)+$/u, "");
+): { readonly removedStart: number; readonly text: string } | undefined {
+  if (text === undefined) return undefined;
+
+  const leading = /^(?:[^\S\r\n]*(?:\r\n|\n|\r))+/u.exec(text)?.[0] ?? "";
+  const withoutLeading = text.slice(leading.length);
+  const trailing =
+    /(?:(?:\r\n|\n|\r)[^\S\r\n]*)+$/u.exec(withoutLeading)?.[0] ?? "";
+
+  return {
+    removedStart: Array.from(leading).length,
+    text: withoutLeading.slice(0, withoutLeading.length - trailing.length),
+  };
 }
 
 export async function getTextStreamIndex(

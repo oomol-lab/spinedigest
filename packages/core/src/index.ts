@@ -209,7 +209,11 @@ export type {
 } from "./storage/wikg/index.js";
 export {
   DirectoryDocument,
+  formatSourceArtifactUri,
+  formatSourceLocatorFragment,
+  normalizeSourceArtifactDigest,
   openSharedStateDatabase,
+  parseSourceLocatorFragment,
 } from "./document/index.js";
 export type {
   Database,
@@ -217,6 +221,7 @@ export type {
   ReadonlyDocument,
   SourceArtifactInput,
   SourceArtifactRecord,
+  SourceLocatorRecord,
   SourceTextMapRecord,
   SourceTextMappingInput,
   SourceTextProvenanceInput,
@@ -326,6 +331,7 @@ export type {
   ArchiveObjectType,
   ArchivePack,
   ArchivePage,
+  SourceLocatorMap,
   ArchiveRelatedResult,
   ArchiveTriplePattern,
   ContinuationCursor,

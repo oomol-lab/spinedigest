@@ -4,6 +4,7 @@ import type {
   SourceArtifactInput,
   SourceTextProvenanceInput,
 } from "../../document/types.js";
+import { formatSourceLocatorFragment } from "../../document/source-locator.js";
 
 const artifactRecordSchema = z.object({
   type: z.literal("artifact"),
@@ -147,111 +148,16 @@ function validateLocator(
   locator: Readonly<Record<string, unknown>>,
   lineNumber: number,
 ): void {
-  if (mediaType === "application/pdf") {
-    validatePdfLocator(locator, lineNumber);
-    return;
-  }
-  if (mediaType === "application/epub+zip") {
-    validateEpubLocator(locator, lineNumber);
-    return;
-  }
-  throw new Error(
-    `Unsupported source artifact mediaType ${mediaType} at line ${lineNumber}.`,
-  );
-}
-
-function validatePdfLocator(
-  locator: Readonly<Record<string, unknown>>,
-  lineNumber: number,
-): void {
-  const pageIndex = locator.pageIndex;
-  const bbox = locator.bbox;
-  if (!Number.isInteger(pageIndex) || (pageIndex as number) < 1) {
-    throw new Error(
-      `PDF locator pageIndex at line ${lineNumber} must be a 1-based integer.`,
-    );
-  }
-  if (
-    !Array.isArray(bbox) ||
-    bbox.length !== 4 ||
-    !bbox.every(
-      (coordinate) =>
-        typeof coordinate === "number" &&
-        Number.isFinite(coordinate) &&
-        coordinate >= 0 &&
-        coordinate <= 1,
-    )
-  ) {
-    throw new Error(
-      `PDF locator bbox at line ${lineNumber} must contain four finite numbers in [0, 1].`,
-    );
-  }
-  const [left, bottom, right, top] = bbox as [number, number, number, number];
-  if (left > right || bottom > top) {
-    throw new Error(
-      `PDF locator bbox at line ${lineNumber} must be [left, bottom, right, top].`,
-    );
-  }
-}
-
-function validateEpubLocator(
-  locator: Readonly<Record<string, unknown>>,
-  lineNumber: number,
-): void {
-  if (
-    typeof locator.cfi !== "string" ||
-    !isSyntacticallyValidCfi(locator.cfi)
-  ) {
-    throw new Error(
-      `EPUB locator cfi at line ${lineNumber} must be a syntactically valid epubcfi(...).`,
-    );
+  try {
+    formatSourceLocatorFragment(mediaType, locator);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${message.replace(/\.$/u, "")} at line ${lineNumber}.`, {
+      cause: error,
+    });
   }
 }
 
 function countCharacters(text: string): number {
   return Array.from(text).length;
-}
-
-function isSyntacticallyValidCfi(value: string): boolean {
-  if (!value.startsWith("epubcfi(") || !value.endsWith(")")) return false;
-  const body = value.slice("epubcfi(".length, -1);
-  if (!body.startsWith("/")) return false;
-
-  // Validate the structural shape without interpreting CFI assertions.
-  // Assertions may contain escaped characters; the locator remains opaque.
-  const step = /\/\d+(?:\[[^\r\n]*\])?/gu;
-  let cursor = 0;
-  while (cursor < body.length) {
-    if (body[cursor] === "/") {
-      step.lastIndex = cursor;
-      const match = step.exec(body);
-      if (match === null || match.index !== cursor) return false;
-      cursor = step.lastIndex;
-      continue;
-    }
-    if (body[cursor] === "!") {
-      cursor += 1;
-      continue;
-    }
-    if (body[cursor] === ":" || body[cursor] === "@" || body[cursor] === "~") {
-      const match = /^(?::\d+|@\d+(?::\d+)?|~\d+(?:@\d+(?::\d+)?)?)/u.exec(
-        body.slice(cursor),
-      );
-      if (match === null) return false;
-      cursor += match[0].length;
-      if (body[cursor] === "[") {
-        const assertionEnd = body.indexOf("]", cursor + 1);
-        if (assertionEnd < 0) return false;
-        cursor = assertionEnd + 1;
-      }
-      continue;
-    }
-    if (body[cursor] === ",") {
-      cursor += 1;
-      continue;
-    }
-    return false;
-  }
-
-  return cursor > 0;
 }

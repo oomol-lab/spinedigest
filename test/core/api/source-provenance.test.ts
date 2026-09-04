@@ -59,11 +59,27 @@ describe("source provenance workflow", () => {
               identifier: "fixture:sample-observatory-guide",
               mediaType: "application/epub+zip",
             },
+            fragment: "epubcfi(/6/2[body]!/4/2/1:0)",
             locator: { cfi: "epubcfi(/6/2[body]!/4/2/1:0)" },
             sourceStart: 0,
             sourceEnd: sourceText.length,
           },
         ]);
+        expect(
+          await document.sourceProvenance.getArtifact(digest),
+        ).toMatchObject({
+          digest,
+          mediaType: "application/epub+zip",
+        });
+        expect(
+          await document.sourceProvenance.getLocator(
+            digest,
+            "epubcfi(/6/2[body]!/4/2/1:0)",
+          ),
+        ).toMatchObject({
+          fragment: "epubcfi(/6/2[body]!/4/2/1:0)",
+          locator: { cfi: "epubcfi(/6/2[body]!/4/2/1:0)" },
+        });
       } finally {
         await document.release();
       }

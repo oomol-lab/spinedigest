@@ -392,13 +392,21 @@ async function findTextOnlyArchiveObjectsIndexed(
 ): Promise<ArchiveFindResult> {
   const indexed = await findArchiveObjectsIndexed(document, query, options);
   const hits = indexed?.hits ?? [];
-
-  return createFindResult(
+  const result = createFindResult(
     query,
     filterLexicalHitsByMatch(hits, search, options.match ?? "any"),
     options,
     indexed?.result.terms ?? search.terms,
   );
+
+  return {
+    ...result,
+    items: await hydrateFindHitEvidence(document, result.items, {
+      ...createFindEvidenceHydrationOptions(options),
+      coalesceTextStreams: false,
+      sourceContext: 0,
+    }),
+  };
 }
 
 async function createSearchRevisionScope(

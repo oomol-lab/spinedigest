@@ -7,7 +7,10 @@ export const WIKI_GRAPH_ARCHIVE_EXTENSION = ".wikg";
 export interface ParsedWikiGraphUri {
   readonly protocol: string;
   readonly path: readonly string[];
-  readonly fragment?: number | { readonly begin: number; readonly end: number };
+  readonly fragment?:
+    | number
+    | { readonly begin: number; readonly end: number }
+    | { readonly raw: string };
 }
 
 export interface LocatedWikiGraphUri {
@@ -89,11 +92,12 @@ export function parseWikiGraphUriSyntax(uri: string): ParsedWikiGraphUri {
     throw new Error(`Invalid Wiki Graph URI fragment: ${uri}`);
   }
 
-  return {
-    protocol,
-    path: parseWikiGraphUriPath(rawPath, uri),
-    ...optionalWikiGraphUriFragment(rawFragment, uri),
-  };
+  const path = parseWikiGraphUriPath(rawPath, uri);
+
+  const parsedFragment = optionalWikiGraphUriFragment(rawFragment, uri, path);
+  return parsedFragment === undefined
+    ? { protocol, path }
+    : { fragment: parsedFragment, protocol, path };
 }
 
 function parseWikiGraphUriPath(path: string, uri: string): readonly string[] {
@@ -131,11 +135,10 @@ function rejectEmptyUriSegments(
 function optionalWikiGraphUriFragment(
   fragment: string | undefined,
   uri: string,
-): {
-  readonly fragment?: number | { readonly begin: number; readonly end: number };
-} {
+  path: readonly string[],
+): NonNullable<ParsedWikiGraphUri["fragment"]> | undefined {
   if (fragment === undefined) {
-    return {};
+    return undefined;
   }
   if (fragment === "") {
     throw new Error(`Invalid Wiki Graph URI fragment: ${uri}`);
@@ -145,11 +148,18 @@ function optionalWikiGraphUriFragment(
   if (range?.groups !== undefined) {
     const begin = Number(range.groups.begin);
     const end = Number(range.groups.end);
-    return { fragment: { begin, end } };
+    return { begin, end };
   }
 
   if (/^[0-9]+$/u.test(fragment)) {
-    return { fragment: Number(fragment) };
+    return Number(fragment);
+  }
+
+  if (
+    path.at(-2) === "artifact" &&
+    /^[0-9a-f]{64}$/iu.test(path.at(-1) ?? "")
+  ) {
+    return { raw: fragment };
   }
 
   throw new Error(`Invalid Wiki Graph URI fragment: ${uri}`);
@@ -211,6 +221,9 @@ function formatWikiGraphUriFragment(
   }
   if (typeof fragment === "number") {
     return String(fragment);
+  }
+  if ("raw" in fragment) {
+    return fragment.raw;
   }
 
   return `${fragment.begin}..${fragment.end}`;

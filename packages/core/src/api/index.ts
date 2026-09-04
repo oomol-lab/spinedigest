@@ -166,6 +166,7 @@ export type {
   ArchiveLibrarySource,
   ArchivePack,
   ArchivePage,
+  SourceLocatorMap,
   ArchiveRelatedResult,
   ArchiveTriplePattern,
 } from "../retrieval/query/index.js";

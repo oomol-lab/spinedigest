@@ -101,10 +101,17 @@ export interface SourceTextProvenanceInput {
 
 export interface SourceTextMapRecord {
   readonly artifact: Omit<SourceArtifactRecord, "id">;
+  readonly fragment: string;
   readonly locator: Readonly<Record<string, unknown>>;
   readonly sourceEnd: number;
   readonly sourceRevision: number;
   readonly sourceStart: number;
+}
+
+export interface SourceLocatorRecord {
+  readonly artifact: Omit<SourceArtifactRecord, "id">;
+  readonly fragment: string;
+  readonly locator: Readonly<Record<string, unknown>>;
 }
 
 export interface GraphBuildParameterRecord {

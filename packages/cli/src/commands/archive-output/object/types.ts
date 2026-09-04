@@ -1,4 +1,4 @@
-import type { QueryIndexScope, SourceTextMapRecord } from "wiki-graph-core";
+import type { QueryIndexScope } from "wiki-graph-core";
 import type { CLIArchiveArguments } from "../../../args/index.js";
 
 export type ResultFormat = "json" | "jsonl" | "text";
@@ -6,6 +6,11 @@ export type ResultFormat = "json" | "jsonl" | "text";
 export const DEFAULT_GET_EVIDENCE_LIMIT = 3;
 export const PLAIN_OBJECT_KEY_PRIORITY = [
   "uri",
+  "digest",
+  "mediaType",
+  "name",
+  "identifier",
+  "locator",
   "title",
   "label",
   "labels",
@@ -21,12 +26,17 @@ export interface ArchiveOutputObject {
   readonly authors?: readonly string[];
   readonly backlinks?: ArchiveOutputBacklinks;
   readonly description?: string;
+  readonly digest?: string;
   readonly evidence?: ArchiveOutputEvidencePreview;
   readonly label?: string;
+  readonly identifier?: string;
   readonly libraryArchiveUri?: string;
+  readonly locators?: Readonly<Record<string, string>>;
+  readonly locator?: Readonly<Record<string, unknown>>;
+  readonly mediaType?: string;
+  readonly name?: string;
   readonly objectLabel?: string;
   readonly predicate?: string;
-  readonly provenance?: readonly SourceTextMapRecord[];
   readonly publisher?: string;
   readonly score?: number;
   readonly state?: Record<string, string>;
@@ -72,6 +82,7 @@ export interface ArchiveOutputEvidencePreview {
 export interface ArchiveOutputSource {
   readonly archiveId?: number;
   readonly libraryArchiveUri?: string;
+  readonly locators: Readonly<Record<string, string>>;
   readonly score?: number;
   readonly text: string;
   readonly uri: string;
