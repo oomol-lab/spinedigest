@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from "fs/promises";
+import { access, copyFile, mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 
@@ -24,6 +24,7 @@ import { createPortableHash } from "../../../../packages/core/src/utils/crypto.j
 import {
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
+  WikiGraphArchiveFile,
   writeWikgArchive,
 } from "../../../../packages/core/src/storage/wikg/index.js";
 import {
@@ -44,30 +45,40 @@ import {
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("schema-upgrade", () => {
-  it("upgrades a v3 archive in place and preserves its mutation token", async () => {
+  it("upgrades a copied v3 archive and supports source provenance", async () => {
     await withFixture(async ({ archive, root }) => {
       await removeV4SourceProvenanceSchema(archive, root);
       await rewriteManifest(archive, 3, true);
-      const before = await readWikgArchiveMutationToken(archive);
+      const sourceBytes = await readFile(archive.path);
+      const sourceToken = await readWikgArchiveMutationToken(archive);
+      const upgradedArchive = new NodeFile(join(root, "upgraded.wikg"));
+      await copyFile(archive.path, upgradedArchive.path);
       await expect(
-        ensureWikiGraphArchiveSchemaCurrent(archive),
+        ensureWikiGraphArchiveSchemaCurrent(upgradedArchive),
       ).rejects.toThrow("must be upgraded");
 
       await expect(
-        upgradeWikiGraphArchiveSchema(archive),
+        upgradeWikiGraphArchiveSchema(upgradedArchive),
       ).resolves.toMatchObject({
         changed: true,
         schemaChanged: true,
       });
-      await expect(readWikiGraphArchiveSchemaVersion(archive)).resolves.toBe(4);
-      await expect(readWikgArchiveMutationToken(archive)).resolves.toBe(before);
       await expect(
-        readWikgArchiveEntry(archive, SEARCH_INDEX_DATABASE_PATH),
+        readWikiGraphArchiveSchemaVersion(upgradedArchive),
+      ).resolves.toBe(4);
+      await expect(readWikgArchiveMutationToken(upgradedArchive)).resolves.toBe(
+        sourceToken,
+      );
+      await expect(
+        readWikgArchiveEntry(upgradedArchive, SEARCH_INDEX_DATABASE_PATH),
       ).resolves.toBeUndefined();
 
       const extracted = new NodeDirectory(join(root, "extracted"));
       await mkdir(extracted.path, { recursive: true });
-      const databaseBytes = await readWikgArchiveEntry(archive, "database.db");
+      const databaseBytes = await readWikgArchiveEntry(
+        upgradedArchive,
+        "database.db",
+      );
       expect(databaseBytes).toBeDefined();
       const databaseFile = await extracted.createFile("database.db");
       const writer = await databaseFile.openWriter();
@@ -95,6 +106,52 @@ describe("schema-upgrade", () => {
       } finally {
         await database.close();
       }
+
+      const digest = "c".repeat(64);
+      const fragment = "epubcfi(/6/2!/4/2)";
+      const upgraded = new WikiGraphArchiveFile(upgradedArchive);
+      await upgraded.write(async (document) => {
+        await document.sourceProvenance.replace(
+          1,
+          await document.serials.getRevision(1),
+          {
+            artifacts: [
+              { digest, mediaType: "application/epub+zip", name: "book.epub" },
+            ],
+            mappings: [
+              {
+                artifactDigest: digest,
+                locator: { cfi: fragment },
+                sourceEnd: 7,
+                sourceStart: 0,
+              },
+            ],
+          },
+        );
+      });
+      await upgraded.readDocument(async (document) => {
+        await expect(
+          document.sourceProvenance.getArtifact(digest),
+        ).resolves.toMatchObject({ digest, mediaType: "application/epub+zip" });
+        await expect(
+          document.sourceProvenance.getLocator(digest, fragment),
+        ).resolves.toMatchObject({ fragment, locator: { cfi: fragment } });
+        await expect(
+          document.sourceProvenance.listMap(1),
+        ).resolves.toMatchObject([
+          {
+            artifact: { digest, mediaType: "application/epub+zip" },
+            fragment,
+            sourceEnd: 7,
+            sourceStart: 0,
+          },
+        ]);
+      });
+
+      expect(await readFile(archive.path)).toEqual(sourceBytes);
+      await expect(readWikgArchiveMutationToken(archive)).resolves.toBe(
+        sourceToken,
+      );
     });
   });
 
@@ -688,6 +745,7 @@ async function withFixture(
         const directory = new NodeDirectory(documentPath);
         const document = await DirectoryDocument.open(directory);
         try {
+          await document.createSerial();
           await document.writeToc({
             items: [
               { children: [], key: "chapter", serialId: 1, title: "Chapter" },

@@ -90,6 +90,7 @@ export async function readTextStreamRange(
   startSentenceIndex: number,
   endSentenceIndex: number,
   context: EvidenceReadContext = createTextStreamReadContext(),
+  options: { readonly includeLocators?: boolean } = {},
 ): Promise<{
   readonly endSentenceIndex: number;
   readonly id: string;
@@ -134,7 +135,7 @@ export async function readTextStreamRange(
       ? undefined
       : sourceStart + Array.from(text).length;
   const locators =
-    stream === "source"
+    stream === "source" && options.includeLocators !== false
       ? await createSourceLocatorMap(
           document,
           chapterId,

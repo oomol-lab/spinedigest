@@ -33,6 +33,7 @@ export async function hydrateFindHitEvidence(
   document: ReadonlyDocument,
   hits: readonly ArchiveFindHit[],
   options: {
+    readonly coalesceTextStreams?: boolean;
     readonly evidenceLimit?: number;
     readonly order?: ArchiveFindOrder;
     readonly sessionId?: string;
@@ -116,7 +117,9 @@ export async function hydrateFindHitEvidence(
     }),
   );
 
-  return await coalesceTextStreamFindHits(document, hydrated, evidenceContext);
+  return options.coalesceTextStreams === false
+    ? hydrated
+    : await coalesceTextStreamFindHits(document, hydrated, evidenceContext);
 }
 
 async function hydrateEntityDisplayHit(
