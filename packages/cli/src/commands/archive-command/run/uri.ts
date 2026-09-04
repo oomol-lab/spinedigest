@@ -1,7 +1,6 @@
 import {
   formatLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
-  requireLocatedObjectOrArchiveUri,
   resolveWikiGraphLibraryArchiveFile,
   type ParsedWikiGraphLibraryUri,
   type QueryIndexScope,
@@ -104,7 +103,11 @@ export function getArchivePath(uri: string): string {
     return uri;
   }
 
-  return requireLocatedObjectOrArchiveUri(uri).archivePath;
+  const archivePath = parseLocatedWikiGraphUri(uri).archivePath;
+  if (archivePath === undefined) {
+    throw new Error(`Missing archive locator in URI: ${uri}`);
+  }
+  return archivePath;
 }
 
 export function getArchiveIndexScope(uri: string): QueryIndexScope {
@@ -125,7 +128,7 @@ export function getObjectUri(uri: string): string {
     return libraryTarget.objectUri;
   }
 
-  const parsed = requireLocatedObjectOrArchiveUri(uri);
+  const parsed = parseLocatedWikiGraphUri(uri);
 
   return parsed.objectUri ?? "wikg://";
 }
@@ -133,7 +136,7 @@ export function getObjectUri(uri: string): string {
 export function isArchiveRootGet(args: CLIArchiveArguments): boolean {
   return (
     args.objectId !== undefined &&
-    requireLocatedObjectOrArchiveUri(args.objectId).objectUri === undefined
+    parseLocatedWikiGraphUri(args.objectId).objectUri === undefined
   );
 }
 

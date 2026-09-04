@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { mkdtemp, rm } from "fs/promises";
-import { tmpdir } from "os";
+import { homedir, tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -21,6 +21,9 @@ import {
 import { readWikgArchiveEntry } from "../../../../../core/src/storage/wikg/archive/index.js";
 import { runArchiveChapterCommand } from "../chapter.js";
 import {
+  getArchivePath,
+  getObjectUri,
+  isArchiveRootGet,
   resolveArchiveCommandRuntimeArguments,
   resolveArchiveRuntimeLocation,
 } from "./uri.js";
@@ -46,6 +49,44 @@ afterEach(async () => {
 });
 
 describe("archive-command URI runtime resolution", () => {
+  it("expands home archive locators consistently for root and child URIs", () => {
+    const archivePath = join(
+      process.env.HOME?.trim() || homedir(),
+      "Books",
+      "The little prince.wikg",
+    );
+    const cases = [
+      ["wikg://~/Books/The little prince.wikg", "wikg://"],
+      ["wikg://~/Books/The little prince.wikg/chapter", "wikg://chapter"],
+      [
+        "wikg://~/Books/The little prince.wikg/chapter/part/source",
+        "wikg://chapter/part/source",
+      ],
+      ["wikg://~/Books/The little prince.wikg/index", "wikg://index"],
+      ["wikg://~/Books/The little prince.wikg/entity/Q42", "wikg://entity/Q42"],
+    ] as const;
+
+    for (const [uri, objectUri] of cases) {
+      expect(getArchivePath(uri)).toBe(archivePath);
+      expect(getObjectUri(uri)).toBe(objectUri);
+    }
+
+    expect(
+      isArchiveRootGet({
+        action: "get",
+        archivePath: cases[0][0],
+        objectId: cases[0][0],
+      }),
+    ).toBe(true);
+    expect(
+      isArchiveRootGet({
+        action: "get",
+        archivePath: cases[1][0],
+        objectId: cases[1][0],
+      }),
+    ).toBe(false);
+  });
+
   it("resolves library archive object URIs before running archive commands", async () => {
     const target = await createTestLibraryTarget();
     const source = join(tempDir, "book.wikg");

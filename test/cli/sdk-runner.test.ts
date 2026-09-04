@@ -114,6 +114,89 @@ describe("cli/sdk-runner", () => {
     }
   });
 
+  it("resolves relative archive child URIs from runner cwd", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "wikigraph-runner-cwd-"));
+    const stateDir = await mkdtemp(join(tmpdir(), "wikigraph-runner-state-"));
+
+    try {
+      const createResult = await runWikiGraphCLICaptured({
+        argv: ["wikg://book.wikg", "create"],
+        cwd,
+        stateDir,
+      });
+      const chapterResult = await runWikiGraphCLICaptured({
+        argv: ["wikg://book.wikg/chapter", "--depth", "0", "--json"],
+        cwd,
+        stateDir,
+      });
+
+      expect(createResult.exitCode).toBe(0);
+      expect(chapterResult.exitCode).toBe(0);
+      expect(JSON.parse(chapterResult.stdout)).toMatchObject({ objects: [] });
+      expect(chapterResult.stderr).toBe("");
+    } finally {
+      await rm(cwd, { force: true, recursive: true });
+      await rm(stateDir, { force: true, recursive: true });
+    }
+  });
+
+  it("uses the same home archive locator for archive roots and children", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "wikigraph-runner-cwd-"));
+    const home = await mkdtemp(join(tmpdir(), "wikigraph-runner-home-"));
+    const stateDir = await mkdtemp(join(tmpdir(), "wikigraph-runner-state-"));
+    const env = { HOME: home };
+
+    try {
+      const createResult = await runWikiGraphCLICaptured({
+        argv: ["wikg://~/book.wikg", "create"],
+        cwd,
+        env,
+        stateDir,
+      });
+      const chapterResult = await runWikiGraphCLICaptured({
+        argv: ["wikg://~/book.wikg/chapter", "--depth", "0", "--json"],
+        cwd,
+        env,
+        stateDir,
+      });
+
+      expect(createResult.exitCode).toBe(0);
+      expect(chapterResult.exitCode).toBe(0);
+      expect(JSON.parse(chapterResult.stdout)).toMatchObject({ objects: [] });
+      expect(chapterResult.stderr).toBe("");
+    } finally {
+      await rm(cwd, { force: true, recursive: true });
+      await rm(home, { force: true, recursive: true });
+      await rm(stateDir, { force: true, recursive: true });
+    }
+  });
+
+  it("explains relative archive URI resolution when the archive is missing", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "wikigraph-runner-cwd-"));
+    const stateDir = await mkdtemp(join(tmpdir(), "wikigraph-runner-state-"));
+
+    try {
+      const result = await runWikiGraphCLICaptured({
+        argv: ["wikg://missing book.wikg/chapter", "--depth", "0"],
+        cwd,
+        stateDir,
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("File not found (ENOENT)");
+      expect(result.stderr).toContain(
+        "Archive URI `wikg://missing book.wikg/chapter` is relative to the current working directory",
+      );
+      expect(result.stderr).toContain(`  ${cwd}`);
+      expect(result.stderr).toContain(`  ${join(cwd, "missing book.wikg")}`);
+      expect(result.stderr).toContain("See: wg help uri");
+    } finally {
+      await rm(cwd, { force: true, recursive: true });
+      await rm(stateDir, { force: true, recursive: true });
+    }
+  });
+
   it("lets the core SDK and CLI runner use the same state dir in one process", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wikigraph-shared-state-"));
 
