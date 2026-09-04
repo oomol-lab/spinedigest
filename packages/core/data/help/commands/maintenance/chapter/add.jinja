@@ -22,8 +22,8 @@ Behavior:
 
 Output shape:
   Prints the new chapter status.
-  The `Chapter: <uri>` line is the new chapter URI for later commands.
-  With `--json`, prints the new chapter status as one JSON object.
+  `Chapter` is the archive-relative handle; `Located URI` is the complete target for later commands.
+  With `--json`, the same values are `uri` and `locatedUri`; reuse `locatedUri` for later commands.
 
 Typical next step:
   {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost

@@ -16,7 +16,7 @@ External extractor input:
   {{ commandName }} wikg://book.wikg/chapter add --title "Part"
   {{ commandName }} wikg://book.wikg/chapter/part/source set --input ./source.jsonl --input-format jsonl
   - Use this path for PDF, or when another extractor handles EPUB.
-  - The selected chapter must be `planned`; use the URI returned by `chapter add`.
+  - The selected chapter must be `planned`; use `Located URI` from text output or `locatedUri` from `chapter add --json`.
 
 JSONL contract:
   - Each non-empty line is one `artifact` or `text` object. At least one of each is required.
@@ -29,6 +29,10 @@ JSONL contract:
 Minimal PDF example:
   {"type":"artifact","digest":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","mediaType":"application/pdf","name":"book.pdf"}
   {"type":"text","text":"Source text\n","locator":{"pageIndex":1,"bbox":[0,0,1,1]}}
+
+Verification:
+  {{ commandName }} <chapter-uri>/source --json
+  - The response includes stored provenance; a ranged source read includes only mappings that overlap the selected text.
 
 Boundaries:
   - OCR, layout analysis, and format-specific extraction belong to the importer; WG consumes the contract above.
