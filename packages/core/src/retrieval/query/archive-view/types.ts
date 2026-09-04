@@ -93,7 +93,6 @@ export interface ArchiveFindHit extends ArchiveLibrarySourceFields {
   readonly evidenceMentions?: readonly EntityEvidenceMention[];
   readonly field: ArchiveFindField;
   readonly id: string;
-  readonly locators?: SourceLocatorMap;
   readonly matchCount?: number;
   readonly matchedTerms?: readonly string[];
   readonly missingTerms?: readonly string[];
@@ -313,7 +312,6 @@ export type ArchivePage = ArchiveLibrarySourceFields &
         readonly nextFragmentId: string | undefined;
         readonly nodes: readonly ArchiveNodeLabel[];
         readonly previousFragmentId: string | undefined;
-        readonly locators?: SourceLocatorMap;
         readonly title: string;
         readonly type: "fragment";
       }
@@ -410,7 +408,6 @@ export interface ArchiveEvidenceItem extends ArchiveLibrarySourceFields {
   readonly endSentenceIndex: number;
   readonly fragmentId?: number;
   readonly id: string;
-  readonly locators?: SourceLocatorMap;
   readonly score?: number;
   readonly source: string;
   readonly startSentenceIndex: number;
@@ -437,7 +434,21 @@ export interface ArchiveSourceFragment {
   readonly wordsCount: number;
 }
 
-export type SourceLocatorMap = Readonly<Record<string, string>>;
+export interface ArchiveSourceLocator {
+  readonly range: readonly [number, number];
+  readonly uri: string;
+}
+
+export interface ArchiveSourceLocatorOptions {
+  readonly cursor?: string;
+  readonly limit?: number;
+}
+
+export interface ArchiveSourceLocatorResult {
+  readonly items: readonly ArchiveSourceLocator[];
+  readonly limit: number;
+  readonly nextCursor: string | null;
+}
 
 export type ArchiveTextStreamKind = "source" | "summary";
 export type SourceEvidenceRange = {

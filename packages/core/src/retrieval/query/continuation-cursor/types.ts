@@ -18,6 +18,12 @@ type ContinuationCursorBase = {
 
 export type ContinuationCursor =
   | (ContinuationCursorBase & {
+      readonly cursor: string;
+      readonly format: "json" | "jsonl" | "text";
+      readonly kind: "source-locators";
+      readonly targetUri: string;
+    })
+  | (ContinuationCursorBase & {
       readonly backlinks?: boolean;
       readonly chapters: readonly number[] | null;
       readonly cursor: string;

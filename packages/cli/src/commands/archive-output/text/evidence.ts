@@ -14,7 +14,7 @@ export function formatEvidenceNextCursor(nextCursor: string | null): string {
 export function formatEvidenceItem(item: ArchiveEvidenceItem): string {
   return formatScoredLines(
     item.score,
-    formatSourceCitationBlock(item.id, item.source, item.locators).split("\n"),
+    formatSourceCitationBlock(item.id, item.source).split("\n"),
   ).join("\n");
 }
 

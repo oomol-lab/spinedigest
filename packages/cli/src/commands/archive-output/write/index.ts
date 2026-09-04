@@ -3,3 +3,4 @@ export * from "./find.js";
 export * from "./list.js";
 export * from "./pack.js";
 export * from "./page.js";
+export * from "./source-locators.js";

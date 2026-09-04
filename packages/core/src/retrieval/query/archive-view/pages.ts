@@ -470,7 +470,7 @@ async function readWikiGraphPage(
       );
     }
     case "text-stream": {
-      const { fragment, locators } = await createTextStreamRangeFragment(
+      const { fragment } = await createTextStreamRangeFragment(
         document,
         reference,
       );
@@ -483,7 +483,6 @@ async function readWikiGraphPage(
         nextFragmentId: undefined,
         nodes: [],
         previousFragmentId: undefined,
-        ...(reference.stream === "source" ? { locators } : {}),
         title: displayUri,
         type: "fragment",
       };

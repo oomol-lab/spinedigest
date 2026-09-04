@@ -122,6 +122,20 @@ Default behavior:
 Use when:
   - A source passage returns an artifact locator URI and you need to inspect its source location.
   - Read `{{ commandName }} help source-locators` for the mapping syntax.
+{% elif target.name == "chapter-source-locator-scope" %}
+URI type:
+  Source locator collection scope
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` lists mappings from source-text character ranges to artifact locator URIs.
+  - Add a fragment such as `#4..8` to select source sentences 4 through 8 before listing their mappings.
+  - Returned character ranges are 1-based, inclusive, and local to the selected source text.
+  - Use `--limit <n>` for a bounded page, `{{ commandName }} next <cursor>` to continue, or `--all` for the complete collection.
+  - JSON and JSONL items have the shape `{"range":[1,23],"uri":"wikg://artifact/<digest>#..."}`.
+
+Use when:
+  - You need to trace source text back to an imported PDF or EPUB location.
+  - Read `{{ commandName }} help source-locators` for artifact fragments and range semantics.
 {% elif target.name == "chapter-source-object" %}
 URI type:
   Chapter source object
@@ -131,11 +145,11 @@ Default behavior:
   - Source range fragments such as `#4..8` read sentence numbers 4 through 8, inclusive.
   - Range fragments are read-only; `set` writes the complete source object.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
-  - Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri`, `text`, and a compact `locators` map.
+  - Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri` and `text`.
 
 Use when:
   - You need continuous original wording from a selected chapter.
-  - Read `{{ commandName }} help source-locators` when locator map lines are present.
+  - Open `{{ commandName }} {{ uri }}/locators --help` to trace this text to an imported source file.
 {% elif target.name == "chapter-source-range-object" %}
 URI type:
   Chapter source range object
@@ -143,11 +157,11 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` reads a structured source sentence range.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
-  - Source range fragments support `--json`; the result includes a `locators` map clipped to the selected text.
+  - Source range fragments support `--json`; the result contains `uri` and `text`.
 
 Use when:
   - You need bounded original wording with machine-readable range metadata.
-  - Read `{{ commandName }} help source-locators` when locator map lines are present.
+  - Move the fragment after `/locators`, as in `<chapter-uri>/source/locators#4..8`, to trace the selected sentences to an imported source file.
 {% elif target.name == "chapter-summary-object" or target.name == "summary-object" %}
 URI type:
   Summary object

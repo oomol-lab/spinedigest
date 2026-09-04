@@ -13,7 +13,12 @@ export interface ArchiveOutputContext {
   readonly archivePath: string;
   readonly backlinks?: boolean;
   readonly chapters?: readonly number[];
-  readonly continuationKind?: "collection" | "evidence" | "related" | "search";
+  readonly continuationKind?:
+    | "collection"
+    | "evidence"
+    | "related"
+    | "search"
+    | "source-locators";
   readonly evidenceDisabled?: boolean;
   readonly evidenceLimit?: number;
   readonly format: ResultFormat;

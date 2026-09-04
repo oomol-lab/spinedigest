@@ -4,6 +4,7 @@ import {
   findWikiGraphLibraryObjects,
   listArchiveCollection,
   listArchiveEvidence,
+  listArchiveSourceLocators,
   listWikiGraphLibraryArchiveMembers,
   listRelatedWikiGraphLibraryObjects,
   listWikiGraphLibraryEvidence,
@@ -23,6 +24,7 @@ import {
   writeEvidence,
   writeFindHits,
   writeList,
+  writeSourceLocators,
 } from "../../archive-output/index.js";
 import { readArchiveDocument } from "./document.js";
 import { createCollectionFindResult } from "./options.js";
@@ -47,6 +49,34 @@ export async function runNextArchivePage(
         `Continuation cursor ${cursorId} belongs to ${cursorArchivePath}, not ${archivePath}.`,
       );
     }
+  }
+
+  if (cursor.kind === "source-locators") {
+    await readArchiveDocument(
+      getCursorArchivePath(cursor),
+      async (document) => {
+        const format = args.format ?? cursor.format;
+        const limit = args.limit ?? DEFAULT_OUTPUT_LIMIT;
+        await writeSourceLocators(
+          await listArchiveSourceLocators(document, cursor.targetUri, {
+            cursor: cursor.cursor,
+            limit,
+          }),
+          {
+            archiveKey: cursor.archiveKey,
+            archivePath: cursor.archivePath,
+            continuationKind: "source-locators",
+            format,
+            indexScope: cursor.indexScope,
+            limit,
+            targetUri: cursor.targetUri,
+            types: null,
+          },
+          format,
+        );
+      },
+    );
+    return;
   }
 
   if (cursor.indexScope?.kind === "library-index") {
@@ -275,6 +305,10 @@ async function runNextLibraryIndexPage(
   const limit = args.limit ?? DEFAULT_OUTPUT_LIMIT;
 
   switch (cursor.kind) {
+    case "source-locators":
+      throw new Error(
+        "Source locator cursors do not use the aggregate library index.",
+      );
     case "collection": {
       const collectionOptions: ArchiveCollectionOptions = {
         ...(cursor.backlinks === undefined
@@ -483,7 +517,9 @@ function createCursorOutputContext(
     indexScope: cursor.indexScope,
     limit,
     types:
-      cursor.kind === "evidence" || cursor.kind === "related"
+      cursor.kind === "evidence" ||
+      cursor.kind === "related" ||
+      cursor.kind === "source-locators"
         ? null
         : cursor.types,
     ...(cursor.kind === "search" || cursor.kind === "collection"

@@ -1,31 +1,14 @@
 import type { ArchiveOutputSource } from "../object/types.js";
 
 export function formatSourceObject(source: ArchiveOutputSource): string {
-  return formatSourceCitationBlock(source.uri, source.text, source.locators);
+  return formatSourceCitationBlock(source.uri, source.text);
 }
 
-export function formatSourceCitationBlock(
-  uri: string,
-  text: string,
-  locators: Readonly<Record<string, string>> = {},
-): string {
-  const locatorLines = Object.entries(locators).map(
-    ([range, locator]) => `${range} -> ${locator}`,
-  );
-  // Locator ranges address the exact text below. Legacy whitespace cleanup is
-  // safe only when there is no map to invalidate.
-  const renderedText =
-    locatorLines.length === 0 ? normalizeUnmappedSourceText(text) : text;
-
-  return [
-    `@@ ${uri} @@`,
-    ...locatorLines,
-    ...(locatorLines.length === 0 ? [] : [""]),
-    renderedText,
-  ].join("\n");
+export function formatSourceCitationBlock(uri: string, text: string): string {
+  return [`@@ ${uri} @@`, normalizeSourceText(text)].join("\n");
 }
 
-function normalizeUnmappedSourceText(text: string): string {
+function normalizeSourceText(text: string): string {
   const lines = text.replace(/\r\n?/gu, "\n").split("\n");
 
   while (lines.length > 0 && lines[0]?.trim() === "") lines.shift();

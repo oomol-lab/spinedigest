@@ -44,6 +44,10 @@ export type ChapterUriTarget =
       readonly chapterPath: string;
       readonly kind: "chapter-resource";
       readonly resource: "source" | "summary" | "title";
+    }
+  | {
+      readonly chapterPath: string;
+      readonly kind: "source-locator-scope";
     };
 
 export function parseChapterTarget(
@@ -110,6 +114,10 @@ export function parseChapterTarget(
       indexArtifactKind,
       kind: "chapter-index-artifact",
     };
+  }
+
+  if (suffix === "source/locators") {
+    return { chapterPath, kind: "source-locator-scope" };
   }
 
   const resource = parseChapterResourceSuffix(suffix);

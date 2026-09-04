@@ -28,7 +28,6 @@ export async function createSourceEvidenceItem(
     endSentenceIndex: range.endSentenceIndex,
     fragmentId: range.startSentenceIndex,
     id: range.id,
-    locators: range.locators,
     ...(score === undefined ? {} : { score }),
     source: range.text,
     startSentenceIndex: range.startSentenceIndex,

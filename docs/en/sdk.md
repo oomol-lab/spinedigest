@@ -104,6 +104,34 @@ await wikiGraph.openSession(outputArchive, async (archive) => {
 
 `targetStage: "planned"` creates an archive without calling an LLM. Stages that build a Reading Graph, Summary, or Knowledge Graph require LLM configuration.
 
+### Source locators
+
+Source text, evidence, and query results stay focused on readable text. When a
+caller needs imported-file provenance, Core exposes the same independent
+locator collection as the CLI:
+
+```ts
+import {
+  listArchiveSourceLocators,
+  readArchivePage,
+  WikiGraphArchiveFile,
+} from "wiki-graph-core";
+
+const archiveFile = new WikiGraphArchiveFile(myArchiveFile);
+await archiveFile.readDocument(async (document) => {
+  const page = await listArchiveSourceLocators(
+    document,
+    "wikg://chapter/<chapter-path>/source/locators#1..3",
+    { limit: 20 },
+  );
+  const location = await readArchivePage(document, page.items[0]!.uri);
+});
+```
+
+Each item maps a 1-based inclusive Unicode-character `range` to an artifact
+locator `uri`. The optional URI fragment selects source sentences first;
+pagination uses `nextCursor`.
+
 ## LLM Configuration
 
 `WikiGraph` accepts any AI SDK `LanguageModel`. The SDK does not read CLI config files; applications pass their own model and runtime options.

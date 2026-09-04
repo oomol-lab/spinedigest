@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DirectoryDocument,
   listArchiveCollection,
@@ -18,7 +18,7 @@ beforeEach(setupArchiveViewTestState);
 afterEach(teardownArchiveViewTestState);
 
 describe("archive/query/archive-view/evidence", () => {
-  it("returns the same locator map with source evidence", async () => {
+  it("keeps source provenance out of ordinary evidence results", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -43,11 +43,10 @@ describe("archive/query/archive-view/evidence", () => {
           },
         );
 
+        const listMap = vi.spyOn(document.sourceProvenance, "listMap");
         const result = await listArchiveEvidence(document, "wikg://chunk/100");
-        const [source] = result.items;
-        expect(source?.locators).toStrictEqual({
-          [`1..${Array.from(source?.source ?? "").length}`]: `wikg://artifact/${digest}#page=3&bbox=0,0,1,1`,
-        });
+        expect(result.items[0]).not.toHaveProperty("locators");
+        expect(listMap).not.toHaveBeenCalled();
       } finally {
         await document.release();
       }

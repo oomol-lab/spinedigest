@@ -621,6 +621,12 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
   listArchiveCollection: vi.fn(() =>
     Promise.resolve(archiveMockState.collection),
   ),
+  isSourceLocatorScopeUri: vi.fn((uri: string) =>
+    /^wikg:\/\/chapter\/.+\/source\/locators(?:#.+)?$/u.test(uri),
+  ),
+  listArchiveSourceLocators: vi.fn(() =>
+    Promise.resolve({ items: [], limit: 20, nextCursor: null }),
+  ),
   listChapters: vi.fn(() =>
     Promise.resolve(
       archiveMockState.inspectChapters.map((chapter) => ({

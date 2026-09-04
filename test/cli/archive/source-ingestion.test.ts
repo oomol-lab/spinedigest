@@ -49,7 +49,7 @@ interface TocItemLike {
 }
 
 describe("cli/archive/source-ingestion", () => {
-  it("returns source locator maps and opens their artifact URIs", async () => {
+  it("lists source locators separately and opens their artifact URIs", async () => {
     const digest = "a".repeat(64);
     const firstText = "😀 First source sentence. ";
     const secondText = "Second source sentence.";
@@ -102,11 +102,7 @@ describe("cli/archive/source-ingestion", () => {
       const wholeSource = await runJsonCLI(stateDir, [sourceUri, "--json"]);
       const firstLocator = `wikg://artifact/${digest}#page=1&bbox=0,0,0.5,0.5`;
       const secondLocator = `wikg://artifact/${digest}#page=2&bbox=0.5,0.5,1,1`;
-      expect(requireLocatorMap(wholeSource)).toStrictEqual({
-        [`1..${secondStart}`]: firstLocator,
-        [`${secondStart + 1}..${secondStart + Array.from(secondText).length}`]:
-          secondLocator,
-      });
+      expect(wholeSource).not.toHaveProperty("locators");
       const wholePlain = await runWikiGraphCLICaptured({
         argv: [sourceUri],
         stateDir,
@@ -114,20 +110,40 @@ describe("cli/archive/source-ingestion", () => {
       expect(wholePlain.exitCode, wholePlain.stderr).toBe(0);
       expect(wholePlain.stdout).toBe(`${firstText}${secondText}\n`);
 
-      const firstRange = await runJsonCLI(stateDir, [
-        `${sourceUri}#1`,
+      const locatorScopeUri = `${sourceUri}/locators`;
+      const firstLocatorPage = await runJsonCLI(stateDir, [
+        locatorScopeUri,
+        "--limit",
+        "1",
         "--json",
       ]);
-      expect(requireLocatorMap(firstRange)).toStrictEqual({
-        [`1..${secondStart}`]: firstLocator,
-      });
-      const secondRange = await runJsonCLI(stateDir, [
-        `${sourceUri}#2`,
+      expect(firstLocatorPage.objects).toStrictEqual([
+        { range: [1, secondStart], uri: firstLocator },
+      ]);
+      const nextCursor = requireString(firstLocatorPage, "nextCursor");
+      const secondLocatorPage = await runJsonCLI(stateDir, [
+        "next",
+        nextCursor,
         "--json",
       ]);
-      expect(requireLocatorMap(secondRange)).toStrictEqual({
-        [`1..${Array.from(secondText).length}`]: secondLocator,
-      });
+      expect(secondLocatorPage.objects).toStrictEqual([
+        {
+          range: [secondStart + 1, secondStart + Array.from(secondText).length],
+          uri: secondLocator,
+        },
+      ]);
+      expect(secondLocatorPage.nextCursor).toBeNull();
+
+      const secondRangeLocators = await runJsonCLI(stateDir, [
+        `${locatorScopeUri}#2`,
+        "--json",
+      ]);
+      expect(secondRangeLocators.objects).toStrictEqual([
+        {
+          range: [1, Array.from(secondText).length],
+          uri: secondLocator,
+        },
+      ]);
 
       const artifact = await runJsonCLI(stateDir, [
         `${archiveUri}/artifact/${digest}`,
@@ -154,17 +170,39 @@ describe("cli/archive/source-ingestion", () => {
       });
       expect(plain.exitCode, plain.stderr).toBe(0);
       expect(plain.stdout).toBe(
-        `@@ ${requireString(wholeSource, "uri")}#2 @@\n1..${Array.from(secondText).length} -> ${secondLocator}\n\n${secondText}\n`,
+        `@@ ${requireString(wholeSource, "uri")}#2 @@\n${secondText}\n`,
       );
       const jsonlResult = await runWikiGraphCLICaptured({
         argv: [`${sourceUri}#1`, "--jsonl"],
         stateDir,
       });
       expect(jsonlResult.exitCode, jsonlResult.stderr).toBe(0);
-      expect(JSON.parse(jsonlResult.stdout)).toMatchObject({
-        locators: { [`1..${secondStart}`]: firstLocator },
-        text: firstText,
+      expect(JSON.parse(jsonlResult.stdout)).toMatchObject({ text: firstText });
+      expect(JSON.parse(jsonlResult.stdout)).not.toHaveProperty("locators");
+
+      const locatorPlain = await runWikiGraphCLICaptured({
+        argv: [locatorScopeUri, "--all"],
+        stateDir,
       });
+      expect(locatorPlain.exitCode, locatorPlain.stderr).toBe(0);
+      expect(locatorPlain.stdout).toBe(
+        `1..${secondStart} -> ${firstLocator}\n${secondStart + 1}..${secondStart + Array.from(secondText).length} -> ${secondLocator}\n`,
+      );
+
+      const locatorJsonl = await runWikiGraphCLICaptured({
+        argv: [`${locatorScopeUri}#1`, "--jsonl"],
+        stateDir,
+      });
+      expect(locatorJsonl.exitCode, locatorJsonl.stderr).toBe(0);
+      expect(
+        locatorJsonl.stdout
+          .trim()
+          .split("\n")
+          .map((line): unknown => JSON.parse(line) as unknown),
+      ).toEqual([
+        { range: [1, secondStart], uri: firstLocator },
+        { nextCursor: null, type: "page" },
+      ]);
 
       await runJsonCLI(stateDir, [
         locatedChapterUri,
@@ -175,7 +213,20 @@ describe("cli/archive/source-ingestion", () => {
       ]);
       await runJsonCLI(stateDir, [sourceUri, "set", "Plain source.", "--json"]);
       const plainSource = await runJsonCLI(stateDir, [sourceUri, "--json"]);
-      expect(requireLocatorMap(plainSource)).toStrictEqual({});
+      expect(plainSource).not.toHaveProperty("locators");
+      const emptyLocators = await runJsonCLI(stateDir, [
+        locatorScopeUri,
+        "--json",
+      ]);
+      expect(emptyLocators.objects).toStrictEqual([]);
+      const staleNext = await runWikiGraphCLICaptured({
+        argv: ["next", nextCursor, "--json"],
+        stateDir,
+      });
+      expect(staleNext.exitCode).not.toBe(0);
+      expect(JSON.parse(staleNext.stdout)).toMatchObject({
+        error: { message: "Invalid or stale source locator cursor." },
+      });
     });
   });
 
@@ -301,6 +352,62 @@ describe("cli/archive/source-ingestion", () => {
           ),
         ),
       ).toBe(true);
+
+      const chapterList = await runJsonCLI(stateDir, [
+        `${archiveUri}/chapter`,
+        "--json",
+      ]);
+      const chapters = chapterList.objects as readonly Record<
+        string,
+        unknown
+      >[];
+      expect(chapters.length).toBeGreaterThan(0);
+      const chapterUri = formatLocatedChapterResourceUri(
+        archivePath,
+        requireChapterPath(chapters[0]!),
+        "source",
+      );
+      const locatorPage = await runJsonCLI(stateDir, [
+        `${chapterUri}/locators`,
+        "--limit",
+        "1",
+        "--json",
+      ]);
+      const locatorObjects = locatorPage.objects as readonly unknown[];
+      expect(Array.isArray(locatorObjects)).toBe(true);
+      expect(locatorObjects).toHaveLength(1);
+      const firstLocator = locatorObjects[0] as {
+        readonly range: readonly [number, number];
+        readonly uri: string;
+      };
+      expect(firstLocator.range[0]).toBe(1);
+      expect(firstLocator.uri).toContain(
+        `wikg://artifact/${epubDigest}#epubcfi(`,
+      );
+      const sentenceLocatorPage = await runJsonCLI(stateDir, [
+        `${chapterUri}/locators#1`,
+        "--all",
+        "--json",
+      ]);
+      const sentenceLocators = sentenceLocatorPage.objects as readonly {
+        readonly range: readonly [number, number];
+        readonly uri: string;
+      }[];
+      expect(sentenceLocators.length).toBeGreaterThan(0);
+      expect(sentenceLocators[0]?.range[0]).toBe(1);
+      expect(
+        sentenceLocators.every((locator) =>
+          locator.uri.includes(`wikg://artifact/${epubDigest}#epubcfi(`),
+        ),
+      ).toBe(true);
+      const artifactLocator = await runJsonCLI(stateDir, [
+        `${archiveUri}/artifact/${epubDigest}#${firstLocator.uri.split("#")[1]}`,
+        "--json",
+      ]);
+      expect(artifactLocator).toMatchObject({
+        uri: firstLocator.uri,
+        locator: { cfi: generatedTextRecords[0]?.locator.cfi },
+      });
     });
   }, 20_000);
 
@@ -444,7 +551,7 @@ function requireChapterPath(
   if (typeof uri !== "string") {
     throw new Error("CLI chapter output did not contain a URI.");
   }
-  return uri.replace(/^wikg:\/\/chapter\//u, "");
+  return uri.replace(/^wikg:\/\/chapter\//u, "").replace(/\/title$/u, "");
 }
 
 function requireString(
@@ -456,14 +563,4 @@ function requireString(
     throw new Error(`CLI output did not contain string field ${key}.`);
   }
   return value;
-}
-
-function requireLocatorMap(
-  object: Readonly<Record<string, unknown>>,
-): Readonly<Record<string, string>> {
-  const value = object.locators;
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("CLI output did not contain a locators object.");
-  }
-  return value as Readonly<Record<string, string>>;
 }
