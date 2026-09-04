@@ -325,7 +325,7 @@ describe("cli/archive/object", () => {
     });
 
     const output = JSON.parse(archiveMockState.textWrites[0] ?? "") as {
-      readonly index?: { readonly fixCommand?: string };
+      readonly localIndexCache?: { readonly fixCommand?: string };
       readonly improvements?: readonly { readonly command?: string }[];
       readonly uri?: string;
     };
@@ -334,7 +334,7 @@ describe("cli/archive/object", () => {
       "/tmp/library/archive123.wikg",
     ]);
     expect(output.uri).toBe("wikg://lib/arc/archive123");
-    expect(output.index?.fixCommand).toBe(
+    expect(output.localIndexCache?.fixCommand).toBe(
       "wg wikg://lib/arc/archive123/index sync",
     );
     expect(archiveMockState.textWrites[0]).not.toContain(
@@ -448,11 +448,19 @@ describe("cli/archive/object", () => {
         sourceWords: 1200,
         summaryWords: 120,
       },
-      index: {
+      localIndexCache: {
         current: false,
         fixCommand: "wg wikg:///tmp/book.wikg/index sync",
-        querySupport: true,
         status: "missing-or-outdated",
+        syncAvailable: true,
+      },
+      query: {
+        ready: true,
+      },
+      searchArtifacts: {
+        blockedChapters: [],
+        ready: true,
+        status: "ready",
       },
       coverage: {
         knowledgeGraph: {
@@ -485,7 +493,7 @@ describe("cli/archive/object", () => {
     });
     expect(output.retrievalGuidance).toEqual(
       expect.arrayContaining([
-        "Query cache: missing or outdated; archive query can sync it from artifacts.",
+        "Query: available; local index cache is missing or outdated and can be synced from artifacts.",
       ]),
     );
     expect(output.improvements).toEqual(
@@ -541,16 +549,46 @@ describe("cli/archive/object", () => {
       json: true,
     });
 
-    expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toMatchObject({
-      queryBlockedChapters: [
-        {
-          chapterId: 2,
-          locatedUri: "wikg:///tmp/book.wikg/chapter/chapter-2",
-          title: "Missing chapter",
-          uri: "wikg://chapter/chapter-2",
-        },
-      ],
+    const report = JSON.parse(archiveMockState.textWrites[0] ?? "") as {
+      readonly improvements: readonly {
+        readonly command: string;
+        readonly title: string;
+      }[];
+    };
+    expect(report).toMatchObject({
+      localIndexCache: {
+        blockedBy: "missing-search-artifacts",
+        status: "blocked",
+        syncAvailable: false,
+      },
+      query: { ready: false },
+      searchArtifacts: {
+        blockedChapters: [
+          {
+            chapterId: 2,
+            locatedUri: "wikg:///tmp/book.wikg/chapter/chapter-2",
+            title: "Missing chapter",
+            uri: "wikg://chapter/chapter-2",
+          },
+        ],
+        fixCommand:
+          "wg wikg://local/job add --input wikg:///tmp/book.wikg --task index-fts",
+        ready: false,
+        status: "incomplete",
+      },
     });
+    expect(report.improvements[0]).toMatchObject({
+      command:
+        "wg wikg://local/job add --input wikg:///tmp/book.wikg --task index-fts",
+      title: "Enable query with local FTS",
+    });
+    expect(report.improvements.map((item) => item.command)).not.toContain(
+      "wg wikg:///tmp/book.wikg/index sync",
+    );
+
+    expect(archiveMockState.textWrites[0]).not.toContain(
+      "wikg:///tmp/book.wikg/index sync",
+    );
 
     archiveMockState.textWrites.length = 0;
     await runArchiveCommand({
@@ -560,6 +598,12 @@ describe("cli/archive/object", () => {
 
     expect(archiveMockState.textWrites[0]).toContain(
       "- Missing chapter: wikg:///tmp/book.wikg/chapter/chapter-2",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Fix: wg wikg://local/job add --input wikg:///tmp/book.wikg --task index-fts",
+    );
+    expect(archiveMockState.textWrites[0]).not.toContain(
+      "wikg:///tmp/book.wikg/index sync",
     );
   });
 

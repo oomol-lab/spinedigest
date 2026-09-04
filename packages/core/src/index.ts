@@ -229,6 +229,7 @@ export type {
 export { TOC_FILE_VERSION, parseSourceTextJsonl } from "./text/source/index.js";
 export type { BookMeta, ParsedSourceTextJsonl } from "./text/source/index.js";
 export {
+  ArchiveQueryNotReadyError,
   assertArchiveIndexArtifactsReady,
   buildArchiveIndexProjection,
   isArchiveSearchIndexCurrent,

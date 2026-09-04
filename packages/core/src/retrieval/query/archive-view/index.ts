@@ -8,6 +8,7 @@ export {
 export type { ArchivePageOptions } from "./pages.js";
 
 export {
+  ArchiveQueryNotReadyError,
   clearDirtyArchiveSearchIndex,
   assertArchiveIndexArtifactsReady,
   buildArchiveIndexProjection,

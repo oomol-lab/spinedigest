@@ -26,6 +26,7 @@ import {
 import type { CLIArchiveArguments } from "../../args/index.js";
 import { loadCLIConfig } from "../../runtime/config.js";
 import { buildSearchIndexEmbeddingProvider } from "../../runtime/embedding.js";
+import { formatCliCommand } from "../../support/index.js";
 import { runConvertCommand } from "../convert.js";
 import { createArchive } from "./create.js";
 import { writeArchiveInspectReport } from "./inspect.js";
@@ -363,7 +364,14 @@ async function ensureArchiveQueryIndexCache(
         return;
       }
 
-      await rebuildArchiveSearchIndex(document, undefined, options);
+      try {
+        await rebuildArchiveSearchIndex(document, undefined, options);
+      } catch (error) {
+        if (isArchiveQueryNotReadyError(error)) {
+          throw createArchiveQueryNotReadyError(args, error.message);
+        }
+        throw error;
+      }
     },
     { searchIndexWritebackPolicy: "cache" },
   );
@@ -383,12 +391,43 @@ async function createScopedQueryArgs(
   });
 
   if (queryableChapters.length === 0) {
-    throw new Error(
+    throw createArchiveQueryNotReadyError(
+      args,
       "Wiki Graph query is not ready. No chapters in this scope have a current FTS artifact or source embedding artifact.",
     );
   }
 
   return { ...args, chapters: queryableChapters };
+}
+
+function createArchiveQueryNotReadyError(
+  args: Pick<CLIArchiveArguments, "archivePath">,
+  reason: string,
+): Error {
+  const buildCommand = formatCliCommand([
+    "wikg://local/job",
+    "add",
+    "--input",
+    args.archivePath,
+    "--task",
+    "index-fts",
+  ]);
+
+  return new Error(
+    [
+      reason,
+      "",
+      "Build local FTS artifacts without provider calls:",
+      `  ${buildCommand}`,
+      "",
+      "Help:",
+      "  wg help readiness",
+    ].join("\n"),
+  );
+}
+
+function isArchiveQueryNotReadyError(error: unknown): error is Error {
+  return error instanceof Error && error.name === "ArchiveQueryNotReadyError";
 }
 
 function applyChapterScope(

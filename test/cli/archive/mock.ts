@@ -488,6 +488,7 @@ const archiveMockState = vi.hoisted(() => ({
     type: "triple",
   } satisfies ArchivePage,
   readCalls: [] as string[],
+  rebuildErrorMessage: undefined as string | undefined,
   serials: new Map([
     [1, { knowledgeGraphReady: true, topologyReady: true }],
     [2, { knowledgeGraphReady: false, topologyReady: false }],
@@ -520,7 +521,15 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
       Promise.resolve(archiveMockState.ftsCurrent),
     ),
     listArchiveQueryableChapterIds: vi.fn(() => Promise.resolve([1, 2])),
-    rebuildArchiveSearchIndex: vi.fn(() => Promise.resolve()),
+    rebuildArchiveSearchIndex: vi.fn(() =>
+      archiveMockState.rebuildErrorMessage === undefined
+        ? Promise.resolve()
+        : Promise.reject(
+            Object.assign(new Error(archiveMockState.rebuildErrorMessage), {
+              name: "ArchiveQueryNotReadyError",
+            }),
+          ),
+    ),
     resolveWikiGraphLibraryArchivePath: vi.fn((uri: string) => {
       const archiveId = uri.split("/").at(-1) ?? "archive";
 
@@ -863,6 +872,7 @@ export function resetArchiveMockState(): void {
   };
   archiveMockState.inspectChapters = createDefaultInspectChapters();
   archiveMockState.readCalls.length = 0;
+  archiveMockState.rebuildErrorMessage = undefined;
   archiveMockState.serials = createDefaultInspectSerials();
   archiveMockState.summaryWords = 120;
   archiveMockState.convertCalls.length = 0;

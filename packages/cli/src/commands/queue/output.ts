@@ -9,6 +9,7 @@ import {
 import {
   formatCLIJSON,
   formatCliCommand,
+  formatWikiGraphCommandUri,
   writeTextToStdout,
 } from "../../support/index.js";
 import {
@@ -261,6 +262,12 @@ export async function writeArchiveAddSummary(input: {
     readonly reason: string;
   }[];
 }): Promise<void> {
+  const jobsCommand = formatCliCommand(["wikg://local/job", "--json"]);
+  const verifyCommand = formatCliCommand([
+    formatWikiGraphCommandUri(input.archivePath),
+    "inspect",
+  ]);
+
   if (input.json) {
     await writeTextToStdout(
       formatCLIJSON({
@@ -273,6 +280,7 @@ export async function writeArchiveAddSummary(input: {
         ...(input.estimate === undefined
           ? {}
           : { estimate: formatQueueAddEstimateJSON(input.estimate) }),
+        ...(input.created.length === 0 ? {} : { jobsCommand, verifyCommand }),
         skipped: input.skipped.map((item) => ({
           chapterId: item.chapter.chapterId,
           chapter: formatChapterJSON(
@@ -303,6 +311,13 @@ export async function writeArchiveAddSummary(input: {
   }
   if (input.estimate !== undefined) {
     lines.push("", ...formatQueueAddEstimateLines(input.estimate));
+  }
+  if (input.created.length > 0) {
+    lines.push(
+      "",
+      `Jobs: ${jobsCommand}`,
+      `Verify after the jobs finish: ${verifyCommand}`,
+    );
   }
 
   await writeTextToStdout(`${lines.join("\n")}\n`);

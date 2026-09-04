@@ -33,6 +33,10 @@ export interface ArchiveSearchIndexScopeOptions {
   readonly chapters?: readonly number[];
 }
 
+export class ArchiveQueryNotReadyError extends Error {
+  public override readonly name = "ArchiveQueryNotReadyError";
+}
+
 export async function rebuildArchiveSearchIndex(
   document: Document,
   progress?: SearchIndexProgressReporter,
@@ -175,7 +179,7 @@ export async function assertArchiveIndexArtifactsReady(
         : `${JSON.stringify(chapter.title)} (${chapter.uri})`,
     )
     .join(", ");
-  throw new Error(
+  throw new ArchiveQueryNotReadyError(
     `Wiki Graph query is not ready. Chapters ${chapterReferences} need a current FTS artifact or source embedding artifact before query.`,
   );
 }

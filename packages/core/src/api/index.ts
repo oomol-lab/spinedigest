@@ -15,6 +15,7 @@ export {
   type WikiGraphTextStreamSessionOptions,
 } from "./app.js";
 export {
+  ArchiveQueryNotReadyError,
   findArchiveObjects,
   formatChapterId,
   formatEdgeId,

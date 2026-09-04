@@ -1,5 +1,6 @@
 export {
   findArchiveObjects,
+  ArchiveQueryNotReadyError,
   formatChapterId,
   formatEdgeId,
   formatNodeId,
