@@ -136,9 +136,10 @@ Usage:
 
 Notes:
   - Without `--input`, creates an empty planned chapter placeholder.
-  - With `--input <path>`, creates a chapter and fills source text.
-  - Use `--input -` to read source text from stdin.
-  - Source input must not be empty when `--input` is used.
+  - With `--input <path|->`, reads non-empty UTF-8 plain text, does not infer a
+    format from the file name, and creates the chapter in the `source` stage.
+  - This plain-text path does not create a source-text map or call an LLM
+    provider. Read `{{ commandName }} help file-import` for source locators.
 
 Output:
   - Text output includes `Chapter`, the archive-relative handle, and `Located URI`, the complete target for later commands.
@@ -200,9 +201,13 @@ Usage:
   {{ commandName }} {{ uri }} reset --to planned|source|reading-graph [--json]
 
 Notes:
-  - `planned` deletes source text, Reading Graph data, and summary.
-  - `source` keeps source text and deletes Reading Graph data and summary.
-  - `reading-graph` keeps source text and Reading Graph data, and deletes summary.
+  - `planned` deletes source text and provenance, Reading Graph, Knowledge Graph,
+    summary, and all chapter index artifacts.
+  - `source` keeps source text and provenance, and deletes Reading Graph,
+    Knowledge Graph, summary, and all chapter index artifacts.
+  - `reading-graph` keeps source text and provenance, Reading Graph, Knowledge
+    Graph, and the source embedding artifact. It deletes summary, FTS, and the
+    summary embedding artifact.
   - `reading-summary` and `knowledge-graph` are not supported reset targets.
   - Reset is destructive and may discard generated work.
 {% elif predicate == "set" %}
