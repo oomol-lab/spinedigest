@@ -6,6 +6,7 @@ import {
 } from "../../../packages/core/src/document/index.js";
 import {
   addChapter,
+  resetChapter,
   setChapterSource,
 } from "../../../packages/core/src/api/chapter/index.js";
 import {
@@ -153,6 +154,19 @@ describe("source locator ranges", () => {
             },
           ],
         });
+
+        await resetChapter(document, chapter.chapterId, "planned");
+        await setChapterSource(document, chapter.chapterId, ["Rewritten."]);
+        await expect(
+          listArchiveSourceLocators(
+            document,
+            `${chapter.uri}/source/locators`,
+            {
+              cursor: nextCursor,
+              limit: 1,
+            },
+          ),
+        ).rejects.toThrow("Invalid or stale source locator cursor");
       } finally {
         await document.release();
       }

@@ -5,12 +5,12 @@ import {
 import { listChapters } from "../../../document/chapter/index.js";
 import { parseChapterPath } from "../../../document/chapter/path.js";
 import { parseWikiGraphUriSyntax } from "../../../runtime/common/wiki-graph/uri.js";
-
 import {
-  DEFAULT_FIND_LIMIT,
-  decodeFindCursor,
-  encodeFindCursor,
-} from "./helpers.js";
+  decodeBase64UrlText,
+  encodeBase64UrlText,
+} from "../../../utils/bytes.js";
+
+import { DEFAULT_FIND_LIMIT } from "./helpers.js";
 import { readTextStreamRange } from "./text-streams.js";
 import type {
   ArchiveSourceLocator,
@@ -39,6 +39,8 @@ export async function listArchiveSourceLocators(
     );
   }
 
+  const sourceRevision = await document.serials.getRevision(chapter.chapterId);
+  const start = decodeSourceLocatorCursor(options.cursor, sourceRevision);
   const source = await readTextStreamRange(
     document,
     chapter.chapterId,
@@ -52,15 +54,22 @@ export async function listArchiveSourceLocators(
     source.sourceStart,
     source.sourceEnd,
   );
+  if (
+    (await document.serials.getRevision(chapter.chapterId)) !== sourceRevision
+  ) {
+    throw new Error("Invalid or stale source locator cursor.");
+  }
   const limit = options.limit ?? DEFAULT_FIND_LIMIT;
-  const start = decodeFindCursor(options.cursor);
   const page = items.slice(start, start + limit);
   const nextOffset = start + page.length;
 
   return {
     items: page,
     limit,
-    nextCursor: nextOffset < items.length ? encodeFindCursor(nextOffset) : null,
+    nextCursor:
+      nextOffset < items.length
+        ? encodeSourceLocatorCursor(nextOffset, sourceRevision)
+        : null,
   };
 }
 
@@ -181,4 +190,41 @@ function parseSourceLocatorScopeUri(uri: string): {
     endSentenceIndex: end - 1,
     startSentenceIndex: start - 1,
   };
+}
+
+function encodeSourceLocatorCursor(
+  offset: number,
+  sourceRevision: number,
+): string {
+  return encodeBase64UrlText(JSON.stringify({ offset, sourceRevision, v: 1 }));
+}
+
+function decodeSourceLocatorCursor(
+  cursor: string | undefined,
+  sourceRevision: number,
+): number {
+  if (cursor === undefined) return 0;
+
+  try {
+    const parsed: unknown = JSON.parse(decodeBase64UrlText(cursor));
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "v" in parsed &&
+      "offset" in parsed &&
+      "sourceRevision" in parsed &&
+      parsed.v === 1 &&
+      Number.isInteger(parsed.offset) &&
+      typeof parsed.offset === "number" &&
+      parsed.offset >= 0 &&
+      Number.isInteger(parsed.sourceRevision) &&
+      parsed.sourceRevision === sourceRevision
+    ) {
+      return parsed.offset;
+    }
+  } catch {
+    throw new Error("Invalid or stale source locator cursor.");
+  }
+
+  throw new Error("Invalid or stale source locator cursor.");
 }

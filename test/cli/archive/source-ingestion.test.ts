@@ -219,6 +219,14 @@ describe("cli/archive/source-ingestion", () => {
         "--json",
       ]);
       expect(emptyLocators.objects).toStrictEqual([]);
+      const staleNext = await runWikiGraphCLICaptured({
+        argv: ["next", nextCursor, "--json"],
+        stateDir,
+      });
+      expect(staleNext.exitCode).not.toBe(0);
+      expect(JSON.parse(staleNext.stdout)).toMatchObject({
+        error: { message: "Invalid or stale source locator cursor." },
+      });
     });
   });
 
@@ -344,6 +352,62 @@ describe("cli/archive/source-ingestion", () => {
           ),
         ),
       ).toBe(true);
+
+      const chapterList = await runJsonCLI(stateDir, [
+        `${archiveUri}/chapter`,
+        "--json",
+      ]);
+      const chapters = chapterList.objects as readonly Record<
+        string,
+        unknown
+      >[];
+      expect(chapters.length).toBeGreaterThan(0);
+      const chapterUri = formatLocatedChapterResourceUri(
+        archivePath,
+        requireChapterPath(chapters[0]!),
+        "source",
+      );
+      const locatorPage = await runJsonCLI(stateDir, [
+        `${chapterUri}/locators`,
+        "--limit",
+        "1",
+        "--json",
+      ]);
+      const locatorObjects = locatorPage.objects as readonly unknown[];
+      expect(Array.isArray(locatorObjects)).toBe(true);
+      expect(locatorObjects).toHaveLength(1);
+      const firstLocator = locatorObjects[0] as {
+        readonly range: readonly [number, number];
+        readonly uri: string;
+      };
+      expect(firstLocator.range[0]).toBe(1);
+      expect(firstLocator.uri).toContain(
+        `wikg://artifact/${epubDigest}#epubcfi(`,
+      );
+      const sentenceLocatorPage = await runJsonCLI(stateDir, [
+        `${chapterUri}/locators#1`,
+        "--all",
+        "--json",
+      ]);
+      const sentenceLocators = sentenceLocatorPage.objects as readonly {
+        readonly range: readonly [number, number];
+        readonly uri: string;
+      }[];
+      expect(sentenceLocators.length).toBeGreaterThan(0);
+      expect(sentenceLocators[0]?.range[0]).toBe(1);
+      expect(
+        sentenceLocators.every((locator) =>
+          locator.uri.includes(`wikg://artifact/${epubDigest}#epubcfi(`),
+        ),
+      ).toBe(true);
+      const artifactLocator = await runJsonCLI(stateDir, [
+        `${archiveUri}/artifact/${epubDigest}#${firstLocator.uri.split("#")[1]}`,
+        "--json",
+      ]);
+      expect(artifactLocator).toMatchObject({
+        uri: firstLocator.uri,
+        locator: { cfi: generatedTextRecords[0]?.locator.cfi },
+      });
     });
   }, 20_000);
 
@@ -487,7 +551,7 @@ function requireChapterPath(
   if (typeof uri !== "string") {
     throw new Error("CLI chapter output did not contain a URI.");
   }
-  return uri.replace(/^wikg:\/\/chapter\//u, "");
+  return uri.replace(/^wikg:\/\/chapter\//u, "").replace(/\/title$/u, "");
 }
 
 function requireString(
