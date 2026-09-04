@@ -15,6 +15,7 @@ Preconditions:
   - Read the chapter state and reset help before discarding data from a later-stage chapter.
 
 Behavior:
+  - Initializes source for a planned chapter; it does not replace source on a later-stage chapter.
   - Writes the complete source text and moves the chapter to `source`.
   - Does not generate Reading Graph data or a summary, and does not call an LLM provider.
   - With `--json`, prints the updated chapter status as one JSON object. `sourceUnits` is the number of stored source processing fragments, not the number of sentences.

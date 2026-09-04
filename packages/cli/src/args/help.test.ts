@@ -398,6 +398,10 @@ describe("cli/args/help", () => {
       "chapter-source-object",
       "wikg://book.wikg/chapter/part/source",
     );
+    const sourceRangeHelpText = renderUriHelpText(
+      "chapter-source-range-object",
+      "wikg://book.wikg/chapter/part/source#1..2",
+    );
     const sourceSetHelpText = renderUriPredicateHelpText(
       "chapter-source-object",
       "set",
@@ -413,6 +417,9 @@ describe("cli/args/help", () => {
     expect(chapterAddHelpText).toContain("non-empty UTF-8 plain text");
     expect(chapterAddHelpText).toContain("does not create a source-text map");
     expect(chapterAddHelpText).toContain("does not infer a");
+    expect(chapterAddHelpText).toContain(
+      "handles are opaque and are not derived from `--title`",
+    );
     expect(chapterHelpText).toContain(
       "wikg://book.wikg/chapter/part/state --help",
     );
@@ -426,6 +433,9 @@ describe("cli/args/help", () => {
     expect(sourceSetHelpText).toContain("Source input must not be empty");
     expect(sourceSetHelpText).toContain("Plain text writes source without");
     expect(sourceSetHelpText).toContain("File extensions are not inferred");
+    expect(sourceSetHelpText).toContain(
+      "does not replace source on a later-stage chapter",
+    );
     expect(sourceSetHelpText).toContain(
       "`sourceUnits` is the number of stored source processing fragments",
     );
@@ -453,6 +463,10 @@ describe("cli/args/help", () => {
       "<chapter-uri>/source/locators --json",
     );
     expect(sourceHelpText).toContain("containing `uri` and `text`");
+    expect(sourceHelpText).toContain(
+      "set: initialize source for a planned chapter",
+    );
+    expect(sourceRangeHelpText).toContain("current stored source revision");
     expect(sourceHelpText).toContain("/source/locators");
     expect(fileImportHelpText).toContain(
       "evidence cannot point back to a PDF page or EPUB CFI",

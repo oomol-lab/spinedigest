@@ -143,7 +143,7 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` reads source text.
   - Source range fragments such as `#4..8` read sentence numbers 4 through 8, inclusive.
-  - Range fragments are read-only; `set` writes the complete source object.
+  - Range fragments are read-only; `set` fills the complete source object of a planned chapter.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
   - Whole and ranged source reads print text by default. With `--json`, they return one object containing `uri` and `text`.
 
@@ -157,6 +157,7 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` reads a structured source sentence range.
   - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
+  - Range numbers address the current stored source revision and may change after source is reset and written again.
   - Source range fragments support `--json`; the result contains `uri` and `text`.
 
 Use when:
@@ -477,6 +478,8 @@ Predicate commands:
   - set: replace this local config section with a JSON object. Help: {{ commandName }} {{ uri }} set --help
 {% elif target.name == "job-target-object" %}
   - set: change this local job target. Help: {{ commandName }} {{ uri }} set --help
+{% elif target.name == "chapter-source-object" %}
+  - set: initialize source for a planned chapter. Help: {{ commandName }} {{ uri }} set --help
 {% else %}
 {% if target.name == "metadata-object" %}
   - set: replace this metadata map. Help: {{ commandName }} {{ uri }} set --help

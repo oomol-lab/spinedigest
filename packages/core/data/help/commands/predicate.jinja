@@ -140,6 +140,8 @@ Notes:
     format from the file name, and creates the chapter in the `source` stage.
   - This plain-text path does not create a source-text map or call an LLM
     provider. Read `{{ commandName }} help file-import` for source locators.
+  - Chapter handles are opaque and are not derived from `--title`; reuse the
+    returned `locatedUri` for later commands.
 
 Output:
   - Text output includes `Chapter`, the archive-relative handle, and `Located URI`, the complete target for later commands.
