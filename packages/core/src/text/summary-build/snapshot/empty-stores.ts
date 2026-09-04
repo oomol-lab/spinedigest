@@ -118,11 +118,11 @@ export class EmptySnapshotGraphBuildParameterStore implements ReadonlyGraphBuild
 }
 
 export class EmptySnapshotSourceProvenanceStore implements ReadonlySourceProvenanceStore {
-  public getArtifact(_digest: string): Promise<undefined> {
+  public getArtifact(_reference: string): Promise<undefined> {
     return Promise.resolve(undefined);
   }
 
-  public getLocator(_digest: string, _fragment: string): Promise<undefined> {
+  public getLocator(_reference: string, _fragment: string): Promise<undefined> {
     return Promise.resolve(undefined);
   }
 

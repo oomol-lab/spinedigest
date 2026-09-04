@@ -209,11 +209,14 @@ export type {
 } from "./storage/wikg/index.js";
 export {
   DirectoryDocument,
+  createSourceArtifactShortUid,
   formatSourceArtifactUri,
   formatSourceLocatorFragment,
   normalizeSourceArtifactDigest,
+  normalizeSourceArtifactReference,
   openSharedStateDatabase,
   parseSourceLocatorFragment,
+  SOURCE_ARTIFACT_SHORT_UID_LENGTH,
 } from "./document/index.js";
 export type {
   Database,

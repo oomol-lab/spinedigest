@@ -259,8 +259,11 @@ The file layout is small, but the archive carries several semantic layers:
 - Source layer: `texts/source/*.txt`, chapter serials, and source sentence
   records.
 - Source provenance: a source artifact identifies an imported PDF or EPUB by
-  its file SHA-256 and has the archive-root URI `wikg://artifact/<digest>`.
-  A fragment selects a stored location in that artifact: `#epubcfi(...)` for
+  its file SHA-256. Its default archive-local handle is
+  `wikg://artifact/<short-uid>`; the short UID starts with 12 digest characters
+  and lengthens on collision. `wikg://artifact/<sha256-digest>` remains valid
+  and the full digest is the portable content identity across archives. A
+  fragment selects a stored location in that artifact: `#epubcfi(...)` for
   EPUB, or `#page=<page>&bbox=<left>,<bottom>,<right>,<top>` for PDF. PDF pages
   are 1-based and bounding-box coordinates use the normalized `[0,1]`
   lower-left coordinate space. The artifact metadata and locator records live

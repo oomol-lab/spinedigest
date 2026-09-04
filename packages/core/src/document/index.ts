@@ -25,10 +25,13 @@ export type {
 } from "./directory/index.js";
 export { SCHEMA_SQL } from "./schema.js";
 export {
+  createSourceArtifactShortUid,
   formatSourceArtifactUri,
   formatSourceLocatorFragment,
   normalizeSourceArtifactDigest,
+  normalizeSourceArtifactReference,
   parseSourceLocatorFragment,
+  SOURCE_ARTIFACT_SHORT_UID_LENGTH,
 } from "./source-locator.js";
 export type { ParsedSourceLocatorFragment } from "./source-locator.js";
 export {

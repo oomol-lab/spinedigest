@@ -88,6 +88,23 @@ describe("schema-upgrade", () => {
         readonly: true,
       });
       try {
+        const artifactColumns = await database.queryAll(
+          "PRAGMA table_info(source_artifacts)",
+          undefined,
+          (row) => ({ name: String(row.name), notNull: Number(row.notnull) }),
+        );
+        expect(artifactColumns).toContainEqual({
+          name: "short_uid",
+          notNull: 1,
+        });
+        const artifactIndexes = await database.queryAll(
+          "PRAGMA index_list(source_artifacts)",
+          undefined,
+          (row) => ({ name: String(row.name), unique: Number(row.unique) }),
+        );
+        expect(
+          artifactIndexes.filter((index) => index.unique === 1),
+        ).toHaveLength(2);
         const locatorColumns = await database.queryAll(
           "PRAGMA table_info(source_locators)",
           undefined,
@@ -132,7 +149,14 @@ describe("schema-upgrade", () => {
       await upgraded.readDocument(async (document) => {
         await expect(
           document.sourceProvenance.getArtifact(digest),
-        ).resolves.toMatchObject({ digest, mediaType: "application/epub+zip" });
+        ).resolves.toMatchObject({
+          digest,
+          mediaType: "application/epub+zip",
+          shortUid: digest.slice(0, 12),
+        });
+        await expect(
+          document.sourceProvenance.getArtifact(digest.slice(0, 12)),
+        ).resolves.toMatchObject({ digest });
         await expect(
           document.sourceProvenance.getLocator(digest, fragment),
         ).resolves.toMatchObject({ fragment, locator: { cfi: fragment } });

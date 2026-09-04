@@ -9,9 +9,14 @@ Purpose:
 
 Artifact URIs:
   - A source artifact identifies an imported PDF or EPUB by the SHA-256 digest
-    of its file bytes: `wikg://artifact/<digest>`.
-  - It belongs to the archive, not to one chapter. Add the archive locator when
-    opening a returned short URI.
+    of its file bytes. Output uses its stable archive-local short UID:
+    `wikg://artifact/<short-uid>`.
+  - A short UID starts with the first 12 digest characters and lengthens only
+    when needed for uniqueness. The full digest form remains valid:
+    `wikg://artifact/<sha256-digest>`.
+  - The short UID belongs to the archive, not to one chapter. Add the archive
+    locator when opening a returned short URI. Use the full `digest` from the
+    artifact details as its content identity across archives.
   - A fragment selects a location inside that artifact. PDF uses
     `#page=21&bbox=left,bottom,right,top`; EPUB uses `#epubcfi(...)`.
   - PDF pages are 1-based. Bounding boxes use normalized `[0,1]` coordinates
@@ -32,8 +37,8 @@ Locator scope:
 
 Reading details:
   {{ commandName }} <chapter-uri>/source/locators --json
-  {{ commandName }} wikg://book.wikg/artifact/<digest>
-  {{ commandName }} 'wikg://book.wikg/artifact/<digest>#page=21&bbox=0.1,0.2,0.9,0.35'
+  {{ commandName }} wikg://book.wikg/artifact/<short-uid>
+  {{ commandName }} 'wikg://book.wikg/artifact/<short-uid>#page=21&bbox=0.1,0.2,0.9,0.35'
 
 See also:
   - {{ commandName }} help file-import

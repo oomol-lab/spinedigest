@@ -85,6 +85,7 @@ export interface SourceArtifactInput {
 
 export interface SourceArtifactRecord extends SourceArtifactInput {
   readonly id: number;
+  readonly shortUid: string;
 }
 
 export interface SourceTextMappingInput {

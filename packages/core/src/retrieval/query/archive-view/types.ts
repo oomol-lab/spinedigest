@@ -275,6 +275,7 @@ export type ArchivePage = ArchiveLibrarySourceFields &
         readonly locator?: Readonly<Record<string, unknown>>;
         readonly mediaType: string;
         readonly name?: string;
+        readonly shortUid: string;
         readonly type: "artifact";
       }
     | {

@@ -131,7 +131,7 @@ Default behavior:
   - Add a fragment such as `#4..8` to select source sentences 4 through 8 before listing their mappings.
   - Returned character ranges are 1-based, inclusive, and local to the selected source text.
   - Use `--limit <n>` for a bounded page, `{{ commandName }} next <cursor>` to continue, or `--all` for the complete collection.
-  - JSON and JSONL items have the shape `{"range":[1,23],"uri":"wikg://artifact/<digest>#..."}`.
+  - JSON and JSONL items have the shape `{"range":[1,23],"uri":"wikg://artifact/<short-uid>#..."}`.
 
 Use when:
   - You need to trace source text back to an imported PDF or EPUB location.
@@ -370,7 +370,7 @@ Library context:
   - Library archive shortcuts such as `wikg://lib/arc/<archive-id>/chapter` query or maintain one managed archive through its membership id.
   - Use a standalone archive URI or library archive shortcut for chapter maintenance writes.
 {% elif target.name == "artifact-object" %}
-  - A source artifact belongs to one archive. Use a library archive shortcut such as `wikg://lib/arc/<archive-id>/artifact/<digest>` to open it through library membership.
+  - A source artifact belongs to one archive. Use a library archive shortcut such as `wikg://lib/arc/<archive-id>/artifact/<short-uid>` to open it through library membership.
 {% elif target.name == "triple-scope" or target.name == "triple-object" %}
 {% if libraryContext.isLibraryWide %}
   - Library-wide scopes such as `wikg://lib/triple` use the aggregate library index.

@@ -98,7 +98,7 @@ export function parseTextStreamRangeUri(uri: string):
 
 export type WikiGraphReference =
   | {
-      readonly digest: string;
+      readonly artifactReference: string;
       readonly fragment?: string;
       readonly type: "artifact";
     }
@@ -199,10 +199,13 @@ export function parseWikiGraphReference(uri: string): WikiGraphReference {
   switch (pathParts[0]) {
     case "artifact":
       if (pathParts.length === 2) {
-        const digest = pathParts[1];
-        if (digest !== undefined && /^[0-9a-f]{64}$/iu.test(digest)) {
+        const artifactReference = pathParts[1];
+        if (
+          artifactReference !== undefined &&
+          /^[0-9a-f]{12,64}$/iu.test(artifactReference)
+        ) {
           return {
-            digest: digest.toLowerCase(),
+            artifactReference: artifactReference.toLowerCase(),
             ...(hash === "" ? {} : { fragment: hash }),
             type: "artifact",
           };

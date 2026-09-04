@@ -157,7 +157,7 @@ function optionalWikiGraphUriFragment(
 
   if (
     path.at(-2) === "artifact" &&
-    /^[0-9a-f]{64}$/iu.test(path.at(-1) ?? "")
+    /^[0-9a-f]{12,64}$/iu.test(path.at(-1) ?? "")
   ) {
     return { raw: fragment };
   }

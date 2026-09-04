@@ -107,7 +107,7 @@ export async function createSourceLocatorRanges(
     if (end <= start) continue;
 
     const uri = formatSourceArtifactUri(
-      mapping.artifact.digest,
+      mapping.artifact.shortUid,
       mapping.fragment,
     );
     const previous = ranges.at(-1);

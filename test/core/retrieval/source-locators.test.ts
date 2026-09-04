@@ -19,8 +19,9 @@ import { withTempDir } from "../../helpers/temp.js";
 describe("source locator ranges", () => {
   it("clips, rebases, merges adjacent locators, and preserves gaps", async () => {
     const digest = "a".repeat(64);
+    const shortUid = digest.slice(0, 12);
     const first = {
-      artifact: { digest, mediaType: "application/pdf" },
+      artifact: { digest, mediaType: "application/pdf", shortUid },
       fragment: "page=1&bbox=0,0,1,1",
       locator: { bbox: [0, 0, 1, 1], pageIndex: 1 },
       sourceRevision: 3,
@@ -48,11 +49,11 @@ describe("source locator ranges", () => {
       [
         {
           range: [1, 3],
-          uri: `wikg://artifact/${digest}#page=1&bbox=0,0,1,1`,
+          uri: `wikg://artifact/${shortUid}#page=1&bbox=0,0,1,1`,
         },
         {
           range: [5, 6],
-          uri: `wikg://artifact/${digest}#page=2&bbox=0.1,0.2,0.9,1`,
+          uri: `wikg://artifact/${shortUid}#page=2&bbox=0.1,0.2,0.9,1`,
         },
       ],
     );
@@ -72,6 +73,7 @@ describe("source locator ranges", () => {
   it("lists and paginates locator ranges for whole or selected source text", async () => {
     await withTempDir("wikigraph-source-locator-list-", async (path) => {
       const digest = "b".repeat(64);
+      const shortUid = digest.slice(0, 12);
       const firstText = "Alpha. ";
       const secondText = "Beta.";
       const parsed = parseSourceTextJsonl(
@@ -110,7 +112,7 @@ describe("source locator ranges", () => {
           items: [
             {
               range: [1, Array.from(firstText).length],
-              uri: `wikg://artifact/${digest}#page=1&bbox=0,0,1,0.5`,
+              uri: `wikg://artifact/${shortUid}#page=1&bbox=0,0,1,0.5`,
             },
           ],
           limit: 1,
@@ -136,7 +138,7 @@ describe("source locator ranges", () => {
                 Array.from(firstText).length + 1,
                 Array.from(firstText + secondText).length,
               ],
-              uri: `wikg://artifact/${digest}#page=1&bbox=0,0.5,1,1`,
+              uri: `wikg://artifact/${shortUid}#page=1&bbox=0,0.5,1,1`,
             },
           ],
           nextCursor: null,
@@ -150,7 +152,7 @@ describe("source locator ranges", () => {
           items: [
             {
               range: [1, Array.from(secondText).length],
-              uri: `wikg://artifact/${digest}#page=1&bbox=0,0.5,1,1`,
+              uri: `wikg://artifact/${shortUid}#page=1&bbox=0,0.5,1,1`,
             },
           ],
         });

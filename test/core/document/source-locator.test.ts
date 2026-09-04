@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createSourceArtifactShortUid,
   formatSourceArtifactUri,
   formatSourceLocatorFragment,
+  normalizeSourceArtifactReference,
   parseSourceLocatorFragment,
 } from "../../../packages/core/src/document/index.js";
 
@@ -36,6 +38,36 @@ describe("source locator URI", () => {
       locator: { cfi: fragment },
       mediaType: "application/epub+zip",
     });
+  });
+
+  it("allocates stable variable-length artifact short UIDs", () => {
+    const first = "a".repeat(64);
+    const second = `${"a".repeat(12)}b${"1".repeat(51)}`;
+    const third = `${"a".repeat(12)}bc${"2".repeat(50)}`;
+    const existing = new Set<string>();
+
+    const firstUid = createSourceArtifactShortUid(first, existing);
+    existing.add(firstUid);
+    const secondUid = createSourceArtifactShortUid(second, existing);
+    existing.add(secondUid);
+    const thirdUid = createSourceArtifactShortUid(third, existing);
+
+    expect(firstUid).toBe("a".repeat(12));
+    expect(secondUid).toBe(`${"a".repeat(12)}b`);
+    expect(thirdUid).toBe(`${"a".repeat(12)}bc`);
+    expect(formatSourceArtifactUri(secondUid)).toBe(
+      `wikg://artifact/${secondUid}`,
+    );
+    expect(normalizeSourceArtifactReference(second.toUpperCase())).toBe(second);
+  });
+
+  it("rejects artifact references that are not assigned-length candidates", () => {
+    expect(() => normalizeSourceArtifactReference("a".repeat(11))).toThrow(
+      "12 to 64 hex characters",
+    );
+    expect(() => normalizeSourceArtifactReference("g".repeat(12))).toThrow(
+      "12 to 64 hex characters",
+    );
   });
 
   it("rejects non-canonical or out-of-bounds PDF locations", () => {

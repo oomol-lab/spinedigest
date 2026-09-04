@@ -296,6 +296,10 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS source_artifacts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     digest BLOB NOT NULL UNIQUE,
+    short_uid TEXT NOT NULL UNIQUE
+      CHECK(length(short_uid) BETWEEN 12 AND 64)
+      CHECK(short_uid NOT GLOB '*[^0-9a-f]*')
+      CHECK(short_uid = substr(lower(hex(digest)), 1, length(short_uid))),
     media_type TEXT NOT NULL,
     name TEXT,
     identifier TEXT
