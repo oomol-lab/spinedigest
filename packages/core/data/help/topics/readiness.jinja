@@ -21,10 +21,12 @@ Archive index readiness:
 
   Artifact behavior:
     Chapter artifacts are stored inside the `.wikg` archive.
-    Build FTS artifacts with the chapter index URI or queue target `index-fts`.
+    Build FTS artifacts locally for an archive or chapter, without provider calls:
+      {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task index-fts
     Build source embedding artifacts with the chapter index URI or queue target `index-embedding-source`.
     Build summary embedding artifacts with the chapter index URI or queue target `index-embedding-summary`.
     Building embedding artifacts requires `wikg://local/config/embeddings` and may call the configured provider.
+    Archive input creates one job per eligible chapter. Re-run inspect after the jobs finish to verify query readiness.
 
   Cache behavior:
     `{{ commandName }} <archive-uri>/index sync` builds or repairs local `index.db` cache from artifacts.

@@ -174,6 +174,15 @@ describe("cli/args/help", () => {
         "wikg://book.wikg/chapter/part",
       ),
     ).toContain("not supported reset targets");
+    const resetHelpText = renderUriPredicateHelpText(
+      "chapter-scope",
+      "reset",
+      "wikg://book.wikg/chapter/part",
+    );
+    expect(resetHelpText).toContain("source text and provenance");
+    expect(resetHelpText).toContain("Knowledge Graph");
+    expect(resetHelpText).toContain("all chapter index artifacts");
+    expect(resetHelpText).toContain("source embedding artifact");
     const libraryChapterHelp = parseCLIArguments([
       "wikg://lib/chapter",
       "--help",
@@ -346,6 +355,9 @@ describe("cli/args/help", () => {
     );
     expect(chapterAddHelpText).toContain("Located URI");
     expect(chapterAddHelpText).toContain("`uri` and `locatedUri`");
+    expect(chapterAddHelpText).toContain("non-empty UTF-8 plain text");
+    expect(chapterAddHelpText).toContain("does not create a source-text map");
+    expect(chapterAddHelpText).toContain("does not infer a");
     expect(chapterHelpText).toContain(
       "wikg://book.wikg/chapter/part/state --help",
     );
@@ -356,6 +368,7 @@ describe("cli/args/help", () => {
       "Supply exactly one positional value or `--input`",
     );
     expect(sourceSetHelpText).toContain("must be `planned`");
+    expect(sourceSetHelpText).toContain("Source input must not be empty");
     expect(sourceSetHelpText).toContain("Plain text writes source without");
     expect(sourceSetHelpText).toContain("File extensions are not inferred");
     expect(sourceSetHelpText).toContain(
@@ -373,7 +386,14 @@ describe("cli/args/help", () => {
     expect(fileImportHelpText).toContain('"cfi":"epubcfi(...)"');
     expect(fileImportHelpText).toContain("offsets are not input fields");
     expect(fileImportHelpText).toContain("SHA-256 of source file bytes");
-    expect(fileImportHelpText).toContain("`chapter add --json`");
+    expect(fileImportHelpText).toContain(
+      'wikg://book.wikg/chapter add --title "Part" --json',
+    );
+    expect(fileImportHelpText).toContain("<locatedUri>/source set");
+    expect(fileImportHelpText).toContain("not title-derived slugs");
+    expect(fileImportHelpText).not.toContain(
+      "wikg://book.wikg/chapter/part/source set --input",
+    );
     expect(fileImportHelpText).toContain(
       "The response includes a `locators` map for the returned text",
     );
@@ -381,6 +401,13 @@ describe("cli/args/help", () => {
     expect(fileImportHelpText).toContain(
       "evidence cannot point back to a PDF page or EPUB CFI",
     );
+    expect(renderHelpTopicText("recipe")).toContain(
+      'wikg://book.wikg/chapter add --title "Part" --input ./chapter.txt',
+    );
+    expect(renderHelpTopicText("recipe")).toContain(
+      "wikg://local/job add --input <archive-uri> --task index-fts",
+    );
+    expect(renderHelpTopicText("recipe")).not.toContain("<chapter-id>");
   });
 
   it("documents the layered help contract", () => {
@@ -852,6 +879,16 @@ describe("cli/args/help", () => {
         "wikg://local/job",
       ),
     ).toContain("require a current FTS artifact");
+    expect(
+      renderUriPredicateHelpText(
+        "job-collection-scope",
+        "add",
+        "wikg://local/job",
+      ),
+    ).toContain("re-run archive `inspect` to verify coverage");
+    expect(renderHelpTopicText("readiness")).toContain(
+      "wikg://local/job add --input <archive-uri|chapter-uri> --task index-fts",
+    );
     expect(renderHelpTopicText("runtime")).toContain("Local state map:");
     expect(renderHelpTopicText("runtime")).toContain(
       "~/.wikigraph/cache/continuation-cursors.sqlite",

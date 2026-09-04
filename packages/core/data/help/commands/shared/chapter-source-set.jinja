@@ -6,6 +6,7 @@ Usage:
 
 Input:
   - Supply exactly one positional value or `--input`; files and stdin are UTF-8 plain text unless `--input-format jsonl` is set. File extensions are not inferred.
+  - Source input must not be empty.
   - Plain text writes source without a source-text map.
   - `--input-format jsonl` writes source and provenance supplied by an external extractor. Read `{{ commandName }} help file-import` for the record contract.
 

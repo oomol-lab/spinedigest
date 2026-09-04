@@ -13,10 +13,11 @@ Built-in EPUB import:
     source text, and source-text map.
 
 External extractor input:
-  {{ commandName }} wikg://book.wikg/chapter add --title "Part"
-  {{ commandName }} wikg://book.wikg/chapter/part/source set --input ./source.jsonl --input-format jsonl
+  {{ commandName }} wikg://book.wikg/chapter add --title "Part" --json
+  {{ commandName }} <locatedUri>/source set --input ./source.jsonl --input-format jsonl
   - Use this path for PDF, or when another extractor handles EPUB.
-  - The selected chapter must be `planned`; use `Located URI` from text output or `locatedUri` from `chapter add --json`.
+  - Chapter paths are returned handles, not title-derived slugs. Reuse `locatedUri`
+    from the first command; the selected chapter must be `planned`.
 
 JSONL contract:
   - Each non-empty line is one `artifact` or `text` object. At least one of each is required.
@@ -43,6 +44,6 @@ Boundaries:
 
 See also:
   - {{ commandName }} wikg://book.wikg create --help
-  - {{ commandName }} wikg://book.wikg/chapter/part/source set --help
+  - {{ commandName }} <chapter-uri>/source set --help
   - {{ commandName }} help format
   - {{ commandName }} help source-locators
