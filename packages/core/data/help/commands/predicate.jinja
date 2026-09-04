@@ -158,6 +158,7 @@ Notes:
   - Reading Graph and Knowledge Graph jobs require a current FTS artifact for the chapter.
   - Summary embedding jobs require an existing non-empty summary.
   - Archive input adds jobs for all eligible chapters; chapter input expands to the chapter subtree by default.
+  - For archive-wide indexing, use `{{ commandName }} wikg://local/job --json` to inspect the jobs and re-run archive `inspect` to verify coverage.
   - Use `--depth <N>` with archive or chapter input to limit affected chapters. For archive input, depth is measured from the archive's root chapters; for chapter input, it is measured from the specified chapter. `--depth 0` means only the relevant root chapters or specified chapter.
   - `--llm <json>` stores a job-local LLM object; it does not update `wikg://local/config/llm`.
 {% elif predicate == "move" %}

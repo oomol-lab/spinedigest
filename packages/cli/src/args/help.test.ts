@@ -404,6 +404,10 @@ describe("cli/args/help", () => {
     expect(renderHelpTopicText("recipe")).toContain(
       'wikg://book.wikg/chapter add --title "Part" --input ./chapter.txt',
     );
+    expect(renderHelpTopicText("recipe")).toContain(
+      "wikg://local/job add --input <archive-uri> --task index-fts",
+    );
+    expect(renderHelpTopicText("recipe")).not.toContain("<chapter-id>");
   });
 
   it("documents the layered help contract", () => {
@@ -875,6 +879,16 @@ describe("cli/args/help", () => {
         "wikg://local/job",
       ),
     ).toContain("require a current FTS artifact");
+    expect(
+      renderUriPredicateHelpText(
+        "job-collection-scope",
+        "add",
+        "wikg://local/job",
+      ),
+    ).toContain("re-run archive `inspect` to verify coverage");
+    expect(renderHelpTopicText("readiness")).toContain(
+      "wikg://local/job add --input <archive-uri|chapter-uri> --task index-fts",
+    );
     expect(renderHelpTopicText("runtime")).toContain("Local state map:");
     expect(renderHelpTopicText("runtime")).toContain(
       "~/.wikigraph/cache/continuation-cursors.sqlite",

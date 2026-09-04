@@ -52,14 +52,12 @@ After inspect:
     {{ commandName }} wikg:///Users/me/book.wikg --query "attention memory"
     {{ commandName }} wikg:///Users/me/book.wikg/chapter/part --query "attention"
 
-  - If inspect reports missing index artifacts or cache, inspect the index targets before syncing cache.
-    {{ commandName }} <archive-uri>/index --help
-    {{ commandName }} <archive-uri>/chapter/<chapter-id>/index/fts --help
-    {{ commandName }} <archive-uri>/chapter/<chapter-id>/index/embedding/source --help
-    {{ commandName }} <archive-uri>/chapter/<chapter-id>/index/embedding/summary --help
-    {{ commandName }} <archive-uri>/index sync --help
-    Read readiness before deciding whether artifacts or cache are missing:
-      {{ commandName }} help readiness
+  - If inspect reports query blockers, build the free local FTS artifacts, then inspect again.
+    {{ commandName }} wikg://local/job add --input <archive-uri> --task index-fts
+    {{ commandName }} <archive-uri> inspect
+    If artifacts are ready but only the local cache is missing or outdated, sync it:
+      {{ commandName }} <archive-uri>/index sync
+    Read `{{ commandName }} help readiness` for artifact and cache alternatives.
 
   - If library-wide query reports a missing, stale, or not-ready index cache, inspect the library index target and sync it when appropriate.
     {{ commandName }} wikg://lib/index --help
