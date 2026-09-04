@@ -18,6 +18,31 @@ describe("cli/args/help", () => {
   const wikispineRuntimeGuideUrl =
     "https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md";
 
+  it("shell-quotes actual URIs in dynamic help commands", () => {
+    const archiveUri = "wikg://~/Library's Books/The little prince.wikg";
+    const sourceUri = `${archiveUri}/chapter/part/source`;
+    const archiveHelp = renderUriHelpText("archive-scope", archiveUri);
+    const sourceSetHelp = renderUriPredicateHelpText(
+      "chapter-source-object",
+      "set",
+      sourceUri,
+    );
+
+    expect(archiveHelp).toContain(`Target:\n  ${archiveUri}`);
+    expect(archiveHelp).toContain(
+      "wg 'wikg://~/Library'\\''s Books/The little prince.wikg'",
+    );
+    expect(archiveHelp).toContain(
+      "wg 'wikg://~/Library'\\''s Books/The little prince.wikg'/chapter --help",
+    );
+    expect(archiveHelp).not.toContain(`wg ${archiveUri}`);
+    expect(sourceSetHelp).toContain(`Target:\n  ${sourceUri}`);
+    expect(sourceSetHelp).toContain(
+      "wg 'wikg://~/Library'\\''s Books/The little prince.wikg/chapter/part/source' set",
+    );
+    expect(sourceSetHelp).not.toContain(`wg ${sourceUri}`);
+  });
+
   it("prints archive maintenance help pages", () => {
     expect(parseCLIArguments(["meta", "--help"])).toStrictEqual({
       help: true,

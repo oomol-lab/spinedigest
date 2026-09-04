@@ -9,7 +9,7 @@ import { CLI_FULL_COMMAND, CLI_PRIMARY_COMMAND } from "wiki-graph-core";
 import type { ParsedWikiGraphLibraryUri } from "wiki-graph-core";
 import { CLI_FORMATS, parseLocatedWikiGraphUri } from "../support/index.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
-import { formatCliCommand } from "../support/index.js";
+import { formatCliCommand, formatShellArgument } from "../support/index.js";
 import type {
   CLIArchiveAction,
   CLIArchiveChapterAction,
@@ -295,10 +295,11 @@ export function renderUriHelpText(
   uri: string,
 ): string {
   return renderHelpTemplate("help/commands/uri", {
+    displayUri: uri,
     libraryContext: getLibraryHelpContext(uri),
     target: requireUriHelpTarget(targetName),
     uriContext: getUriHelpContext(uri),
-    uri,
+    uri: formatHelpCommandUri(uri),
   });
 }
 
@@ -319,11 +320,12 @@ export function renderUriPredicateHelpText(
   }
 
   return renderHelpTemplate("help/commands/predicate", {
+    displayUri: uri,
     libraryContext: getLibraryHelpContext(uri),
     predicate,
     target,
     uriContext: getUriHelpContext(uri),
-    uri,
+    uri: formatHelpCommandUri(uri),
   });
 }
 
@@ -331,9 +333,10 @@ export function renderLibraryUriHelpText(
   uri: string,
   target: ParsedWikiGraphLibraryUri,
 ): string {
+  const helpUri = formatLibraryHelpUri(uri, target);
   return renderHelpTemplate("help/commands/library", {
     target,
-    uri: formatLibraryHelpUri(uri, target),
+    uri: formatHelpCommandUri(helpUri),
   });
 }
 
@@ -342,11 +345,17 @@ export function renderLibraryPredicateHelpText(
   target: ParsedWikiGraphLibraryUri,
   predicate: LibraryHelpPredicateName,
 ): string {
+  const helpUri = formatLibraryHelpUri(uri, target);
   return renderHelpTemplate("help/commands/library-predicate", {
+    displayUri: helpUri,
     predicate,
     target,
-    uri: formatLibraryHelpUri(uri, target),
+    uri: formatHelpCommandUri(helpUri),
   });
+}
+
+function formatHelpCommandUri(uri: string): string {
+  return formatShellArgument(uri);
 }
 
 function formatLibraryHelpUri(

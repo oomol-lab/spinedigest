@@ -15,7 +15,11 @@ import {
   runObjectMetadataCommand,
   runQueueCommand,
 } from "../commands/index.js";
-import { formatCLIJSON, formatCLIJSONLine } from "../support/index.js";
+import {
+  formatCLIJSON,
+  formatCLIJSONLine,
+  getRelativeArchiveUriResolution,
+} from "../support/index.js";
 import { readCLIVersion } from "../support/index.js";
 import { isWikiGraphHomeTarget } from "../runtime/home-target.js";
 import {
@@ -107,14 +111,18 @@ export async function dispatchWikiGraphCLI(
     }
   } catch (error) {
     if (shouldWriteJSONError(input.argv)) {
-      input.stdout.write(formatCLIJSON(createCLIErrorObject(error)));
+      input.stdout.write(
+        formatCLIJSON(createCLIErrorObject(error, input.argv)),
+      );
       return { exitCode: 1 };
     }
     if (shouldWriteJSONLError(input.argv)) {
-      input.stdout.write(formatCLIJSONLine(createCLIErrorObject(error)));
+      input.stdout.write(
+        formatCLIJSONLine(createCLIErrorObject(error, input.argv)),
+      );
       return { exitCode: 1 };
     }
-    input.stderr.write(`${formatCLIError(error)}\n`);
+    input.stderr.write(`${formatCLIError(error, input.argv)}\n`);
     return { exitCode: 1 };
   }
 }
@@ -126,15 +134,26 @@ function shouldPrintDefaultHelp(
   return argv.length === 0 && stdinIsTTY === true;
 }
 
-function formatCLIError(error: unknown): string {
+function formatCLIError(error: unknown, argv: readonly string[]): string {
   if (error instanceof LLMPaymentRequiredError) {
     return "LLM payment required. Check your provider billing status or account balance.";
   }
 
-  return formatError(error);
+  const message = formatError(error);
+  const relativeResolution = hasErrorCode(error, "ENOENT")
+    ? getRelativeArchiveUriResolution(argv[0] ?? "")
+    : undefined;
+  if (relativeResolution === undefined) {
+    return message;
+  }
+
+  return `${message}\nArchive URI \`${relativeResolution.inputUri}\` is relative to the current working directory:\n  ${relativeResolution.workingDirectory}\nResolved archive path:\n  ${relativeResolution.resolvedArchivePath}\nSee: wg help uri`;
 }
 
-function createCLIErrorObject(error: unknown): {
+function createCLIErrorObject(
+  error: unknown,
+  argv: readonly string[],
+): {
   readonly error: {
     readonly message: string;
     readonly type: string;
@@ -142,13 +161,32 @@ function createCLIErrorObject(error: unknown): {
 } {
   return {
     error: {
-      message: formatCLIError(error),
+      message: formatCLIError(error, argv),
       type:
         error instanceof LLMPaymentRequiredError
           ? "llm_payment_required"
           : "error",
     },
   };
+}
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  const visited = new Set<unknown>();
+  let current: unknown = error;
+
+  while (current !== undefined && !visited.has(current)) {
+    visited.add(current);
+    if (
+      current instanceof Error &&
+      "code" in current &&
+      (current as Error & { readonly code?: unknown }).code === code
+    ) {
+      return true;
+    }
+    current = current instanceof Error ? current.cause : undefined;
+  }
+
+  return false;
 }
 
 function shouldWriteJSONError(argv: readonly string[]): boolean {
